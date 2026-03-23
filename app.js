@@ -1861,10 +1861,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const pinInputs = document.querySelectorAll('.pin-input');
   pinInputs.forEach((input, index) => {
     input.addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/\D/g, '').slice(-1);
-      if (e.target.value && index < pinInputs.length - 1) pinInputs[index + 1].focus();
-      if (Array.from(pinInputs).every(i => i.value)) checkLogin();
-    });
+  let val = e.target.value.replace(/\D/g, '');
+  if (val.length > 1) val = val.slice(-1);
+  e.target.value = val;
+
+  if (val && index < pinInputs.length - 1) {
+    // หน่วงเวลา 10ms ให้มือถือประมวลผลทันก่อนกระโดดไปช่องถัดไป
+    setTimeout(() => pinInputs[index + 1].focus(), 10);
+  }
+  
+  if (Array.from(pinInputs).every(i => i.value)) {
+    // หน่วงเวลาตอนล็อกอินนิดนึง เพื่อให้ UI สมูทขึ้น
+    setTimeout(checkLogin, 50);
+  }
+});
     input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !e.target.value && index > 0) pinInputs[index - 1].focus(); });
   });
   document.getElementById('login-btn')?.addEventListener('click', checkLogin);
