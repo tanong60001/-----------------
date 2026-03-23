@@ -1,0 +1,324 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SK POS v2.0 — ADDITIONS (append to end of style.css)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── DENOMINATION CARDS ─────────────────────────────────────────── */
+.cash-counting { padding: 4px 0; }
+
+.cash-counting-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg-base);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+.cash-counting-header > div {
+  text-align: center;
+}
+.cash-counting-header .label,
+.cash-total-needed span,
+.cash-received-total span,
+.cash-diff span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.cash-total-needed strong,
+.cash-received-total strong,
+.cash-diff strong {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+}
+.cash-received-total.positive strong { color: var(--primary); }
+.cash-diff.positive strong { color: var(--success); }
+.cash-diff.negative strong { color: var(--danger); }
+
+.denom-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 16px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.denom-section-title .material-icons-round { font-size: 16px; color: var(--primary); }
+.denom-section-title.coins .material-icons-round { color: #B8860B; }
+
+.denomination-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.coins-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.denom-card {
+  background: var(--white);
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 10px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+.denom-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--denom-bg, #999);
+  border-radius: 2px 2px 0 0;
+}
+.denom-card:hover {
+  border-color: var(--denom-bg, var(--primary));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.denom-card:active { transform: scale(0.96); }
+
+.coin-card::before { background: #DAA520; }
+.coin-card { border-color: #DAA52040; }
+.coin-card:hover { border-color: #DAA520; }
+
+.denom-card-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+.denom-face {
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--denom-color, var(--text-primary));
+}
+.coin-face { color: #8B6914; }
+.denom-count-badge {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--denom-bg, #999);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.coin-card .denom-count-badge { background: #DAA520; }
+.denom-count-badge:empty::before { content: '0'; }
+
+.denom-subtotal {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+  font-family: var(--font-display);
+}
+
+.denom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 4px;
+}
+.denom-minus-btn,
+.denom-plus-btn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+.denom-plus-btn {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--white);
+}
+.denom-minus-btn:hover { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.denom-plus-btn:hover { background: var(--primary-dark); }
+.denom-qty {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Active denom card (has value) */
+.denom-card:has(.denom-count-badge:not(:empty)) {
+  border-color: var(--denom-bg, var(--primary));
+  background: color-mix(in srgb, var(--denom-bg, var(--primary)) 8%, var(--white));
+}
+.coin-card:has(.denom-count-badge:not(:empty)) {
+  border-color: #DAA520;
+  background: #FFFBEB;
+}
+.active-change {
+  border-color: var(--success) !important;
+  background: var(--success-bg) !important;
+}
+
+/* ─── STEP 2 PAYMENT ─────────────────────────────────────────────── */
+.step2-wrap { padding: 4px 0; }
+.payment-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 0;
+}
+.payment-method-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-thai);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.payment-method-btn .material-icons-round { font-size: 32px; }
+.payment-method-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-50);
+  transform: translateY(-2px);
+}
+.payment-method-btn.selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--white);
+}
+.payment-method-btn:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ─── CHECKOUT MODAL PROGRESS (updated) ─────────────────────────── */
+.checkout-progress {
+  display: flex;
+  align-items: center;
+  padding: 20px 28px 0;
+  margin-bottom: 0;
+}
+.progress-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.step-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-tertiary);
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.progress-step span { font-size: 12px; color: var(--text-tertiary); transition: color 0.2s; }
+.progress-step.active .step-num { background: var(--primary); color: var(--white); }
+.progress-step.active span { color: var(--primary); font-weight: 600; }
+.progress-step.completed .step-num { background: var(--success); color: var(--white); }
+.progress-step.completed .step-num::after { content: '✓'; }
+.progress-line { flex: 1; height: 2px; background: var(--border-light); margin: 0 8px; }
+
+/* ─── BADGES (ensure all exist) ─────────────────────────────────── */
+.badge-success { background: var(--success-bg); color: var(--success); }
+.badge-danger  { background: var(--danger-bg);  color: var(--danger);  }
+.badge-warning { background: var(--warning-bg); color: var(--warning); }
+.badge-info    { background: var(--info-bg);    color: var(--info);    }
+
+/* ─── PRODUCT LIST VIEW ──────────────────────────────────────────── */
+.product-list { display: flex; flex-direction: column; gap: 4px; }
+.product-list-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.product-list-item:hover { border-color: var(--primary); background: var(--primary-50); }
+.product-list-item.out-of-stock { opacity: 0.5; cursor: not-allowed; }
+.product-list-img {
+  width: 40px; height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; flex-shrink: 0;
+}
+.product-list-img img { width: 100%; height: 100%; object-fit: cover; }
+.product-list-info { flex: 1; min-width: 0; }
+.product-list-right {
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ─── TRANSACTION NOTE ───────────────────────────────────────────── */
+.transaction-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* ─── PAGE-LEVEL CONTAINER (shared) ─────────────────────────────── */
+.inv-container { padding: 0; }
+.inv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.toolbar-actions { display: flex; gap: 8px; align-items: center; }
+
+/* ─── SMALL BUTTON VARIANT ───────────────────────────────────────── */
+.btn-sm {
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  height: auto !important;
+}
+
+/* ─── FORM GROUP (ensure exists) ─────────────────────────────────── */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-thai);
+  font-size: 14px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--primary); }
+textarea.form-input { resize: vertical; min-height: 64px; }
+select.form-input { cursor: pointer; }

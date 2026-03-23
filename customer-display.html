@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SK POS — Customer Display</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    :root {
+      --red: #DC2626;
+      --red-dark: #B91C1C;
+      --red-light: #FEF2F2;
+      --red-mid: #EF4444;
+      --white: #FFFFFF;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-400: #94A3B8;
+      --gray-600: #475569;
+      --gray-800: #1E293B;
+      --font: 'Prompt', sans-serif;
+      --font-display: 'Space Grotesk', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      background: var(--white);
+      color: var(--gray-800);
+    }
+
+    /* ─── STEP INDICATOR ─────────────────────────────────── */
+    .step-bar {
+      display: flex;
+      background: var(--red);
+      padding: 0;
+      height: 8px;
+      width: 100%;
+      position: fixed;
+      top: 0; left: 0; z-index: 100;
+    }
+    .step-seg {
+      flex: 1;
+      background: rgba(255,255,255,0.25);
+      transition: background 0.4s;
+      border-right: 2px solid var(--red);
+    }
+    .step-seg.active { background: rgba(255,255,255,0.8); }
+    .step-seg.done { background: rgba(255,255,255,0.5); }
+
+    /* ─── HEADER BAR ─────────────────────────────────────── */
+    .top-bar {
+      position: fixed; top: 8px; left: 0; right: 0; z-index: 99;
+      background: var(--red);
+      color: var(--white);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px;
+      height: 72px;
+    }
+    .top-logo {
+      font-size: 28px; font-weight: 900; letter-spacing: -1px;
+      font-family: var(--font-display);
+    }
+    .top-step-dots { display: flex; gap: 10px; align-items: center; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transition: all 0.3s;
+    }
+    .dot.active { background: var(--white); transform: scale(1.3); }
+    .dot.done { background: rgba(255,255,255,0.7); }
+    .top-right { font-size: 13px; opacity: 0.8; text-align: right; }
+    #clock { font-size: 20px; font-weight: 700; font-family: var(--font-display); }
+
+    /* ─── MAIN CONTENT AREA ──────────────────────────────── */
+    .content {
+      position: absolute;
+      top: 80px; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── SCREENS ────────────────────────────────────────── */
+    .screen {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      opacity: 0; pointer-events: none;
+      transform: translateY(20px);
+      transition: opacity 0.4s, transform 0.4s;
+    }
+    .screen.active {
+      opacity: 1; pointer-events: all;
+      transform: translateY(0);
+    }
+
+    /* ─── SCREEN 1: ITEMS ────────────────────────────────── */
+    .screen-items { background: var(--white); }
+    .items-header {
+      background: var(--gray-50);
+      border-bottom: 2px solid var(--gray-200);
+      padding: 16px 32px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .items-header h2 { font-size: 18px; font-weight: 700; color: var(--red); }
+    .items-count { font-size: 13px; color: var(--gray-400); }
+    .items-list {
+      flex: 1; overflow-y: auto; padding: 16px 32px;
+    }
+    .item-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--gray-100);
+      animation: slideIn 0.3s ease forwards;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    .item-left { display: flex; align-items: center; gap: 14px; }
+    .item-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--red-light); color: var(--red);
+      font-weight: 700; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .item-name { font-size: 17px; font-weight: 600; }
+    .item-unit { font-size: 13px; color: var(--gray-400); margin-top: 2px; }
+    .item-right { text-align: right; }
+    .item-price { font-size: 20px; font-weight: 700; color: var(--red); font-family: var(--font-display); }
+    .item-unit-price { font-size: 12px; color: var(--gray-400); }
+    .total-bar {
+      background: var(--red);
+      color: var(--white);
+      padding: 20px 32px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .total-bar .label { font-size: 18px; font-weight: 500; opacity: 0.9; }
+    .total-bar .amount { font-size: 40px; font-weight: 900; font-family: var(--font-display); letter-spacing: -1px; }
+
+    /* ─── SCREEN 2: PAYMENT METHOD ───────────────────────── */
+    .screen-payment {
+      background: var(--white);
+      align-items: center;
+      justify-content: center;
+    }
+    .payment-center { width: 100%; max-width: 600px; padding: 32px; }
+    .pay-title { font-size: 22px; font-weight: 700; color: var(--gray-600); margin-bottom: 24px; text-align: center; }
+    .pay-amount-box {
+      background: var(--red);
+      color: var(--white);
+      border-radius: 20px;
+      padding: 32px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .pay-amount-box .label { font-size: 16px; opacity: 0.85; margin-bottom: 8px; }
+    .pay-amount-box .amount { font-size: 60px; font-weight: 900; font-family: var(--font-display); letter-spacing: -2px; }
+    .method-chip {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--red-light);
+      color: var(--red);
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 24px;
+    }
+    .method-chip .material-icons-round { font-size: 24px; }
+    /* QR code section */
+    .qr-section { text-align: center; }
+    .qr-box {
+      display: inline-block;
+      background: var(--white);
+      border: 4px solid var(--red);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+    .qr-box img { width: 220px; height: 220px; border-radius: 8px; display: block; }
+    #qr-container canvas, #qr-container table { display: block; border-radius: 8px; }
+    .qr-label { font-size: 15px; color: var(--gray-400); }
+
+    /* ─── SCREEN 3: CASH ─────────────────────────────────── */
+    .screen-cash {
+      background: var(--gray-50);
+      flex-direction: row;
+    }
+    .cash-left {
+      width: 50%; background: var(--white);
+      border-right: 2px solid var(--gray-200);
+      display: flex; flex-direction: column;
+      padding: 32px;
+    }
+    .cash-right {
+      flex: 1;
+      display: flex; flex-direction: column;
+      padding: 32px;
+      gap: 20px;
+    }
+    .cash-label { font-size: 14px; color: var(--gray-400); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .cash-value { font-size: 48px; font-weight: 900; font-family: var(--font-display); letter-spacing: -2px; }
+    .cash-value.red { color: var(--red); }
+    .cash-value.green { color: #10B981; }
+    .cash-summary {
+      background: var(--gray-50);
+      border-radius: 16px;
+      padding: 20px;
+      flex: 1;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .summary-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-200);
+      font-size: 16px;
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row .val { font-weight: 700; font-family: var(--font-display); font-size: 18px; }
+    /* Denomination pills */
+    .change-denoms {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+    }
+    .denom-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 15px; font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--white);
+      animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+
+    /* ─── SCREEN 4: THANKS ───────────────────────────────── */
+    .screen-thanks {
+      background: var(--red);
+      color: var(--white);
+      align-items: center;
+      justify-content: center;
+    }
+    .thanks-inner { text-align: center; }
+    .thanks-check {
+      width: 120px; height: 120px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 28px;
+      animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+    .thanks-check .material-icons-round { font-size: 72px; }
+    .thanks-title { font-size: 52px; font-weight: 900; margin-bottom: 12px; }
+    .thanks-sub { font-size: 24px; font-weight: 400; opacity: 0.8; margin-bottom: 40px; }
+    .thanks-bill { font-size: 16px; opacity: 0.7; }
+    .thanks-bill strong { font-size: 22px; font-weight: 800; }
+    .thanks-logo {
+      margin-top: 48px;
+      font-size: 32px; font-weight: 900; opacity: 0.3;
+      font-family: var(--font-display);
+    }
+
+    /* ─── IDLE SCREEN ────────────────────────────────────── */
+    .screen-idle {
+      background: var(--red);
+      color: var(--white);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px;
+    }
+    .idle-logo { font-size: 80px; font-weight: 900; font-family: var(--font-display); letter-spacing: -4px; }
+    .idle-sub { font-size: 20px; opacity: 0.7; }
+    .idle-marquee {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.2);
+      padding: 10px 32px;
+      font-size: 14px; opacity: 0.7;
+      overflow: hidden; white-space: nowrap;
+    }
+    .marquee-text {
+      display: inline-block;
+      animation: marquee 20s linear infinite;
+    }
+    @keyframes marquee { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+
+    /* ─── SCROLLBAR ──────────────────────────────────────── */
+    .items-list::-webkit-scrollbar { width: 4px; }
+    .items-list::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+
+    /* ─── DISCOUNT BADGE ─────────────────────────────────── */
+    .discount-badge {
+      background: var(--red-light); color: var(--red);
+      border-radius: 999px; padding: 4px 12px;
+      font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Step progress bar -->
+  <div class="step-bar">
+    <div class="step-seg" id="seg-0"></div>
+    <div class="step-seg" id="seg-1"></div>
+    <div class="step-seg" id="seg-2"></div>
+    <div class="step-seg" id="seg-3"></div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="top-logo">SK POS</div>
+    <div class="top-step-dots">
+      <div class="dot" id="dot-0"></div>
+      <div class="dot" id="dot-1"></div>
+      <div class="dot" id="dot-2"></div>
+      <div class="dot" id="dot-3"></div>
+    </div>
+    <div class="top-right">
+      <div id="clock">00:00:00</div>
+      <div>หน้าจอลูกค้า</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- IDLE SCREEN -->
+    <div class="screen screen-idle active" id="screen-idle">
+      <div class="idle-logo">SK</div>
+      <div style="font-size:28px;font-weight:700;opacity:.9;">ยินดีต้อนรับ</div>
+      <div class="idle-sub">กรุณาเลือกสินค้าที่ต้องการ</div>
+      <div class="idle-marquee">
+        <span class="marquee-text">🛒 ขอบคุณที่ใช้บริการ SK POS &nbsp;&nbsp;&nbsp; 💳 รับชำระเงินสด / โอนเงิน / บัตรเครดิต &nbsp;&nbsp;&nbsp; ⭐ สะสมแต้มลูกค้าประจำ &nbsp;&nbsp;&nbsp; 📱 PromptPay พร้อมให้บริการ &nbsp;&nbsp;&nbsp;</span>
+      </div>
+    </div>
+
+    <!-- SCREEN 1: ITEMS LIST -->
+    <div class="screen screen-items" id="screen-items">
+      <div class="items-header">
+        <h2><i class="material-icons-round" style="vertical-align:middle;font-size:20px;">shopping_cart</i> รายการสินค้า</h2>
+        <div class="items-count" id="items-count">0 รายการ</div>
+      </div>
+      <div class="items-list" id="items-list"></div>
+      <div class="total-bar">
+        <div>
+          <div class="label">ยอดรวมทั้งสิ้น</div>
+          <div id="discount-info" style="display:none;" class="discount-badge" style="margin-top:4px;"></div>
+        </div>
+        <div class="amount" id="total-display">฿0</div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: PAYMENT METHOD -->
+    <div class="screen screen-payment" id="screen-payment">
+      <div class="payment-center">
+        <div class="pay-title">กำลังดำเนินการชำระเงิน</div>
+        <div class="pay-amount-box">
+          <div class="label">ยอดที่ต้องชำระ</div>
+          <div class="amount" id="pay-amount">฿0</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="method-chip" id="method-chip">
+            <span class="material-icons-round">payments</span>
+            <span id="method-text">เงินสด</span>
+          </div>
+        </div>
+        <div class="qr-section" id="qr-section" style="display:none;">
+          <div class="qr-box" id="qr-box"><div id="qr-container"></div></div>
+          <div class="qr-label" id="qr-label">สแกน QR Code เพื่อชำระเงิน</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: CASH / CHANGE -->
+    <div class="screen screen-cash" id="screen-cash">
+      <div class="cash-left">
+        <div style="margin-bottom:auto;">
+          <div class="cash-label">ยอดที่ต้องชำระ</div>
+          <div class="cash-value red" id="cash-need">฿0</div>
+        </div>
+        <div style="margin-top:24px;">
+          <div class="cash-label">รับเงินมา</div>
+          <div class="cash-value" id="cash-received">฿0</div>
+        </div>
+        <div style="margin-top:24px;padding-top:24px;border-top:2px solid var(--gray-200);">
+          <div class="cash-label">เงินทอน</div>
+          <div class="cash-value green" id="cash-change">฿0</div>
+          <div class="change-denoms" id="change-denoms"></div>
+        </div>
+      </div>
+      <div class="cash-right">
+        <div class="cash-summary" id="cash-summary-box">
+          <div class="summary-row">
+            <span>ลูกค้า</span>
+            <span class="val" id="cs-customer">ลูกค้าทั่วไป</span>
+          </div>
+          <div class="summary-row">
+            <span>วิธีชำระ</span>
+            <span class="val" id="cs-method">เงินสด</span>
+          </div>
+          <div class="summary-row">
+            <span>ยอดรวม</span>
+            <span class="val" style="color:var(--red)" id="cs-total">฿0</span>
+          </div>
+          <div class="summary-row" id="cs-change-row">
+            <span>เงินทอน</span>
+            <span class="val" style="color:#10B981" id="cs-change">฿0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 4: THANKS -->
+    <div class="screen screen-thanks" id="screen-thanks">
+      <div class="thanks-inner">
+        <div class="thanks-check"><i class="material-icons-round">check_circle</i></div>
+        <div class="thanks-title">ขอบคุณที่ใช้บริการ</div>
+        <div class="thanks-sub">Thank you for your purchase</div>
+        <div class="thanks-bill" id="thanks-bill"></div>
+        <div class="thanks-logo">SK POS</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── DENOMINATION COLORS ────────────────────────────────
+    const DENOM_COLORS = {
+      1000: '#8B5E3C',
+      500:  '#6B3FA0',
+      100:  '#C8102E',
+      50:   '#0066CC',
+      20:   '#1A7A3C',
+      10:   '#B8860B',
+      5:    '#B8860B',
+      2:    '#B8860B',
+      1:    '#B8860B'
+    };
+
+    const DENOM_LABELS = { 1000:'1,000', 500:'500', 100:'100', 50:'50', 20:'20', 10:'10', 5:'5', 2:'2', 1:'1' };
+
+    // ── SCREEN MANAGEMENT ─────────────────────────────────
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + id).classList.add('active');
+    }
+
+    function setStep(step) { // 0=idle, 1=items, 2=payment, 3=cash, 4=thanks
+      document.querySelectorAll('.dot').forEach((d, i) => {
+        d.classList.remove('active', 'done');
+        if (i + 1 === step) d.classList.add('active');
+        else if (i + 1 < step) d.classList.add('done');
+      });
+      document.querySelectorAll('.step-seg').forEach((s, i) => {
+        s.classList.remove('active', 'done');
+        if (i + 1 === step) s.classList.add('active');
+        else if (i + 1 < step) s.classList.add('done');
+      });
+    }
+
+    // ── CLOCK ──────────────────────────────────────────────
+    function tick() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(tick, 1000); tick();
+
+    // ── FORMAT ─────────────────────────────────────────────
+    const fmt = n => Number(n || 0).toLocaleString('th-TH');
+
+    // ── MESSAGE HANDLER ────────────────────────────────────
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data?.type) return;
+
+      switch (data.type) {
+
+        case 'cart': {
+          const cart = data.cart || [];
+          const total = data.total || 0;
+          // Update items screen
+          document.getElementById('items-count').textContent = `${cart.reduce((s, c) => s + c.qty, 0)} รายการ`;
+          document.getElementById('items-list').innerHTML = cart.map((item, i) => `
+            <div class="item-row" style="animation-delay:${i * 0.05}s">
+              <div class="item-left">
+                <div class="item-num">${i + 1}</div>
+                <div>
+                  <div class="item-name">${item.name}</div>
+                  <div class="item-unit">฿${fmt(item.price)} × ${item.qty} ${item.unit || 'ชิ้น'}</div>
+                </div>
+              </div>
+              <div class="item-right">
+                <div class="item-price">฿${fmt(item.price * item.qty)}</div>
+              </div>
+            </div>`).join('');
+          document.getElementById('total-display').textContent = `฿${fmt(total)}`;
+          if (cart.length > 0) {
+            showScreen('items');
+            setStep(1);
+          } else {
+            showScreen('idle');
+            setStep(0);
+          }
+          break;
+        }
+
+        case 'checkout': {
+          const { step, total, method, received, change } = data;
+          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ติดหนี้' };
+          const methodIcons = { cash: 'payments', transfer: 'qr_code', credit: 'credit_card', debt: 'access_time' };
+
+          if (step === 2) {
+            // Show payment method
+            document.getElementById('pay-amount').textContent = `฿${fmt(total)}`;
+            const chip = document.getElementById('method-chip');
+            chip.innerHTML = `<span class="material-icons-round">${methodIcons[method] || 'payments'}</span><span>${methodMap[method] || 'เงินสด'}</span>`;
+            document.getElementById('qr-section').style.display = 'none';
+            showScreen('payment');
+            setStep(2);
+          } else if (step === 3) {
+            // Show cash counting
+            document.getElementById('cash-need').textContent = `฿${fmt(total)}`;
+            document.getElementById('cash-received').textContent = `฿${fmt(received)}`;
+            document.getElementById('cash-change').textContent = `฿${fmt(change)}`;
+            document.getElementById('cs-total').textContent = `฿${fmt(total)}`;
+            document.getElementById('cs-method').textContent = methodMap[method] || 'เงินสด';
+            document.getElementById('cs-change').textContent = `฿${fmt(change)}`;
+            document.getElementById('change-denoms').innerHTML = '';
+            showScreen('cash');
+            setStep(3);
+          } else if (step === 4) {
+            document.getElementById('cash-need').textContent = `฿${fmt(total)}`;
+            document.getElementById('cash-received').textContent = `฿${fmt(received)}`;
+            document.getElementById('cash-change').textContent = `฿${fmt(Math.max(0, change))}`;
+            document.getElementById('cs-total').textContent = `฿${fmt(total)}`;
+            document.getElementById('cs-method').textContent = methodMap[method] || 'เงินสด';
+            document.getElementById('cs-change').textContent = `฿${fmt(Math.max(0, change))}`;
+            // Render change denominations
+            const denoms = calcChange(change);
+            document.getElementById('change-denoms').innerHTML = denoms.filter(d => d.count > 0).map(d => `
+              <div class="denom-pill" style="background:${DENOM_COLORS[d.value] || '#888'}">
+                ฿${DENOM_LABELS[d.value]} × ${d.count}
+              </div>`).join('');
+            showScreen('cash');
+            setStep(4);
+          }
+          break;
+        }
+
+        case 'payment_method': {
+          const { method, total, qrPayload, qrLabel } = data;
+          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ติดหนี้' };
+          const methodIcons = { cash: 'payments', transfer: 'qr_code', credit: 'credit_card', debt: 'access_time' };
+          document.getElementById('pay-amount').textContent = `฿${fmt(total)}`;
+          const chip = document.getElementById('method-chip');
+          chip.innerHTML = `<span class="material-icons-round">${methodIcons[method] || 'payments'}</span><span>${methodMap[method] || 'เงินสด'}</span>`;
+          if (method === 'transfer') {
+            document.getElementById('qr-section').style.display = 'block';
+            if (qrPayload) renderQRDisplay(qrPayload, qrLabel);
+          } else {
+            document.getElementById('qr-section').style.display = 'none';
+          }
+          showScreen('payment');
+          setStep(2);
+          break;
+        }
+
+        case 'qr': {
+          const { amount, qrUrl, qrPayload, qrLabel } = data;
+          document.getElementById('pay-amount').textContent = `฿${fmt(amount)}`;
+          const chip = document.getElementById('method-chip');
+          chip.innerHTML = `<span class="material-icons-round">qr_code</span><span>โอน/พร้อมเพย์</span>`;
+          const qrSection = document.getElementById('qr-section');
+          const payload = qrPayload || qrUrl;
+          if (payload) {
+            qrSection.style.display = 'block';
+            renderQRDisplay(payload, qrLabel);
+          }
+          showScreen('payment');
+          setStep(2);
+          break;
+        }
+
+        case 'thanks': {
+          const { billNo, total } = data;
+          const billEl = document.getElementById('thanks-bill');
+          billEl.innerHTML = billNo ? `บิล #<strong>${billNo}</strong> — ฿${fmt(total)}` : '';
+          showScreen('thanks');
+          setStep(4);
+          setTimeout(() => {
+            showScreen('idle');
+            setStep(0);
+          }, 6000);
+          break;
+        }
+
+        case 'idle': {
+          showScreen('idle');
+          setStep(0);
+          break;
+        }
+      }
+    });
+
+    // ── CALC CHANGE DENOMINATIONS ──────────────────────────
+    function calcChange(amount) {
+      const denoms = [1000, 500, 100, 50, 20, 10, 5, 2, 1];
+      const result = [];
+      let remaining = Math.round(amount);
+      denoms.forEach(d => {
+        const count = Math.floor(remaining / d);
+        result.push({ value: d, count });
+        remaining -= count * d;
+      });
+      return result;
+    }
+
+    // ── CUSTOMER NAME ON SCREEN 3 ──────────────────────────
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'customer') {
+        document.getElementById('cs-customer').textContent = e.data.name || 'ลูกค้าทั่วไป';
+      }
+    });
+
+    // ── IN-BROWSER QR RENDERER ──────────────────────────
+    function renderQRDisplay(payload, label) {
+      const container = document.getElementById('qr-container');
+      container.innerHTML = '';
+      if (window.QRCode) {
+        new QRCode(container, {
+          text: payload,
+          width: 220,
+          height: 220,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        // Fallback: try as image URL
+        container.innerHTML = `<img src="${payload}" style="width:220px;height:220px;" alt="QR">`;
+      }
+      if (label) {
+        document.getElementById('qr-label').textContent = label;
+      } else {
+        document.getElementById('qr-label').textContent = 'สแกน QR Code เพื่อชำระเงิน';
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</body>
+</html>
