@@ -3,9 +3,8 @@
  * เก็บค่ากำหนดการเชื่อมต่อฐานข้อมูลและ Google Drive
  */
 
-const SUPA_URL = 'https://thfswrvnyhuqmdazjfhd.supabase.co';
+const SUPA_URL = 'https://cmkkuykjhdsjrkmqpnbw.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZnN3cnZueWh1cW1kYXpqZmhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDEzOTEsImV4cCI6MjA4OTUxNzM5MX0.9JdnkPbK6KbPYA1VvKmpclFr4f41YbWK4jmmJMvTw2Y';
-
 // Google Apps Script Web App URL สำหรับอัปโหลดรูปภาพไปยัง Google Drive
 // วิธีการติดตั้ง:
 // 1. ไปที่ Google Apps Script
@@ -35,10 +34,10 @@ function doPost(e) {
 // ถูกใช้ใน ใบเสร็จ A4 / Invoice
 // ══════════════════════════════════════════════════════
 const SHOP_CONFIG = {
-    name:    'ชื่อร้านค้า (ภาษาไทย)',
-    nameEn:  'SHOP NAME (ENGLISH)',
-    address: 'ที่อยู่ร้าน แขวง/ตำบล เขต/อำเภอ จังหวัด รหัสไปรษณีย์',
-    phone:   '0XX-XXX-XXXX',
-    taxId:   'เลขประจำตัวผู้เสียภาษี (ถ้ามี หรือเว้นว่าง)',
+    name:    'หจก. เอส เค วัสดุ',
+    nameEn:  'S K MATERIAL LIMITED PARTNERSHIP',
+    address: '68 หมู่ที่ 9 สหัสขันธ์ กาฬสินธุ์',
+    phone:   '087-226-1000',
+    taxId:   '0951639266',
     note:    'สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน ขอบคุณที่ใช้บริการ'
 };
