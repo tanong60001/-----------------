@@ -41,10 +41,11 @@ const V10_DEFAULTS = {
     show_shop_name:true, show_address:true, show_tax_id:true,
     show_bill_no:true, show_customer:true, show_staff:true,
     show_cost:false, show_profit:false, show_discount:true,
-    show_received:true, show_change:true, show_qr:false,
+    show_received:true, show_change:true, show_qr:true,
     show_datetime:true, show_method:true,
-    header_text:'ใบเสร็จรับเงิน', footer_text:'ขอบคุณที่ใช้บริการ', note_text:'',
-    header_color:'#1e293b', bw_mode:false
+    header_text:'ใบเสร็จรับเงิน / ใบกำกับภาษี', footer_text:'ขอบคุณที่ใช้บริการ',
+    note_text:'สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน',
+    header_color:'#af101a', bw_mode:false
   },
   quotation: {
     show_shop_name:true, show_address:true, show_tax_id:true,
@@ -807,15 +808,16 @@ window.v10ConfirmReturn = async function() {
 
     // 3. อัพเดทบิล (รวม previous + current returns)
     const prevRI = bill.return_info?.return_items || [];
-    const newRI = items.map(it => ({ name:it.name, qty:it.return_qty, price:it.price, unit:it.sell_unit, total:it.return_qty*it.price, conv_rate:it.conv_rate, base_unit:it.base_unit }));
+    const newRI = items.map(it => ({ name:it.name, qty:it.return_qty, price:it.price, unit:it.sell_unit, total:it.return_qty*it.price, cost:it.cost||0, return_cost:(it.cost||0)*it.return_qty, conv_rate:it.conv_rate, base_unit:it.base_unit }));
     const allRI = [...prevRI, ...newRI];
     const allRT = allRI.reduce((s,it)=>s+(it.total||0),0);
+    const allRC = allRI.reduce((s,it)=>s+(parseFloat(it.return_cost||0) || (parseFloat(it.cost||0)*parseFloat(it.qty||0))),0);
     const origTotal = bill.return_info?.original_total || bill.total || 0;
     const newBillTotal = Math.max(0, origTotal - allRT);
 
     await db.from('บิลขาย').update({
       return_info: { returned_at:new Date().toISOString(), returned_by:v10Staff(), return_reason:reason,
-        return_items:allRI, return_total:allRT, original_total:origTotal, new_total:newBillTotal },
+        return_items:allRI, return_total:allRT, return_cost_total:allRC, original_total:origTotal, new_total:newBillTotal },
       total: newBillTotal,
       status: allFull ? 'คืนสินค้า' : 'คืนบางส่วน'
     }).eq('id', bill.id);
@@ -1001,98 +1003,276 @@ window.cancelBill = async function(billId) {
 
 
 // ══════════════════════════════════════════════════════════════════
-// V10-5: A4 RECEIPT REDESIGN — สไตล์เดียวกับใบเสนอราคา
+// V10-5: A4 RECEIPT REDESIGN — ออกแบบตาม Template มืออาชีพ
+//        Manrope + Inter fonts, Professional Layout
 // ══════════════════════════════════════════════════════════════════
+
+// Thai number to text converter
+function v10NumToThaiText(num) {
+  if (!num || num === 0) return 'ศูนย์บาทถ้วน';
+  const digits = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+  const positions = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+  const baht = Math.floor(Math.abs(num));
+  const satang = Math.round((Math.abs(num) - baht) * 100);
+  function convertGroup(n) {
+    if (n === 0) return '';
+    const s = String(n);
+    let result = '';
+    for (let i = 0; i < s.length; i++) {
+      const d = parseInt(s[i]);
+      const pos = s.length - i - 1;
+      if (d === 0) continue;
+      if (pos === 1 && d === 2) result += 'ยี่';
+      else if (pos === 1 && d === 1) result += '';
+      else if (pos === 0 && d === 1 && s.length > 1) result += 'เอ็ด';
+      else result += digits[d];
+      result += positions[pos];
+    }
+    return result;
+  }
+  let text = '';
+  if (baht >= 1000000) {
+    text += convertGroup(Math.floor(baht / 1000000)) + 'ล้าน';
+    text += convertGroup(baht % 1000000);
+  } else {
+    text += convertGroup(baht);
+  }
+  text += 'บาท';
+  if (satang > 0) text += convertGroup(satang) + 'สตางค์';
+  else text += 'ถ้วน';
+  return text;
+}
 
 window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
   const ds = await v10GetDocSettings();
   const s = ds.receipt_a4 || V10_DEFAULTS.receipt_a4;
-  const hc = s.bw_mode ? '#000' : (s.header_color || '#1e293b');
+  const hc = s.bw_mode ? '#333333' : (s.header_color || '#af101a');
   const shopName = rc?.shop_name || 'SK POS';
+  const shopNameEn = rc?.shop_name_en || '';
   const shopAddr = rc?.address || '';
   const shopPhone = rc?.phone || '';
   const shopTax = rc?.tax_id || '';
+  const qrPromptpay = rc?.promptpay_id || rc?.qr_promptpay || '';
 
   const subtotal = (items || []).reduce((sum, i) => sum + (i.total || 0), 0);
-  const cost = s.show_cost !== false ? (items || []).reduce((sum, i) => sum + (i.cost || 0) * i.qty, 0) : 0;
-  const gp = subtotal - cost;
-  const dateStr = new Date(bill.date).toLocaleString('th-TH');
+  const discount = bill.discount || 0;
+  const afterDiscount = subtotal - discount;
+  const vatRate = rc?.vat_rate || 0;
+  const vatAmount = vatRate > 0 ? Math.round(afterDiscount * vatRate / 100) : 0;
+  const grandTotal = bill.total || (afterDiscount + vatAmount);
+  const dateObj = bill.date ? new Date(bill.date) : new Date();
+  const dateStr = dateObj.toLocaleDateString('th-TH', { day:'numeric', month:'long', year:'numeric' });
 
   const isDelivery = docType === 'delivery';
-  const headerTitle = isDelivery ? 'ใบส่งของ' : (s.header_text || 'ใบเสร็จรับเงิน / ต้นฉบับ');
-  const docTitle = isDelivery ? `ใบส่งของ #${bill.bill_no}` : `ใบเสร็จ #${bill.bill_no}`;
+  const docLabel = isDelivery ? 'ใบส่งของ' : (s.header_text || 'ใบเสร็จรับเงิน / ใบกำกับภาษี');
+  const docLabelEn = isDelivery ? 'DELIVERY NOTE' : 'RECEIPT / TAX INVOICE';
 
   const rows = (items || []).map((it, idx) => `
-    <tr${idx % 2 === 1 ? ' style="background:#f9fafb;"' : ''}>
-      <td style="padding:10px 12px;text-align:center;color:#94a3b8;font-size:12px;">${idx + 1}</td>
-      <td style="padding:10px 12px;font-weight:500;font-size:13px;">${it.name}</td>
-      <td style="padding:10px 12px;text-align:center;font-size:12px;">${it.qty} ${it.unit || 'ชิ้น'}</td>
-      <td style="padding:10px 12px;text-align:right;font-size:12px;">฿${formatNum(it.price)}</td>
-      ${s.show_cost !== false ? `<td style="padding:10px 12px;text-align:right;font-size:12px;color:#94a3b8;">฿${formatNum(it.cost || 0)}</td>` : ''}
-      <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:13px;">฿${formatNum(it.total)}</td>
+    <tr style="${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
+      <td style="padding:12px 16px;text-align:center;color:#94a3b8;font-size:13px;">${idx + 1}</td>
+      <td style="padding:12px 16px;">
+        <div style="font-weight:600;font-size:13px;color:#1e293b;">${it.name}</div>
+        ${it.sku ? `<div style="font-size:11px;color:#94a3b8;">SKU: ${it.sku}</div>` : ''}
+      </td>
+      <td style="padding:12px 16px;text-align:right;font-weight:500;font-size:13px;">${formatNum(it.qty)}</td>
+      <td style="padding:12px 16px;text-align:center;font-size:13px;color:#64748b;">${it.unit || 'ชิ้น'}</td>
+      <td style="padding:12px 16px;text-align:right;font-size:13px;">${formatNum(it.price)}</td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700;font-size:13px;">${formatNum(it.total)}</td>
     </tr>`).join('');
 
-  const w = window.open('', '_blank', 'width=900,height=800');
+  const w = window.open('', '_blank', 'width=900,height=900');
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
-<title>${docTitle}</title>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>@page{size:A4;margin:12mm;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;}</style>
+<title>${isDelivery ? 'ใบส่งของ' : 'ใบเสร็จ'} #${bill.bill_no}</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', 'Inter', sans-serif; font-size: 13px; color: #1e293b; background: #fff; }
+  .headline { font-family: 'Manrope', 'Sarabun', sans-serif; }
+  .label { font-family: 'Inter', 'Sarabun', sans-serif; }
+  @media print { body { background: white; } .no-print { display: none; } }
+</style>
 </head><body>
 
-<div style="background:${hc};color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:flex-start;">
-  <div>
-    ${s.show_shop_name !== false ? `<div style="font-size:20px;font-weight:800;">${shopName}</div>` : ''}
-    <div style="font-size:11px;opacity:.82;line-height:1.7;">
-      ${s.show_address !== false && shopAddr ? shopAddr + '<br>' : ''}
-      ${shopPhone ? 'โทร ' + shopPhone : ''}
-      ${s.show_tax_id !== false && shopTax ? '<br>TAX ' + shopTax : ''}
-    </div>
-  </div>
-  <div style="text-align:right;">
-    <div style="font-size:17px;font-weight:800;">${headerTitle}</div>
-    ${s.show_bill_no !== false ? `<div style="font-size:13px;opacity:.9;margin-top:3px;">#${bill.bill_no}</div>` : ''}
-    ${s.show_datetime !== false ? `<div style="font-size:11px;opacity:.75;">${dateStr}</div>` : ''}
-  </div>
-</div>
+<!-- A4 Container -->
+<div style="max-width:210mm;margin:0 auto;padding:28px 32px;min-height:277mm;position:relative;">
 
-<div style="padding:20px 28px;">
-  <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
-    ${s.show_customer !== false ? `<div style="background:#f8fafc;border-radius:8px;padding:10px 14px;border-left:3px solid ${hc};"><div style="font-size:10px;color:#94a3b8;font-weight:600;">ลูกค้า</div><div style="font-weight:700;">${bill.customer_name || 'ทั่วไป'}</div></div>` : ''}
-    ${s.show_staff !== false ? `<div style="text-align:right;"><div style="font-size:10px;color:#94a3b8;">พนักงาน</div><div style="font-weight:600;">${bill.staff_name || '-'}</div></div>` : ''}
-  </div>
-
-  <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-    <thead><tr style="background:${hc};">
-      <th style="color:#fff;padding:9px 12px;font-size:11px;text-align:center;width:36px;border-radius:6px 0 0 0;">#</th>
-      <th style="color:#fff;padding:9px 12px;font-size:11px;text-align:left;">รายการ</th>
-      <th style="color:#fff;padding:9px 12px;font-size:11px;text-align:center;">จำนวน</th>
-      <th style="color:#fff;padding:9px 12px;font-size:11px;text-align:right;">ราคา</th>
-      ${s.show_cost !== false ? '<th style="color:#fff;padding:9px 12px;font-size:11px;text-align:right;">ต้นทุน</th>' : ''}
-      <th style="color:#fff;padding:9px 12px;font-size:11px;text-align:right;border-radius:0 6px 0 0;">รวม</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-
-  <div style="display:flex;justify-content:flex-end;">
-    <div style="width:240px;">
-      ${bill.discount > 0 && s.show_discount !== false ? `<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:#ef4444;"><span>ส่วนลด</span><span>-฿${formatNum(bill.discount)}</span></div>` : ''}
-      ${s.show_cost !== false ? `<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:#94a3b8;"><span>ต้นทุน</span><span>฿${formatNum(cost)}</span></div>` : ''}
-      ${s.show_profit !== false && s.show_cost !== false ? `<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:#059669;"><span>กำไร (${subtotal > 0 ? Math.round(gp / subtotal * 100) : 0}%)</span><span>฿${formatNum(gp)}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;margin-top:6px;background:${hc};border-radius:8px;color:#fff;">
-        <span style="font-weight:700;">ยอดรวม</span>
-        <span style="font-size:17px;font-weight:800;">฿${formatNum(bill.total)}</span>
+  <!-- ═══ HEADER ═══ -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:32px;">
+    <!-- Left: Shop Info -->
+    <div style="max-width:55%;">
+      ${s.show_shop_name !== false ? `
+        <h2 class="headline" style="font-size:22px;font-weight:800;color:${hc};letter-spacing:-0.5px;margin-bottom:2px;">${shopName}</h2>
+        ${shopNameEn ? `<h3 class="headline" style="font-size:14px;font-weight:600;color:#5b403d;margin-bottom:12px;">${shopNameEn}</h3>` : ''}
+      ` : ''}
+      <div style="font-size:12px;color:#5b403d;line-height:1.8;">
+        ${s.show_address !== false && shopAddr ? `<p>${shopAddr}</p>` : ''}
+        ${shopPhone ? `<p>โทร ${shopPhone}</p>` : ''}
+        ${s.show_tax_id !== false && shopTax ? `<p><span style="font-weight:600;color:#1e293b;">เลขประจำตัวผู้เสียภาษี (Tax ID):</span> <span style="font-family:monospace;">${shopTax}</span></p>` : ''}
       </div>
-      ${s.show_received !== false && bill.received ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#64748b;margin-top:4px;"><span>รับเงิน</span><span>฿${formatNum(bill.received)}</span></div>` : ''}
-      ${s.show_change !== false && bill.change ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#64748b;"><span>เงินทอน</span><span>฿${formatNum(bill.change)}</span></div>` : ''}
-      ${s.show_method !== false ? `<div style="text-align:right;font-size:12px;color:#94a3b8;margin-top:4px;">ชำระโดย: ${bill.method}</div>` : ''}
+    </div>
+
+    <!-- Right: Doc Type + Numbers -->
+    <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+      <div style="background:${hc};padding:10px 20px;border-radius:8px;">
+        <h1 class="headline" style="color:#fff;font-size:17px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">${docLabel}</h1>
+        <p style="color:rgba(255,255,255,0.75);font-size:10px;font-weight:500;">${docLabelEn}</p>
+      </div>
+      <div style="margin-top:8px;font-size:13px;">
+        ${s.show_bill_no !== false ? `<p style="display:flex;justify-content:flex-end;gap:16px;"><span style="color:#5b403d;">เลขที่ (No.):</span><span style="font-weight:700;">${bill.bill_no}</span></p>` : ''}
+        ${s.show_datetime !== false ? `<p style="display:flex;justify-content:flex-end;gap:16px;margin-top:4px;"><span style="color:#5b403d;">วันที่ (Date):</span><span style="font-weight:700;">${dateStr}</span></p>` : ''}
+      </div>
     </div>
   </div>
 
-  ${s.note_text ? `<div style="margin-top:16px;padding:8px 12px;background:#f8fafc;border-radius:6px;font-size:11px;color:#64748b;">${s.note_text}</div>` : ''}
-  ${s.footer_text ? `<div style="text-align:center;margin-top:16px;font-size:11px;color:#94a3b8;">${s.footer_text}</div>` : ''}
+  <!-- ═══ CUSTOMER + META ═══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;padding:20px 0;border-top:1px solid #e4beba30;border-bottom:1px solid #e4beba30;">
+    ${s.show_customer !== false ? `
+    <div>
+      <span class="label" style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#5b403d;font-weight:700;">ข้อมูลลูกค้า / Customer Details</span>
+      <div style="background:#f2f4f5;padding:14px 16px;border-radius:12px;margin-top:8px;">
+        <p style="font-weight:700;font-size:16px;color:#1e293b;">${bill.customer_name || 'ลูกค้าทั่วไป'}</p>
+        ${bill.customer_address ? `<p style="font-size:12px;color:#5b403d;line-height:1.7;margin-top:4px;">${bill.customer_address}</p>` : ''}
+        ${bill.customer_tax_id ? `<p style="font-size:12px;color:#5b403d;margin-top:2px;">เลขผู้เสียภาษี: ${bill.customer_tax_id}</p>` : ''}
+      </div>
+    </div>` : '<div></div>'}
+    <div style="display:flex;flex-direction:column;justify-content:flex-end;gap:8px;">
+      ${s.show_staff !== false ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid #e4beba20;padding-bottom:8px;">
+        <span style="color:#5b403d;">พนักงานขาย (Salesperson)</span>
+        <span style="font-weight:500;">${bill.staff_name || '-'}</span>
+      </div>` : ''}
+      ${s.show_method !== false ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid #e4beba20;padding-bottom:8px;">
+        <span style="color:#5b403d;">วิธีชำระเงิน (Payment)</span>
+        <span style="font-weight:500;">${bill.method || '-'}</span>
+      </div>` : ''}
+      ${bill.ref_no ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+        <span style="color:#5b403d;">อ้างอิง (Reference)</span>
+        <span style="font-weight:500;">${bill.ref_no}</span>
+      </div>` : ''}
+    </div>
+  </div>
+
+  <!-- ═══ TABLE ═══ -->
+  <div style="margin-bottom:24px;overflow:hidden;border-radius:12px;border:1px solid #e4beba20;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#e6e8e9;">
+          <th class="headline" style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;width:40px;">#</th>
+          <th class="headline" style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;">รายละเอียดสินค้า (Description)</th>
+          <th class="headline" style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;width:80px;">จำนวน (Qty)</th>
+          <th class="headline" style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;width:80px;">หน่วย (Unit)</th>
+          <th class="headline" style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;width:100px;">ราคา/หน่วย (Price)</th>
+          <th class="headline" style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;width:110px;">จำนวนเงิน (Amount)</th>
+        </tr>
+      </thead>
+      <tbody>${rows}
+        ${(items||[]).length < 8 ? '<tr><td colspan="6" style="height:' + Math.max(20, (8-(items||[]).length)*36) + 'px;"></td></tr>' : ''}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ SUMMARY ═══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+    <!-- Left: Text Amount + Notes -->
+    <div>
+      <div style="background:#f2f4f5;padding:14px 16px;border-radius:10px;margin-bottom:14px;">
+        <span class="label" style="font-size:10px;text-transform:uppercase;font-weight:700;color:#5b403d;display:block;margin-bottom:4px;">จำนวนเงินตัวอักษร / Total in Words</span>
+        <p style="font-size:13px;font-weight:700;color:${hc};">${v10NumToThaiText(grandTotal)}</p>
+      </div>
+      ${s.note_text || s.footer_text ? `
+      <div>
+        <p style="font-size:11px;font-weight:700;color:#ba1a1a;text-transform:uppercase;display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+          ⓘ หมายเหตุ / Notes
+        </p>
+        ${s.note_text ? `<p style="font-size:12px;color:#5b403d;font-style:italic;">${s.note_text}</p>` : ''}
+        ${s.footer_text ? `<p style="font-size:12px;color:#5b403d;margin-top:2px;">${s.footer_text}</p>` : ''}
+      </div>` : `
+      <div>
+        <p style="font-size:11px;font-weight:700;color:#ba1a1a;text-transform:uppercase;margin-bottom:4px;">ⓘ หมายเหตุ / Notes</p>
+        <p style="font-size:12px;color:#5b403d;font-style:italic;">สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน ขอบคุณที่ใช้บริการ</p>
+      </div>`}
+    </div>
+
+    <!-- Right: QR + Totals -->
+    <div style="display:flex;gap:16px;align-items:flex-end;justify-content:flex-end;">
+      <!-- QR Code Section -->
+      ${qrPromptpay && s.show_qr !== false ? `
+      <div style="background:#fff;border:1px solid #e4beba30;padding:10px;border-radius:12px;width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;">
+        <div style="background:#003b71;width:100%;padding:4px 0;border-radius:6px;text-align:center;">
+          <span style="color:#fff;font-size:10px;font-weight:700;">PromptPay</span>
+        </div>
+        <div style="width:100px;height:100px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;">
+          <img src="https://promptpay.io/${qrPromptpay}/${grandTotal}.png" style="width:96px;height:96px;border-radius:4px;" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=\\'font-size:10px;color:#94a3b8;text-align:center;\\'>QR Code</span>';">
+        </div>
+        <div style="text-align:center;">
+          <p style="font-size:9px;font-weight:700;color:#003b71;">สแกนเพื่อชำระเงิน</p>
+          <p style="font-size:8px;color:#94a3b8;text-transform:uppercase;">Scan to Pay</p>
+        </div>
+      </div>` : ''}
+
+      <!-- Totals -->
+      <div style="width:240px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 12px;">
+          <span style="color:#5b403d;">รวมเงิน (Subtotal)</span>
+          <span style="font-weight:600;">${formatNum(subtotal)}</span>
+        </div>
+        ${discount > 0 && s.show_discount !== false ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 12px;color:#ba1a1a;">
+          <span>ส่วนลด (Discount)</span>
+          <span style="font-weight:600;">-${formatNum(discount)}</span>
+        </div>` : ''}
+        ${vatRate > 0 ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 12px;">
+          <span style="color:#5b403d;">ภาษีมูลค่าเพิ่ม (VAT ${vatRate}%)</span>
+          <span style="font-weight:600;">${formatNum(vatAmount)}</span>
+        </div>` : ''}
+        <div style="background:${hc};padding:14px 16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;color:#fff;margin-top:6px;">
+          <div>
+            <span class="headline" style="font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">จำนวนเงินรวมทั้งสิ้น</span><br>
+            <span style="font-size:9px;opacity:.75;">GRAND TOTAL</span>
+          </div>
+          <span class="headline" style="font-size:22px;font-weight:800;">${formatNum(grandTotal)}</span>
+        </div>
+        ${s.show_received !== false && bill.received ? `
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;padding:4px 12px;margin-top:6px;">
+          <span>รับเงินมา</span><span>฿${formatNum(bill.received)}</span>
+        </div>` : ''}
+        ${s.show_change !== false && bill.change ? `
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;padding:4px 12px;">
+          <span>เงินทอน</span><span>฿${formatNum(bill.change)}</span>
+        </div>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SIGNATURE ═══ -->
+  <div style="margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:48px;">
+    <div style="text-align:center;">
+      <div style="border-bottom:1px dotted #5b403d;height:32px;width:180px;margin:0 auto;"></div>
+      <div style="margin-top:12px;">
+        <p style="font-weight:700;font-size:13px;">ผู้รับของ / Received By</p>
+        <p style="font-size:10px;color:#5b403d;margin-top:4px;">วันที่ (Date) ......../......../........</p>
+      </div>
+    </div>
+    <div style="text-align:center;position:relative;">
+      <div style="border-bottom:1px dotted #5b403d;height:32px;width:180px;margin:0 auto;"></div>
+      <!-- Stamp placeholder -->
+      <div style="position:absolute;top:-40px;right:10px;width:64px;height:64px;border:3px solid ${hc}33;border-radius:50%;display:flex;align-items:center;justify-content:center;transform:rotate(12deg);opacity:0.25;">
+        <p style="font-size:7px;font-weight:800;color:${hc};text-align:center;line-height:1.2;">${shopName.substring(0,12)}</p>
+      </div>
+      <div style="margin-top:12px;">
+        <p style="font-weight:700;font-size:13px;">ผู้รับเงิน / Authorized Signature</p>
+        <p style="font-size:10px;color:#5b403d;margin-top:4px;">วันที่ (Date) ......../......../........</p>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),800);}<\/script>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200);}<\/script>
 </body></html>`);
   w.document.close();
 };
@@ -1282,68 +1462,247 @@ window.renderDebts = async function() {
 // ══════════════════════════════════════════════════════════════════
 // V10-8  FIX: หน้าพนักงาน — go('att') เรียก local renderAttendance
 //        แทนที่จะเรียก window.renderAttendance (v5 tabbed version)
-//        แก้: patch go() ให้ force window.renderAttendance
+//        แก้: Monkey-patch app.js go() by wrapping it
+//        
+//        Problem: app.js has `function go(page) { ... case 'att': renderAttendance(); }`
+//        where `renderAttendance()` is a LOCAL function (line 1496 of app.js).
+//        Even though modules-v5.js sets `window.renderAttendance`, the local scope wins.
+//        
+//        Solution: After app.js loads, we wrap window.go to intercept att/payable
+//        and call the window.* version instead. We use the original go() for
+//        the navigation parts (setting currentPage, showing/hiding sections),
+//        then call window.renderAttendance afterwards.
 // ══════════════════════════════════════════════════════════════════
 
 (function v10FixAttendancePage() {
   function patchGo() {
+    if (typeof window.go !== 'function') return false;
+    if (window.go._v10Patched) return true;
+    
     const origGo = window.go;
-    if (typeof origGo !== 'function' || origGo._v10AttPatched) return;
+    
     window.go = function(page) {
-      if (page === 'att') {
-        // Replicate navigation logic from app.js but skip local renderAttendance
-        currentPage = page;
-        document.querySelectorAll('.nav-item').forEach(item =>
-          item.classList.toggle('active', item.dataset.page === page));
-        document.querySelectorAll('.page-section').forEach(section =>
-          section.classList.add('hidden'));
-        const targetPage = document.getElementById('page-att');
-        if (targetPage) targetPage.classList.remove('hidden');
-        document.getElementById('page-title-text').textContent = '🪪 พนักงาน/ลงเวลา';
-        document.getElementById('page-actions').innerHTML = '';
-        // Call window.renderAttendance (v5 tabbed version) instead of local
-        if (typeof window.renderAttendance === 'function') {
-          window.renderAttendance();
-        }
-        document.getElementById('sidebar')?.classList.remove('show');
-        return;
+      // For att and payable, we let the original go() run (which calls the local function),
+      // then IMMEDIATELY re-render with the window.* version (overwriting what the local rendered).
+      origGo.apply(this, arguments);
+      
+      if (page === 'att' && typeof window.renderAttendance === 'function') {
+        // Re-render with v5 tabbed version (overwrites what local renderAttendance did)
+        setTimeout(() => window.renderAttendance(), 50);
       }
-      // For payable page, ensure window version is called
-      if (page === 'payable') {
-        // Replicate navigation logic but use window.renderPayables
-        currentPage = page;
-        document.querySelectorAll('.nav-item').forEach(item =>
-          item.classList.toggle('active', item.dataset.page === page));
-        document.querySelectorAll('.page-section').forEach(section =>
-          section.classList.add('hidden'));
-        const targetPage = document.getElementById('page-payable');
-        if (targetPage) targetPage.classList.remove('hidden');
-        document.getElementById('page-title-text').textContent = '🏦 เจ้าหนี้ร้าน';
-        document.getElementById('page-actions').innerHTML = '';
-        if (typeof window.renderPayables === 'function') {
-          window.renderPayables();
-        }
-        document.getElementById('sidebar')?.classList.remove('show');
-        return;
+      if (page === 'payable' && typeof window.renderPayables === 'function') {
+        // Re-render with v10-9 version
+        setTimeout(() => window.renderPayables(), 50);
       }
-      origGo.call(this, page);
     };
-    window.go._v10AttPatched = true;
-    console.log('[v10-8] ✅ go() patched for att + payable pages');
+    
+    window.go._v10Patched = true;
+    console.log('[v10-8] ✅ go() patched — att uses window.renderAttendance, payable uses window.renderPayables');
+    return true;
   }
+  
+  // Try patching multiple times to be safe
+  function tryPatch() {
+    if (!patchGo()) {
+      setTimeout(tryPatch, 200);
+    }
+  }
+  
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(patchGo, 100));
+    document.addEventListener('DOMContentLoaded', tryPatch);
   } else {
-    setTimeout(patchGo, 100);
+    tryPatch();
   }
+  // Also try on window.load as extra safety
+  window.addEventListener('load', () => setTimeout(tryPatch, 200));
 })();
 
 
 // ══════════════════════════════════════════════════════════════════
-// V10-9  FIX: หน้าเจ้าหนี้ — ดึงชื่อผู้จำหน่ายจาก purchase_order.supplier
-//        แทนที่จะ join กับตาราง ซัพพลายเออร์ โดยตรง
-//        User request: "ดึงจากชื่อ ผู้จำหน่าย ตัดซัพพลายออก"
+// V10-9  FIX: (no change — kept from previous)
 // ══════════════════════════════════════════════════════════════════
+// (renderPayables override is above, unchanged)
+
+
+// ══════════════════════════════════════════════════════════════════
+// V10-10  FIX: Mobile POS — ซ่อนตะกร้า/รายการขายบนมือถือ
+//         จะแสดงเฉพาะเมื่อกดปุ่ม FAB (ตะกร้า)
+//         + สร้าง cart-overlay element ถ้ายังไม่มี
+//         + แก้ overflow ขวาในทุกหน้าบนมือถือ
+// ══════════════════════════════════════════════════════════════════
+
+(function v10MobileCartFix() {
+  // 1. สร้าง cart-overlay if missing
+  function ensureCartOverlay() {
+    if (!document.getElementById('cart-overlay')) {
+      const overlay = document.createElement('div');
+      overlay.id = 'cart-overlay';
+      overlay.className = 'sidebar-overlay'; // reuse same CSS
+      const posLayout = document.querySelector('.pos-layout');
+      if (posLayout) {
+        posLayout.appendChild(overlay);
+        // Click overlay → close cart
+        overlay.addEventListener('click', () => {
+          document.querySelector('.pos-cart')?.classList.remove('cart-open');
+          overlay.classList.remove('show');
+        });
+        console.log('[v10-10] ✅ cart-overlay element created');
+      }
+    }
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureCartOverlay);
+  } else {
+    ensureCartOverlay();
+  }
+  
+  // 2. Inject comprehensive mobile CSS
+  const style = document.createElement('style');
+  style.id = 'v10-mobile-fixes';
+  style.textContent = `
+    @media (max-width: 768px) {
+      /* ═══ GLOBAL: ป้องกัน overflow ขวาทุกหน้า ═══ */
+      html, body, .app-layout, .main-content, .content-area {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+      }
+      
+      /* ═══ POS: ซ่อนตะกร้าบนมือถือ — แสดงเมื่อกด FAB ═══ */
+      .pos-cart {
+        position: fixed !important;
+        bottom: -100% !important;
+        left: 0 !important;
+        width: 100% !important;
+        z-index: 1060 !important;
+        height: 85vh !important;
+        max-height: 85vh !important;
+        border-radius: 20px 20px 0 0 !important;
+        box-shadow: 0 -4px 30px rgba(0,0,0,0.2) !important;
+        background: var(--bg-surface) !important;
+        transition: bottom 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        border: none !important;
+        margin: 0 !important;
+      }
+      .pos-cart.cart-open {
+        bottom: 0 !important;
+      }
+      
+      /* Cart Header — pill indicator for swipe */
+      .pos-cart .cart-header {
+        position: relative;
+        cursor: pointer;
+      }
+      .pos-cart .cart-header::after {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 5px;
+        background: rgba(255,255,255,0.5);
+        border-radius: 10px;
+      }
+      
+      /* Cart items scrollable */
+      .pos-cart .cart-items {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+      }
+      
+      /* Cart summary compact on mobile */
+      .pos-cart .cart-summary {
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      }
+      
+      /* ซ่อน elements ที่ไม่จำเป็นในตะกร้ามือถือ */
+      .pos-cart .print-format {
+        display: none !important;
+      }
+      
+      /* ปุ่มชำระเงิน — โดดเด่น */
+      .pos-cart .btn-checkout {
+        display: flex !important;
+        width: 100% !important;
+        font-size: 16px !important;
+        padding: 14px !important;
+        margin: 8px 0 0 0 !important;
+        border-radius: 14px !important;
+      }
+      
+      /* FAB button */
+      .cart-fab {
+        display: flex !important;
+      }
+      
+      /* ═══ ATTENDANCE: แก้ overflow ขวา ═══ */
+      #page-att, #page-att > div {
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+      }
+      /* เช็คชื่อ grid → 1 column */
+      #att-tab-checkin > div > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+      }
+      /* Attendance tab buttons scroll horizontal */
+      #page-att > div > div:first-child {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      
+      /* ═══ PAYABLES: grid responsive ═══ */
+      #page-payable div[style*="grid-template-columns"][style*="repeat(auto-fit"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      
+      /* ═══ CHECKOUT: full screen on mobile ═══ */
+      .checkout-overlay {
+        padding: 0 !important;
+      }
+      .checkout-overlay > div,
+      .checkout-modal {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 100vh !important;
+        height: 100vh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+      }
+      .checkout-content {
+        max-height: calc(100vh - 140px) !important;
+        overflow-y: auto !important;
+        padding: 12px !important;
+      }
+      
+      /* ═══ DENOMINATION GRID compact ═══ */
+      .denomination-grid,
+      div[style*="grid-template-columns: repeat(5"] {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+      }
+      
+      /* ═══ TABLE overflow fix ═══ */
+      .table-wrapper {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      #page-payable div[style*="grid-template-columns"][style*="repeat(auto-fit"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+  console.log('[v10-10] ✅ Mobile cart + overflow CSS injected');
+})();
 
 window.renderPayables = async function () {
   const section = document.getElementById('page-payable');
@@ -1505,86 +1864,6 @@ window.renderPayables = async function () {
 console.log('[v10-9] ✅ renderPayables overridden — uses purchase_order.supplier name');
 
 
-// ══════════════════════════════════════════════════════════════════
-// V10-10  FIX: ซ่อนส่วนชำระเงินบนมือถือในหน้า POS
-//         ส่วน cart-summary (ส่วนลด, รูปแบบพิมพ์, ปุ่มชำระ) จะซ่อนใน mobile
-//         จะแสดงเฉพาะเมื่อเปิด checkout overlay
-// ══════════════════════════════════════════════════════════════════
-
-(function v10MobilePaymentHide() {
-  const style = document.createElement('style');
-  style.textContent = `
-    @media (max-width: 768px) {
-      /* ซ่อนส่วนชำระเงินในตะกร้าบนมือถือ */
-      .pos-cart .cart-summary .print-format,
-      .pos-cart .cart-summary .discount-row,
-      .pos-cart #pos-discount {
-        display: none !important;
-      }
-      
-      /* ซ่อน payment-methods ใน checkout modal ที่ยังไม่ได้เลือก */
-      .checkout-overlay .payment-methods {
-        grid-template-columns: 1fr 1fr !important;
-        gap: 8px !important;
-      }
-      
-      /* ลดขนาด denomination grid บนมือถือ */
-      .denomination-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 6px !important;
-      }
-      .coins-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-      }
-      
-      /* ────── ปุ่มชำระเงินในตะกร้าบนมือถือ — แสดงเสมอ ────── */
-      .pos-cart .btn-checkout {
-        display: flex !important;
-        width: 100% !important;
-        font-size: 16px !important;
-        padding: 14px !important;
-      }
-      
-      /* Checkout overlay — full screen on mobile */
-      .checkout-overlay {
-        padding: 0 !important;
-      }
-      .checkout-overlay > div {
-        width: 100% !important;
-        max-width: 100% !important;
-        height: 100vh !important;
-        max-height: 100vh !important;
-        border-radius: 0 !important;
-        margin: 0 !important;
-      }
-      .checkout-content {
-        max-height: calc(100vh - 140px) !important;
-        overflow-y: auto !important;
-        padding: 12px !important;
-      }
-      
-      /* Hide progress step labels on mobile, keep numbers */
-      .progress-step span {
-        display: none !important;
-      }
-      .progress-step .step-num {
-        display: flex !important;
-      }
-      
-      /* Cash counting header compact on mobile */
-      .cash-counting-header {
-        flex-direction: column !important;
-        gap: 6px !important;
-      }
-      .cash-counting-header > div {
-        width: 100% !important;
-        text-align: center !important;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-  console.log('[v10-10] ✅ Mobile payment section CSS injected');
-})();
 
 
 // ══════════════════════════════════════════════════════════════════

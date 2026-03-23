@@ -263,14 +263,12 @@ async function updateHomeStats() {
       (bills || []).forEach(b => {
         if (b.status === 'คืนบางส่วน' && b.return_info?.return_items) {
           b.return_info.return_items.forEach(retItem => {
-            // Find the original item's cost to deduce the strictly mathematical cost
-            // Fallback to average cost if strictly not found?
-            const origItem = (items || []).find(i => i.bill_id === b.id && i.name === retItem.name);
-            const origCost = origItem ? (origItem.cost || 0) : 0;
             const retQty = retItem.qty || 0;
             const retTotal = retItem.total || (retItem.price * retQty) || 0;
-            // The profit we thought we made on this item but actually lost
-            lostProfitFromReturns += (retTotal - (origCost * retQty));
+            // Use cost from return_info if available (v11), else lookup from bill items
+            const retCost = retItem.cost || retItem.cost === 0 ? retItem.cost : 
+              ((items || []).find(i => i.bill_id === b.id && i.name === retItem.name)?.cost || 0);
+            lostProfitFromReturns += (retTotal - (retCost * retQty));
           });
         }
       });
