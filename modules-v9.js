@@ -14046,7 +14046,7 @@ window.v9DashLoad = async function () {
         .gte('paid_date',since+'T00:00:00'),
     ]);
 
-    const B = (bR.data||[]).filter(b=>b.status!=='ยกเลิก');
+    const B = (bR.data||[]).filter(b => b.status !== 'ยกเลิก' && b.status !== 'คืนเงิน' && b.status !== 'คืนสินค้า');
     const bIds = new Set(B.map(b=>b.id));
     const P  = pR.data||[];
     const E  = eR.data||[];
@@ -18801,41 +18801,47 @@ window.v9d44KPI = function({B,tS,cogs,gP,gM,nP,nM,nC,tAccruedWage,tAdv}) {
 
 
 // ── P&L redesign: แสดงค่าแรงสะสม + เบิกเงิน ─────────────────────
-window.v9d44PL = function({tS,cogs,gP,gM,tEO,tAccruedWage,tAdv,tSal,nP,nM}) {
-  const el=document.getElementById('v9d44-pl-body');if(!el)return;
-  const row=(l,v,c,bg,bold,sub)=>`
+wwindow.v9d44PL = function({tS, cogs, gP, gM, tEO, tAccruedWage, tAdv, tSal, nP, nM}) {
+  const el = document.getElementById('v9d44-pl-body');
+  if (!el) return;
+
+  // สร้างแม่แบบบรรทัด (Row Template)
+  const row = (l, v, c, bg, bold, sub) => `
     <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:9px ${bg?'12px':'4px'};border-radius:${bg?'8px':'0'};margin-bottom:3px;
-      background:${bg||'transparent'};">
+      padding:9px ${bg ? '12px' : '2px'};border-radius:${bg ? '8px' : '0'};margin-bottom:3px;
+      background:${bg || 'transparent'};">
       <div>
-        <div style="font-size:${bold?'13px':'12px'};font-weight:${bold?700:400};
-          color:${bold?'var(--text-primary)':'var(--text-secondary)'};">${l}</div>
-        ${sub?`<div style="font-size:10px;color:var(--text-tertiary);">${sub}</div>`:''}
+        <div style="font-size:${bold ? '13px' : '12px'};font-weight:${bold ? 700 : 400};
+          color:${bold ? 'var(--text-primary)' : 'var(--text-secondary)'};">${l}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--text-tertiary);">${sub}</div>` : ''}
       </div>
-      <div style="font-size:${bold?'15px':'13px'};font-weight:${bold?700:500};color:${c};">
-        ${v<0?'−':''}฿${formatNum(Math.abs(Math.round(v)))}</div>
+      <div style="font-size:${bold ? '15px' : '13px'};font-weight:${bold ? 700 : 500};color:${c};">
+        ${v < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(v)))}
+      </div>
     </div>`;
 
-  el.innerHTML=
-    row('💰 ยอดขายรวม',tS,'#15803d','#f0fdf4',true)
-    +`<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ต้นทุนสินค้า (COGS)</div>`
-    +row('📦 COGS',cogs,'#d97706','',false,'cost×qty จากรายการบิล')
-    +`<hr style="border:none;border-top:1.5px dashed var(--border-light);margin:6px 0;">`
-    +row('📈 กำไรขั้นต้น',gP,gP>=0?'#0891b2':'#dc2626','#ecfeff',true,`Gross Margin ${gM}%`)
-    +`<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ค่าใช้จ่ายดำเนินงาน</div>`
-    +row('🏪 รายจ่ายร้าน',tEO,'#dc2626','',false,'')
-    +row('👷 ค่าแรงสะสม',tAccruedWage,'#f97316','',false,'คิดจากเช็คชื่อ × ค่าแรง/วัน')
-    +row('💸 เบิกเงินพนักงาน',tAdv,'#7c3aed','',false,'advance ที่อนุมัติ')
-    +`<div style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:5px 8px;border-radius:6px;margin:4px 0;">💡 เงินเดือนที่จ่ายแล้ว (${Math.round(tSal>0?tSal:0).toLocaleString()}) อยู่ใน cash flow ไม่ซ้ำ P&L</div>`
-    +`<hr style="border:none;border-top:2px solid var(--border-light);margin:8px 0;">`
-    +`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
-        border-radius:12px;background:${nP>=0?'#f0fdf4':'#fef2f2'};">
+  // แสดงผลเนื้อหาภายใน P&L Panel
+  el.innerHTML =
+    row('💰 ยอดขายรวม', tS, '#15803d', '#f0fdf4', true)
+    + `<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ต้นทุนสินค้าขาย (COGS)</div>`
+    + row('📦 COGS', cogs, '#d97706', '', false, 'cost × (qty - จำนวนที่คืน)')
+    + `<hr style="border:none;border-top:1.5px dashed var(--border-light);margin:6px 0;">`
+    + row('📈 กำไรขั้นต้น', gP, gP >= 0 ? '#0891b2' : '#dc2626', '#ecfeff', true, `Gross Margin ${gM}%`)
+    + `<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ค่าใช้จ่ายดำเนินงาน</div>`
+    + row('🏪 รายจ่ายร้าน', tEO, '#dc2626', '', false, '')
+    + row('👷 ค่าแรงสะสม', tAccruedWage, '#f97316', '', false, 'คิดจากเช็คชื่อ × ค่าแรง/วัน')
+    + row('💸 เบิกเงินพนักงาน', tAdv, '#7c3aed', '', false, 'advance ที่อนุมัติ')
+    + `<div style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:5px 8px;border-radius:6px;margin:4px 0;">💡 เงินเดือนที่จ่ายแล้ว (${Math.round(tSal > 0 ? tSal : 0).toLocaleString()}) อยู่ใน cash flow ไม่ซ้ำ P&L</div>`
+    + `<hr style="border:none;border-top:2px solid var(--border-light);margin:8px 0;">`
+    + `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
+        border-radius:12px;background:${nP >= 0 ? '#f0fdf4' : '#fef2f2'};">
         <div>
-          <div style="font-size:15px;font-weight:700;color:${nP>=0?'#15803d':'#dc2626'};">🏆 กำไรสุทธิ</div>
-          <div style="font-size:11px;font-weight:600;color:${nP>=0?'#16a34a':'#ef4444'};margin-top:3px;">Net Margin ${nM}%</div>
+          <div style="font-size:15px;font-weight:700;color:${nP >= 0 ? '#15803d' : '#dc2626'};">🏆 กำไรสุทธิ</div>
+          <div style="font-size:11px;font-weight:600;color:${nP >= 0 ? '#16a34a' : '#ef4444'};margin-top:3px;">Net Margin ${nM}%</div>
         </div>
-        <div style="font-size:24px;font-weight:700;color:${nP>=0?'#15803d':'#dc2626'};">
-          ${nP<0?'−':''}฿${formatNum(Math.abs(Math.round(nP)))}</div>
+        <div style="font-size:24px;font-weight:700;color:${nP >= 0 ? '#15803d' : '#dc2626'};">
+          ${nP < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(nP)))}
+        </div>
       </div>`;
 };
 

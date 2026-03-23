@@ -1161,38 +1161,6 @@ window.selectPaymentMethod = function(method) {
   }
 };
 
-// ══════════════════════════════════════════════════════════════════
-// 7. Dashboard — ปรับ KPI กำไรสุทธิให้เด่นชัดขึ้น
-// ══════════════════════════════════════════════════════════════════
-const _origBuildDashHTML = window.buildDashHTML;
-if (typeof buildDashHTML === 'function') {
-  window.buildDashHTML = function(d) {
-    const base = _origBuildDashHTML ? _origBuildDashHTML(d) : '';
-    // Add profit breakdown summary card at top
-    const profitCard = `
-      <div style="background:linear-gradient(135deg,var(--bg-surface),#f0fdf4);border:1.5px solid #86efac;border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">ยอดขายรวม</div>
-          <div style="font-size:18px;font-weight:800;color:var(--primary);">฿${formatNum(d.totalSales)}</div>
-        </div>
-        <div style="text-align:center;position:relative;">
-          <div style="position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:20px;color:var(--danger);font-weight:900;">−</div>
-          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">ต้นทุนสินค้า</div>
-          <div style="font-size:18px;font-weight:800;color:var(--danger);">฿${formatNum(d.totalSales-d.grossProfit)}</div>
-        </div>
-        <div style="text-align:center;position:relative;">
-          <div style="position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:20px;color:var(--warning);font-weight:900;">−</div>
-          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">รายจ่าย</div>
-          <div style="font-size:18px;font-weight:800;color:var(--warning);">฿${formatNum(d.totalExp)}</div>
-        </div>
-        <div style="text-align:center;position:relative;border-left:2px solid #86efac;padding-left:12px;">
-          <div style="font-size:11px;color:#16a34a;font-weight:600;margin-bottom:4px;">= กำไรสุทธิ</div>
-          <div style="font-size:22px;font-weight:900;color:${d.netProfit>=0?'#15803d':'#dc2626'};">฿${formatNum(d.netProfit)}</div>
-          ${d.totalSales>0?`<div style="font-size:11px;color:#16a34a;">${Math.round(d.netProfit/d.totalSales*100)}% Net Margin</div>`:''}
-        </div>
-      </div>`;
-    return profitCard + base;
-  };
-}
+
 
 console.log('[SK POS modules-v3.js] ✅ v3 features loaded');
