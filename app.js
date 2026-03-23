@@ -1867,12 +1867,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (val && index < pinInputs.length - 1) {
     // หน่วงเวลา 10ms ให้มือถือประมวลผลทันก่อนกระโดดไปช่องถัดไป
-    setTimeout(() => pinInputs[index + 1].focus(), 1);
+    setTimeout(() => pinInputs[index + 1].focus(), 10);
   }
   
   if (Array.from(pinInputs).every(i => i.value)) {
     // หน่วงเวลาตอนล็อกอินนิดนึง เพื่อให้ UI สมูทขึ้น
-    setTimeout(checkLogin, 1);
+    setTimeout(checkLogin, 10);
   }
 });
     input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !e.target.value && index > 0) pinInputs[index - 1].focus(); });
