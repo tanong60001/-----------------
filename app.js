@@ -133,7 +133,10 @@ async function checkLogin() {
     const { data, error } = await db.from('ผู้ใช้งาน').select('*').eq('pin', pin).single();
     if (error || !data) {
       toast('รหัส PIN ไม่ถูกต้อง', 'error');
-      document.querySelectorAll('.pin-input').forEach(i => i.value = '');
+      document.querySelectorAll('.pin-input').forEach(i => {
+        i.value = '';
+        i.classList.remove('filled'); // เพิ่มคำสั่งลบจุดดำ
+      });
       document.getElementById('pin-1').focus();
       return;
     }
@@ -162,6 +165,10 @@ function logout() {
       document.getElementById('app-layout').classList.add('hidden');
       document.getElementById('login-screen').classList.remove('hidden');
       document.querySelectorAll('.pin-input').forEach(i => i.value = '');
+      document.querySelectorAll('.pin-input').forEach(i => {
+        i.value = '';
+        i.classList.remove('filled'); // เพิ่มคำสั่งลบจุดดำ
+      });
       document.getElementById('pin-1').focus();
     }
   });
@@ -1861,20 +1868,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const pinInputs = document.querySelectorAll('.pin-input');
   pinInputs.forEach((input, index) => {
     input.addEventListener('input', (e) => {
-  let val = e.target.value.replace(/\D/g, '');
-  if (val.length > 1) val = val.slice(-1);
-  e.target.value = val;
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 1) val = val.slice(-1);
+    e.target.value = val;
 
-  if (val && index < pinInputs.length - 1) {
-    // หน่วงเวลา 10ms ให้มือถือประมวลผลทันก่อนกระโดดไปช่องถัดไป
-    setTimeout(() => pinInputs[index + 1].focus(), 10);
-  }
-  
-  if (Array.from(pinInputs).every(i => i.value)) {
-    // หน่วงเวลาตอนล็อกอินนิดนึง เพื่อให้ UI สมูทขึ้น
-    setTimeout(checkLogin, 10);
-  }
-});
+    // --- ส่วนที่เพิ่มเข้ามา เพื่อโชว์/ซ่อน จุดดำทันที ---
+    if (val) {
+      e.target.classList.add('filled');
+    } else {
+      e.target.classList.remove('filled');
+    }
+    // ------------------------------------------
+
+    if (val && index < pinInputs.length - 1) {
+      setTimeout(() => pinInputs[index + 1].focus(), 10);
+    }
+    
+    if (Array.from(pinInputs).every(i => i.value)) {
+      setTimeout(checkLogin, 50);
+    }
+  });
     input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !e.target.value && index > 0) pinInputs[index - 1].focus(); });
   });
   document.getElementById('login-btn')?.addEventListener('click', checkLogin);

@@ -322,3 +322,15 @@
 .form-input:focus { border-color: var(--primary); }
 textarea.form-input { resize: vertical; min-height: 64px; }
 select.form-input { cursor: pointer; }
+/* ซ่อนตัวเลขจริงที่พิมพ์ แต่ยังให้เห็นเคอร์เซอร์กะพริบ */
+.pin-input {
+  color: transparent !important;
+  caret-color: #1e293b; 
+}
+
+/* วาดจุดสีดำขึ้นมาตรงกลาง เมื่อมีข้อมูล (คลาส .filled) */
+.pin-input.filled {
+  background-image: radial-gradient(circle, #1e293b 6px, transparent 6px) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
