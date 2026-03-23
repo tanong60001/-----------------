@@ -55,6 +55,10 @@
        ═══════════════════════════════════════════════════════════════ -->
   <div id="app-layout" class="app-layout hidden">
     
+    <!-- Sidebar Overlay (Mobile) -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+    <div id="cart-overlay" class="sidebar-overlay hidden" style="z-index: 1055;"></div>
+    
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -175,6 +179,9 @@
         <h1 class="page-title" id="page-title-text">🏠 หน้าหลัก</h1>
         <div class="header-actions">
           <div class="live-clock" id="live-clock"></div>
+          <button id="mobile-page-actions-btn" class="btn btn-icon hidden-desktop" style="background:transparent;border:none;color:var(--text-primary);padding:8px;">
+            <i class="material-icons-round">more_vert</i>
+          </button>
           <div id="page-actions"></div>
         </div>
       </header>
@@ -386,6 +393,13 @@
                 <kbd>F10</kbd>
               </button>
             </div>
+            
+            <!-- Mobile Cart Floating Action Button -->
+            <button id="cart-fab" class="cart-fab hidden-desktop">
+              <i class="material-icons-round">shopping_basket</i>
+              <span id="cart-fab-badge" class="cart-fab-badge">0</span>
+            </button>
+            
           </div>
         </section>
         

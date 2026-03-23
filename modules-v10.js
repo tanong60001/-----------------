@@ -1004,7 +1004,7 @@ window.cancelBill = async function(billId) {
 // V10-5: A4 RECEIPT REDESIGN — สไตล์เดียวกับใบเสนอราคา
 // ══════════════════════════════════════════════════════════════════
 
-window.printReceiptA4v2 = async function(bill, items, rc) {
+window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
   const ds = await v10GetDocSettings();
   const s = ds.receipt_a4 || V10_DEFAULTS.receipt_a4;
   const hc = s.bw_mode ? '#000' : (s.header_color || '#1e293b');
@@ -1018,6 +1018,10 @@ window.printReceiptA4v2 = async function(bill, items, rc) {
   const gp = subtotal - cost;
   const dateStr = new Date(bill.date).toLocaleString('th-TH');
 
+  const isDelivery = docType === 'delivery';
+  const headerTitle = isDelivery ? 'ใบส่งของ' : (s.header_text || 'ใบเสร็จรับเงิน / ต้นฉบับ');
+  const docTitle = isDelivery ? `ใบส่งของ #${bill.bill_no}` : `ใบเสร็จ #${bill.bill_no}`;
+
   const rows = (items || []).map((it, idx) => `
     <tr${idx % 2 === 1 ? ' style="background:#f9fafb;"' : ''}>
       <td style="padding:10px 12px;text-align:center;color:#94a3b8;font-size:12px;">${idx + 1}</td>
@@ -1030,7 +1034,7 @@ window.printReceiptA4v2 = async function(bill, items, rc) {
 
   const w = window.open('', '_blank', 'width=900,height=800');
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
-<title>ใบเสร็จ #${bill.bill_no}</title>
+<title>${docTitle}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>@page{size:A4;margin:12mm;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;}</style>
 </head><body>
@@ -1045,7 +1049,7 @@ window.printReceiptA4v2 = async function(bill, items, rc) {
     </div>
   </div>
   <div style="text-align:right;">
-    <div style="font-size:17px;font-weight:800;">${s.header_text || 'ใบเสร็จรับเงิน'}</div>
+    <div style="font-size:17px;font-weight:800;">${headerTitle}</div>
     ${s.show_bill_no !== false ? `<div style="font-size:13px;opacity:.9;margin-top:3px;">#${bill.bill_no}</div>` : ''}
     ${s.show_datetime !== false ? `<div style="font-size:11px;opacity:.75;">${dateStr}</div>` : ''}
   </div>
@@ -1101,7 +1105,8 @@ window.printReceiptA4v2 = async function(bill, items, rc) {
 async function v10PrintReturnSlip(bill, items, totalReturn, reason) {
   const rc = await v10GetShopConfig();
   const ds = await v10GetDocSettings();
-  const hc = ds.quotation?.header_color || '#1e293b';
+  const s = ds.receipt_a4 || {};
+  const hc = s.bw_mode ? '#000' : (s.header_color || '#1e293b');
   const shopName = rc?.shop_name || 'SK POS';
   const shopAddr = rc?.address || '';
   const shopPhone = rc?.phone || '';
@@ -1137,11 +1142,11 @@ async function v10PrintReturnSlip(bill, items, totalReturn, reason) {
 
 <div style="padding:20px 28px;">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-    <div style="background:#f8fafc;border-radius:8px;padding:12px 14px;border-left:3px solid #dc2626;">
+    <div style="background:#f8fafc;border-radius:8px;padding:12px 14px;border-left:3px solid ${hc};">
       <div style="font-size:10px;color:#94a3b8;font-weight:600;">ลูกค้า</div>
       <div style="font-weight:700;">${bill.customer_name || 'ลูกค้าทั่วไป'}</div>
     </div>
-    <div style="background:#f8fafc;border-radius:8px;padding:12px 14px;border-left:3px solid #dc2626;">
+    <div style="background:#f8fafc;border-radius:8px;padding:12px 14px;border-left:3px solid ${hc};">
       <div style="font-size:10px;color:#94a3b8;font-weight:600;">เหตุผลการคืน</div>
       <div style="font-weight:500;">${reason}</div>
     </div>
@@ -1275,6 +1280,375 @@ window.renderDebts = async function() {
 
 
 // ══════════════════════════════════════════════════════════════════
+// V10-8  FIX: หน้าพนักงาน — go('att') เรียก local renderAttendance
+//        แทนที่จะเรียก window.renderAttendance (v5 tabbed version)
+//        แก้: patch go() ให้ force window.renderAttendance
+// ══════════════════════════════════════════════════════════════════
+
+(function v10FixAttendancePage() {
+  function patchGo() {
+    const origGo = window.go;
+    if (typeof origGo !== 'function' || origGo._v10AttPatched) return;
+    window.go = function(page) {
+      if (page === 'att') {
+        // Replicate navigation logic from app.js but skip local renderAttendance
+        currentPage = page;
+        document.querySelectorAll('.nav-item').forEach(item =>
+          item.classList.toggle('active', item.dataset.page === page));
+        document.querySelectorAll('.page-section').forEach(section =>
+          section.classList.add('hidden'));
+        const targetPage = document.getElementById('page-att');
+        if (targetPage) targetPage.classList.remove('hidden');
+        document.getElementById('page-title-text').textContent = '🪪 พนักงาน/ลงเวลา';
+        document.getElementById('page-actions').innerHTML = '';
+        // Call window.renderAttendance (v5 tabbed version) instead of local
+        if (typeof window.renderAttendance === 'function') {
+          window.renderAttendance();
+        }
+        document.getElementById('sidebar')?.classList.remove('show');
+        return;
+      }
+      // For payable page, ensure window version is called
+      if (page === 'payable') {
+        // Replicate navigation logic but use window.renderPayables
+        currentPage = page;
+        document.querySelectorAll('.nav-item').forEach(item =>
+          item.classList.toggle('active', item.dataset.page === page));
+        document.querySelectorAll('.page-section').forEach(section =>
+          section.classList.add('hidden'));
+        const targetPage = document.getElementById('page-payable');
+        if (targetPage) targetPage.classList.remove('hidden');
+        document.getElementById('page-title-text').textContent = '🏦 เจ้าหนี้ร้าน';
+        document.getElementById('page-actions').innerHTML = '';
+        if (typeof window.renderPayables === 'function') {
+          window.renderPayables();
+        }
+        document.getElementById('sidebar')?.classList.remove('show');
+        return;
+      }
+      origGo.call(this, page);
+    };
+    window.go._v10AttPatched = true;
+    console.log('[v10-8] ✅ go() patched for att + payable pages');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(patchGo, 100));
+  } else {
+    setTimeout(patchGo, 100);
+  }
+})();
+
+
+// ══════════════════════════════════════════════════════════════════
+// V10-9  FIX: หน้าเจ้าหนี้ — ดึงชื่อผู้จำหน่ายจาก purchase_order.supplier
+//        แทนที่จะ join กับตาราง ซัพพลายเออร์ โดยตรง
+//        User request: "ดึงจากชื่อ ผู้จำหน่าย ตัดซัพพลายออก"
+// ══════════════════════════════════════════════════════════════════
+
+window.renderPayables = async function () {
+  const section = document.getElementById('page-payable');
+  if (!section) return;
+
+  section.innerHTML = `
+    <div style="padding:60px;text-align:center;color:var(--text-tertiary);">
+      <div style="width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#dc2626;
+        border-radius:50%;animation:v10spin .8s linear infinite;margin:0 auto 12px;"></div>
+      <style>@keyframes v10spin{to{transform:rotate(360deg)}}</style>
+      กำลังโหลดข้อมูลเจ้าหนี้...
+    </div>`;
+
+  let rows = [], poMap = {};
+  try {
+    // ดึงเจ้าหนี้ทั้งหมด
+    const { data: apData, error: apErr } = await db.from('เจ้าหนี้')
+      .select('id,supplier_id,purchase_order_id,date,due_date,amount,paid_amount,balance,status,note')
+      .order('due_date', {ascending: true})
+      .limit(300);
+
+    if (apErr) console.error('[v10-9] เจ้าหนี้ query:', apErr.message);
+    rows = apData || [];
+
+    // ดึงชื่อผู้จำหน่ายจาก purchase_order.supplier (text field)
+    const poIds = [...new Set(rows.map(r => r.purchase_order_id).filter(Boolean))];
+    if (poIds.length > 0) {
+      const { data: pos } = await db.from('purchase_order')
+        .select('id,supplier').in('id', poIds);
+      (pos||[]).forEach(p => { poMap[p.id] = p.supplier || ''; });
+    }
+
+    // Fallback: ถ้าไม่มี purchase_order_id → ดึงจาก ซัพพลายเออร์ table
+    const noPoRows = rows.filter(r => !r.purchase_order_id && r.supplier_id);
+    const suppIds = [...new Set(noPoRows.map(r => r.supplier_id).filter(Boolean))];
+    if (suppIds.length > 0) {
+      const { data: supps } = await db.from('ซัพพลายเออร์')
+        .select('id,name').in('id', suppIds);
+      (supps||[]).forEach(s => {
+        // Store in poMap keyed by supplier_id with prefix
+        poMap['supp_' + s.id] = s.name || '';
+      });
+    }
+  } catch(e) { console.error('[v10-9]', e); }
+
+  // Helper: get supplier name for a row
+  function getSupplierName(r) {
+    // Priority 1: purchase_order.supplier (text field = ผู้จำหน่าย name)
+    if (r.purchase_order_id && poMap[r.purchase_order_id]) {
+      return poMap[r.purchase_order_id];
+    }
+    // Priority 2: ซัพพลายเออร์ table name
+    if (r.supplier_id && poMap['supp_' + r.supplier_id]) {
+      return poMap['supp_' + r.supplier_id];
+    }
+    return 'ไม่ระบุ';
+  }
+
+  const pending   = rows.filter(r => r.status === 'ค้างชำระ');
+  const totalDebt = pending.reduce((s,r) => s + parseFloat(r.balance||0), 0);
+  const overdue   = pending.filter(r => r.due_date && new Date(r.due_date) < new Date());
+
+  section.innerHTML = `
+    <div style="padding:20px;max-width:1200px;margin:0 auto;">
+
+      <!-- KPI -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;">
+        ${[
+          {l:'ค้างชำระรวม',    v:`฿${formatNum(Math.round(totalDebt))}`, c:'#dc2626', bg:'#fef2f2', i:'account_balance'},
+          {l:'รายการค้างชำระ', v:`${pending.length} รายการ`,             c:'#d97706', bg:'#fef3c7', i:'receipt_long'},
+          {l:'เกินกำหนด',      v:`${overdue.length} รายการ`,             c:'#7c3aed', bg:'#ede9fe', i:'warning'},
+          {l:'ชำระแล้ว',       v:`${rows.filter(r=>r.status==='ชำระแล้ว').length} รายการ`, c:'#15803d', bg:'#f0fdf4', i:'check_circle'},
+        ].map(k=>`
+          <div style="background:${k.bg};border-radius:14px;padding:16px 18px;border:1px solid ${k.c}22;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <i class="material-icons-round" style="font-size:16px;color:${k.c};">${k.i}</i>
+              <span style="font-size:11px;color:${k.c};font-weight:600;">${k.l}</span>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:${k.c};">${k.v}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Table -->
+      <div style="background:var(--bg-surface);border-radius:16px;border:1px solid var(--border-light);overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:14px;font-weight:700;">รายการเจ้าหนี้ทั้งหมด</span>
+          <span style="font-size:12px;color:var(--text-tertiary);">${rows.length} รายการ</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f8fafc;">
+                <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">ผู้จำหน่าย</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">วันที่</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">ครบกำหนด</th>
+                <th style="padding:10px 14px;text-align:right;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">ยอดรวม</th>
+                <th style="padding:10px 14px;text-align:right;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">ชำระแล้ว</th>
+                <th style="padding:10px 14px;text-align:right;font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;">คงค้าง</th>
+                <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;">สถานะ</th>
+                <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.length === 0 ? `
+                <tr><td colspan="8" style="padding:60px;text-align:center;color:var(--text-tertiary);">
+                  <i class="material-icons-round" style="font-size:40px;display:block;margin-bottom:8px;opacity:.3;">account_balance</i>
+                  ยังไม่มีรายการเจ้าหนี้
+                </td></tr>` :
+                rows.map(r => {
+                  const suppName  = getSupplierName(r);
+                  const isOverdue = r.due_date && new Date(r.due_date) < new Date() && r.status === 'ค้างชำระ';
+                  const balance   = parseFloat(r.balance || 0);
+                  const amount    = parseFloat(r.amount || 0);
+                  const paid      = parseFloat(r.paid_amount || 0);
+                  const pct       = amount > 0 ? Math.round(paid/amount*100) : 0;
+                  return `
+                    <tr style="${isOverdue?'background:#fff5f5;':''}border-bottom:1px solid var(--border-light);">
+                      <td style="padding:12px 14px;">
+                        <div style="font-weight:600;font-size:13px;">${suppName}</div>
+                      </td>
+                      <td style="padding:12px 14px;font-size:12px;color:#64748b;">${r.date?new Date(r.date).toLocaleDateString('th-TH'):'-'}</td>
+                      <td style="padding:12px 14px;font-size:12px;${isOverdue?'color:#dc2626;font-weight:700;':'color:#64748b;'}">
+                        ${r.due_date?new Date(r.due_date).toLocaleDateString('th-TH'):'-'}
+                        ${isOverdue?'<span style="margin-left:4px;font-size:10px;background:#fef2f2;color:#dc2626;padding:2px 5px;border-radius:4px;">เกินกำหนด</span>':''}
+                      </td>
+                      <td style="padding:12px 14px;text-align:right;font-size:13px;">฿${formatNum(amount)}</td>
+                      <td style="padding:12px 14px;text-align:right;font-size:13px;color:#15803d;">
+                        ฿${formatNum(paid)}
+                        ${pct>0?`<div style="font-size:10px;color:#86efac;">${pct}%</div>`:''}
+                      </td>
+                      <td style="padding:12px 14px;text-align:right;">
+                        <span style="font-size:14px;font-weight:700;color:${balance>0?'#dc2626':'#15803d'};">฿${formatNum(balance)}</span>
+                      </td>
+                      <td style="padding:12px 14px;text-align:center;">
+                        <span style="padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;
+                          background:${r.status==='ชำระแล้ว'?'#dcfce7':isOverdue?'#fee2e2':'#fef3c7'};
+                          color:${r.status==='ชำระแล้ว'?'#15803d':isOverdue?'#dc2626':'#92400e'};">
+                          ${r.status}
+                        </span>
+                      </td>
+                      <td style="padding:12px 14px;text-align:center;">
+                        ${r.status !== 'ชำระแล้ว' ? `
+                          <button onclick="window.v9PayCreditor('${r.id}','${suppName.replace(/'/g,"\\'")}',${balance},${amount})"
+                            style="padding:6px 12px;border-radius:8px;border:none;background:#15803d;color:#fff;
+                              font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;margin:0 auto;
+                              font-family:var(--font-thai,'Prompt'),sans-serif;">
+                            <i class="material-icons-round" style="font-size:13px;">payments</i> ชำระ
+                          </button>` : `
+                          <span style="font-size:11px;color:#94a3b8;">✓ เสร็จสิ้น</span>`}
+                      </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+};
+console.log('[v10-9] ✅ renderPayables overridden — uses purchase_order.supplier name');
+
+
+// ══════════════════════════════════════════════════════════════════
+// V10-10  FIX: ซ่อนส่วนชำระเงินบนมือถือในหน้า POS
+//         ส่วน cart-summary (ส่วนลด, รูปแบบพิมพ์, ปุ่มชำระ) จะซ่อนใน mobile
+//         จะแสดงเฉพาะเมื่อเปิด checkout overlay
+// ══════════════════════════════════════════════════════════════════
+
+(function v10MobilePaymentHide() {
+  const style = document.createElement('style');
+  style.textContent = `
+    @media (max-width: 768px) {
+      /* ซ่อนส่วนชำระเงินในตะกร้าบนมือถือ */
+      .pos-cart .cart-summary .print-format,
+      .pos-cart .cart-summary .discount-row,
+      .pos-cart #pos-discount {
+        display: none !important;
+      }
+      
+      /* ซ่อน payment-methods ใน checkout modal ที่ยังไม่ได้เลือก */
+      .checkout-overlay .payment-methods {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+      }
+      
+      /* ลดขนาด denomination grid บนมือถือ */
+      .denomination-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+      }
+      .coins-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      
+      /* ────── ปุ่มชำระเงินในตะกร้าบนมือถือ — แสดงเสมอ ────── */
+      .pos-cart .btn-checkout {
+        display: flex !important;
+        width: 100% !important;
+        font-size: 16px !important;
+        padding: 14px !important;
+      }
+      
+      /* Checkout overlay — full screen on mobile */
+      .checkout-overlay {
+        padding: 0 !important;
+      }
+      .checkout-overlay > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+      }
+      .checkout-content {
+        max-height: calc(100vh - 140px) !important;
+        overflow-y: auto !important;
+        padding: 12px !important;
+      }
+      
+      /* Hide progress step labels on mobile, keep numbers */
+      .progress-step span {
+        display: none !important;
+      }
+      .progress-step .step-num {
+        display: flex !important;
+      }
+      
+      /* Cash counting header compact on mobile */
+      .cash-counting-header {
+        flex-direction: column !important;
+        gap: 6px !important;
+      }
+      .cash-counting-header > div {
+        width: 100% !important;
+        text-align: center !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+  console.log('[v10-10] ✅ Mobile payment section CSS injected');
+})();
+
+
+// ══════════════════════════════════════════════════════════════════
+// V10-11  FIX: Return — เพิ่ม cost data ใน return_info
+//         เพื่อให้ระบบ Dashboard/P&L หักกำไรจากต้นทุนสินค้าได้ถูกต้อง
+// ══════════════════════════════════════════════════════════════════
+
+// Patch v10ConfirmReturn: เพิ่ม cost ใน return_items
+const _v10OrigConfirmReturn = window.v10ConfirmReturn;
+window.v10ConfirmReturn = async function() {
+  // Before calling original, inject cost into items
+  const items = window._v10ReturnItems || [];
+  const bill = window._v10ReturnBill;
+  if (bill && items.length > 0) {
+    // ดึง cost จาก รายการในบิล
+    try {
+      const { data: billItems } = await db.from('รายการในบิล')
+        .select('name,cost,product_id')
+        .eq('bill_id', bill.id);
+      const costMap = {};
+      (billItems||[]).forEach(bi => {
+        costMap[bi.product_id] = bi.cost || 0;
+        costMap[bi.name] = bi.cost || 0;
+      });
+      items.forEach(it => {
+        if (!it.cost && it.cost !== 0) {
+          it.cost = costMap[it.product_id] || costMap[it.name] || 0;
+        }
+      });
+    } catch(e) { console.warn('[v10-11] cost lookup:', e); }
+  }
+  // Call original
+  return _v10OrigConfirmReturn?.apply(this, arguments);
+};
+
+// Patch the return_info update to include cost in return_items
+const _v10OrigShowReturnModal = window.v10ShowReturnModal;
+window.v10ShowReturnModal = async function(billId) {
+  // Call original first
+  await _v10OrigShowReturnModal?.apply(this, arguments);
+  
+  // After modal is shown, inject cost data into _v10ReturnItems
+  const bill = window._v10ReturnBill;
+  const items = window._v10ReturnItems;
+  if (bill && items && items.length > 0) {
+    try {
+      const { data: billItems } = await db.from('รายการในบิล')
+        .select('name,cost,product_id')
+        .eq('bill_id', bill.id);
+      const costMap = {};
+      (billItems||[]).forEach(bi => {
+        if (bi.product_id) costMap[bi.product_id] = bi.cost || 0;
+        if (bi.name) costMap[bi.name] = bi.cost || 0;
+      });
+      items.forEach(it => {
+        it.cost = costMap[it.product_id] || costMap[it.name] || 0;
+      });
+    } catch(e) { console.warn('[v10-11] cost injection:', e); }
+  }
+};
+console.log('[v10-11] ✅ Return cost tracking patched');
+
+
+// ══════════════════════════════════════════════════════════════════
 // BOOT LOG
 // ══════════════════════════════════════════════════════════════════
 
@@ -1286,7 +1660,11 @@ console.info(
     'V10-4:CancelBillFix',
     'V10-5:A4ReceiptRedesign',
     'V10-6:PaymentReceipt',
-    'V10-7:ReturnSlipPrint'
+    'V10-7:ReturnSlipPrint',
+    'V10-8:EmployeePageFix',
+    'V10-9:CreditorPageFix',
+    'V10-10:MobilePaymentHide',
+    'V10-11:ReturnCostTrack'
   ].join(' | '),
   'color:#8B5CF6;font-weight:700',
   'color:#6B7280'

@@ -246,15 +246,37 @@ async function updateHomeStats() {
   document.getElementById('home-username').textContent = USER?.username || 'User';
   const today = new Date().toISOString().split('T')[0];
   try {
-    const { data: bills } = await db.from('บิลขาย').select('total, discount, id').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').eq('status', 'สำเร็จ');
+    const { data: bills } = await db.from('บิลขาย').select('total, discount, id, status, return_info').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').in('status', ['สำเร็จ', 'คืนบางส่วน']);
     const totalSales = bills?.reduce((sum, b) => sum + (b.total || 0), 0) || 0;
     const ordersCount = bills?.length || 0;
     const todayBillIds = bills?.map(b => b.id) || [];
     let profit = 0;
+    
     if (todayBillIds.length > 0) {
-      const { data: items } = await db.from('รายการในบิล').select('total, cost, qty, bill_id').in('bill_id', todayBillIds);
-      profit = (items || []).reduce((sum, i) => sum + ((i.total || 0) - ((i.cost || 0) * (i.qty || 1))), 0);
+      const { data: items } = await db.from('รายการในบิล').select('total, cost, qty, bill_id, name').in('bill_id', todayBillIds);
+      
+      // Calculate Gross Profit from original items
+      let grossProfit = (items || []).reduce((sum, i) => sum + ((i.total || 0) - ((i.cost || 0) * (i.qty || 1))), 0);
+      
+      // Deduct Profit lost from Returns
+      let lostProfitFromReturns = 0;
+      (bills || []).forEach(b => {
+        if (b.status === 'คืนบางส่วน' && b.return_info?.return_items) {
+          b.return_info.return_items.forEach(retItem => {
+            // Find the original item's cost to deduce the strictly mathematical cost
+            // Fallback to average cost if strictly not found?
+            const origItem = (items || []).find(i => i.bill_id === b.id && i.name === retItem.name);
+            const origCost = origItem ? (origItem.cost || 0) : 0;
+            const retQty = retItem.qty || 0;
+            const retTotal = retItem.total || (retItem.price * retQty) || 0;
+            // The profit we thought we made on this item but actually lost
+            lostProfitFromReturns += (retTotal - (origCost * retQty));
+          });
+        }
+      });
+      profit = grossProfit - lostProfitFromReturns;
     }
+    
     const cashBalance = await getCashBalance();
     document.getElementById('home-sales').textContent = `฿${formatNum(totalSales)}`;
     document.getElementById('home-orders').textContent = formatNum(ordersCount);
@@ -1475,35 +1497,114 @@ async function renderAttendance() {
   const section = document.getElementById('page-att');
   if (!section) return;
   const today = new Date().toISOString().split('T')[0];
+  
   const { data: employees } = await db.from('พนักงาน').select('*').eq('status', 'ทำงาน').order('name');
-  const { data: todayAtt } = await db.from('เช็คชื่อ').select('*').eq('date', today);
+  const { data: todayAttRes } = await db.from('เช็คชื่อ').select('*').eq('date', today);
+  
   const attMap = {};
-  (todayAtt || []).forEach(a => { attMap[a.employee_id] = a; });
+  (todayAttRes || []).forEach(a => { attMap[a.employee_id] = a; });
+
+  const isEmpty = !employees || employees.length === 0;
+
   section.innerHTML = `
-    <div class="inv-container">
-      <div class="inv-toolbar">
-        <h3 style="font-size:16px;font-weight:600;">ลงเวลาวันนี้ — ${new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</h3>
-        <button class="btn btn-primary" onclick="showAddEmployeeModal()"><i class="material-icons-round">person_add</i> เพิ่มพนักงาน</button>
+    <div style="max-width: 1200px; margin: 0 auto; padding-bottom: 30px;">
+      <!-- Header -->
+      <div class="db-header" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin: 0 0 6px 0; display: flex; align-items: center; gap: 10px;">
+            <div style="background: rgba(220,38,38,0.1); width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <i class="material-icons-round" style="color: var(--primary);">how_to_reg</i>
+            </div>
+            จัดการเวลาเข้า-ออกงาน
+          </h2>
+          <p style="color: var(--text-tertiary); font-size: 14px; margin: 0;">ประจำวันที่ ${new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</p>
+        </div>
+        ${!isEmpty ? `
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" style="border-radius: 24px; padding: 8px 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(220,38,38,0.25);" onclick="showAddEmployeeModal()">
+            <i class="material-icons-round">person_add</i> เพิ่มพนักงาน
+          </button>
+        </div>` : ''}
       </div>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead><tr><th>ชื่อพนักงาน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>เวลาเข้า</th><th>เวลาออก</th><th>จัดการ</th></tr></thead>
-          <tbody>${(employees || []).map(emp => {
+
+      ${isEmpty ? `
+      <!-- Empty State -->
+      <div style="text-align: center; padding: 80px 20px; background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px dashed var(--border-light); margin-top: 10px; animation: v11SlideFadeIn 0.4s ease;">
+        <div style="width: 80px; height: 80px; background: var(--bg-base); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);">
+          <i class="material-icons-round" style="font-size: 40px; color: var(--text-tertiary);">badge</i>
+        </div>
+        <h3 style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">ยังไม่มีข้อมูลพนักงาน</h3>
+        <p style="color: var(--text-secondary); max-width: 400px; margin: 0 auto 30px; line-height: 1.5;">เริ่มต้นเพิ่มรายชื่อพนักงานเข้าสู่ระบบเพื่อใช้งานระบบลงเวลาเข้า-ออกงาน สำหรับจัดการกะและจ่ายเงินเดือนอย่างมืออาชีพ</p>
+        <button class="btn btn-primary" onclick="showAddEmployeeModal()" style="border-radius: 24px; padding: 12px 28px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 12px rgba(220,38,38,0.25);">
+          <i class="material-icons-round">add</i> เพิ่มพนักงานคนแรก
+        </button>
+      </div>
+      ` : `
+      <!-- Data Table -->
+      <div class="table-wrapper" style="background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border-light); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.02); animation: v11SlideFadeIn 0.4s ease;">
+        <table class="data-table" style="margin: 0; border: none;">
+          <thead>
+            <tr>
+              <th style="padding-left: 20px;">พนักงาน</th>
+              <th>ตำแหน่ง</th>
+              <th>สถานะ</th>
+              <th class="text-center">เวลาเข้า</th>
+              <th class="text-center">เวลาออก</th>
+              <th class="text-center">บันทึกเวลา</th>
+            </tr>
+          </thead>
+          <tbody>${employees.map(emp => {
             const att = attMap[emp.id];
-            return `<tr>
-              <td><strong>${emp.name} ${emp.lastname || ''}</strong></td>
-              <td>${emp.position}</td>
-              <td><span class="badge ${att ? (att.status === 'มา' ? 'badge-success' : 'badge-danger') : 'badge-warning'}">${att ? att.status : 'ยังไม่ลง'}</span></td>
-              <td>${att?.time_in || '-'}</td>
-              <td>${att?.time_out || '-'}</td>
+            const hasCheckedIn = att && att.status === 'มา';
+            const hasCheckedOut = att && att.time_out;
+            
+            return `
+            <tr style="transition: background 0.2s;">
+              <td style="padding-left: 20px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="width:36px; height:36px; border-radius:50%; background:var(--bg-base); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-weight:600; font-size:14px; border:1px solid var(--border-light);">
+                    ${emp.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div style="font-weight:600; color:var(--text-primary); font-size:14px;">${emp.name} ${emp.lastname || ''}</div>
+                    <div style="color:var(--text-tertiary); font-size:12px; margin-top:2px;">ID: ${emp.id.split('-')[0]}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="color:var(--text-secondary);">${emp.position || '-'}</td>
               <td>
-                ${!att ? `<button class="btn btn-primary btn-sm" onclick="checkIn('${emp.id}')"><i class="material-icons-round">login</i> เข้างาน</button>` : ''}
-                ${att && !att.time_out ? `<button class="btn btn-outline btn-sm" onclick="checkOut('${att.id}')"><i class="material-icons-round">logout</i> ออกงาน</button>` : ''}
+                <span class="badge ${att ? (att.status === 'มา' ? 'badge-success' : 'badge-danger') : 'badge-warning'}" style="padding:4px 10px; border-radius:20px; font-weight:500;">
+                  ${att ? att.status : 'ยังไม่ระบุ'}
+                </span>
+              </td>
+              <td class="text-center" style="font-family:monospace; font-size:14px; color:${hasCheckedIn ? 'var(--text-primary)' : 'var(--text-tertiary)'};">
+                ${att?.time_in || '--:--'}
+              </td>
+              <td class="text-center" style="font-family:monospace; font-size:14px; color:${hasCheckedOut ? 'var(--text-primary)' : 'var(--text-tertiary)'};">
+                ${att?.time_out || '--:--'}
+              </td>
+              <td class="text-center">
+                ${!att ? `
+                  <button class="btn btn-primary btn-sm" style="border-radius: 20px; padding: 6px 16px; font-weight: 500;" onclick="checkIn('${emp.id}')">
+                    <i class="material-icons-round" style="font-size:16px;">login</i> เข้างาน
+                  </button>
+                ` : ''}
+                ${(att && !att.time_out) ? `
+                  <button class="btn btn-outline btn-sm" style="border-radius: 20px; padding: 6px 16px; font-weight: 500; border-color: var(--border-medium); color: var(--text-primary);" onclick="checkOut('${att.id}')">
+                    <i class="material-icons-round" style="font-size:16px;">logout</i> ออกงาน
+                  </button>
+                ` : ''}
+                ${(att && att.time_out) ? `
+                  <span style="color:var(--success); display:flex; align-items:center; justify-content:center; gap:4px; font-size:13px; font-weight:500;">
+                    <i class="material-icons-round" style="font-size:16px;">check_circle</i> สำเร็จ
+                  </span>
+                ` : ''}
               </td>
             </tr>`;
           }).join('')}</tbody>
         </table>
       </div>
+      `}
     </div>`;
 }
 
@@ -1592,9 +1693,11 @@ async function renderPayables() {
       <div class="table-wrapper">
         <table class="data-table">
           <thead><tr><th>ผู้จำหน่าย</th><th>วันที่</th><th>ครบกำหนด</th><th class="text-right">ยอดรวม</th><th class="text-right">ชำระแล้ว</th><th class="text-right">คงค้าง</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
-          <tbody>${(data || []).map(d => `
+          <tbody>${(data || []).map(d => {
+            const splName = d.supplier_name || (Array.isArray(d.ซัพพลายเออร์) ? d.ซัพพลายเออร์[0]?.name : d.ซัพพลายเออร์?.name) || d.supplier?.name || '-';
+            return `
             <tr>
-              <td><strong>${d.ซัพพลายเออร์?.name || '-'}</strong></td>
+              <td><strong>${splName}</strong></td>
               <td>${formatDate(d.date)}</td>
               <td style="color:${new Date(d.due_date) < new Date() && d.status === 'ค้างชำระ' ? 'var(--danger)' : ''};">${d.due_date ? formatDate(d.due_date) : '-'}</td>
               <td class="text-right">฿${formatNum(d.amount)}</td>
@@ -1602,7 +1705,8 @@ async function renderPayables() {
               <td class="text-right"><strong style="color:var(--danger)">฿${formatNum(d.balance)}</strong></td>
               <td><span class="badge ${d.status === 'ชำระแล้ว' ? 'badge-success' : 'badge-danger'}">${d.status}</span></td>
               <td>${d.status !== 'ชำระแล้ว' ? `<button class="btn btn-primary btn-sm" onclick="payPayable('${d.id}','${d.balance}')"><i class="material-icons-round">payments</i> ชำระ</button>` : ''}</td>
-            </tr>`).join('')}</tbody>
+            </tr>`;
+          }).join('')}</tbody>
         </table>
       </div>
     </div>`;
@@ -1692,8 +1796,8 @@ async function renderDashboard() {
   try {
     const today = new Date().toISOString().split('T')[0];
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const { data: bills7 } = await db.from('บิลขาย').select('total, date, method').gte('date', sevenDaysAgo + 'T00:00:00').eq('status', 'สำเร็จ').order('date');
-    const { data: todayBills } = await db.from('บิลขาย').select('total').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').eq('status', 'สำเร็จ');
+    const { data: bills7 } = await db.from('บิลขาย').select('total, date, method, status').gte('date', sevenDaysAgo + 'T00:00:00').in('status', ['สำเร็จ', 'คืนบางส่วน']).order('date');
+    const { data: todayBills } = await db.from('บิลขาย').select('total').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').in('status', ['สำเร็จ', 'คืนบางส่วน']);
     const { data: expenses7 } = await db.from('รายจ่าย').select('amount').gte('date', sevenDaysAgo + 'T00:00:00');
     const totalSales7 = (bills7 || []).reduce((s, b) => s + b.total, 0);
     const todaySales = (todayBills || []).reduce((s, b) => s + b.total, 0);
@@ -1917,6 +2021,120 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => pinInputs[0]?.focus(), 100);
   // Listen for messages from customer display (back-channel if needed)
   window.addEventListener('message', (e) => { console.log('[POS] message from display:', e.data); });
+
+  // Mobile Cart Drawer Toggle (Professional UI)
+  const cartHeader = document.querySelector('.cart-header');
+  const posCart = document.querySelector('.pos-cart');
+  const cartFab = document.getElementById('cart-fab');
+  const cartFabBadge = document.getElementById('cart-fab-badge');
+  const cartCount = document.getElementById('cart-count');
+
+  const cartOverlay = document.getElementById('cart-overlay');
+
+  if(cartHeader && posCart) {
+    cartHeader.addEventListener('click', (e) => {
+      if(e.target.closest('#clear-cart-btn')) return;
+      if(window.innerWidth <= 768) {
+        posCart.classList.toggle('cart-open');
+        cartOverlay?.classList.toggle('show');
+      }
+    });
+
+    // Handle closing cart when clicking outside on mobile via the new overlay
+    cartOverlay?.addEventListener('click', () => {
+      posCart.classList.remove('cart-open');
+      cartOverlay.classList.remove('show');
+    });
+
+    // Fallback for clicking inside POS products (legacy safety)
+    document.querySelector('.pos-products')?.addEventListener('click', () => {
+      if(window.innerWidth <= 768 && posCart.classList.contains('cart-open')) {
+        posCart.classList.remove('cart-open');
+        cartOverlay?.classList.remove('show');
+      }
+    });
+  }
+
+  // Open cart drawer from FAB
+  cartFab?.addEventListener('click', () => {
+    posCart?.classList.add('cart-open');
+    cartOverlay?.classList.add('show');
+  });
+
+  // Sync Cart Badge for FAB dynamically
+  if (cartCount && cartFabBadge) {
+    const observer = new MutationObserver(() => {
+      cartFabBadge.innerText = cartCount.innerText;
+      cartFabBadge.style.display = cartCount.innerText === '0' ? 'none' : 'inline-block';
+    });
+    observer.observe(cartCount, { childList: true, characterData: true, subtree: true });
+    // Initial sync
+    cartFabBadge.style.display = cartCount.innerText === '0' ? 'none' : 'inline-block';
+  }
+
+  // Sidebar Overlay Sync (Zero Breakage)
+  document.getElementById('menu-toggle')?.addEventListener('click', () => {
+    setTimeout(() => { // wait for innate toggle
+      const isShowing = document.getElementById('sidebar')?.classList.contains('show');
+      if(isShowing) document.getElementById('sidebar-overlay')?.classList.add('show');
+      else document.getElementById('sidebar-overlay')?.classList.remove('show');
+    }, 10);
+  });
+  
+  document.getElementById('sidebar-close')?.addEventListener('click', () => {
+    document.getElementById('sidebar-overlay')?.classList.remove('show');
+  });
+  
+  document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.remove('show');
+    document.getElementById('sidebar-overlay')?.classList.remove('show');
+  });
+
+  // Mobile Top Header Actions Toggle
+  const mobilePageActionsBtn = document.getElementById('mobile-page-actions-btn');
+  const pageActionsContainer = document.getElementById('page-actions');
+  mobilePageActionsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    pageActionsContainer?.classList.toggle('menu-open');
+  });
+  // Close header actions menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if(window.innerWidth <= 768 && pageActionsContainer?.classList.contains('menu-open')) {
+      pageActionsContainer.classList.remove('menu-open');
+    }
+  });
+
+  // Dynamic Table-to-Cards data-label Injector
+  // Guarantees any table rendered dynamically by JS works perfectly on mobile without touching original functions
+  setInterval(() => {
+    if(window.innerWidth > 768) return;
+    document.querySelectorAll('.data-table').forEach(table => {
+      const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
+      if (headers.length === 0) return;
+      table.querySelectorAll('tbody tr').forEach(row => {
+        row.querySelectorAll('td').forEach((cell, idx) => {
+          if(headers[idx] && !cell.hasAttribute('data-label')) {
+            cell.setAttribute('data-label', headers[idx]);
+          }
+        });
+      });
+    });
+
+    // Handle floating toolbar actions (Inventory buttons ONLY)
+    document.querySelectorAll('#page-inv .inv-toolbar').forEach(toolbar => {
+      const actions = toolbar.querySelector('.toolbar-actions');
+      if(actions && !toolbar.querySelector('.mobile-action-toggle') && actions.children.length > 0) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-outline mobile-action-toggle hidden-desktop';
+        toggleBtn.innerHTML = '<i class="material-icons-round">more_horiz</i> ตัวเลือกเพิ่มเติม';
+        toggleBtn.onclick = () => {
+          actions.classList.toggle('show-actions');
+        };
+        // Insert it right after the search box or before actions
+        toolbar.insertBefore(toggleBtn, actions);
+      }
+    });
+  }, 1000);
 });
 
 console.log('[SK POS v2.0] ✅ Application loaded — 100% Complete');

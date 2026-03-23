@@ -3104,10 +3104,28 @@ window.showAddProductModal = function (productData = null) {
         </div>
       </div>
 
-      <!-- รูปภาพ -->
+      <!-- รูปภาพ (รองรับการถ่ายรูป / อัปโหลดจากมือถือ พร้อมบีบอัด) -->
       <div class="form-group">
-        <label class="form-label">URL รูปภาพ</label>
-        <input class="form-input" type="url" id="v9prod-img" value="${productData?.img_url||''}" placeholder="https://...">
+        <label class="form-label">รูปภาพสินค้า <span style="font-size:11px;color:var(--text-tertiary);">(สูงสุด 100KB)</span></label>
+        <div style="background:var(--bg-surface); border:1px dashed var(--border-light); border-radius:var(--radius-md); padding:16px; text-align:center;">
+          
+          <div id="v9prod-img-preview-wrap" style="display:${productData?.img_url ? 'block' : 'none'}; position:relative; max-width:180px; margin:0 auto 12px auto; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm); border:1px solid #e2e8f0;">
+            <img id="v9prod-img-preview" src="${productData?.img_url || ''}" style="width:100%; height:auto; display:block;">
+            <button type="button" onclick="v9ClearProductImage()" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.3);">
+              <i class="material-icons-round" style="font-size:16px;">close</i>
+            </button>
+          </div>
+          
+          <div style="display:flex; justify-content:center;">
+            <button type="button" class="btn btn-outline" onclick="document.getElementById('prod-img-upload').click()" style="width:100%; max-width:200px; display:flex; justify-content:center; align-items:center; gap:6px;">
+              <i class="material-icons-round">photo_camera</i> ถ่ายรูป/เลือกรูป
+            </button>
+            <input type="file" accept="image/*" capture="environment" id="prod-img-upload" style="display:none;" onchange="v9HandleImageSelect(event)">
+          </div>
+          
+          <input type="hidden" id="v9prod-img" value="${productData?.img_url || ''}">
+          <input type="hidden" id="v9prod-img-old" value="${productData?.img_url || ''}">
+        </div>
       </div>
 
       <!-- หมายเหตุ -->
@@ -3213,6 +3231,78 @@ window.v9StopScanner = function () {
   }
 };
 
+// ── ระบบจัดการรูปภาพ (Client-Side Compression & Supabase) ──────────
+window.v9ClearProductImage = function() {
+  document.getElementById('v9prod-img-preview-wrap').style.display = 'none';
+  document.getElementById('v9prod-img-preview').src = '';
+  document.getElementById('v9prod-img').value = '';
+  document.getElementById('prod-img-upload').value = '';
+};
+
+window.v9CompressImage = function(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxW = 800;
+        if (width > maxW) {
+          height = Math.round((height * maxW) / width);
+          width = maxW;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.7);
+      };
+      img.onerror = () => reject(new Error('โหลดรูปภาพไม่สำเร็จ'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('อ่านไฟล์รูปภาพไม่สำเร็จ'));
+    reader.readAsDataURL(file);
+  });
+};
+
+window.v9HandleImageSelect = async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const previewWrap = document.getElementById('v9prod-img-preview-wrap');
+    const previewImg = document.getElementById('v9prod-img-preview');
+    const inputHidden = document.getElementById('v9prod-img');
+    
+    // โชว์รูปตัวอย่างทันที
+    const url = URL.createObjectURL(file);
+    previewImg.src = url;
+    previewWrap.style.display = 'block';
+    
+    // ตีตราว่าเป็นการอัปโหลดรูปใหม่ (ไม่ต้องใช้ URL เดิม)
+    inputHidden.value = "FILE_SELECTED"; 
+  } catch (err) {
+    console.error(err);
+    typeof toast==='function' && toast('เกิดข้อผิดพลาดในการแสดงรูปภาพ','error');
+  }
+};
+
+window.uploadImageToSupabase = async function(file) {
+  if (!file) return null;
+  const compressedBlob = await window.v9CompressImage(file);
+  const fileName = `prod_${Date.now()}.webp`;
+  
+  const { data, error } = await db.storage
+    .from('product-images')
+    .upload(fileName, compressedBlob, { contentType: 'image/webp', cacheControl: '3600', upsert: false });
+    
+  if (error) throw new Error("อัปโหลดรูปไม่สำเร็จ: " + error.message);
+  
+  const { data: publicUrlData } = db.storage.from('product-images').getPublicUrl(fileName);
+  return publicUrlData.publicUrl;
+};
+
 // ── v9SaveProduct ────────────────────────────────────────────────
 window.v9SaveProduct = async function () {
   const id      = document.getElementById('v9prod-id')?.value;
@@ -3220,23 +3310,44 @@ window.v9SaveProduct = async function () {
   if (!name) { typeof toast==='function'&&toast('กรุณากรอกชื่อสินค้า','error'); return; }
 
   v9StopScanner();  // หยุดกล้องถ้าเปิดอยู่
-  v9ShowOverlay(id ? 'กำลังแก้ไขสินค้า...' : 'กำลังเพิ่มสินค้า...', name);
+  v9ShowOverlay(id ? 'กำลังบันทึกและอัปโหลดรูป...' : 'กำลังสร้างสินค้าและอัปโหลดรูป...', name);
 
-  const data = {
-    name,
-    barcode:    document.getElementById('v9prod-barcode')?.value?.trim() || null,
-    price:      Number(document.getElementById('v9prod-price')?.value || 0),
-    cost:       Number(document.getElementById('v9prod-cost')?.value  || 0),
-    stock:      Number(document.getElementById('v9prod-stock')?.value || 0),
-    min_stock:  Number(document.getElementById('v9prod-min-stock')?.value || 0),
-    unit:       document.getElementById('v9prod-unit')?.value?.trim()    || 'ชิ้น',
-    category:   document.getElementById('v9prod-category')?.value || null,
-    img_url:    document.getElementById('v9prod-img')?.value?.trim()  || null,
-    note:       document.getElementById('v9prod-note')?.value?.trim() || null,
-    updated_at: new Date().toISOString(),
-  };
+  let finalImgUrl = document.getElementById('v9prod-img')?.value?.trim();
+  const oldImgUrl = document.getElementById('v9prod-img-old')?.value?.trim();
+  const fileInput = document.getElementById('prod-img-upload');
 
   try {
+    // 1. จัดการรูปภาพ (อัปโหลดใหม่ / ลบของเก่า)
+    if (finalImgUrl === "FILE_SELECTED" && fileInput.files.length > 0) {
+      finalImgUrl = await window.uploadImageToSupabase(fileInput.files[0]);
+      
+      // ลบรูปเก่าถ้ามีการเปลี่ยนรูป
+      if (oldImgUrl && oldImgUrl.includes('product-images/')) {
+        const oldFileName = oldImgUrl.substring(oldImgUrl.lastIndexOf('/') + 1);
+        if (oldFileName) await db.storage.from('product-images').remove([oldFileName]).catch(()=>{});
+      }
+    } else if (!finalImgUrl && oldImgUrl && oldImgUrl.includes('product-images/')) {
+      // ถ้าผู้ใช้กด X กากบาทลบรูปทิ้ง ให้ตามไปลบใน Bucket ด้วย
+      const oldFileName = oldImgUrl.substring(oldImgUrl.lastIndexOf('/') + 1);
+      if (oldFileName) await db.storage.from('product-images').remove([oldFileName]).catch(()=>{});
+      finalImgUrl = null;
+    }
+
+    // 2. เตรียมข้อมูลสินค้า
+    const data = {
+      name,
+      barcode:    document.getElementById('v9prod-barcode')?.value?.trim() || null,
+      price:      Number(document.getElementById('v9prod-price')?.value || 0),
+      cost:       Number(document.getElementById('v9prod-cost')?.value  || 0),
+      stock:      Number(document.getElementById('v9prod-stock')?.value || 0),
+      min_stock:  Number(document.getElementById('v9prod-min-stock')?.value || 0),
+      unit:       document.getElementById('v9prod-unit')?.value?.trim()    || 'ชิ้น',
+      category:   document.getElementById('v9prod-category')?.value || null,
+      img_url:    finalImgUrl === "FILE_SELECTED" ? null : (finalImgUrl || null),
+      note:       document.getElementById('v9prod-note')?.value?.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
     let err;
     if (id) {
       ({ error: err } = await db.from('สินค้า').update(data).eq('id', id));
@@ -4108,8 +4219,61 @@ window.printReceipt = async function (bill, items, format) {
   if (typeof receiptFormat !== 'undefined') {
     try { receiptFormat = fmt; } catch(_) {}
   }
-  if (fmt === 'A4') window.printA4(bill, items, rc);
-  else if (typeof print80mm === 'function') print80mm(bill, items, rc);
+  
+  if (fmt === 'A4') {
+    const res = await Swal.fire({
+      title: 'รูปแบบเอกสาร A4',
+      html: `
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+          <label style="display:flex; align-items:center; gap:12px; padding:16px; border:2px solid var(--primary); border-radius:12px; cursor:pointer; background:rgba(220,38,38,0.03);" id="v9-lbl-receipt">
+            <input type="radio" name="swal-doc-type" value="receipt" checked style="width:20px;height:20px;accent-color:var(--primary);">
+            <div style="text-align:left;">
+              <div style="font-weight:600;font-size:16px;color:var(--text-primary);">📄 ใบเสร็จรับเงิน / ใบกำกับภาษี</div>
+              <div style="font-size:13px;color:var(--text-tertiary);margin-top:2px;">เอกสารสำหรับลูกค้ายืนยันการชำระเงิน</div>
+            </div>
+          </label>
+          <label style="display:flex; align-items:center; gap:12px; padding:16px; border:2px solid var(--border-light); border-radius:12px; cursor:pointer;" id="v9-lbl-delivery">
+            <input type="radio" name="swal-doc-type" value="delivery" style="width:20px;height:20px;accent-color:var(--primary);">
+            <div style="text-align:left;">
+              <div style="font-weight:600;font-size:16px;color:var(--text-primary);">🚚 ใบส่งของ (Delivery Note)</div>
+              <div style="font-size:13px;color:var(--text-tertiary);margin-top:2px;">เอกสารสำหรับแนบไปกับสินค้าเพื่อเช็คของ</div>
+            </div>
+          </label>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: '<i class="material-icons-round" style="font-size:18px;vertical-align:middle;margin-right:6px;">print</i> พิมพ์เอกสาร',
+      cancelButtonText: 'ยกเลิก',
+      didOpen: () => {
+        const r1 = document.querySelector('input[value="receipt"]');
+        const r2 = document.querySelector('input[value="delivery"]');
+        const l1 = document.getElementById('v9-lbl-receipt');
+        const l2 = document.getElementById('v9-lbl-delivery');
+        const updateFx = () => {
+          l1.style.borderColor = r1.checked ? 'var(--primary)' : 'var(--border-light)';
+          l1.style.background = r1.checked ? 'rgba(220,38,38,0.03)' : 'transparent';
+          l2.style.borderColor = r2.checked ? 'var(--primary)' : 'var(--border-light)';
+          l2.style.background = r2.checked ? 'rgba(220,38,38,0.03)' : 'transparent';
+        };
+        r1.addEventListener('change', updateFx);
+        r2.addEventListener('change', updateFx);
+      },
+      preConfirm: () => {
+        const el = document.querySelector('input[name="swal-doc-type"]:checked');
+        return el ? el.value : 'receipt';
+      }
+    });
+    
+    if (res.isConfirmed) {
+      if (typeof window.printReceiptA4v2 === 'function') {
+        window.printReceiptA4v2(bill, items, rc, res.value);
+      } else {
+        window.printA4(bill, items, rc);
+      }
+    }
+  } else {
+    if (typeof print80mm === 'function') print80mm(bill, items, rc);
+  }
 };
 
 
@@ -4179,7 +4343,7 @@ window.v9RenderAdminTab = async function (key) {
       border-radius:50%;animation:v7spin .8s linear infinite;margin:0 auto 8px;"></div>โหลด...
   </div>`;
 
-  const orig = { shop:'renderShopSettings', receipt:'renderReceiptSettings',
+  const orig = { shop:'renderShopSettings', receipt:'v10RenderDocSettingsInto',
                  emp:'renderEmployeeAdmin', cats:'renderCategoriesAdmin' };
   if (orig[key] && typeof window[orig[key]] === 'function') {
     await window[orig[key]](c); return;
@@ -5944,7 +6108,7 @@ window.v9RenderAdminTab = async function (key) {
   });
   const c=document.getElementById('v9-admin-content');
   if(!c)return;
-  const orig={shop:'renderShopSettings',receipt:'renderReceiptSettings',emp:'renderEmployeeAdmin'};
+  const orig={shop:'renderShopSettings',receipt:'v10RenderDocSettingsInto',emp:'renderEmployeeAdmin'};
   if(orig[key]&&typeof window[orig[key]]==='function'){await window[orig[key]](c);return;}
   if(key==='users'){await window.renderUserPerms(c);return;}
   c.innerHTML=v9AdminError('ไม่พบ tab: '+key);
@@ -10786,9 +10950,28 @@ window.showAddProductModal = function (productData = null) {
         </div>
       </div>
 
+      <!-- รูปภาพ (รองรับการถ่ายรูป / อัปโหลดจากมือถือ พร้อมบีบอัด) -->
       <div class="form-group" style="margin-bottom:10px;">
-        <label class="form-label">URL รูปภาพ</label>
-        <input class="form-input" id="v9prod-img" value="${productData?.img_url||''}" placeholder="https://...">
+        <label class="form-label">รูปภาพสินค้า <span style="font-size:11px;color:var(--text-tertiary);">(สูงสุด 100KB)</span></label>
+        <div style="background:var(--bg-surface); border:1px dashed var(--border-light); border-radius:var(--radius-md); padding:16px; text-align:center;">
+          
+          <div id="v9prod-img-preview-wrap" style="display:${productData?.img_url ? 'block' : 'none'}; position:relative; max-width:180px; margin:0 auto 12px auto; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm); border:1px solid #e2e8f0;">
+            <img id="v9prod-img-preview" src="${productData?.img_url || ''}" style="width:100%; height:auto; display:block;">
+            <button type="button" onclick="v9ClearProductImage()" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.3);">
+              <i class="material-icons-round" style="font-size:16px;">close</i>
+            </button>
+          </div>
+          
+          <div style="display:flex; justify-content:center;">
+            <button type="button" class="btn btn-outline" onclick="document.getElementById('prod-img-upload').click()" style="width:100%; max-width:200px; display:flex; justify-content:center; align-items:center; gap:6px;">
+              <i class="material-icons-round">photo_camera</i> ถ่ายรูป/เลือกรูป
+            </button>
+            <input type="file" accept="image/*" capture="environment" id="prod-img-upload" style="display:none;" onchange="v9HandleImageSelect(event)">
+          </div>
+          
+          <input type="hidden" id="v9prod-img" value="${productData?.img_url || ''}">
+          <input type="hidden" id="v9prod-img-old" value="${productData?.img_url || ''}">
+        </div>
       </div>
 
       <!-- ประเภทสินค้า 3 ตัวเลือก -->
@@ -10881,7 +11064,33 @@ window.v9SaveProduct = async function () {
   if (!name) { typeof toast==='function'&&toast('กรุณากรอกชื่อสินค้า','error'); return; }
 
   v9StopScanner?.();
-  v9ShowOverlay(id ? 'กำลังแก้ไขสินค้า...' : 'กำลังเพิ่มสินค้า...', name);
+  v9ShowOverlay(id ? 'กำลังบันทึกและอัปโหลดรูป...' : 'กำลังสร้างสินค้าและอัปโหลดรูป...', name);
+
+  let finalImgUrl = document.getElementById('v9prod-img')?.value?.trim();
+  const oldImgUrl = document.getElementById('v9prod-img-old')?.value?.trim();
+  const fileInput = document.getElementById('prod-img-upload');
+
+  try {
+    if (finalImgUrl === "FILE_SELECTED" && fileInput?.files?.length > 0) {
+      if (typeof window.uploadImageToSupabase === 'function') {
+        finalImgUrl = await window.uploadImageToSupabase(fileInput.files[0]);
+      } else {
+        finalImgUrl = null;
+      }
+      if (oldImgUrl && oldImgUrl.includes('product-images/')) {
+        const oldFileName = oldImgUrl.substring(oldImgUrl.lastIndexOf('/') + 1);
+        if (oldFileName && db?.storage) await db.storage.from('product-images').remove([oldFileName]).catch(()=>{});
+      }
+    } else if (!finalImgUrl && oldImgUrl && oldImgUrl.includes('product-images/')) {
+      const oldFileName = oldImgUrl.substring(oldImgUrl.lastIndexOf('/') + 1);
+      if (oldFileName && db?.storage) await db.storage.from('product-images').remove([oldFileName]).catch(()=>{});
+      finalImgUrl = null;
+    }
+  } catch(imgErr) {
+    v9HideOverlay();
+    typeof toast==='function' && toast('อัปโหลดรูปล้มเหลว: ' + imgErr.message, 'error');
+    return;
+  }
 
   const kind   = document.querySelector('input[name="v9prod-kind"]:checked')?.value || 'sale';
   const isRaw  = kind === 'raw';
@@ -10896,7 +11105,7 @@ window.v9SaveProduct = async function () {
     min_stock:  parseFloat(document.getElementById('v9prod-min-stock')?.value || 0),
     unit:       document.getElementById('v9prod-unit')?.value?.trim() || 'ชิ้น',
     category:   document.getElementById('v9prod-category')?.value   || null,
-    img_url:    document.getElementById('v9prod-img')?.value?.trim() || null,
+    img_url:    finalImgUrl === "FILE_SELECTED" ? null : (finalImgUrl || null),
     note:       document.getElementById('v9prod-note')?.value?.trim() || null,
     is_raw:     isRaw || isBoth,    // raw หรือ both = is_raw=true
     product_type: isBoth ? 'ปกติ' : (isRaw ? 'ปกติ' : 'ปกติ'),
@@ -12908,7 +13117,7 @@ window.v9DashLoad=async function(){
 
   try{
     const [bR,pR,eR,iR,aR,sR]=await Promise.all([
-      db.from('บิลขาย').select('id,bill_no,total,method,status,date,customer_name').gte('date',since+'T00:00:00').order('date',{ascending:false}).limit(500),
+      db.from('บิลขาย').select('id,bill_no,total,method,status,date,customer_name,return_info').gte('date',since+'T00:00:00').order('date',{ascending:false}).limit(500),
       db.from('purchase_order').select('id,total,supplier,method,date,status').gte('date',since+'T00:00:00').order('date',{ascending:false}).limit(300),
       db.from('รายจ่าย').select('id,description,amount,category,method,date').gte('date',since+'T00:00:00').order('date',{ascending:false}).limit(300),
       db.from('รายการในบิล').select('name,qty,price,cost,total,unit,bill_id').limit(2000),
@@ -12926,7 +13135,18 @@ window.v9DashLoad=async function(){
     const tL=A.reduce((s,a)=>s+parseFloat(a.amount||0),0)+S.reduce((s,p)=>s+parseFloat(p.net_paid||0),0);
     const tO=tP+tE+tL;
     const nC=tS-tO;
-    const cogs=I.reduce((s,i)=>s+(parseFloat(i.cost||0)*parseFloat(i.qty||0)),0);
+    
+    const baseCogs=I.reduce((s,i)=>s+(parseFloat(i.cost||0)*parseFloat(i.qty||0)),0);
+    let lostCogs=0;
+    B.forEach(b=>{
+      if(b.status==='คืนบางส่วน'&&b.return_info?.return_items){
+        Object.values(b.return_info.return_items).forEach(rit=>{
+          lostCogs+=(parseFloat(rit.returned_qty||0)*parseFloat(rit.original_cost||0));
+        });
+      }
+    });
+    const cogs=Math.max(0, baseCogs-lostCogs);
+    
     const gP=tS-cogs, gM=tS>0?Math.round(gP/tS*100):0;
     const opX=tE+tL, nP=gP-opX, nM=tS>0?Math.round(nP/tS*100):0;
 
@@ -18285,6 +18505,11 @@ window.v9PrintQuotation = async function (quotId) {
     const discount  = parseFloat(quot.discount||0);
     const total     = parseFloat(quot.total||0);
 
+    const ds = await (typeof v10GetDocSettings==='function' ? v10GetDocSettings() : Promise.resolve({}));
+    const s = ds.receipt_a4 || {};
+    const hc1 = s.bw_mode ? '#000' : (s.header_color || '#dc2626');
+    const hc2 = s.bw_mode ? '#333' : hc1;
+
     const rows = (items||[]).map((it,idx)=>`
       <tr>
         <td class="td-no">${idx+1}</td>
@@ -18308,7 +18533,7 @@ window.v9PrintQuotation = async function (quotId) {
   body{ font-family:'Sarabun',sans-serif; font-size:13px; color:#1e293b; background:#fff; }
 
   /* Header band */
-  .header{ background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);
+  .header{ background:linear-gradient(135deg,${hc1} 0%,${hc2} 100%);
     color:#fff; padding:20px 28px; display:flex; justify-content:space-between; align-items:flex-start; }
   .shop-name{ font-size:22px; font-weight:800; margin-bottom:4px; }
   .shop-sub{ font-size:11px; opacity:.85; line-height:1.7; }
@@ -18322,14 +18547,14 @@ window.v9PrintQuotation = async function (quotId) {
 
   /* Info row */
   .info-row{ display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:18px; }
-  .info-box{ background:#f8fafc; border-radius:10px; padding:12px 16px; border-left:3px solid #dc2626; }
+  .info-box{ background:#f8fafc; border-radius:10px; padding:12px 16px; border-left:3px solid ${hc1}; }
   .info-box .lbl{ font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; font-weight:600; }
   .info-box .val{ font-size:14px; font-weight:700; }
   .info-box .sub{ font-size:11px; color:#64748b; margin-top:2px; }
 
   /* Table */
   table{ width:100%; border-collapse:collapse; margin-bottom:16px; }
-  thead tr{ background:linear-gradient(90deg,#dc2626,#b91c1c); }
+  thead tr{ background:linear-gradient(90deg,${hc1},${hc2}); }
   thead th{ color:#fff; padding:10px 12px; font-size:11px; font-weight:700; text-align:left; white-space:nowrap; }
   thead th:first-child{ border-radius:6px 0 0 0; }
   thead th:last-child{ border-radius:0 6px 0 0; }
@@ -18340,7 +18565,7 @@ window.v9PrintQuotation = async function (quotId) {
   .td-name{ font-weight:500; }
   .td-c{ text-align:center; }
   .td-r{ text-align:right; }
-  .td-bold{ font-weight:700; color:#dc2626; }
+  .td-bold{ font-weight:700; color:${hc1}; }
 
   /* Summary */
   .sum-wrap{ display:flex; justify-content:flex-end; margin-bottom:20px; }
@@ -18348,14 +18573,14 @@ window.v9PrintQuotation = async function (quotId) {
   .sum-row{ display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f1f5f9; font-size:12px; }
   .sum-row.disc{ color:#ef4444; }
   .sum-grand{ display:flex; justify-content:space-between; padding:10px 14px; margin-top:6px;
-    background:linear-gradient(135deg,#dc2626,#b91c1c); border-radius:10px; color:#fff; }
+    background:linear-gradient(135deg,${hc1},${hc2}); border-radius:10px; color:#fff; }
   .sum-grand .lbl2{ font-size:14px; font-weight:700; }
   .sum-grand .val2{ font-size:18px; font-weight:800; }
 
   /* Note + validity */
   .note-box{ background:#fef3c7; border-radius:8px; padding:10px 14px; font-size:11px; color:#92400e; margin-bottom:20px; }
   .validity{ text-align:center; font-size:11px; color:#94a3b8; margin-bottom:20px; }
-  .validity strong{ color:#dc2626; }
+  .validity strong{ color:${hc1}; }
 
   /* Sign */
   .sign-wrap{ display:grid; grid-template-columns:1fr 1fr; gap:40px; }
