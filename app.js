@@ -1907,8 +1907,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cash-open-btn')?.addEventListener('click', openCashSession);
   // View toggle
   document.querySelectorAll('.view-btn').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderProductGrid(); }));
-  // POS scan button
-  document.getElementById('pos-scan-btn')?.addEventListener('click', () => { document.getElementById('pos-search').focus(); });
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.key === 'F2') { e.preventDefault(); go('pos'); }

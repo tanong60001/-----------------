@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   
   <!-- Libraries -->
+   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -592,6 +593,22 @@
 
   <!-- Toast Container -->
   <div id="toast-container"></div>
+  
+  <div id="scanner-modal" class="modal-overlay hidden" style="z-index: 9999;">
+    <div class="modal-box" style="max-width: 400px; padding: 0; overflow: hidden;">
+      <div class="modal-header" style="padding: 16px;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <i class="material-icons-round">qr_code_scanner</i> สแกนบาร์โค้ด
+        </h3>
+        <button class="modal-close" id="scanner-close-btn">
+          <i class="material-icons-round">close</i>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 0; background: #000;">
+        <div id="reader" style="width: 100%; border-radius: 0 0 12px 12px;"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Scripts -->
   <script src="config.js"></script>
@@ -609,5 +626,6 @@
   <script src="modules-v8.js"></script>
   <script src="modules-v9.js"></script>
   <script src="modules-v10.js"></script>
+  <script src="scanner.js"></script> </body>
 </body>
 </html>
