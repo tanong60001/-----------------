@@ -3,8 +3,8 @@
  * เก็บค่ากำหนดการเชื่อมต่อฐานข้อมูลและ Google Drive
  */
 
-const SUPA_URL = 'https://cmkkuykjhdsjrkmqpnbw.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNta2t1eWtqaGRzanJrbXFwbmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NDEwODYsImV4cCI6MjA4OTMxNzA4Nn0._opXYbHg92oM6fZyuDUinaVWYV1_ZEECMWJAHR1ogVo';
+const SUPA_URL = 'https://thfswrvnyhuqmdazjfhd.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZnN3cnZueWh1cW1kYXpqZmhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDEzOTEsImV4cCI6MjA4OTUxNzM5MX0.9JdnkPbK6KbPYA1VvKmpclFr4f41YbWK4jmmJMvTw2Y';
 
 // Google Apps Script Web App URL สำหรับอัปโหลดรูปภาพไปยัง Google Drive
 // วิธีการติดตั้ง:
