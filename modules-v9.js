@@ -166,7 +166,7 @@ window.v4CompletePayment = async function () {
     // ── 2. บิลขาย ────────────────────────────────────────────────
     const methodMap = {
       cash: 'เงินสด', transfer: 'โอนเงิน',
-      credit: 'บัตรเครดิต', debt: 'ติดหนี้',
+      credit: 'บัตรเครดิต', debt: 'ค้างชำระ',
     };
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
@@ -1759,7 +1759,7 @@ window.v5LoadPayroll = async function () {
                 <div style="font-size:10px;color:#94a3b8;margin-bottom:1px;">ยอดสะสม</div>
                 <div style="font-size:20px;font-weight:800;color:#15803d;">฿${formatNum(r.accumulated)}</div>
               </div>
-              ${r.accDebt > 0 ? `<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ติดหนี้ ฿${formatNum(r.accDebt)}</div>` : ''}
+              ${r.accDebt > 0 ? `<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ค้างชำระ ฿${formatNum(r.accDebt)}</div>` : ''}
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-primary btn-sm"
                   onclick="v9ShowPayrollModal('${r.emp.id}','${(r.emp.name+' '+(r.emp.lastname||'')).trim()}',${r.accumulated},${r.accDebt})"
@@ -2261,7 +2261,7 @@ const _v9PermKeys = [
   { key:'can_inv',      label:'📦 คลังสินค้า',     desc:'จัดการสินค้า/สต็อก' },
   { key:'can_cash',     label:'💵 ลิ้นชัก',        desc:'เปิด/ปิดรอบ, เพิ่ม/เบิกเงิน' },
   { key:'can_exp',      label:'📋 รายจ่าย',        desc:'บันทึกรายจ่าย' },
-  { key:'can_debt',     label:'👤 ลูกหนี้',        desc:'จัดการหนี้ลูกค้า' },
+  { key:'can_debt',     label:'👤 ลูกค้าค้างชำระ',        desc:'จัดการหนี้ลูกค้า' },
   { key:'can_att',      label:'👷 พนักงาน',        desc:'เช็คชื่อ/เงินเดือน' },
   { key:'can_purchase', label:'🚚 รับสินค้า',      desc:'สร้างใบรับสินค้า' },
   { key:'can_dash',     label:'📊 Dashboard',      desc:'ดูวิเคราะห์ธุรกิจ' },
@@ -2428,7 +2428,7 @@ window.v4CompletePayment = async function () {
     const { data: session } = await db.from('cash_session').select('*')
       .eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
-    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
       method: methodMap[checkoutState.method] || 'เงินสด',
@@ -3168,63 +3168,94 @@ window.v9BarcodePreview = function () {
   }
 };
 
-// ── Scanner (BarcodeDetector API / fallback) ─────────────────────
+// ── Scanner — ใช้ html5-qrcode (รองรับทุกโทรศัพท์รวมถึง iPhone) ──
 let _v9ScanStream = null;
 let _v9ScanTimer  = null;
+let _v9Html5Scanner = null;  // instance of Html5Qrcode for modal
 
 window.v9StartBarcodeScanner = async function () {
-  const wrap  = document.getElementById('v9-scan-wrap');
-  const video = document.getElementById('v9-scan-video');
-  const btn   = document.getElementById('v9-scan-btn');
-  if (!wrap || !video) return;
+  const btn = document.getElementById('v9-scan-btn');
 
-  // ตรวจ BarcodeDetector support
-  if (!('BarcodeDetector' in window)) {
-    // fallback: prompt ให้พิมพ์เอง
-    typeof toast === 'function' && toast('กล้องไม่รองรับ BarcodeDetector — พิมพ์บาร์โค้ดโดยตรงได้เลย', 'info');
-    document.getElementById('v9prod-barcode')?.focus();
+  // ── เปิด scanner-modal แบบเดียวกับหน้า POS ────────────────────
+  const scannerModal = document.getElementById('scanner-modal');
+  if (!scannerModal) {
+    typeof toast === 'function' && toast('ไม่พบ scanner modal', 'error');
     return;
   }
 
+  // หยุด scanner เก่าถ้ายังเปิดอยู่
+  v9StopScanner();
+
+  scannerModal.classList.remove('hidden');
+
   try {
-    _v9ScanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal:'environment' }, width:{ ideal:1280 } }
-    });
-    video.srcObject = _v9ScanStream;
-    wrap.style.display = 'block';
-    if (btn) btn.innerHTML = '<i class="material-icons-round" style="font-size:18px;">stop_circle</i> หยุด';
-    if (btn) btn.onclick = () => v9StopScanner();
+    _v9Html5Scanner = new Html5Qrcode('reader');
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 150 },
+      aspectRatio: 1.0
+    };
 
-    const detector = new BarcodeDetector({ formats:['code_128','ean_13','ean_8','upc_a','qr_code'] });
-    const statusEl = document.getElementById('v9-scan-status');
-
-    _v9ScanTimer = setInterval(async () => {
-      if (video.readyState < 2) return;
-      try {
-        const barcodes = await detector.detect(video);
-        if (barcodes.length > 0) {
-          const bc = barcodes[0].rawValue;
-          const input = document.getElementById('v9prod-barcode');
-          if (input) { input.value = bc; v9BarcodePreview(); }
-          if (statusEl) statusEl.textContent = `✅ พบบาร์โค้ด: ${bc}`;
-          if (statusEl) statusEl.style.color = '#10b981';
-          // หยุดหลัง 1.2 วิ
-          setTimeout(() => v9StopScanner(), 1200);
+    await _v9Html5Scanner.start(
+      { facingMode: 'environment' },
+      config,
+      (decodedText) => {
+        // สแกนสำเร็จ — ใส่บาร์โค้ดลง input
+        const input = document.getElementById('v9prod-barcode');
+        if (input) {
+          input.value = decodedText;
+          typeof v9BarcodePreview === 'function' && v9BarcodePreview();
         }
-      } catch(_) {}
-    }, 300);
+        // เสียง beep
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine'; osc.frequency.value = 800;
+          gain.gain.value = 0.1;
+          osc.start(); osc.stop(ctx.currentTime + 0.1);
+        } catch(_) {}
+
+        // ปิด modal แล้ว toast ผล
+        v9StopScanner();
+        typeof toast === 'function' && toast(`สแกนได้: ${decodedText}`, 'success');
+      },
+      () => {} // onScanFailure — ปล่อยว่าง
+    );
+
+    if (btn) {
+      btn.innerHTML = '<i class="material-icons-round" style="font-size:18px;">stop_circle</i> หยุด';
+      btn.onclick = () => v9StopScanner();
+    }
 
   } catch(e) {
-    typeof toast === 'function' && toast('ไม่สามารถเข้าถึงกล้อง: ' + e.message, 'error');
+    scannerModal.classList.add('hidden');
+    typeof toast === 'function' && toast('ไม่สามารถเปิดกล้อง: ' + e.message, 'error');
   }
 };
 
 window.v9StopScanner = function () {
+  // หยุด html5-qrcode และปิด modal
+  if (_v9Html5Scanner) {
+    _v9Html5Scanner.stop().then(() => {
+      _v9Html5Scanner.clear();
+      _v9Html5Scanner = null;
+    }).catch(() => { _v9Html5Scanner = null; });
+  }
+  // หยุด native stream (fallback)
   clearInterval(_v9ScanTimer); _v9ScanTimer = null;
   if (_v9ScanStream) { _v9ScanStream.getTracks().forEach(t => t.stop()); _v9ScanStream = null; }
+
+  // ปิด modal กล้อง
+  document.getElementById('scanner-modal')?.classList.add('hidden');
+
+  // ซ่อน inline wrap (ถ้ามี)
   const wrap = document.getElementById('v9-scan-wrap');
-  const btn  = document.getElementById('v9-scan-btn');
   if (wrap) wrap.style.display = 'none';
+
+  // Reset ปุ่มสแกน
+  const btn = document.getElementById('v9-scan-btn');
   if (btn) {
     btn.innerHTML = '<i class="material-icons-round" style="font-size:18px;">qr_code_scanner</i> สแกน';
     btn.onclick = () => v9StartBarcodeScanner();
@@ -8483,7 +8514,7 @@ window.v4CompletePayment = async function () {
   try {
     const {data:session}=await db.from('cash_session').select('*').eq('status','open')
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
-    const methodMap={cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ติดหนี้'};
+    const methodMap={cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ค้างชำระ'};
     const {data:bill,error:billError}=await db.from('บิลขาย').insert({
       date:new Date().toISOString(),
       method:methodMap[checkoutState.method]||'เงินสด',
@@ -10688,7 +10719,7 @@ window.v4CompletePayment = async function () {
       .select('*').eq('status','open')
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
-    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
       method:        methodMap[checkoutState.method] || 'เงินสด',
@@ -11426,7 +11457,7 @@ window.v4CompletePayment = (function () {
         .select('*').eq('status','open')
         .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
-      const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+      const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
       const { data: bill, error: billError } = await db.from('บิลขาย').insert({
         date: new Date().toISOString(),
         method: methodMap[checkoutState.method] || 'เงินสด',
@@ -11702,7 +11733,7 @@ window.v4CompletePayment = async function v9Sale() {
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
     // สร้างบิล
-    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billErr } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
       method:        methodMap[checkoutState.method] || 'เงินสด',
@@ -11960,7 +11991,7 @@ window.v9Sale = async function () {
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
     // สร้างบิล
-    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billErr } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
       method:        methodTH[checkoutState.method] || 'เงินสด',
@@ -12256,7 +12287,7 @@ window.v9Sale = async function () {
       .select('*').eq('status','open')
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
-    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billErr } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
       method:        methodTH[checkoutState.method] || 'เงินสด',
@@ -13389,7 +13420,7 @@ window.dbPay=function(bills){
   const m={};
   bills.forEach(b=>{const mt=b.method||'อื่นๆ';if(!m[mt])m[mt]={n:0,t:0};m[mt].n++;m[mt].t+=parseFloat(b.total||0);});
   const total=bills.reduce((s,b)=>s+parseFloat(b.total||0),0)||1;
-  const cls={'เงินสด':'#15803d','โอนเงิน':'#1d4ed8','บัตรเครดิต':'#7c3aed','ติดหนี้':'#dc2626'};
+  const cls={'เงินสด':'#15803d','โอนเงิน':'#1d4ed8','บัตรเครดิต':'#7c3aed','ค้างชำระ':'#dc2626'};
   const sorted=Object.entries(m).sort((a,b)=>b[1].t-a[1].t);
   if(!sorted.length){el.innerHTML=`<div style="font-size:12px;color:var(--text-tertiary);">ยังไม่มีข้อมูล</div>`;return;}
   el.innerHTML=sorted.map(([mt,d])=>{
@@ -13430,7 +13461,7 @@ window.v9Sale = async function () {
       .select('*').eq('status','open')
       .order('opened_at',{ascending:false}).limit(1).maybeSingle();
 
-    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' };
+    const methodTH = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' };
     const { data: bill, error: billErr } = await db.from('บิลขาย').insert({
       date:new Date().toISOString(),
       method:methodTH[checkoutState.method]||'เงินสด',
@@ -14698,7 +14729,7 @@ window._v9SaveDebtPayment = async function(customerId, name, paid, totalDebt, me
 // ══════════════════════════════════════════════════════════════════
 // FIX-43
 //  1. เจ้าหนี้ร้าน: แสดงยอดจากหน้ารับสินค้า + ชำระเจ้าหนี้
-//  2. ชำระหนี้ลูกหนี้: UI สีแบงค์จริง + กดเลือกแบงค์ + นับทอนเอง
+//  2. ชำระหนี้ลูกค้าค้างชำระ: UI สีแบงค์จริง + กดเลือกแบงค์ + นับทอนเอง
 // ══════════════════════════════════════════════════════════════════
 
 // ── 1. หน้าเจ้าหนี้ร้าน ─────────────────────────────────────────
@@ -14886,7 +14917,7 @@ window.go = function (page) {
 };
 
 
-// ── 2. ชำระหนี้ลูกหนี้: UI สีแบงค์ + กดแบงค์ + นับทอนเอง ──────
+// ── 2. ชำระหนี้ลูกค้าค้างชำระ: UI สีแบงค์ + กดแบงค์ + นับทอนเอง ──────
 window.recordDebtPayment = async function (customerId, name) {
   const { data: cust } = await db.from('customer')
     .select('debt_amount,name,phone').eq('id', customerId).maybeSingle();
@@ -16278,7 +16309,7 @@ window.v5LoadPayroll = async function () {
                 <div style="font-size:10px;color:#94a3b8;margin-bottom:1px;">ยอดสะสม (รอจ่าย)</div>
                 <div style="font-size:20px;font-weight:800;color:${r.accumulated>0?'#15803d':'#94a3b8'};">฿${formatNum(r.accumulated)}</div>
               </div>
-              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ติดหนี้ ฿${formatNum(r.accDebt)}</div>`:''}
+              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ค้างชำระ ฿${formatNum(r.accDebt)}</div>`:''}
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-primary btn-sm"
                   onclick="v9ShowPayrollModal('${r.emp.id}','${(r.emp.name+' '+(r.emp.lastname||'')).trim().replace(/'/g,"\\'")}',${r.accumulated},${r.accDebt})"
@@ -17344,7 +17375,7 @@ window.v5LoadPayroll = async function () {
                   ฿${formatNum(r.accumulated)}
                 </div>
               </div>
-              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ติดหนี้ ฿${formatNum(r.accDebt)}</div>`:''}
+              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ค้างชำระ ฿${formatNum(r.accDebt)}</div>`:''}
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-primary btn-sm"
                   onclick="v9ShowPayrollModal('${r.emp.id}','${(r.emp.name+' '+(r.emp.lastname||'')).trim().replace(/'/g,"\\'")}',${r.accumulated},${r.accDebt})"
@@ -17672,7 +17703,7 @@ window.v5LoadPayroll = async function () {
                   ฿${formatNum(r.accumulated)}
                 </div>
               </div>
-              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ติดหนี้ ฿${formatNum(r.accDebt)}</div>`:''}
+              ${r.accDebt>0?`<div style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#92400e;font-weight:700;">ค้างชำระ ฿${formatNum(r.accDebt)}</div>`:''}
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-primary btn-sm"
                   onclick="v9ShowPayrollModal('${r.emp.id}','${(r.emp.name+' '+(r.emp.lastname||'')).trim().replace(/'/g,"\\'")}',${r.accumulated},${r.accDebt})"
@@ -18920,3 +18951,75 @@ console.info(
   'color:#10B981;font-weight:700',
   'color:#6B7280'
 );
+
+// ── FIX: Auto-update debt bill statuses upon payment ─────────────────
+const _v9OrigRecordDebtBeforeBills = window.recordDebtPayment;
+window.recordDebtPayment = async function (customerId, name) {
+  // Capture initial customer debt before modal
+  const { data: custPrev } = await db.from('customer').select('debt_amount').eq('id', customerId).maybeSingle();
+  const prevDebt = custPrev ? parseFloat(custPrev.debt_amount||0) : 0;
+
+  // Run original (which has the modal, validations, and the actual db insert)
+  await _v9OrigRecordDebtBeforeBills.apply(this, arguments);
+
+  // Check the new debt
+  const { data: custNow } = await db.from('customer').select('debt_amount').eq('id', customerId).maybeSingle();
+  const newDebt = custNow ? parseFloat(custNow.debt_amount||0) : prevDebt;
+  
+  // Diff is how much was effectively PAID in this session
+  const paidDiff = prevDebt - newDebt;
+  
+  if (paidDiff > 0) {
+    try {
+      // Find all unpaid bills for this customer (oldest first)
+      const { data: unpaidBills } = await db.from('บิลขาย')
+        .select('id, total, status, return_info')
+        .eq('customer_id', customerId)
+        .eq('method', 'ค้างชำระ')
+        .in('status', ['ติดหนี้', 'ค้างชำระ', 'จ่ายแล้วบางส่วน'])
+        .order('date', { ascending: true });
+        
+      if (!unpaidBills || unpaidBills.length === 0) return;
+      
+      let floatPaid = paidDiff;
+      
+      for (let bill of unpaidBills) {
+        if (floatPaid <= 0) break;
+        
+        let billTotal = parseFloat(bill.total || 0);
+        let alreadyPaid = 0;
+        let retInfo = bill.return_info || {};
+        if (typeof retInfo === 'string') {
+          try { retInfo = JSON.parse(retInfo); } catch(e) { retInfo = {}; }
+        }
+        if (retInfo.paid_amount) alreadyPaid = parseFloat(retInfo.paid_amount);
+        
+        let billRemaining = billTotal - alreadyPaid;
+        
+        if (billRemaining <= 0) {
+            // Already paid fully somehow but status didn't update
+            await db.from('บิลขาย').update({ status: 'สำเร็จ' }).eq('id', bill.id);
+            continue;
+        }
+        
+        if (floatPaid >= billRemaining) {
+            // This bill is now FULLY paid
+            floatPaid -= billRemaining;
+            retInfo.paid_amount = billTotal;
+            await db.from('บิลขาย').update({ status: 'สำเร็จ', return_info: retInfo }).eq('id', bill.id);
+            // Deduct the customer's debt for this bill implicitly handled by original logic
+        } else {
+            // This bill is PARTIALLY paid
+            retInfo.paid_amount = alreadyPaid + floatPaid;
+            floatPaid = 0;
+            await db.from('บิลขาย').update({ status: 'จ่ายแล้วบางส่วน', return_info: retInfo }).eq('id', bill.id);
+        }
+      }
+      // If we are looking at History, refresh it
+      if (typeof window.renderHistory === 'function') setTimeout(window.renderHistory, 500);
+    } catch(err) {
+      console.warn('Failed to auto-update bill statuses:', err);
+    }
+  }
+};
+

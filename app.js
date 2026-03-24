@@ -124,8 +124,53 @@ function sendToDisplay(data) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 3. AUTHENTICATION
+// 3. AUTHENTICATION & PERMISSIONS
 // ══════════════════════════════════════════════════════════════════
+
+// Permission map: page key → USER_PERMS field
+const PAGE_PERM_MAP = {
+  pos:      'can_pos',
+  inv:      'can_inv',
+  cash:     'can_cash',
+  exp:      'can_exp',
+  debt:     'can_debt',
+  att:      'can_att',
+  purchase: 'can_purchase',
+  dash:     'can_dash',
+  history:  'can_log',
+  log:      'can_log',
+  // pages below require admin or always open
+  home:     null,
+  customer: null,
+  quotation: null,
+  payable:  null,
+  admin:    null,
+};
+
+function hasPermission(page) {
+  if (!USER) return false;
+  if (USER.role === 'admin') return true;  // admin bypasses all
+  const permKey = PAGE_PERM_MAP[page];
+  if (permKey === null || permKey === undefined) return true; // always-open pages
+  return USER_PERMS?.[permKey] === true;
+}
+
+function applyNavPermissions() {
+  if (!USER) return;
+  const isAdmin = USER.role === 'admin';
+
+  // Show/hide admin section
+  document.getElementById('nav-admin-section')?.style.setProperty('display', isAdmin ? 'block' : 'none');
+  document.getElementById('nav-admin')?.style.setProperty('display', isAdmin ? 'flex' : 'none');
+
+  // Show/hide each nav-item based on permission
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    const page = item.dataset.page;
+    if (page === 'admin') return; // handled above
+    const allowed = hasPermission(page);
+    item.style.display = allowed ? '' : 'none';
+  });
+}
 async function checkLogin() {
   const pin = Array.from({ length: 4 }, (_, i) => document.getElementById(`pin-${i + 1}`).value).join('');
   if (pin.length !== 4) { toast('กรุณากรอก PIN 4 หลัก', 'error'); return; }
@@ -147,10 +192,7 @@ async function checkLogin() {
     document.getElementById('app-layout').classList.remove('hidden');
     document.getElementById('user-display-name').textContent = data.username;
     document.getElementById('user-display-role').textContent = data.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
-    if (data.role === 'admin') {
-      document.getElementById('nav-admin-section')?.style.setProperty('display', 'block');
-      document.getElementById('nav-admin')?.style.setProperty('display', 'flex');
-    }
+    applyNavPermissions();
     await initApp();
     toast(`ยินดีต้อนรับ ${data.username}`, 'success');
     logActivity('เข้าสู่ระบบ', data.username);
@@ -200,6 +242,13 @@ function updateClock() {
 // 5. NAVIGATION
 // ══════════════════════════════════════════════════════════════════
 function go(page) {
+  // ── Permission Gate ──────────────────────────────────────────────
+  if (!hasPermission(page)) {
+    toast(`❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้`, 'error');
+    // fallback to home silently
+    page = 'home';
+  }
+
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page));
   document.querySelectorAll('.page-section').forEach(section => section.classList.add('hidden'));
@@ -207,7 +256,7 @@ function go(page) {
   if (targetPage) targetPage.classList.remove('hidden');
   const titles = {
     home: '🏠 หน้าหลัก', pos: '🛒 ขายสินค้า', inv: '📦 คลังสินค้า', cash: '💰 ลิ้นชักเงินสด',
-    dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', debt: '👥 ลูกหนี้', customer: '⭐ ลูกค้าประจำ',
+    dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', debt: '👥 ลูกค้าค้างชำระ', customer: '⭐ ลูกค้าประจำ',
     purchase: '📥 รับสินค้าเข้า', history: '📜 ประวัติการขาย', att: '🪪 พนักงาน/ลงเวลา',
     log: '📑 ประวัติกิจกรรม', payable: '🏦 เจ้าหนี้ร้าน', quotation: '📄 ใบเสนอราคา', admin: '🔧 ผู้ดูแลระบบ'
   };
@@ -649,7 +698,7 @@ function renderStep2(container) {
           <i class="material-icons-round">credit_card</i><span>บัตรเครดิต</span>
         </button>
         <button class="payment-method-btn ${checkoutState.method === 'debt' ? 'selected' : ''}" onclick="selectPaymentMethod('debt')" ${checkoutState.customer.type === 'general' ? 'disabled style="opacity:.5"' : ''}>
-          <i class="material-icons-round">access_time</i><span>ติดหนี้</span>
+          <i class="material-icons-round">access_time</i><span>ค้างชำระ</span>
         </button>
       </div>
       <div id="payment-qr-section" style="display:none; text-align:center; margin-top:20px; padding:20px; background:var(--bg-base); border-radius:var(--radius-md);">
@@ -661,7 +710,7 @@ function renderStep2(container) {
 }
 
 function selectPaymentMethod(method) {
-  if (method === 'debt' && checkoutState.customer.type === 'general') { toast('ติดหนี้ได้เฉพาะลูกค้าประจำ', 'warning'); return; }
+  if (method === 'debt' && checkoutState.customer.type === 'general') { toast('ค้างชำระได้เฉพาะลูกค้าประจำ', 'warning'); return; }
   checkoutState.method = method;
   document.querySelectorAll('.payment-method-btn').forEach(btn => btn.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
@@ -782,7 +831,7 @@ function renderStep4(container) {
 
       <div style="background:var(--bg-base);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;border:1px solid var(--border-light);">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">ลูกค้า</span><strong>${checkoutState.customer.name}</strong></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">วิธีชำระ</span><strong>${{ cash:'เงินสด', transfer:'โอน/พร้อมเพย์', credit:'บัตรเครดิต', debt:'ติดหนี้' }[checkoutState.method]}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">วิธีชำระ</span><strong>${{ cash:'เงินสด', transfer:'โอน/พร้อมเพย์', credit:'บัตรเครดิต', debt:'ค้างชำระ' }[checkoutState.method]}</strong></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">ยอดรวม</span><strong style="color:var(--primary)">฿${formatNum(checkoutState.total)}</strong></div>
       </div>
 
@@ -832,7 +881,7 @@ async function completePayment() {
     const { data: session } = await db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).single();
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' }[checkoutState.method] || 'เงินสด',
+      method: { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' }[checkoutState.method] || 'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount,
       received: checkoutState.received, change: checkoutState.change,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id || null,
@@ -1397,7 +1446,7 @@ async function deleteExpense(id) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 17. DEBTS (ลูกหนี้)
+// 17. DEBTS (ลูกค้าค้างชำระ)
 // ══════════════════════════════════════════════════════════════════
 async function renderDebts() {
   const section = document.getElementById('page-debt');
@@ -1408,7 +1457,7 @@ async function renderDebts() {
     <div class="inv-container">
       <div class="inv-stats">
         <div class="inv-stat danger"><span class="inv-stat-value">฿${formatNum(total)}</span><span class="inv-stat-label">หนี้รวมทั้งหมด</span></div>
-        <div class="inv-stat"><span class="inv-stat-value">${(data || []).length}</span><span class="inv-stat-label">ลูกหนี้</span></div>
+        <div class="inv-stat"><span class="inv-stat-value">${(data || []).length}</span><span class="inv-stat-label">ลูกค้าค้างชำระ</span></div>
       </div>
       <div class="table-wrapper">
         <table class="data-table">

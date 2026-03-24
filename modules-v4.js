@@ -192,7 +192,7 @@ window.v4ConfirmOpen = async function () {
 // ══════════════════════════════════════════════════════════════════
 
 window.bcMethod = function (m) {
-  if (m==='debt' && checkoutState.customer.type==='general') { toast('ติดหนี้ได้เฉพาะลูกค้าประจำ','warning'); return; }
+  if (m==='debt' && checkoutState.customer.type==='general') { toast('ค้างชำระได้เฉพาะลูกค้าประจำ','warning'); return; }
   checkoutState.method = m;
   document.querySelectorAll('.pay-method-card').forEach(b => b.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
@@ -352,7 +352,7 @@ async function v4CompletePayment() {
     const { data: session } = await db.from('cash_session').select('*').eq('status','open').order('opened_at',{ascending:false}).limit(1).single();
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ติดหนี้'}[checkoutState.method]||'เงินสด',
+      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ค้างชำระ'}[checkoutState.method]||'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount,
       received: checkoutState.received, change: checkoutState.change,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id||null,
@@ -807,7 +807,7 @@ function v4UpdateChangeSummary(mustChange) {
 // Override bcMethod ใหม่ — เรียก async version
 const _v4OrigBcMethod = window.bcMethod;
 window.bcMethod = function(m) {
-  if (m === 'debt' && checkoutState.customer.type === 'general') { toast('ติดหนี้ได้เฉพาะลูกค้าประจำ','warning'); return; }
+  if (m === 'debt' && checkoutState.customer.type === 'general') { toast('ค้างชำระได้เฉพาะลูกค้าประจำ','warning'); return; }
   checkoutState.method = m;
   document.querySelectorAll('.pay-method-card').forEach(b => b.classList.remove('selected'));
   event.currentTarget.classList.add('selected');

@@ -87,7 +87,7 @@ window.completePayment = async function() {
       .order('opened_at',{ascending:false}).limit(1).single();
     const { data: bill, error: bErr } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ติดหนี้'}[checkoutState.method]||'เงินสด',
+      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ค้างชำระ'}[checkoutState.method]||'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount,
       received: checkoutState.received, change: checkoutState.change,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id||null,
@@ -399,7 +399,7 @@ window.renderSalesHistory = async function() {
               <td><strong>#${b.bill_no}</strong></td>
               <td style="white-space:nowrap">${formatDateTime(b.date)}</td>
               <td>${b.customer_name||'ทั่วไป'}</td>
-              <td><span class="badge ${b.method==='เงินสด'?'badge-success':b.method==='โอนเงิน'?'badge-info':b.method==='ติดหนี้'?'badge-danger':'badge-warning'}">${b.method}</span></td>
+              <td><span class="badge ${b.method==='เงินสด'?'badge-success':b.method==='โอนเงิน'?'badge-info':b.method==='ค้างชำระ'?'badge-danger':'badge-warning'}">${b.method}</span></td>
               <td class="text-right"><strong>฿${formatNum(b.total)}</strong></td>
               <td><span class="badge ${b.status==='สำเร็จ'?'badge-success':'badge-danger'}">${b.status}</span></td>
               <td>${b.staff_name||'-'}</td>

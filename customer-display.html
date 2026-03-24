@@ -507,7 +507,7 @@
 
         case 'checkout': {
           const { step, total, method, received, change } = data;
-          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ติดหนี้' };
+          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ค้างชำระ' };
           const methodIcons = { cash: 'payments', transfer: 'qr_code', credit: 'credit_card', debt: 'access_time' };
 
           if (step === 2) {
@@ -550,7 +550,7 @@
 
         case 'payment_method': {
           const { method, total, qrPayload, qrLabel } = data;
-          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ติดหนี้' };
+          const methodMap = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ค้างชำระ' };
           const methodIcons = { cash: 'payments', transfer: 'qr_code', credit: 'credit_card', debt: 'access_time' };
           document.getElementById('pay-amount').textContent = `฿${fmt(total)}`;
           const chip = document.getElementById('method-chip');

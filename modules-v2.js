@@ -638,7 +638,7 @@ window.renderDebts = async function() {
     <div class="inv-container">
       <div class="inv-stats">
         <div class="inv-stat danger"><span class="inv-stat-value">฿${formatNum(total)}</span><span class="inv-stat-label">หนี้รวมทั้งหมด</span></div>
-        <div class="inv-stat"><span class="inv-stat-value">${(data||[]).length}</span><span class="inv-stat-label">ลูกหนี้</span></div>
+        <div class="inv-stat"><span class="inv-stat-value">${(data||[]).length}</span><span class="inv-stat-label">ลูกค้าค้างชำระ</span></div>
       </div>
       <div class="table-wrapper">
         <table class="data-table">

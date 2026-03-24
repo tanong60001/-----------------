@@ -16,8 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     openScanner();
   });
 
-  // เมื่อกดปุ่มปิด X
-  closeBtn.addEventListener('click', closeScanner);
+  // เมื่อกดปุ่มปิด X — รองรับทั้งหน้า POS และหน้าแก้ไขสินค้า
+  closeBtn.addEventListener('click', () => {
+    closeScanner();
+    if (typeof v9StopScanner === 'function') v9StopScanner();
+  });
 
   function openScanner() {
     scannerModal.classList.remove('hidden');

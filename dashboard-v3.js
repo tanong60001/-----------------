@@ -17,33 +17,36 @@
     const style = document.createElement('style');
     style.id = 'dash-v3-styles';
     style.innerHTML = `
-      @keyframes dashFadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes dashFadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes dashGrowUp { from { transform: scaleY(0); } to { transform: scaleY(1); } }
       @keyframes dashShimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+      @keyframes dashFloat { 0% { transform: translateY(0px); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0px); } }
+      @keyframes dashPulseGlow { 0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); } 100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); } }
       
-      .dash-v3-container { padding: 24px; max-width: 1400px; margin: 0 auto; animation: dashFadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+      .dash-v3-container { padding: 24px; max-width: 1400px; margin: 0 auto; animation: dashFadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1); font-family: 'Inter', 'Prompt', sans-serif; }
       
       /* Premium Header & Filters */
-      .dash-v3-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
-      .dash-v3-title-wrap { display: flex; align-items: center; gap: 12px; }
-      .dash-v3-icon-box { width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000)); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.2); }
+      .dash-v3-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+      .dash-v3-title-wrap { display: flex; align-items: center; gap: 16px; }
+      .dash-v3-icon-box { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3); animation: dashFloat 4s ease-in-out infinite; }
       
-      .dash-v3-filter-group { display: flex; gap: 6px; background: var(--bg-surface); padding: 6px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid var(--border-light); }
-      .dash-v3-btn-per { padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--text-secondary); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-      .dash-v3-btn-per.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3); transform: translateY(-1px); }
-      .dash-v3-btn-per:hover:not(.active) { background: var(--bg-base); color: var(--text-primary); }
+      .dash-v3-filter-group { display: flex; gap: 8px; background: rgba(255, 255, 255, 0.9); padding: 8px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.04); border: 1px solid rgba(226, 232, 240, 0.8); backdrop-filter: blur(16px); }
+      .dash-v3-btn-per { padding: 10px 20px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; background: transparent; color: #64748b; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+      .dash-v3-btn-per.active { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4); transform: translateY(-2px); }
+      .dash-v3-btn-per:hover:not(.active) { background: #f1f5f9; color: #0f172a; }
       
       /* Tabs */
-      .dash-v3-tabs { display: flex; gap: 8px; border-bottom: 2px solid var(--border-light); margin-bottom: 24px; padding-bottom: 8px; }
-      .dash-v3-tab { font-size: 16px; font-weight: 700; padding: 12px 24px; cursor: pointer; color: var(--text-tertiary); border-radius: 12px; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
-      .dash-v3-tab:hover { background: var(--bg-base); color: var(--text-primary); }
-      .dash-v3-tab.active { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+      .dash-v3-tabs { display: flex; gap: 12px; margin-bottom: 24px; padding-bottom: 0px; border-bottom: none; }
+      .dash-v3-tab { font-size: 15px; font-weight: 700; padding: 14px 28px; cursor: pointer; color: #64748b; border-radius: 14px; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; }
+      .dash-v3-tab:hover { background: #fff; box-shadow: 0 8px 16px rgba(0,0,0,0.04); transform: translateY(-2px); color: #0f172a; border-color: #cbd5e1; }
+      .dash-v3-tab.active { background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border-color: transparent; box-shadow: 0 8px 20px rgba(14, 165, 233, 0.3); animation: dashPulseGlow 2s infinite; }
       
       /* Cards */
-      .dash-v3-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-      .dash-v3-card { background: var(--bg-surface); border-radius: 20px; padding: 24px; border: 1px solid var(--border-light); box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: all 0.3s; position: relative; overflow: hidden; }
-      .dash-v3-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: color-mix(in srgb, var(--primary) 30%, var(--border-light)); }
-      .dash-v3-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 20px 20px 0 0; background: var(--card-accent, transparent); opacity: 0.8; }
+      .dash-v3-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px; margin-bottom: 28px; }
+      .dash-v3-card { background: #ffffff; border-radius: 24px; padding: 26px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 10px 30px rgba(0,0,0,0.04); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); position: relative; overflow: hidden; }
+      .dash-v3-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 40px rgba(0,0,0,0.08); border-color: var(--card-accent, #cbd5e1); z-index: 10; }
+      .dash-v3-card::before { content: ''; position: absolute; top:0; left:0; width:5px; height:100%; background: var(--card-accent, transparent); transition: width 0.3s; opacity: 1; border-radius: 24px 0 0 24px; }
+      .dash-v3-card:hover::before { width: 8px; }
       
       /* Animations for contents */
       .anim-child { animation: dashFadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -82,6 +85,12 @@
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  };
+
+  const isSameLocalDay = (isoString, targetDateStr) => {
+    if (!isoString) return false;
+    const d = new Date(isoString); // converts UTC to local automatically
+    return getLocalDateString(d) === targetDateStr;
   };
 
   const generateSkeletons = (count, height = '60px') => {
@@ -249,36 +258,62 @@
     if(topProd) topProd.innerHTML = generateSkeletons(5, '40px');
 
     try {
+      const billLimit = days > 30 ? 20000 : (days > 7 ? 5000 : 2000);
+      const otherLimit = days > 30 ? 10000 : (days > 7 ? 2000 : 500);
+
       // Parallel Queries
-      const [bR, pR, eR, salR, advR, debtPaymentR] = await Promise.all([
-        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(2000),
-        db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(500),
-        db.from('รายจ่าย').select('amount, category, date').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(500),
-        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').limit(500),
-        db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').limit(500),
-        db.from('ชำระหนี้').select('amount, method, created_at').gte('created_at', startStr + 'T00:00:00').limit(500)
+      const [bR, pR, eR, salR, advR, debtPaymentR, payrollR] = await Promise.all([
+        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(billLimit),
+        db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
+        db.from('รายจ่าย').select('amount, category, date').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
+        db.from('เช็คชื่อ').select('employee_id, status, date, deduction').gte('date', startStr + 'T00:00:00').limit(otherLimit),
+        db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
+        db.from('ชำระหนี้').select('amount, method, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
+        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').limit(otherLimit)
       ]);
 
-      // Filter paid bills only (ignore ติดหนี้, ยกเลิก, ค้างชำระ)
+      // Filter paid bills only (ignore ค้างชำระ, ยกเลิก)
       const allBills = bR.data || [];
       const paidBills = allBills.filter(b => b.status === 'สำเร็จ' || b.status === 'คืนบางส่วน');
       // For double-checking Method:
-      const actualPaidBills = paidBills.filter(b => b.method !== 'ติดหนี้');
+      const actualPaidBills = paidBills.filter(b => b.method !== 'ค้างชำระ' && b.method !== 'เครดิต');
 
-      const billIds = actualPaidBills.map(b => b.id);
+      // (NEW) Valid bills for COGS: Include credit/ค้างชำระ, but exclude 'ยกเลิก'
+      const validBillsForCOGS = allBills.filter(b => b.status !== 'ยกเลิก');
+      const allValidBillIds = validBillsForCOGS.map(b => b.id);
       
-      // Fetch Bill Items for COGS based on actualPaidBills
+      // Fetch Bill Items for COGS based on ALL valid bills (to deduct stock cost immediately)
       let billItems = [];
-      if (billIds.length > 0) {
+      if (allValidBillIds.length > 0) {
         // Since we might have > 1000 IDs, we chunk it or just limit in query
-        const chunkedIds = billIds.slice(0, 800);
+        const chunkedIds = allValidBillIds.slice(0, 800);
         const iR = await db.from('รายการในบิล').select('name, qty, price, cost, bill_id').in('bill_id', chunkedIds).limit(3000);
         billItems = iR.data || [];
       }
 
-      const purchases = pR.data || [];
+      // ** FILTER OUT UNPAID PURCHASES ** 
+      const purchases = (pR.data || []).filter(p => p.method !== 'ค้างชำระ' && p.method !== 'เครดิต' && p.status !== 'ยกเลิก');
       const expenses = eR.data || [];
-      const salaries = salR.data || [];
+
+      // Calculate active Daily Wages from 'เช็คชื่อ'
+      let salaries = [];
+      const attendances = salR.data || [];
+      const empIds = [...new Set(attendances.map(a => a.employee_id).filter(Boolean))];
+      if (empIds.length > 0) {
+        const { data: emps } = await db.from('พนักงาน').select('id, daily_wage').in('id', empIds);
+        const empWages = {};
+        (emps || []).forEach(e => { empWages[e.id] = parseFloat(e.daily_wage || 0); });
+        
+        salaries = attendances.map(a => {
+           let baseAmt = 0;
+           let wage = empWages[a.employee_id] || 0;
+           if (a.status === 'มา' || a.status === 'มาสาย') baseAmt = wage;
+           else if (a.status === 'ลาครึ่งวัน') baseAmt = wage / 2;
+           baseAmt -= parseFloat(a.deduction || 0);
+           return { paid_date: a.date, net_paid: Math.max(0, baseAmt) };
+        });
+      }
+
       const advances = (advR.data || []).filter(a => a.status === 'อนุมัติ');
       const debtPayments = debtPaymentR.data || [];
 
@@ -293,15 +328,25 @@
       const rawCogs = billItems.reduce((s, i) => s + (parseFloat(i.cost || 0) * parseFloat(i.qty || 0)), 0);
       // Deduct returned items
       let returnedCogs = 0;
+      const returnedItemsMap = {}; // Tracker for Top Products
       actualPaidBills.forEach(b => {
         if (b.status === 'คืนบางส่วน' && b.return_info && b.return_info.return_items) {
           b.return_info.return_items.forEach(ret => {
             let rCost = parseFloat(ret.cost);
-            if (isNaN(rCost)) {
+            let rPrice = parseFloat(ret.price || ret.sell_price || 0);
+            if (isNaN(rCost) || isNaN(rPrice)) {
               const oItem = billItems.find(i => i.bill_id === b.id && i.name === ret.name);
-              rCost = oItem ? parseFloat(oItem.cost || 0) : 0;
+              rCost = isNaN(rCost) ? (oItem ? parseFloat(oItem.cost || 0) : 0) : rCost;
+              rPrice = isNaN(rPrice) || rPrice === 0 ? (oItem ? parseFloat(oItem.price || 0) : 0) : rPrice;
             }
-            returnedCogs += (rCost * parseFloat(ret.qty || 0));
+            const retQty = parseFloat(ret.qty || 0);
+            returnedCogs += (rCost * retQty);
+            
+            // Map for Top Products subtraction
+            if(!returnedItemsMap[ret.name]) returnedItemsMap[ret.name] = { qty: 0, revenue: 0, cost: 0 };
+            returnedItemsMap[ret.name].qty += retQty;
+            returnedItemsMap[ret.name].revenue += (rPrice * retQty);
+            returnedItemsMap[ret.name].cost += (rCost * retQty);
           });
         }
       });
@@ -309,21 +354,26 @@
 
       // 3. OPEX
       const sumExpenses = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
-      const sumSalaries = salaries.reduce((s, e) => s + parseFloat(e.net_paid || 0), 0);
+      const sumSalariesAccrued = salaries.reduce((s, e) => s + parseFloat(e.net_paid || 0), 0); // จากเช็คชื่อรายวัน (P&L)
       const sumAdvances = advances.reduce((s, a) => s + parseFloat(a.amount || 0), 0);
-      const totalOPEX = sumExpenses + sumSalaries + sumAdvances;
+
+      const payrollPaid = payrollR.data || [];
+      const sumPayrollPaid = payrollPaid.reduce((s, p) => s + parseFloat(p.net_paid || 0), 0); // จ่ายเงินเดือนจริง (Cash Flow)
+      
+      const totalOpexPL = sumExpenses + sumSalariesAccrued + sumAdvances;
+      const totalOpexCash = sumExpenses + sumPayrollPaid + sumAdvances;
 
       // 4. PURCHASES (Stock)
       const sumPurchases = purchases.reduce((s, p) => s + parseFloat(p.total || 0), 0);
 
       // P&L
       const grossProfit = actualRevenue - actualCOGS;
-      const netProfit = grossProfit - totalOPEX;
+      const netProfit = grossProfit - totalOpexPL;
       const netMargin = actualRevenue > 0 ? Math.round((netProfit / actualRevenue) * 100) : 0;
 
       // CASH FLOW
       const cashIn = actualRevenue;
-      const cashOut = sumPurchases + totalOPEX;
+      const cashOut = sumPurchases + totalOpexCash;
       const liquidity = cashIn - cashOut;
 
       // ─── RENDER KPIs ──────────────────────────────────────────────
@@ -398,8 +448,8 @@
             <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumAdvances))}</div>
           </div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">เงินเดือน (เน็ต)</div>
-            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumSalaries))}</div>
+            <div class="pl-line-item">เงินเดือน/ค่าแรงพนักงาน (ค้างจ่าย/รับจริง)</div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumSalariesAccrued))}</div>
           </div>
 
           <div class="dash-v3-net-box" style="--card-bg-sub: ${netProfit >= 0 ? '#10b981' : '#ef4444'}">
@@ -431,8 +481,12 @@
             <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumPurchases))}</div>
           </div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">ค่าใช้จ่าย OPEX (จ่ายร้าน, เบิก, เงินเดือน)</div>
-            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(totalOPEX))}</div>
+            <div class="pl-line-item">เบิกเงินล่วงหน้า / จ่ายค่าจ้างร้าน / จิปาถะ</div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumExpenses + sumAdvances))}</div>
+          </div>
+          <div class="dash-v3-row">
+            <div class="pl-line-item">จ่ายเงินเดือนพนักงาน (ผ่านระบบจ่ายเงินเดือน)</div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumPayrollPaid))}</div>
           </div>
 
           <div class="dash-v3-net-box" style="--card-bg-sub: ${liquidity >= 0 ? '#3b82f6' : '#ef4444'}">
@@ -467,16 +521,16 @@
         const dStr = getLocalDateString(d); // YYYY-MM-DD local
         
         // Sales for this day
-        const daySales = actualPaidBills.filter(b => (b.date || '').startsWith(dStr)).reduce((s, b) => s + parseFloat(b.total||0), 0);
-        const dayDebtIn = debtPayments.filter(p => (p.created_at || '').startsWith(dStr)).reduce((s, p) => s + parseFloat(p.amount||0), 0);
+        const daySales = actualPaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + parseFloat(b.total||0), 0);
+        const dayDebtIn = debtPayments.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.amount||0), 0);
         const dayCashIn = daySales + dayDebtIn;
 
         // Expenses for this day
-        const dayExp = expenses.filter(e => (e.date || '').startsWith(dStr)).reduce((s, e) => s + parseFloat(e.amount||0), 0);
-        const dayPur = purchases.filter(p => (p.date || '').startsWith(dStr)).reduce((s, p) => s + parseFloat(p.total||0), 0);
-        const daySal = salaries.filter(sa => (sa.paid_date || '').startsWith(dStr)).reduce((s, sa) => s + parseFloat(sa.net_paid||0), 0);
-        const dayAdv = advances.filter(a => (a.date || '').startsWith(dStr)).reduce((s, a) => s + parseFloat(a.amount||0), 0);
-        const dayCashOut = dayExp + dayPur + daySal + dayAdv;
+        const dayExp = expenses.filter(e => isSameLocalDay(e.date, dStr)).reduce((s, e) => s + parseFloat(e.amount||0), 0);
+        const dayPur = purchases.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.total||0), 0);
+        const dayPayroll = payrollPaid.filter(sa => isSameLocalDay(sa.paid_date, dStr)).reduce((s, sa) => s + parseFloat(sa.net_paid||0), 0);
+        const dayAdv = advances.filter(a => isSameLocalDay(a.date, dStr)).reduce((s, a) => s + parseFloat(a.amount||0), 0);
+        const dayCashOut = dayExp + dayPur + dayPayroll + dayAdv;
 
         chartData.push({ date: dStr, in: dayCashIn, out: dayCashOut, dateObj: d });
       }
@@ -529,6 +583,16 @@
           itemMap[i.name].qty += iQty;
           itemMap[i.name].revenue += iTotal;
           itemMap[i.name].profit += iProfit;
+        });
+
+        // Deduct returned products
+        Object.keys(returnedItemsMap).forEach(rName => {
+           if(itemMap[rName]) {
+              itemMap[rName].qty -= returnedItemsMap[rName].qty;
+              itemMap[rName].revenue -= returnedItemsMap[rName].revenue;
+              itemMap[rName].profit -= (returnedItemsMap[rName].revenue - returnedItemsMap[rName].cost);
+              if(itemMap[rName].revenue < 0) itemMap[rName].revenue = 0;
+           }
         });
 
         // Object.entries -> Array, sort by Revenue. Top 5.

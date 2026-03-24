@@ -38,7 +38,7 @@ window.v4CompletePayment = async function () {
     // ── 2. Save bill ────────────────────────────────────────────────
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date:          new Date().toISOString(),
-      method:        { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ติดหนี้' }[checkoutState.method] || 'เงินสด',
+      method:        { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' }[checkoutState.method] || 'เงินสด',
       total:         checkoutState.total,
       discount:      checkoutState.discount,
       received:      checkoutState.received,

@@ -111,7 +111,7 @@ window.completePayment = async function() {
       .order('opened_at',{ascending:false}).limit(1).single();
     const { data: bill, error: bErr } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ติดหนี้'}[checkoutState.method]||'เงินสด',
+      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ค้างชำระ'}[checkoutState.method]||'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount,
       received: checkoutState.received, change: checkoutState.change,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id||null,
@@ -1052,7 +1052,7 @@ function doBatchPrint() {
 const PERM_KEYS = [
   {key:'can_pos',label:'POS ขาย'},{key:'can_inv',label:'คลังสินค้า'},
   {key:'can_cash',label:'ลิ้นชัก'},{key:'can_exp',label:'รายจ่าย'},
-  {key:'can_debt',label:'ลูกหนี้'},{key:'can_att',label:'พนักงาน'},
+  {key:'can_debt',label:'ลูกค้าค้างชำระ'},{key:'can_att',label:'พนักงาน'},
   {key:'can_purchase',label:'รับสินค้า'},{key:'can_dash',label:'Dashboard'},
   {key:'can_log',label:'ประวัติ'}
 ];

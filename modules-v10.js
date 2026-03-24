@@ -674,7 +674,7 @@ function v10RenderReturnModal() {
   const bill = window._v10ReturnBill, items = window._v10ReturnItems || [];
   const totalReturn = items.reduce((s, it) => s + it.return_qty * (it.price || 0), 0);
   const selCount = items.filter(it => it.return_qty > 0).length;
-  const isDebt = (bill.method === 'ติดหนี้'), isCash = (bill.method === 'เงินสด');
+  const isDebt = (bill.method === 'ค้างชำระ'), isCash = (bill.method === 'เงินสด');
 
   body.innerHTML = `
     <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
@@ -764,7 +764,7 @@ window.v10ConfirmReturn = async function() {
   const totalReturn = items.reduce((s,it) => s + it.return_qty*(it.price||0), 0);
   const allItems = window._v10ReturnItems||[];
   const allFull = allItems.every(it => (it.return_qty+it.already_returned) >= it.qty);
-  const isDebt = (bill.method==='ติดหนี้'), isCash = (bill.method==='เงินสด');
+  const isDebt = (bill.method==='ค้างชำระ'), isCash = (bill.method==='เงินสด');
 
   const cf = await Swal.fire({ title:'ยืนยันคืนสินค้า?',
     html:`คืน ${items.length} รายการ ฿${formatNum(totalReturn)}${isDebt?'<br>⚠ หนี้จะถูกหัก':''}`,
@@ -974,7 +974,7 @@ window.cancelBill = async function(billId) {
           total_purchase: Math.max(0, (cust.total_purchase || 0) - bill.total),
           visit_count: Math.max(0, (cust.visit_count || 1) - 1)
         };
-        if (bill.method === 'ติดหนี้') {
+        if (bill.method === 'ค้างชำระ') {
           upd.debt_amount = Math.max(0, (cust.debt_amount || 0) - bill.total);
         }
         await db.from('customer').update(upd).eq('id', bill.customer_id);
@@ -1428,7 +1428,7 @@ window.v10PrintPaymentReceipt = async function(customerName, amount, method, not
 };
 
 // NOTE: ไม่ override recordDebtPayment เพราะ v9 มีระบบนับแบงค์ที่ซับซ้อน
-// แทนที่ → inject ปุ่ม "พิมพ์ใบรับเงิน" ในหน้าลูกหนี้/ลูกค้า
+// แทนที่ → inject ปุ่ม "พิมพ์ใบรับเงิน" ในหน้าลูกค้าค้างชำระ/ลูกค้า
 // ผู้ใช้สามารถเรียก v10PrintPaymentReceipt(name, amount, method, note) ได้โดยตรง
 
 // Inject print button into debt page after rendering

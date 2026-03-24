@@ -688,7 +688,7 @@ async function v6CompleteSale() {
     const { data: sess } = await db.from('cash_session').select('*').eq('status','open').order('opened_at',{ascending:false}).limit(1).single();
     const { data: bill, error: bErr } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ติดหนี้'}[checkoutState.method] || 'เงินสด',
+      method: {cash:'เงินสด',transfer:'โอนเงิน',credit:'บัตรเครดิต',debt:'ค้างชำระ'}[checkoutState.method] || 'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount || 0,
       received: checkoutState.received, change: checkoutState.change || 0,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id || null,

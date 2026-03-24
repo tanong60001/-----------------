@@ -575,7 +575,7 @@ function openBillCheckout() {
                 <i class="material-icons-round">credit_card</i><span>บัตรเครดิต</span>
               </button>
               <button class="pay-method-card ${checkoutState.method==='debt'?'selected':''}" onclick="bcMethod('debt')" ${checkoutState.customer.type==='general'?'disabled':''}>
-                <i class="material-icons-round">pending</i><span>ติดหนี้</span>
+                <i class="material-icons-round">pending</i><span>ค้างชำระ</span>
               </button>
             </div>
           </div>
@@ -637,7 +637,7 @@ function bcFilterCust() {
 }
 
 function bcMethod(m) {
-  if (m==='debt' && checkoutState.customer.type==='general') { toast('ติดหนี้ได้เฉพาะลูกค้าประจำ','warning'); return; }
+  if (m==='debt' && checkoutState.customer.type==='general') { toast('ค้างชำระได้เฉพาะลูกค้าประจำ','warning'); return; }
   checkoutState.method = m;
   document.querySelectorAll('.pay-method-card').forEach(b => b.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
