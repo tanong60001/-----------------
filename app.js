@@ -233,7 +233,7 @@ function go(page) {
     case 'log': renderActivityLog(); break;
     case 'payable': renderPayables(); break;
     case 'quotation': renderQuotations(); break;
-    case 'dash': renderDashboard(); break;
+    case 'dash': if(typeof renderDashboardV3 !== 'undefined') renderDashboardV3(); else renderDashboard(); break;
     case 'admin': renderAdmin(); break;
   }
   document.getElementById('sidebar')?.classList.remove('show');
