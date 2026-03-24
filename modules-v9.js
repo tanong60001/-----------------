@@ -18779,70 +18779,115 @@ window.v9d44Load = async function () {
 
 
 // ── Dashboard KPI redesign ────────────────────────────────────────
-window.v9d44KPI = function({B,tS,cogs,gP,gM,nP,nM,nC,tAccruedWage,tAdv}) {
-  const el=document.getElementById('v9d44-kpi');if(!el)return;
-  const K=[
-    {l:'💰 ยอดขาย',     v:tS,          s:`${B.length} บิล`,   c:'#15803d',  bg:'#f0fdf4'},
-    {l:'📦 ต้นทุนขาย',  v:cogs,        s:'COGS',              c:'#d97706',  bg:'#fef3c7'},
-    {l:'📈 กำไรขั้นต้น',v:gP,          s:`Gross ${gM}%`,      c:gP>=0?'#0891b2':'#dc2626', bg:'#ecfeff'},
-    {l:'🧾 กำไรสุทธิ',  v:nP,          s:`Net ${nM}%`,        c:nP>=0?'#15803d':'#dc2626', bg:nP>=0?'#f0fdf4':'#fef2f2'},
-    {l:'🏦 เงินสดสุทธิ',v:nC,          s:nC>=0?'บวก':'ลบ',   c:nC>=0?'#15803d':'#dc2626', bg:nC>=0?'#f0fdf4':'#fef2f2'},
+window.v9d44KPI = function({B, tS, cogs, gP, gM, nP, nM, nC}) {
+  const el = document.getElementById('v9d44-kpi');
+  if (!el) return;
+  
+  const K = [
+    {l:'💰 ยอดขาย', v:tS, s:`${B.length} บิล`, c:'#10b981', bg:'rgba(16, 185, 129, 0.1)'},
+    {l:'📦 ต้นทุนขาย', v:cogs, s:'COGS', c:'#f59e0b', bg:'rgba(245, 158, 11, 0.1)'},
+    {l:'📈 กำไรขั้นต้น', v:gP, s:`Gross ${gM}%`, c:gP>=0?'#0284c7':'#ef4444', bg:gP>=0?'rgba(2, 132, 199, 0.1)':'rgba(239, 68, 68, 0.1)'},
+    {l:'🧾 กำไรสุทธิ', v:nP, s:`Net ${nM}%`, c:nP>=0?'#10b981':'#ef4444', bg:nP>=0?'rgba(16, 185, 129, 0.1)':'rgba(239, 68, 68, 0.1)'},
+    {l:'🏦 เงินสดสุทธิ', v:nC, s:nC>=0?'กระแสเงินบวก':'กระแสเงินลบ', c:nC>=0?'#8b5cf6':'#ef4444', bg:nC>=0?'rgba(139, 92, 246, 0.1)':'rgba(239, 68, 68, 0.1)'},
   ];
-  el.innerHTML=K.map(k=>`
-    <div style="background:${k.bg};border-radius:16px;padding:18px 16px;
-      border:1px solid ${k.c}20;transition:transform .15s;"
-      onmouseenter="this.style.transform='translateY(-2px)'"
-      onmouseleave="this.style.transform=''">
-      <div style="font-size:12px;font-weight:700;color:${k.c};margin-bottom:8px;">${k.l}</div>
-      <div style="font-size:24px;font-weight:800;color:${k.c};">${k.v<0?'−':''}฿${formatNum(Math.abs(Math.round(k.v)))}</div>
-      <div style="font-size:11px;color:${k.c};opacity:.7;margin-top:4px;">${k.s}</div>
+
+  el.innerHTML = K.map(k => `
+    <div style="background: white; border-radius: 20px; padding: 20px 16px; 
+      border: 1px solid var(--border-light); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      display: flex; flex-direction: column; gap: 8px; transition: all 0.2s ease;"
+      onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1)';"
+      onmouseleave="this.style.transform='none'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)';">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${k.c};"></div>
+        <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">${k.l}</div>
+      </div>
+      <div style="font-size: 22px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px;">
+        <span style="font-size: 16px; font-weight: 600; color: ${k.c}; margin-right: 2px;">฿</span>${formatNum(Math.abs(Math.round(k.v)))}
+      </div>
+      <div style="font-size: 11px; font-weight: 600; color: ${k.c}; background: ${k.bg}; 
+        padding: 4px 10px; border-radius: 99px; width: fit-content;">
+        ${k.s}
+      </div>
     </div>`).join('');
 };
 
 
 // ── P&L redesign: แสดงค่าแรงสะสม + เบิกเงิน ─────────────────────
-wwindow.v9d44PL = function({tS, cogs, gP, gM, tEO, tAccruedWage, tAdv, tSal, nP, nM}) {
+// --- ส่วนแสดงผล P&L ตัวล่าสุด (ดีไซน์สวย + แสดงหมายเหตุหักของคืน) ---
+window.v9d44PL = function({tS, cogs, gP, gM, tEO, tAccruedWage, tAdv, tSal, nP, nM}) {
   const el = document.getElementById('v9d44-pl-body');
   if (!el) return;
 
-  // สร้างแม่แบบบรรทัด (Row Template)
-  const row = (l, v, c, bg, bold, sub) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:9px ${bg ? '12px' : '2px'};border-radius:${bg ? '8px' : '0'};margin-bottom:3px;
-      background:${bg || 'transparent'};">
-      <div>
-        <div style="font-size:${bold ? '13px' : '12px'};font-weight:${bold ? 700 : 400};
-          color:${bold ? 'var(--text-primary)' : 'var(--text-secondary)'};">${l}</div>
-        ${sub ? `<div style="font-size:10px;color:var(--text-tertiary);">${sub}</div>` : ''}
+  // ฟังก์ชันวาดแถวข้อมูลแบบใหม่ (Modern Style)
+  const row = (l, v, c, bg, bold, sub, isDivider) => `
+    <div style="display:flex; align-items:center; justify-content:space-between; 
+      padding:${bold ? '12px 16px' : '8px 16px'}; 
+      margin-bottom:4px; 
+      background:${bg || 'transparent'}; 
+      border-radius:12px;
+      ${isDivider ? 'border-top: 1px solid var(--border-light); margin-top:8px; padding-top:12px;' : ''}">
+      <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="font-size:${bold ? '14px' : '13px'}; font-weight:${bold ? '700' : '500'}; 
+          color:${bold ? 'var(--text-primary)' : 'var(--text-secondary)'};">
+          ${l}
+        </div>
+        ${sub ? `<div style="font-size:11px; color:var(--text-tertiary); font-weight:400;">${sub}</div>` : ''}
       </div>
-      <div style="font-size:${bold ? '15px' : '13px'};font-weight:${bold ? 700 : 500};color:${c};">
+      <div style="font-size:${bold ? '16px' : '14px'}; font-weight:700; color:${c}; letter-spacing:-0.2px;">
         ${v < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(v)))}
       </div>
     </div>`;
 
-  // แสดงผลเนื้อหาภายใน P&L Panel
-  el.innerHTML =
-    row('💰 ยอดขายรวม', tS, '#15803d', '#f0fdf4', true)
-    + `<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ต้นทุนสินค้าขาย (COGS)</div>`
-    + row('📦 COGS', cogs, '#d97706', '', false, 'cost × (qty - จำนวนที่คืน)')
-    + `<hr style="border:none;border-top:1.5px dashed var(--border-light);margin:6px 0;">`
-    + row('📈 กำไรขั้นต้น', gP, gP >= 0 ? '#0891b2' : '#dc2626', '#ecfeff', true, `Gross Margin ${gM}%`)
-    + `<div style="font-size:10px;color:var(--text-tertiary);padding:2px 4px;margin:2px 0;">ลบ ค่าใช้จ่ายดำเนินงาน</div>`
-    + row('🏪 รายจ่ายร้าน', tEO, '#dc2626', '', false, '')
-    + row('👷 ค่าแรงสะสม', tAccruedWage, '#f97316', '', false, 'คิดจากเช็คชื่อ × ค่าแรง/วัน')
-    + row('💸 เบิกเงินพนักงาน', tAdv, '#7c3aed', '', false, 'advance ที่อนุมัติ')
-    + `<div style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:5px 8px;border-radius:6px;margin:4px 0;">💡 เงินเดือนที่จ่ายแล้ว (${Math.round(tSal > 0 ? tSal : 0).toLocaleString()}) อยู่ใน cash flow ไม่ซ้ำ P&L</div>`
-    + `<hr style="border:none;border-top:2px solid var(--border-light);margin:8px 0;">`
-    + `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
-        border-radius:12px;background:${nP >= 0 ? '#f0fdf4' : '#fef2f2'};">
-        <div>
-          <div style="font-size:15px;font-weight:700;color:${nP >= 0 ? '#15803d' : '#dc2626'};">🏆 กำไรสุทธิ</div>
-          <div style="font-size:11px;font-weight:600;color:${nP >= 0 ? '#16a34a' : '#ef4444'};margin-top:3px;">Net Margin ${nM}%</div>
+  el.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      ${row('💰 ยอดขายรวมสุทธิ', tS, '#059669', 'rgba(5, 150, 105, 0.08)', true)}
+      
+      <div style="font-size:11px; font-weight:700; color:var(--text-tertiary); padding:12px 16px 4px; text-transform:uppercase; letter-spacing:0.5px;">
+        หัก ต้นทุนสินค้า (Direct Cost)
+      </div>
+      ${row('📦 ต้นทุนสินค้าขาย (COGS)', cogs, '#d97706', '', false, 'คำนวณจาก (ขาย - คืน) × ต้นทุน')}
+      
+      ${row('📈 กำไรขั้นต้น (Gross Profit)', gP, gP >= 0 ? '#0284c7' : '#ef4444', 'rgba(2, 132, 199, 0.05)', true, `Gross Margin ${gM}%`, true)}
+
+      <div style="font-size:11px; font-weight:700; color:var(--text-tertiary); padding:12px 16px 4px; text-transform:uppercase; letter-spacing:0.5px;">
+        ค่าใช้จ่ายดำเนินงาน (Expenses)
+      </div>
+      ${row('🏪 รายจ่ายจิปาถะร้าน', tEO, '#64748b', '', false)}
+      ${row('👷 ค่าแรงพนักงานสะสม', tAccruedWage, '#ea580c', '', false, 'คำนวณรายวันตามการเช็คชื่อ')}
+      ${row('💸 เบิกเงินล่วงหน้า (Advance)', tAdv, '#7c3aed', '', false, 'ยอดเบิกที่อนุมัติแล้ว')}
+
+      <div style="margin:12px 16px; padding:10px 14px; background:var(--bg-base); border-radius:10px; display:flex; gap:10px; align-items:start; border: 1px solid var(--border-light);">
+        <i class="material-icons-round" style="font-size:16px; color:var(--text-tertiary);">info</i>
+        <span style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+          เงินเดือนที่โอนจ่ายจริง <b>฿${Math.round(tSal).toLocaleString()}</b> ถูกบันทึกใน Cash Flow แล้ว เพื่อความแม่นยำจึงไม่นำมาหักซ้ำในงบ P&L นี้
+        </span>
+      </div>
+
+      <div style="margin-top:12px; padding:20px; border-radius:20px; 
+        background:linear-gradient(135deg, ${nP >= 0 ? '#059669 0%, #10b981 100%' : '#dc2626 0%, #ef4444 100%'}); 
+        box-shadow: 0 10px 20px -5px ${nP >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'};
+        color: white; position: relative; overflow: hidden;">
+        
+        <div style="position:absolute; right:-20px; top:-20px; opacity:0.1;">
+          <i class="material-icons-round" style="font-size:100px;">payments</i>
         </div>
-        <div style="font-size:24px;font-weight:700;color:${nP >= 0 ? '#15803d' : '#dc2626'};">
-          ${nP < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(nP)))}
+
+        <div style="display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1;">
+          <div>
+            <div style="font-size:14px; font-weight:600; opacity:0.9;">กำไรสุทธิประจำงวด</div>
+            <div style="font-size:11px; font-weight:500; opacity:0.8; margin-top:2px; background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:99px; display:inline-block;">
+              Net Margin ${nM}%
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:28px; font-weight:800; letter-spacing:-0.5px;">
+              ${nP < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(nP)))}
+            </div>
+          </div>
         </div>
-      </div>`;
+      </div>
+    </div>
+  `;
 };
 
 
