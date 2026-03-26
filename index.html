@@ -1,27 +1,31 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SK POS — ระบบจัดการร้านค้าอัจฉริยะ</title>
-  
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-  
+
   <!-- Libraries -->
-   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-  
+
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-additions.css">
 </head>
+
 <body>
 
   <!-- ═══════════════════════════════════════════════════════════════
@@ -37,12 +41,16 @@
       <h1 class="login-title">เข้าสู่ระบบ</h1>
       <p class="login-subtitle">กรุณาระบุรหัส PIN 4 หลัก</p>
       <div class="pin-container">
-        <input type="tel" class="pin-input" maxlength="1" id="pin-1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-        <input type="tel" class="pin-input" maxlength="1" id="pin-2" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-        <input type="tel" class="pin-input" maxlength="1" id="pin-3" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-        <input type="tel" class="pin-input" maxlength="1" id="pin-4" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-1" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-2" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-3" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-4" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
       </div>
-      <button class ="btn btn-primary btn-lg" id="login-btn">
+      <button class="btn btn-primary btn-lg" id="login-btn">
         <i class="material-icons-round">login</i>
         เข้าสู่ระบบ
       </button>
@@ -54,11 +62,11 @@
        APP LAYOUT — โครงสร้างหลัก
        ═══════════════════════════════════════════════════════════════ -->
   <div id="app-layout" class="app-layout hidden">
-    
+
     <!-- Sidebar Overlay (Mobile) -->
     <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
     <div id="cart-overlay" class="sidebar-overlay hidden" style="z-index: 1055;"></div>
-    
+
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -68,7 +76,7 @@
           <i class="material-icons-round">close</i>
         </button>
       </div>
-      
+
       <div class="user-card">
         <div class="user-avatar">
           <i class="material-icons-round">person</i>
@@ -78,7 +86,7 @@
           <div class="user-role" id="user-display-role">...</div>
         </div>
       </div>
-      
+
       <div class="cash-widget">
         <div class="cash-icon">
           <i class="material-icons-round">account_balance_wallet</i>
@@ -88,7 +96,7 @@
           <span class="cash-value" id="global-cash-balance">฿0</span>
         </div>
       </div>
-      
+
       <nav class="nav-menu">
         <div class="nav-section">หลัก</div>
         <a class="nav-item active" data-page="home">
@@ -104,7 +112,7 @@
           <i class="material-icons-round">inventory_2</i>
           <span>คลังสินค้า</span>
         </a>
-        
+
         <div class="nav-section">การเงิน</div>
         <a class="nav-item" data-page="cash">
           <i class="material-icons-round">account_balance_wallet</i>
@@ -122,7 +130,7 @@
           <i class="material-icons-round">account_balance</i>
           <span>เจ้าหนี้ร้าน</span>
         </a>
-        
+
         <div class="nav-section">สินค้า & ลูกค้า</div>
         <a class="nav-item" data-page="purchase">
           <i class="material-icons-round">local_shipping</i>
@@ -136,7 +144,7 @@
           <i class="material-icons-round">description</i>
           <span>ใบเสนอราคา</span>
         </a>
-        
+
         <div class="nav-section">รายงาน & HR</div>
         <a class="nav-item" data-page="dash">
           <i class="material-icons-round">bar_chart</i>
@@ -154,14 +162,14 @@
           <i class="material-icons-round">manage_search</i>
           <span>ประวัติกิจกรรม</span>
         </a>
-        
+
         <div class="nav-section" id="nav-admin-section" style="display:none;">ผู้ดูแล</div>
         <a class="nav-item" data-page="admin" id="nav-admin" style="display:none;">
           <i class="material-icons-round">admin_panel_settings</i>
           <span>ผู้ดูแลระบบ</span>
         </a>
       </nav>
-      
+
       <div class="sidebar-footer">
         <button class="logout-btn" id="logout-btn">
           <i class="material-icons-round">logout</i>
@@ -169,7 +177,7 @@
         </button>
       </div>
     </aside>
-    
+
     <!-- Main Content -->
     <main class="main-content">
       <header class="top-header">
@@ -179,15 +187,16 @@
         <h1 class="page-title" id="page-title-text">🏠 หน้าหลัก</h1>
         <div class="header-actions">
           <div class="live-clock" id="live-clock"></div>
-          <button id="mobile-page-actions-btn" class="btn btn-icon hidden-desktop" style="background:transparent;border:none;color:var(--text-primary);padding:8px;">
+          <button id="mobile-page-actions-btn" class="btn btn-icon hidden-desktop"
+            style="background:transparent;border:none;color:var(--text-primary);padding:8px;">
             <i class="material-icons-round">more_vert</i>
           </button>
           <div id="page-actions"></div>
         </div>
       </header>
-      
+
       <div class="content-area">
-        
+
         <!-- ═══════════════════════════════════════════════════════════════
              PAGE: HOME — หน้าหลัก Dashboard
              ═══════════════════════════════════════════════════════════════ -->
@@ -204,7 +213,7 @@
                 <div class="welcome-time" id="home-time"></div>
               </div>
             </div>
-            
+
             <!-- Stats Grid -->
             <div class="stats-grid">
               <div class="stat-card stat-sales">
@@ -236,7 +245,7 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Quick Actions -->
             <div class="quick-actions">
               <h3 class="section-title">
@@ -270,7 +279,7 @@
                 </button>
               </div>
             </div>
-            
+
             <!-- Alerts -->
             <div class="alerts-section">
               <h3 class="section-title">
@@ -286,7 +295,7 @@
             </div>
           </div>
         </section>
-        
+
         <!-- ═══════════════════════════════════════════════════════════════
              PAGE: POS — หน้าขายสินค้า (รองรับ 2000 ชิ้น)
              ═══════════════════════════════════════════════════════════════ -->
@@ -312,12 +321,12 @@
                   </button>
                 </div>
               </div>
-              
+
               <!-- Categories -->
               <div class="category-tabs" id="pos-categories">
                 <button class="cat-tab active" data-cat="ทั้งหมด">ทั้งหมด</button>
               </div>
-              
+
               <!-- Product Grid with Virtual Scroll -->
               <div class="products-container" id="products-container">
                 <div class="product-grid" id="pos-product-grid"></div>
@@ -326,13 +335,13 @@
                   <span>กำลังโหลด...</span>
                 </div>
               </div>
-              
+
               <!-- Pagination Info -->
               <div class="products-info">
                 <span id="products-count">แสดง 0 จาก 0 รายการ</span>
               </div>
             </div>
-            
+
             <!-- Right: Cart -->
             <div class="pos-cart">
               <div class="cart-header">
@@ -346,7 +355,7 @@
                   ล้าง
                 </button>
               </div>
-              
+
               <div class="cart-items" id="cart-list">
                 <div class="cart-empty">
                   <i class="material-icons-round">shopping_basket</i>
@@ -354,7 +363,7 @@
                   <span>เลือกสินค้าจากรายการด้านซ้าย</span>
                 </div>
               </div>
-              
+
               <div class="cart-summary">
                 <div class="summary-row">
                   <span>ส่วนลด</span>
@@ -368,7 +377,7 @@
                   <span class="total-amount" id="pos-total">฿0</span>
                 </div>
               </div>
-              
+
               <!-- Print Format Selection -->
               <div class="print-format">
                 <label class="format-option">
@@ -386,23 +395,23 @@
                   </span>
                 </label>
               </div>
-              
+
               <button class="btn btn-primary btn-checkout" id="checkout-btn" disabled>
                 <i class="material-icons-round">shopping_cart_checkout</i>
                 ชำระเงิน
                 <kbd>F10</kbd>
               </button>
             </div>
-            
+
             <!-- Mobile Cart Floating Action Button -->
             <button id="cart-fab" class="cart-fab hidden-desktop">
               <i class="material-icons-round">shopping_basket</i>
               <span id="cart-fab-badge" class="cart-fab-badge">0</span>
             </button>
-            
+
           </div>
         </section>
-        
+
         <!-- ═══════════════════════════════════════════════════════════════
              PAGE: INVENTORY — คลังสินค้า
              ═══════════════════════════════════════════════════════════════ -->
@@ -425,7 +434,7 @@
                 </button>
               </div>
             </div>
-            
+
             <!-- Stats -->
             <div class="inv-stats">
               <div class="inv-stat">
@@ -445,7 +454,7 @@
                 <span class="inv-stat-label">มูลค่าคลัง</span>
               </div>
             </div>
-            
+
             <!-- Table -->
             <div class="table-wrapper">
               <table class="data-table" id="inv-table">
@@ -466,7 +475,7 @@
             </div>
           </div>
         </section>
-        
+
         <!-- ═══════════════════════════════════════════════════════════════
              PAGE: CASH — ลิ้นชักเงินสด (ออกแบบใหม่)
              ═══════════════════════════════════════════════════════════════ -->
@@ -487,7 +496,7 @@
                 <span class="session-status" id="cash-session-status">ยังไม่เปิดรอบ</span>
               </div>
             </div>
-            
+
             <!-- Quick Actions -->
             <div class="cash-actions">
               <button class="cash-action-btn open" id="cash-open-btn">
@@ -507,7 +516,7 @@
                 <span>ปิดรอบ</span>
               </button>
             </div>
-            
+
             <!-- Transactions History -->
             <div class="cash-history">
               <h3 class="section-title">
@@ -518,7 +527,7 @@
             </div>
           </div>
         </section>
-        
+
         <!-- Other Pages (Placeholders) -->
         <section id="page-dash" class="page-section hidden"></section>
         <section id="page-exp" class="page-section hidden"></section>
@@ -531,7 +540,7 @@
         <section id="page-payable" class="page-section hidden"></section>
         <section id="page-quotation" class="page-section hidden"></section>
         <section id="page-admin" class="page-section hidden"></section>
-        
+
       </div>
     </main>
   </div>
@@ -566,12 +575,12 @@
           <span>ทอนเงิน</span>
         </div>
       </div>
-      
+
       <!-- Step Content -->
       <div class="checkout-content" id="checkout-content">
         <!-- จะถูก render โดย JS -->
       </div>
-      
+
       <!-- Footer -->
       <div class="checkout-footer">
         <button class="btn btn-ghost" id="checkout-cancel">
@@ -607,7 +616,7 @@
 
   <!-- Toast Container -->
   <div id="toast-container"></div>
-  
+
   <div id="scanner-modal" class="modal-overlay hidden" style="z-index: 9999;">
     <div class="modal-box" style="max-width: 400px; padding: 0; overflow: hidden;">
       <div class="modal-header" style="padding: 16px;">
@@ -641,6 +650,9 @@
   <script src="modules-v9.js"></script>
   <script src="modules-v10.js"></script>
   <script src="modules-v11.js"></script>
-  <script src="scanner.js"></script> </body>
+  <script src="modules-v12.js"></script>
+  <script src="scanner.js"></script>
 </body>
+</body>
+
 </html>

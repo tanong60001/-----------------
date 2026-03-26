@@ -1110,7 +1110,7 @@ async function renderCashDrawer() {
     document.getElementById('cash-close-btn').disabled = noSession;
     // Hook add/withdraw/close buttons
     document.getElementById('cash-add-btn').onclick = () => cashMovement('add', session);
-    document.getElementById('cash-withdraw-btn').onclick = () => cashMovement('withdraw', session);
+    document.getElementById('cash-withdraw-btn').onclick = () => v4OpenWithdrawWizard(session);
     document.getElementById('cash-close-btn').onclick = () => closeCashSession(session, balance);
   } catch (e) { console.error('Render cash error:', e); }
 }
@@ -2183,5 +2183,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }, 1000);
 });
+// ดักจับการยิงบาร์โค้ดในช่องค้นหาหน้า POS
+document.getElementById('pos-search')?.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    const barcode = this.value.trim();
+    if (!barcode) return;
 
+    // ค้นหาสินค้าจากบาร์โค้ด
+    const foundProduct = products.find(p => p.barcode === barcode);
+
+    if (foundProduct) {
+      if (foundProduct.stock <= 0) {
+        toast('สินค้าหมดสต็อก', 'error');
+      } else {
+        addToCart(foundProduct.id); // เพิ่มลงตะกร้า
+        toast(`เพิ่ม ${foundProduct.name} แล้ว`, 'success');
+      }
+      // ล้างช่องค้นหาเพื่อรอชิ้นต่อไป
+      this.value = '';
+      renderProductGrid(); // รีเฟรชหน้าจอสินค้า
+    } else {
+      // ถ้าไม่เจอ อาจจะเป็นการค้นหาชื่อปกติ ไม่ต้องทำอะไร
+      console.log('ไม่พบสินค้าจากบาร์โค้ดนี้');
+    }
+  }
+});
 console.log('[SK POS v2.0] ✅ Application loaded — 100% Complete');

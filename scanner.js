@@ -52,21 +52,46 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function onScanSuccess(decodedText, decodedResult) {
-    console.log(`Scan result: ${decodedText}`);
-    
-    // 1. นำรหัสที่สแกนได้ไปใส่ในช่องค้นหา
-    searchInput.value = decodedText;
-    
-    // 2. กระตุ้นให้ระบบค้นหาสินค้าทำงานทันที
-    const event = new Event('input', { bubbles: true });
-    searchInput.dispatchEvent(event);
+  console.log(`Scan result: ${decodedText}`);
+  
+  // 1. ส่งเสียงแจ้งเตือน (ถ้ามีฟังก์ชัน playBeep)
+  if (typeof playBeep === 'function') playBeep();
+  
+  // 2. ปิดหน้าต่างสแกนเนอร์ (ถ้าต้องการให้สแกนทีละชิ้นแล้วปิดเลย)
+  // closeScanner(); 
 
-    // 3. ส่งเสียงเตือน ติ๊ด! (จำลองเสียง)
-    playBeep();
-
-    // 4. ปิดกล้อง
-    closeScanner();
+  // 3. ตรวจสอบว่ามีข้อมูลสินค้าและฟังก์ชันเพิ่มลงตะกร้าพร้อมใช้งานหรือไม่
+  if (typeof products !== 'undefined' && typeof addToCart === 'function') {
+    
+    // ค้นหาสินค้าในตัวแปร products โดยใช้รหัสบาร์โค้ดที่สแกนได้
+    const foundProduct = products.find(p => p.barcode === decodedText);
+    
+    if (foundProduct) {
+      // ถ้าเจอสินค้าที่มีบาร์โค้ดตรงกัน ให้เพิ่มลงตะกร้าทันที
+      addToCart(foundProduct.id);
+      
+      // แจ้งเตือนว่าเพิ่มสำเร็จ
+      if (typeof toast === 'function') {
+        toast(`เพิ่ม ${foundProduct.name} เรียบร้อยแล้ว`, 'success');
+      }
+      
+      // ล้างช่องค้นหาให้ว่างเพื่อเตรียมรับค่าถัดไป
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } else {
+      // ถ้าไม่เจอสินค้าในระบบ ให้แจ้งเตือนและเอาเลขไปใส่ในช่องค้นหาแทน
+      if (searchInput) {
+        searchInput.value = decodedText;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (typeof toast === 'function') {
+        toast('ไม่พบรหัสสินค้านี้ในระบบ', 'warning');
+      }
+    }
   }
+}
 
   function onScanFailure(error) {
     // ปล่อยว่างไว้ เพราะมันจะแจ้งเตือนตลอดเวลาที่กล้องยังหาบาร์โค้ดไม่เจอ
@@ -86,5 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
       osc.start();
       osc.stop(ctx.currentTime + 0.1); // ความยาวเสียง 0.1 วิ
     } catch(e) {}
+  }
+});
+// ทำให้ช่องค้นหา Focus ตลอดเวลาในหน้า POS
+document.addEventListener('keydown', (e) => {
+  const searchInput = document.getElementById('pos-search');
+  // ตรวจสอบว่าอยู่ในหน้า POS และไม่ได้กำลังเปิด Modal อื่นอยู่
+  if (currentPage === 'pos' && searchInput && document.activeElement.tagName !== 'INPUT') {
+    searchInput.focus();
   }
 });

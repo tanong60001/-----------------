@@ -579,7 +579,7 @@ function v4ChangeCard(d, isCoin, prefix, qty, available) {
   const noStock  = avail === 0;
   return `
     <div id="v4c-${prefix}-${d.value}"
-      onclick="${noStock ? '' : `v4Add('${prefix}',${d.value},1)`}"
+      onclick="${noStock ? '' : `v4AddChange('${prefix}',${d.value},1,${avail})`}"
       style="border-radius:12px;
         border:2px solid ${active ? accent : noStock ? '#e5e7eb' : isCoin ? '#DAA52030' : 'var(--border-light)'};
         background:${noStock ? '#f9fafb' : active ? (isCoin ? '#FFFBEB' : `color-mix(in srgb,${accent} 12%,var(--bg-surface))`) : 'var(--bg-surface)'};
@@ -1089,3 +1089,119 @@ window.v4ProcessExpense = async function() {
   if (typeof loadExpenseData === 'function') loadExpenseData();
 };
 
+
+// ══════════════════════════════════════════════════════════════════
+// F. WITHDRAWAL WIZARD — เบิกเงินออก พร้อมนับแบงค์
+// ══════════════════════════════════════════════════════════════════
+
+window.v4OpenWithdrawWizard = async function (session) {
+  if (!session) { toast('กรุณาเปิดรอบเงินสดก่อน','warning'); return; }
+
+  v9ShowOverlay('กำลังโหลดข้อมูลลิ้นชัก...');
+  const currentDenoms = await v4GetCurrentDenoms() || v4EmptyDenoms();
+  v9HideOverlay();
+
+  window._v4States['wd_stock'] = currentDenoms;
+  const state = v4EmptyDenoms();
+  window._v4States['wd'] = state;
+
+  window._v4States['wd_onChange'] = () => {
+    const tot = v4Total(state);
+    const el  = document.getElementById('v4wd-total');
+    if (el) el.textContent = `฿${formatNum(tot)}`;
+    const btn = document.getElementById('v4wd-confirm-btn');
+    if (btn) { btn.disabled = tot === 0; btn.style.opacity = tot > 0 ? '1' : '.5'; }
+  };
+
+  const ov = document.createElement('div');
+  ov.id = 'v4-wd-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;';
+  
+  // สร้าง Grid โดยใช้ v4ChangeCard เพื่อแสดงยอด Available
+  const gridHtml = `
+    <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:5px;margin-bottom:8px;">
+      <i class="material-icons-round" style="font-size:14px;color:var(--primary);">payments</i>ธนบัตร (xN = ที่มีอยู่ในลิ้นชัก)
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:14px;">
+      ${BILLS.map(d => v4ChangeCard(d, false, 'wd', 0, currentDenoms[d.value] || 0)).join('')}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:5px;margin-bottom:8px;padding-top:12px;border-top:1px solid var(--border-light);">
+      <i class="material-icons-round" style="font-size:14px;color:#B8860B;">toll</i>เหรียญ
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
+      ${COINS.map(d => v4ChangeCard(d, true, 'wd', 0, currentDenoms[d.value] || 0)).join('')}
+    </div>
+  `;
+
+  ov.innerHTML = `
+    <div style="background:var(--bg-surface);border-radius:20px;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5);">
+      <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div>
+          <div style="font-size:11px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">เบิกเงินออก (Withdraw)</div>
+          <div style="font-size:17px;font-weight:700;color:#fff;">เลือกธนบัตรที่ต้องการเบิกออก</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;color:rgba(255,255,255,.7);margin-bottom:2px;">ยอดเบิกออก</div>
+          <div id="v4wd-total" style="font-size:26px;font-weight:800;color:#fff;font-family:var(--font-display);">฿0</div>
+        </div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:18px;">
+        ${gridHtml}
+        <div style="margin-top:20px;padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">
+          <label style="font-size:13px;font-weight:700;color:#475569;display:block;margin-bottom:6px;">หมายเหตุ / เหตุผลการเบิก</label>
+          <input type="text" id="v4wd-note" placeholder="เช่น นำเงินฝากธนาคาร, จ่ายค่าพัสดุ..." 
+            style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;">
+        </div>
+      </div>
+      <div style="padding:14px 18px;border-top:1px solid var(--border-light);background:var(--bg-base);display:flex;gap:10px;flex-shrink:0;">
+        <button onclick="document.getElementById('v4-wd-overlay').remove()"
+          style="flex:1;padding:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);background:none;cursor:pointer;font-family:var(--font-thai);font-size:14px;color:var(--text-secondary);">ยกเลิก</button>
+        <button id="v4wd-confirm-btn" onclick="v4ConfirmWithdraw('${session.id}')" disabled
+          style="flex:2;padding:12px;border:none;border-radius:var(--radius-md);background:#ef4444;color:#fff;font-family:var(--font-thai);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;opacity:.5;transition:opacity .15s;">
+          <i class="material-icons-round" style="font-size:18px;">remove_circle</i> ยืนยันการเบิกเงิน
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+};
+
+window.v4ConfirmWithdraw = async function (sessionId) {
+  const state = window._v4States['wd'];
+  const tot   = v4Total(state);
+  const note  = document.getElementById('v4wd-note')?.value?.trim() || '';
+  
+  if (tot <= 0) { toast('กรุณาเลือกยอดเงินที่ต้องการเบิก','warning'); return; }
+
+  const btn = document.getElementById('v4wd-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
+
+  try {
+    await db.from('cash_transaction').insert({
+      session_id: sessionId,
+      type: 'เบิกเงิน',
+      direction: 'out',
+      amount: tot,
+      net_amount: tot,
+      balance_after: 0, 
+      staff_name: USER?.username || 'system',
+      note: note || 'เบิกเงินออก (นับแบงค์)',
+      denominations: { ...state } // บันทึกว่าเบิกใบไหนออกไปบ้าง
+    });
+
+    document.getElementById('v4-wd-overlay')?.remove();
+    toast(`เบิกเงินออก ฿${formatNum(tot)} สำเร็จ`,'success');
+    logActivity('เบิกเงินออก', `ยอด ฿${formatNum(tot)} (นับแบงค์แล้ว) | หมายเหตุ: ${note || '-'}`);
+    
+    // รีเฟรชหน้าจอ
+    if (typeof renderCashDrawer === 'function') renderCashDrawer();
+    if (typeof loadCashBalance === 'function') loadCashBalance();
+    
+    // ถ้าแสดง panel real-time อยู่ ก็ให้รีอัปเดต
+    if (typeof v4InjectPanel === 'function') v4InjectPanel();
+
+  } catch(e) {
+    console.error('[v4] withdraw error:', e);
+    toast('ไม่สามารถบันทึกการเบิกเงินได้','error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="material-icons-round" style="font-size:18px;">remove_circle</i> ยืนยันการเบิกเงิน'; }
+  }
+};
