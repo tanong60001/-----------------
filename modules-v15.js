@@ -30,8 +30,14 @@ const _v15f = n => typeof formatNum==='function' ? formatNum(n) : Number(n||0).t
   }
 
   function injectNav() {
-    if (document.querySelector('[data-page="projects"]')) return;
-    const nav = document.querySelector('nav.nav-menu, .nav-menu');
+  // ลบเมนูที่สร้างผิดพลาดจาก v14 ทิ้งก่อน
+  const oldNav = document.querySelector('div[data-page="projects"]');
+  if (oldNav) oldNav.remove();
+  
+  // ป้องกันการสร้างซ้ำของ v15 เอง
+  if (document.querySelector('a[data-page="projects"]')) return; 
+  
+  const nav = document.querySelector('nav.nav-menu, .nav-menu');
     if (!nav) return;
 
     /* label */
@@ -282,8 +288,14 @@ async function _v15fetchUnits(ids){
   }catch(e){console.warn('[v15] fetchUnits:',e.message);}
   return{um,bm,cm};
 }
-
 window.v15CompletePayment=async function(){
+  // ถ้าเป็นการขายเข้าโครงการ ให้ v14 เป็นตัวจัดการบันทึกข้อมูลทั้งหมด
+  if ((v12State.customer?.type === 'project' || v12State._forceDebt) && v12State.customer?.project_id) {
+    if (typeof _v14ProjectPaymentLogic === 'function') {
+      return _v14ProjectPaymentLogic();
+    }
+  }
+
   if(window._v15busy)return; window._v15busy=true;
   try{if(typeof isProcessingPayment!=='undefined')isProcessingPayment=true;}catch(_){}
   _v15ui();

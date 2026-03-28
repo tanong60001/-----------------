@@ -130,7 +130,7 @@ const v14fmt = n => typeof formatNum==='function' ? formatNum(n) : Number(n||0).
 .v14-print-menu-item i { font-size:16px; color:var(--text-muted,#9ca3af); }
 
 /* ── Project System ──────────────────────────────────────────────── */
-.v14-proj-container { max-width:900px; margin:0 auto; padding:20px; }
+.v14-proj-container { max-width:100%; margin:0 auto; padding:0px; }
 .v14-proj-header {
   background:linear-gradient(135deg,#1e1b4b,#312e81);
   color:#fff; border-radius:20px; padding:24px 28px; margin-bottom:20px;
@@ -150,7 +150,7 @@ const v14fmt = n => typeof formatNum==='function' ? formatNum(n) : Number(n||0).
 .v14-proj-stat .lbl { font-size:11px; font-weight:700; color:var(--text-muted,#9ca3af); text-transform:uppercase; letter-spacing:.5px; }
 .v14-proj-stat .val { font-size:22px; font-weight:900; margin-top:4px; }
 
-.v14-proj-cards { display:flex; flex-direction:column; gap:12px; }
+.v14-proj-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:16px; }
 .v14-proj-card {
   background:#fff; border-radius:16px; padding:20px 24px;
   box-shadow:0 2px 10px rgba(0,0,0,.06); border:1.5px solid var(--border,#f0f0f0);
@@ -735,30 +735,6 @@ window.v14TogglePrintMenu = function(btn) {
 ════════════════════════════════════════════════════════════════ */
 
 /* ── Nav Injection ── */
-(function injectProjectNav(){
-  function tryInject(){
-    // หา nav sidebar
-    const nav = document.querySelector('.nav-menu, .sidebar-nav, nav[class*="nav"], [class*="sidebar"]');
-    if (!nav || document.querySelector('[data-page="projects"]')) { if(!nav) setTimeout(tryInject,800); return; }
-    const li = document.createElement('div');
-    li.className = 'nav-item'; li.setAttribute('data-page','projects');
-    li.setAttribute('onclick', "go('projects')");
-    li.innerHTML = `<i class="material-icons-round">business</i><span>โครงการ</span>`;
-    // สไตล์เดียวกับ nav-item อื่น
-    li.style.cssText = nav.querySelector('.nav-item')?.style?.cssText || '';
-    nav.appendChild(li);
-
-    // เพิ่ม page section
-    if (!document.getElementById('page-projects')) {
-      const sec = document.createElement('section');
-      sec.id = 'page-projects'; sec.className = 'page-section hidden';
-      document.getElementById('main-content')?.appendChild(sec) ||
-      document.querySelector('.main-content, main, .content-area')?.appendChild(sec);
-    }
-  }
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',tryInject);
-  else tryInject();
-})();
 
 /* Hook go() */
 (function hookProjectNav(){
