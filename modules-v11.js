@@ -96,7 +96,7 @@ console.log('[v11] Loading modules-v11.js v2...');
 // updateHomeStats is local to app.js so we override it on window
 // ══════════════════════════════════════
 
-window.updateHomeStats = async function() {
+window.updateHomeStats = async function () {
   const el = document.getElementById('home-username');
   if (el) el.textContent = typeof USER !== 'undefined' ? (USER?.username || 'User') : 'User';
   const today = new Date().toISOString().split('T')[0];
@@ -105,19 +105,19 @@ window.updateHomeStats = async function() {
       .select('total, discount, id, status, return_info')
       .gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59')
       .in('status', ['สำเร็จ', 'คืนบางส่วน']);
-    
+
     const totalSales = bills?.reduce((sum, b) => sum + (b.total || 0), 0) || 0;
     const ordersCount = bills?.length || 0;
     let profit = 0;
-    
+
     const todayBillIds = bills?.map(b => b.id) || [];
     if (todayBillIds.length > 0) {
       const { data: items } = await db.from('รายการในบิล')
         .select('total, cost, qty, bill_id, name').in('bill_id', todayBillIds);
-      
+
       // COGS from all items
       let totalCost = (items || []).reduce((s, i) => s + ((i.cost || 0) * (i.qty || 1)), 0);
-      
+
       // ✅ Deduct returned items' cost
       let returnCostTotal = 0;
       (bills || []).forEach(b => {
@@ -133,18 +133,18 @@ window.updateHomeStats = async function() {
           });
         }
       });
-      
+
       const adjustedCost = totalCost - returnCostTotal;
       profit = totalSales - adjustedCost;
     }
-    
+
     const cashBalance = typeof getCashBalance === 'function' ? await getCashBalance() : 0;
     const salesEl = document.getElementById('home-sales');
     const ordersEl = document.getElementById('home-orders');
     const profitEl = document.getElementById('home-profit');
     const cashEl = document.getElementById('home-cash');
     const globalCashEl = document.getElementById('global-cash-balance');
-    
+
     if (salesEl) salesEl.textContent = `฿${formatNum(totalSales)}`;
     if (ordersEl) ordersEl.textContent = formatNum(ordersCount);
     if (profitEl) profitEl.textContent = `฿${formatNum(profit)}`;
@@ -161,7 +161,7 @@ console.log('[v11-3] ✅ Home profit = Dashboard profit');
 // Override the v10 printReceiptA4v2 
 // ══════════════════════════════════════
 
-window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
+window.printReceiptA4v2 = async function (bill, items, rc, docType = 'receipt') {
   const ds = typeof v10GetDocSettings === 'function' ? await v10GetDocSettings() : {};
   const s = ds.receipt_a4 || (typeof V10_DEFAULTS !== 'undefined' ? V10_DEFAULTS.receipt_a4 : {});
   const hc = s.bw_mode ? '#333333' : (s.header_color || '#af101a');
@@ -177,7 +177,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
     try {
       const { data: cust } = await db.from('customer').select('address,tax_id').eq('id', bill.customer_id).maybeSingle();
       if (cust) { bill.customer_address = cust.address || ''; bill.customer_tax_id = cust.tax_id || ''; }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const subtotal = (items || []).reduce((sum, i) => sum + (i.total || 0), 0);
@@ -198,7 +198,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
   const itemCount = (items || []).length;
   const rowPad = itemCount > 12 ? '6px 12px' : '10px 14px';
   const rowFont = itemCount > 12 ? '11px' : '13px';
-  
+
   const rows = (items || []).map((it, idx) => `
     <tr style="${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
       <td style="padding:${rowPad};text-align:center;color:#94a3b8;font-size:${rowFont};">${idx + 1}</td>
@@ -353,14 +353,14 @@ console.log('[v11-4] ✅ A4 receipt: signature at bottom, QR, 1 page');
 // ══════════════════════════════════════
 
 const _v11OrigPrintQuot = window.printQuotation;
-window.printQuotation = async function(quotId) {
+window.printQuotation = async function (quotId) {
   try {
     const { data: quot } = await db.from('ใบเสนอราคา').select('*').eq('id', quotId).single();
     const { data: items } = await db.from('รายการใบเสนอราคา').select('*').eq('quotation_id', quotId);
-    const rc = typeof getShopConfig === 'function' ? await getShopConfig() : 
-               (typeof v10GetShopConfig === 'function' ? await v10GetShopConfig() : {});
+    const rc = typeof getShopConfig === 'function' ? await getShopConfig() :
+      (typeof v10GetShopConfig === 'function' ? await v10GetShopConfig() : {});
     if (!quot) { typeof toast === 'function' && toast('ไม่พบข้อมูล', 'error'); return; }
-    
+
     // Map quotation to bill-like object
     const bill = {
       bill_code: `QT-${String(quot.id).slice(-6).toUpperCase()}`,
@@ -372,7 +372,7 @@ window.printQuotation = async function(quotId) {
       total: quot.total,
       discount: quot.discount || 0
     };
-    
+
     await window.printReceiptA4v2(bill, items, rc, 'quotation');
   } catch (e) {
     console.error('[v11] quotation print error:', e);
@@ -389,14 +389,14 @@ console.log('[v11-5] ✅ Quotation uses same A4 engine');
 // V11-6: FIX TOGGLE SWITCHES + LIVE PREVIEW
 // ══════════════════════════════════════
 
-window.v10BuildToggles = function(s) {
+window.v10BuildToggles = function (s) {
   const container = document.getElementById('v10-toggles');
   if (!container) return;
   const fields = {
-    receipt_80mm: [['show_shop_name','ชื่อร้าน'],['show_address','ที่อยู่ร้าน'],['show_tax_id','เลขผู้เสียภาษี'],['show_bill_code','เลขที่บิล'],['show_customer','ชื่อลูกค้า'],['show_staff','ชื่อพนักงาน'],['show_datetime','วันที่/เวลา'],['show_method','วิธีชำระเงิน'],['show_discount','ส่วนลด'],['show_received','เงินรับ/ทอน'],['show_change','เงินทอน'],['show_cost','ต้นทุนสินค้า'],['show_profit','กำไรขั้นต้น'],['show_qr','QR PromptPay']],
-    receipt_a4: [['show_shop_name','ชื่อร้าน'],['show_address','ที่อยู่ร้าน'],['show_tax_id','เลขผู้เสียภาษี'],['show_bill_code','เลขที่บิล'],['show_customer','ชื่อลูกค้า'],['show_staff','ชื่อพนักงาน'],['show_datetime','วันที่/เวลา'],['show_method','วิธีชำระเงิน'],['show_discount','ส่วนลด'],['show_received','เงินรับ/ทอน'],['show_change','เงินทอน'],['show_qr','QR PromptPay']],
-    quotation: [['show_shop_name','ชื่อร้าน'],['show_address','ที่อยู่ร้าน'],['show_tax_id','เลขผู้เสียภาษี'],['show_customer','ลูกค้า'],['show_staff','ผู้ออกเอกสาร'],['show_discount','ส่วนลด'],['show_validity','วันหมดอายุ'],['show_note','หมายเหตุ'],['show_signature','ลายเซ็น'],['show_qr','QR PromptPay']],
-    payment_receipt: [['show_shop_name','ชื่อร้าน'],['show_address','ที่อยู่ร้าน'],['show_tax_id','เลขผู้เสียภาษี'],['show_customer','ชื่อลูกค้า'],['show_staff','ชื่อพนักงาน'],['show_datetime','วันที่/เวลา'],['show_method','วิธีชำระ']]
+    receipt_80mm: [['show_shop_name', 'ชื่อร้าน'], ['show_address', 'ที่อยู่ร้าน'], ['show_tax_id', 'เลขผู้เสียภาษี'], ['show_bill_code', 'เลขที่บิล'], ['show_customer', 'ชื่อลูกค้า'], ['show_staff', 'ชื่อพนักงาน'], ['show_datetime', 'วันที่/เวลา'], ['show_method', 'วิธีชำระเงิน'], ['show_discount', 'ส่วนลด'], ['show_received', 'เงินรับ/ทอน'], ['show_change', 'เงินทอน'], ['show_cost', 'ต้นทุนสินค้า'], ['show_profit', 'กำไรขั้นต้น'], ['show_qr', 'QR PromptPay']],
+    receipt_a4: [['show_shop_name', 'ชื่อร้าน'], ['show_address', 'ที่อยู่ร้าน'], ['show_tax_id', 'เลขผู้เสียภาษี'], ['show_bill_code', 'เลขที่บิล'], ['show_customer', 'ชื่อลูกค้า'], ['show_staff', 'ชื่อพนักงาน'], ['show_datetime', 'วันที่/เวลา'], ['show_method', 'วิธีชำระเงิน'], ['show_discount', 'ส่วนลด'], ['show_received', 'เงินรับ/ทอน'], ['show_change', 'เงินทอน'], ['show_qr', 'QR PromptPay']],
+    quotation: [['show_shop_name', 'ชื่อร้าน'], ['show_address', 'ที่อยู่ร้าน'], ['show_tax_id', 'เลขผู้เสียภาษี'], ['show_customer', 'ลูกค้า'], ['show_staff', 'ผู้ออกเอกสาร'], ['show_discount', 'ส่วนลด'], ['show_validity', 'วันหมดอายุ'], ['show_note', 'หมายเหตุ'], ['show_signature', 'ลายเซ็น'], ['show_qr', 'QR PromptPay']],
+    payment_receipt: [['show_shop_name', 'ชื่อร้าน'], ['show_address', 'ที่อยู่ร้าน'], ['show_tax_id', 'เลขผู้เสียภาษี'], ['show_customer', 'ชื่อลูกค้า'], ['show_staff', 'ชื่อพนักงาน'], ['show_datetime', 'วันที่/เวลา'], ['show_method', 'วิธีชำระ']]
   };
   const list = fields[_v10ActiveDocTab] || [];
   container.innerHTML = list.map(([key, label]) => {
@@ -413,21 +413,21 @@ window.v10BuildToggles = function(s) {
 };
 
 // Override preview to match actual template
-window.v10PreviewA4 = function(s, hText, fText, hc) {
+window.v10PreviewA4 = function (s, hText, fText, hc) {
   return `<div style="background:#fff;border-radius:6px;font-size:7px;color:#1e293b;overflow:hidden;transform:scale(0.82);transform-origin:top center;">
     <div style="display:flex;justify-content:space-between;padding:10px 12px;">
       <div>
-        ${s.show_shop_name!==false?`<div style="font-weight:800;font-size:10px;color:${hc};">หจก. เอส เค วัสดุ</div>`:''}
-        ${s.show_address!==false?'<div style="font-size:6px;color:#5b403d;">ที่อยู่ร้านค้า</div>':''}
-        ${s.show_tax_id!==false?'<div style="font-size:6px;color:#5b403d;">Tax: 0-4635-5801-0486</div>':''}
+        ${s.show_shop_name !== false ? `<div style="font-weight:800;font-size:10px;color:${hc};">หจก. เอส เค วัสดุ</div>` : ''}
+        ${s.show_address !== false ? '<div style="font-size:6px;color:#5b403d;">ที่อยู่ร้านค้า</div>' : ''}
+        ${s.show_tax_id !== false ? '<div style="font-size:6px;color:#5b403d;">Tax: 0-4635-5801-0486</div>' : ''}
       </div>
       <div style="text-align:right;">
-        <div style="background:${hc};padding:4px 10px;border-radius:4px;color:#fff;font-weight:800;font-size:8px;">${hText||'ใบเสร็จรับเงิน'}<br><span style="font-size:5px;opacity:.65;">RECEIPT</span></div>
-        ${s.show_bill_code!==false?'<div style="font-size:6px;margin-top:2px;">เลขที่: <b>#1042</b></div>':''}
+        <div style="background:${hc};padding:4px 10px;border-radius:4px;color:#fff;font-weight:800;font-size:8px;">${hText || 'ใบเสร็จรับเงิน'}<br><span style="font-size:5px;opacity:.65;">RECEIPT</span></div>
+        ${s.show_bill_code !== false ? '<div style="font-size:6px;margin-top:2px;">เลขที่: <b>#1042</b></div>' : ''}
       </div>
     </div>
     <div style="padding:0 12px;">
-      ${s.show_customer!==false?'<div style="background:#f2f4f5;padding:4px 6px;border-radius:4px;margin-bottom:6px;"><div style="font-weight:700;font-size:7px;">Pioneer Construction</div><div style="font-size:5px;color:#5b403d;">456 ถ.สุขุมวิท กรุงเทพฯ</div></div>':''}
+      ${s.show_customer !== false ? '<div style="background:#f2f4f5;padding:4px 6px;border-radius:4px;margin-bottom:6px;"><div style="font-weight:700;font-size:7px;">Pioneer Construction</div><div style="font-size:5px;color:#5b403d;">456 ถ.สุขุมวิท กรุงเทพฯ</div></div>' : ''}
       <table style="width:100%;border-collapse:collapse;font-size:6px;margin-bottom:6px;">
         <thead><tr style="background:#e6e8e9;"><th style="padding:2px 4px;text-align:center;width:12px;">#</th><th style="padding:2px 4px;text-align:left;">สินค้า</th><th style="padding:2px 4px;text-align:right;width:28px;">จำนวน</th><th style="padding:2px 4px;text-align:right;width:34px;">ราคา</th><th style="padding:2px 4px;text-align:right;width:36px;">รวม</th></tr></thead>
         <tbody>
@@ -439,7 +439,7 @@ window.v10PreviewA4 = function(s, hText, fText, hc) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <div style="background:#f2f4f5;padding:3px 6px;border-radius:3px;"><span style="font-size:4px;text-transform:uppercase;font-weight:700;color:#5b403d;">จำนวนเงินตัวอักษร</span><p style="font-size:5px;font-weight:700;color:${hc};">สามหมื่นแปดพันหกร้อยบาทถ้วน</p></div>
         <div style="display:flex;gap:3px;justify-content:flex-end;">
-          ${s.show_qr!==false?'<div style="border:1px solid #ddd;padding:2px;border-radius:3px;width:36px;text-align:center;"><div style="background:#003b71;border-radius:2px;"><span style="color:#fff;font-size:3px;font-weight:700;">PromptPay</span></div><div style="width:28px;height:28px;background:#f1f5f9;margin:2px auto;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:4px;color:#003b71;">QR</div></div>':''}
+          ${s.show_qr !== false ? '<div style="border:1px solid #ddd;padding:2px;border-radius:3px;width:36px;text-align:center;"><div style="background:#003b71;border-radius:2px;"><span style="color:#fff;font-size:3px;font-weight:700;">PromptPay</span></div><div style="width:28px;height:28px;background:#f1f5f9;margin:2px auto;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:4px;color:#003b71;">QR</div></div>' : ''}
           <div style="width:90px;">
             <div style="display:flex;justify-content:space-between;font-size:5px;padding:1px 4px;"><span>รวม</span><span>38,600</span></div>
             <div style="background:${hc};padding:4px 5px;border-radius:4px;color:#fff;margin-top:2px;display:flex;justify-content:space-between;align-items:center;">
@@ -454,11 +454,11 @@ window.v10PreviewA4 = function(s, hText, fText, hc) {
         <div style="text-align:center;"><div style="border-bottom:1px dotted #999;height:10px;width:50px;margin:0 auto;"></div><p style="font-size:4px;margin-top:2px;">ผู้รับเงิน</p></div>
       </div>
     </div>
-    ${fText?`<div style="text-align:center;padding:3px;font-size:4px;color:#94a3b8;">${fText}</div>`:''}
+    ${fText ? `<div style="text-align:center;padding:3px;font-size:4px;color:#94a3b8;">${fText}</div>` : ''}
   </div>`;
 };
 
-window.v10PreviewQuotation = function(s, hText, fText, hc) {
+window.v10PreviewQuotation = function (s, hText, fText, hc) {
   return window.v10PreviewA4(s, hText || 'ใบเสนอราคา', fText, hc)
     .replace('RECEIPT', 'QUOTATION')
     .replace('ผู้รับของ', 'ลายเซ็นลูกค้า')
@@ -473,16 +473,16 @@ console.log('[v11-6] ✅ Toggle + Preview');
 // ══════════════════════════════════════
 
 const _v11OrigConfRet = window.v10ConfirmReturn;
-window.v10ConfirmReturn = async function() {
+window.v10ConfirmReturn = async function () {
   const items = window._v10ReturnItems || [];
   const bill = window._v10ReturnBill;
   if (bill && items.length > 0) {
     try {
       const { data: bi } = await db.from('รายการในบิล').select('name,cost,product_id').eq('bill_id', bill.id);
       const cm = {};
-      (bi||[]).forEach(b => { if (b.product_id) cm[b.product_id] = parseFloat(b.cost||0); if (b.name) cm[b.name] = parseFloat(b.cost||0); });
+      (bi || []).forEach(b => { if (b.product_id) cm[b.product_id] = parseFloat(b.cost || 0); if (b.name) cm[b.name] = parseFloat(b.cost || 0); });
       items.forEach(it => { it.cost = cm[it.product_id] || cm[it.name] || 0; });
-    } catch(e) { console.warn('[v11-7]', e); }
+    } catch (e) { console.warn('[v11-7]', e); }
   }
   if (_v11OrigConfRet) return _v11OrigConfRet.apply(this, arguments);
 };
@@ -501,7 +501,7 @@ console.info(
 // PATCH FIX: A4 Receipt - ดึงข้อมูลลูกค้า 100% + ฝัง QR Code กันหาย
 // ══════════════════════════════════════════════════════════════════
 
-window.printReceiptA4 = async function(billId) {
+window.printReceiptA4 = async function (billId) {
   if (typeof v9ShowOverlay === 'function') v9ShowOverlay('กำลังเตรียมพิมพ์...');
   try {
     const [{ data: bill }, { data: items }, rc] = await Promise.all([
@@ -518,7 +518,7 @@ window.printReceiptA4 = async function(billId) {
   }
 };
 
-window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
+window.printReceiptA4v2 = async function (bill, items, rc, docType = 'receipt') {
   // 1. 🟢 ดึงข้อมูลลูกค้าแบบจัดเต็ม (ชื่อ, ที่อยู่, Tax ID)
   if (bill.customer_id) {
     try {
@@ -528,7 +528,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
         bill.customer_address = cust.address || '';
         bill.customer_tax_id = cust.tax_id || '';
       }
-    } catch (_) {}
+    } catch (_) { }
   } else if (bill.customer_name && bill.customer_name !== 'ทั่วไป') {
     // กรณีมีแค่ชื่อ ก็ไปค้นหาจากชื่อ
     try {
@@ -537,7 +537,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
         bill.customer_address = cust.address || '';
         bill.customer_tax_id = cust.tax_id || '';
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const ds = typeof v10GetDocSettings === 'function' ? await v10GetDocSettings() : {};
@@ -587,7 +587,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
   const itemCount = (items || []).length;
   const rowPad = itemCount > 12 ? '6px 12px' : '10px 14px';
   const rowFont = itemCount > 12 ? '11px' : '13px';
-  
+
   const rows = (items || []).map((it, idx) => `
     <tr style="${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
       <td style="padding:${rowPad};text-align:center;color:#94a3b8;font-size:${rowFont};">${idx + 1}</td>
@@ -726,20 +726,20 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
 // PATCH: อัปเกรดการดึงข้อมูลลูกค้าในบิล A4 (กันที่อยู่หาย)
 // ══════════════════════════════════════════════════════════════════
 
-window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
+window.printReceiptA4v2 = async function (bill, items, rc, docType = 'receipt') {
   // 1. 🟢 ระบบค้นหาข้อมูลลูกค้าแบบทรงพลัง (หาด้วย ID ก่อน ถ้าไม่เจอหาด้วยชื่อ)
   let custData = null;
   if (bill.customer_id) {
     try {
       const { data } = await db.from('customer').select('*').eq('id', bill.customer_id).maybeSingle();
       custData = data;
-    } catch(e) {}
+    } catch (e) { }
   }
   if (!custData && bill.customer_name && bill.customer_name !== 'ทั่วไป') {
     try {
       const { data } = await db.from('customer').select('*').eq('name', bill.customer_name).maybeSingle();
       custData = data;
-    } catch(e) {}
+    } catch (e) { }
   }
 
   // อัปเดตข้อมูลลูกค้าลงในบิลเตรียมพิมพ์
@@ -797,7 +797,7 @@ window.printReceiptA4v2 = async function(bill, items, rc, docType = 'receipt') {
   const itemCount = (items || []).length;
   const rowPad = itemCount > 12 ? '6px 12px' : '10px 14px';
   const rowFont = itemCount > 12 ? '11px' : '13px';
-  
+
   const rows = (items || []).map((it, idx) => `
     <tr style="${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
       <td style="padding:${rowPad};text-align:center;color:#94a3b8;font-size:${rowFont};">${idx + 1}</td>
