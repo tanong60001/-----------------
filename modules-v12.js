@@ -26,18 +26,18 @@
 if (typeof BILLS === 'undefined') {
   window.BILLS = [
     { value: 1000, label: '1,000', bg: '#6b4c9a' },
-    { value: 500,  label: '500',   bg: '#6b8e23' },
-    { value: 100,  label: '100',   bg: '#cd5c5c' },
-    { value: 50,   label: '50',    bg: '#4682b4' },
-    { value: 20,   label: '20',    bg: '#2e8b57' },
+    { value: 500, label: '500', bg: '#6b8e23' },
+    { value: 100, label: '100', bg: '#cd5c5c' },
+    { value: 50, label: '50', bg: '#4682b4' },
+    { value: 20, label: '20', bg: '#2e8b57' },
   ];
 }
 if (typeof COINS === 'undefined') {
   window.COINS = [
     { value: 10, label: '10', bg: '#c0a060' },
-    { value: 5,  label: '5',  bg: '#c0c0c0' },
-    { value: 2,  label: '2',  bg: '#d4af37' },
-    { value: 1,  label: '1',  bg: '#c0c0c0' },
+    { value: 5, label: '5', bg: '#c0c0c0' },
+    { value: 2, label: '2', bg: '#d4af37' },
+    { value: 1, label: '1', bg: '#c0c0c0' },
   ];
 }
 if (typeof formatNum === 'undefined') {
@@ -144,7 +144,7 @@ if (typeof isProcessingPayment === 'undefined') {
   height: min(700px, 92vh);
   background: var(--bg-primary, #fff);
   border-radius: 20px;
-  box-shadow: 0 32px 80px rgba(0,0,0,.28);
+  box-shadow: 0 32px 80px rgba(238, 92, 92, 0.64);
   display: flex;
   overflow: hidden;
 }
@@ -153,14 +153,14 @@ if (typeof isProcessingPayment === 'undefined') {
 .v12-left {
   width: 38%;
   min-width: 280px;
-  background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(160deg, #703131ee 0%, #703131ee  100%);
   color: #fff;
   display: flex; flex-direction: column;
   overflow: hidden;
 }
 .v12-left-header {
   padding: 20px 22px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid #703131ee ;
 }
 .v12-left-header h3 {
   font-size: 14px; font-weight: 600; letter-spacing: .5px;
@@ -191,7 +191,7 @@ if (typeof isProcessingPayment === 'undefined') {
   white-space: nowrap;
 }
 .v12-item-price {
-  font-size: 13px; font-weight: 700; color: #a5f3fc;
+  font-size: 13px; font-weight: 700; color: #fcfcfcff;
   white-space: nowrap;
 }
 .v12-left-footer {
@@ -200,7 +200,7 @@ if (typeof isProcessingPayment === 'undefined') {
 }
 .v12-summary-row {
   display: flex; justify-content: space-between;
-  font-size: 13px; color: rgba(255,255,255,.55);
+  font-size: 13px; color: rgba(0, 0, 0, 0.55);
   margin-bottom: 6px;
 }
 .v12-summary-row.total {
@@ -821,7 +821,7 @@ function v12RenderShell() {
 function v12LeftFooterHTML() {
   let html = '';
   if (v12State.discount > 0) {
-    html += `<div class="v12-summary-row"><span>ราคารวม</span><span>฿${formatNum(cart.reduce((s,c)=>s+c.price*c.qty,0))}</span></div>`;
+    html += `<div class="v12-summary-row"><span>ราคารวม</span><span>฿${formatNum(cart.reduce((s, c) => s + c.price * c.qty, 0))}</span></div>`;
     html += `<div class="v12-summary-row"><span>ส่วนลด</span><span style="color:#ef4444">-฿${formatNum(v12State.discount)}</span></div>`;
   }
   html += `<div class="v12-summary-row total"><span>ยอดสุทธิ</span><span>฿${formatNum(v12State.total)}</span></div>`;
@@ -840,8 +840,8 @@ function v12UpdateStepBar() {
   const bar = document.getElementById('v12-steps-bar');
   if (!bar) return;
   const labels = v12NeedsStepCash()
-    ? ['ลูกค้า','รูปแบบรับ','ชำระเงิน','วิธีชำระ','รับเงิน','บันทึก']
-    : ['ลูกค้า','รูปแบบรับ','ชำระเงิน','วิธีชำระ','บันทึก'];
+    ? ['ลูกค้า', 'รูปแบบรับ', 'ชำระเงิน', 'วิธีชำระ', 'รับเงิน', 'บันทึก']
+    : ['ลูกค้า', 'รูปแบบรับ', 'ชำระเงิน', 'วิธีชำระ', 'บันทึก'];
 
   bar.innerHTML = labels.map((lbl, i) => {
     const n = i + 1;
@@ -1011,9 +1011,9 @@ function v12S1(container) {
 
 window.v12SelectCustType = function (type) {
   v12State.customer.type = type;
-  if (type === 'general') { 
-    v12State.customer.id = null; 
-    v12State.customer.name = 'ลูกค้าทั่วไป'; 
+  if (type === 'general') {
+    v12State.customer.id = null;
+    v12State.customer.name = 'ลูกค้าทั่วไป';
     v12State.customer.phone = '';
     v12State.customer.address = '';
     // Shortcut for general customer: Skip to Payment Method (Step 4)
@@ -1099,14 +1099,14 @@ function v12RenderCustForm(container) {
 window.v12SearchCustomers = async function (q) {
   const res = document.getElementById('v12-cust-results');
   if (!res) return;
-  
+
   if (!q || q.length === 0) {
     // Show recent/top customers if empty query
     try {
       res.innerHTML = '<div style="padding:10px; text-align:center; color:var(--text-muted); font-size:12px;">กำลังโหลดรายชื่อลูกค้า...</div>';
       const { data } = await db.from('customer').select('id, name, phone, address').order('total_purchase', { ascending: false }).limit(6);
       v12RenderCustomerResults(data || []);
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
     return;
   }
 
@@ -1114,7 +1114,7 @@ window.v12SearchCustomers = async function (q) {
   try {
     const { data } = await db.from('customer').select('id, name, phone, address').or(`name.ilike.%${q}%,phone.ilike.%${q}%`).limit(10);
     v12RenderCustomerResults(data || []);
-  } catch(e) { console.error(e); }
+  } catch (e) { console.error(e); }
 };
 
 function v12RenderCustomerResults(data) {
@@ -1127,7 +1127,7 @@ function v12RenderCustomerResults(data) {
   res.innerHTML = data.map(c => {
     const isSelected = v12State.customer.id === c.id;
     return `
-      <div onclick="v12PickCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone||''}','${(c.address||'').replace(/'/g,"\\'").replace(/\n/g," ")}')"
+      <div onclick="v12PickCustomer('${c.id}','${(c.name || '').replace(/'/g, "\\'")}','${c.phone || ''}','${(c.address || '').replace(/'/g, "\\'").replace(/\n/g, " ")}')"
         style="padding:12px 14px; border-radius:10px; cursor:pointer; font-size:13px; transition:all 0.15s; margin-bottom:4px; border:1.5px solid ${isSelected ? '#10b981' : 'transparent'}; background:${isSelected ? '#f0fdf4' : 'var(--bg-secondary,#f9fafb)'}; display:flex; align-items:center; gap:10px;"
         onmouseover="if(!${isSelected}) this.style.background='var(--bg-hover,#f3f4f6)'" onmouseout="if(!${isSelected}) this.style.background='var(--bg-secondary,#f9fafb)'"
       >
@@ -1159,11 +1159,11 @@ window.v12SaveNewCustomer = async function () {
   if (!name) { toast('กรุณากรอกชื่อลูกค้า', 'warning'); return; }
   if (!address) { toast('กรุณากรอกที่อยู่ลูกค้า', 'warning'); return; }
   try {
-    const { data, error } = await db.from('customer').insert({ 
-      name, 
-      phone: phone || null, 
+    const { data, error } = await db.from('customer').insert({
+      name,
+      phone: phone || null,
       address: address || null,
-      total_purchase: 0, visit_count: 0, debt_amount: 0 
+      total_purchase: 0, visit_count: 0, debt_amount: 0
     }).select().single();
     if (error) throw error;
     v12State.customer.id = data.id;
@@ -1172,7 +1172,7 @@ window.v12SaveNewCustomer = async function () {
     v12State.customer.address = data.address || '';
     toast(`บันทึกลูกค้า "${data.name}" สำเร็จ`, 'success');
     v12RenderCustForm(document.getElementById('v12-cust-form'));
-  } catch(e) { toast('บันทึกลูกค้าไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { toast('บันทึกลูกค้าไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 /* ══════════════════════════════════════════════════════
@@ -1244,8 +1244,8 @@ function v12PartialItemsHTML() {
     <div style="margin-top:16px;">
       <h4 style="font-size:13px;font-weight:700;margin:0 0 10px;color:var(--text-secondary,#374151);">กำหนดจำนวนรับเอง / ส่งทีหลัง</h4>
       ${cart.map(item => {
-        const m = v12State.itemModes[item.id] || { take: item.qty, deliver: 0 };
-        return `
+    const m = v12State.itemModes[item.id] || { take: item.qty, deliver: 0 };
+    return `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border,#f3f4f6);">
           <span style="flex:1;font-size:13px;font-weight:500">${item.name}</span>
           <div style="display:flex;align-items:center;gap:6px;font-size:12px;">
@@ -1260,13 +1260,13 @@ function v12PartialItemsHTML() {
             <span style="color:var(--text-muted,#9ca3af);">(รวม ${item.qty})</span>
           </div>
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>`;
 }
 
 window.v12SetDeliveryMode = function (mode) {
   v12State.deliveryMode = mode;
-  
+
   // Requirement 4: Auto-pull data from customer
   if (mode === 'deliver' || mode === 'partial') {
     if (v12State.customer.id || v12State.customer.type === 'new') {
@@ -1425,14 +1425,14 @@ function v12S5(container) {
 
     <div class="v12-denom-grid">
       ${[...BILLS, ...COINS].map(d => {
-        const cnt = v12State.receivedDenominations[d.value] || 0;
-        return `
+    const cnt = v12State.receivedDenominations[d.value] || 0;
+    return `
         <div class="v12-denom-btn" onclick="v12AddDenom(${d.value})" oncontextmenu="event.preventDefault();v12RemoveDenom(${d.value})">
           <span class="v12-denom-count ${cnt > 0 ? 'show' : ''}" id="v12-cnt-${d.value}">${cnt}</span>
           <div class="v12-denom-swatch" style="background:${d.bg}"></div>
           <span class="v12-denom-label">฿${d.label}</span>
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>
 
     <div class="v12-quick-amounts">
@@ -1620,7 +1620,7 @@ async function v12CompletePayment() {
     try {
       const { data } = await db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).single();
       session = data;
-    } catch(e) { /* no open session, ok */ }
+    } catch (e) { /* no open session, ok */ }
 
     const methodMap = { cash: 'เงินสด', transfer: 'โอนเงิน', credit: 'บัตรเครดิต' };
     const deliveryModeMap = { self: 'รับเอง', deliver: 'จัดส่ง', partial: 'รับบางส่วน' };
@@ -1678,10 +1678,10 @@ async function v12CompletePayment() {
         const multiplier = 1400; // 1 Unit = 1400 KG
         const deductedAmount = modes.take * multiplier;
         const stockAfter = stockBefore - deductedAmount;
-        
+
         await db.from('สินค้า').update({ stock: stockAfter }).eq('id', item.id);
         if (prod) prod.stock = stockAfter;
-        
+
         try {
           await db.from('stock_movement').insert({
             product_id: item.id, product_name: item.name,
@@ -1690,7 +1690,7 @@ async function v12CompletePayment() {
             ref_id: bill.id, ref_table: 'บิลขาย',
             staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : 'unknown',
           });
-        } catch(e) { console.warn('stock_movement insert skip:', e); }
+        } catch (e) { console.warn('stock_movement insert skip:', e); }
       }
     }
 
@@ -1705,7 +1705,7 @@ async function v12CompletePayment() {
           staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : 'unknown',
           denominations: v12State.receivedDenominations,
         });
-      } catch(e) { console.warn('cash_transaction skip:', e); }
+      } catch (e) { console.warn('cash_transaction skip:', e); }
     }
 
     // Update customer
@@ -1717,7 +1717,7 @@ async function v12CompletePayment() {
           visit_count: (cust?.visit_count || 0) + 1,
           debt_amount: (cust?.debt_amount || 0) + debtAmt,
         }).eq('id', v12State.customer.id);
-      } catch(e) { console.warn('customer update skip:', e); }
+      } catch (e) { console.warn('customer update skip:', e); }
     }
 
     if (typeof logActivity === 'function') logActivity('ขายสินค้า', `บิล #${bill.bill_no} ยอด ฿${formatNum(v12State.total)}`, bill.id, 'บิลขาย');
@@ -1836,7 +1836,7 @@ const V12_PRINT_CSS = `
 function v12GeneratePrintHTML(title, docTypeEn, docNo, date, customerBox, summaryRows, items, amountText, qrUrl = null, shop = null) {
   if (!shop) shop = (typeof SHOP_CONFIG !== 'undefined' && SHOP_CONFIG) ? SHOP_CONFIG : { name: 'ร้านค้า', address: '-', phone: '-', taxId: '-' };
   const thaiDate = new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
-  
+
   const itemsPerPage = 10;
   const pageCount = Math.ceil(items.length / itemsPerPage);
   let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} #${docNo}</title><style>${V12_PRINT_CSS}</style></head><body>`;
@@ -1936,14 +1936,14 @@ function v12GeneratePrintHTML(title, docTypeEn, docNo, date, customerBox, summar
                   <td class="val">฿${row.val}</td>
                 </tr>`).join('')}
             </table>
-            ${(function() {
-              const gt = summaryRows.find(r => r.isGrand);
-              return gt ? `
+            ${(function () {
+          const gt = summaryRows.find(r => r.isGrand);
+          return gt ? `
                 <div class="grand-total-block">
                   <span class="gt-label">${gt.label}</span>
                   <span class="gt-val">฿${gt.val}</span>
                 </div>` : '';
-            })()}
+        })()}
           </div>
         </div>
 
@@ -1974,9 +1974,9 @@ function v12ThaiBahtText(num) {
   if (!num && num !== 0) return '-';
   const thaiNumber = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
   const thaiUnit = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
-  
+
   const [intPart, decimalPart] = num.toString().split('.');
-  
+
   const convert = (n) => {
     let res = "";
     n = n.split('').reverse().join('');
@@ -1991,10 +1991,10 @@ function v12ThaiBahtText(num) {
     }
     return res;
   };
-  
+
   let result = convert(intPart) + "บาทถ้วน"; // Simply assume no decimals for now as typical in these receipts
   if (decimalPart && parseInt(decimalPart) > 0) {
-     result = convert(intPart) + "บาท" + convert(decimalPart) + "สตางค์";
+    result = convert(intPart) + "บาท" + convert(decimalPart) + "สตางค์";
   }
   return result;
 }
@@ -2004,16 +2004,16 @@ window.v12PrintReceipt80mm = async function (billId) {
     const { data: bill } = await db.from('บิลขาย').select('*').eq('id', billId).single();
     const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
     let rc = {};
-    try { 
+    try {
       const { data } = await db.from('ตั้งค่าร้านค้า').select('*').limit(1).single();
       rc = data || {};
-    } catch(e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
+    } catch (e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
 
     const win = window.open('', '_blank', 'width=340,height=700');
     const rows = (items || []).map(i => `<tr><td style="padding:2px 0;">${i.name}</td><td style="text-align:center;padding:2px 0;">${i.qty}${i.unit || 'ชิ้น'}</td><td style="text-align:right;padding:2px 0;">฿${formatNum(i.total)}</td></tr>`).join('');
     const ppNo = rc.promptpay_number || rc.phone || '';
     const pp = (ppNo && bill.method === 'โอนเงิน') ? `<div style="text-align:center;margin-top:8px"><img src="https://promptpay.io/${ppNo.replace(/[^0-9]/g, '')}/${bill.total}.png" style="width:120px;height:120px;border:1px solid #eee;padding:5px;border-radius:8px;"></div>` : '';
-    
+
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif;font-size:13px;width:72mm;padding:4mm;color:#333}
@@ -2035,24 +2035,24 @@ window.v12PrintReceipt80mm = async function (billId) {
     <div class="c" style="margin-top:12px;font-size:11px;color:#666;font-style:italic;">${rc.receipt_footer || rc.note || 'ขอบคุณที่ใช้บริการ'}</div>
     <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1000)}<\/script></body></html>`);
     win.document.close();
-  } catch(e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 window.v12PrintReceiptA4 = async function (billId) {
   try {
     const { data: bill } = await db.from('บิลขาย').select('*').eq('id', billId).single();
     const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
-    
+
     let rc = {};
-    try { 
+    try {
       const { data } = await db.from('ตั้งค่าร้านค้า').select('*').limit(1).single();
       rc = data || {};
-    } catch(e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
+    } catch (e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
 
     // Fetch customer address/phone if member
     let custInfo = bill.delivery_address || '';
     if (bill.delivery_phone) custInfo = (custInfo ? custInfo + ' ' : '') + 'โทร: ' + bill.delivery_phone;
-    
+
     if (!custInfo && bill.customer_id) {
       try {
         const { data: cust } = await db.from('customer').select('address, phone').eq('id', bill.customer_id).single();
@@ -2060,7 +2060,7 @@ window.v12PrintReceiptA4 = async function (billId) {
           custInfo = cust.address || '';
           if (cust.phone) custInfo = (custInfo ? custInfo + ' ' : '') + 'โทร: ' + cust.phone;
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     const customerBox = {
@@ -2085,7 +2085,7 @@ window.v12PrintReceiptA4 = async function (billId) {
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 800);
-  } catch(e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 window.v12PrintDeliveryNote = async function (billId) {
@@ -2094,12 +2094,12 @@ window.v12PrintDeliveryNote = async function (billId) {
     const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
     const deliverItems = (items || []).filter(i => (i.deliver_qty || 0) > 0);
     const activeItems = deliverItems.length > 0 ? deliverItems : items; // Fallback to all items if none specifically marked for delivery
-    
+
     let rc = {};
-    try { 
+    try {
       const { data } = await db.from('ตั้งค่าร้านค้า').select('*').limit(1).single();
       rc = data || {};
-    } catch(e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
+    } catch (e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
 
     // Fetch customer address/phone if member
     let custInfo = bill.delivery_address || '';
@@ -2112,9 +2112,9 @@ window.v12PrintDeliveryNote = async function (billId) {
           custInfo = cust.address || '';
           if (cust.phone) custInfo = (custInfo ? custInfo + ' ' : '') + 'โทร: ' + cust.phone;
         }
-      } catch(e) {}
+      } catch (e) { }
     }
-    
+
     const customerBox = {
       name: bill.customer_name || 'ลูกค้าทั่วไป',
       sub: custInfo || null,
@@ -2138,14 +2138,14 @@ window.v12PrintDeliveryNote = async function (billId) {
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 800);
-  } catch(e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 window.v12PrintDeposit = async function (billId) {
   try {
     const { data: bill } = await db.from('บิลขาย').select('*').eq('id', billId).single();
     const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
-    
+
     const customerBox = {
       name: bill.customer_name || 'ลูกค้าทั่วไป',
       sub: null,
@@ -2161,10 +2161,10 @@ window.v12PrintDeposit = async function (billId) {
     ];
 
     let rc = {};
-    try { 
+    try {
       const { data } = await db.from('ตั้งค่าร้านค้า').select('*').limit(1).single();
       rc = data || {};
-    } catch(e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
+    } catch (e) { rc = (typeof SHOP_CONFIG !== 'undefined') ? SHOP_CONFIG : {}; }
 
     const ppNo = rc.promptpay_number || rc.phone || '';
     const qrUrl = `https://promptpay.io/${ppNo.replace(/[^0-9]/g, '')}/${bill.deposit_amount}.png`;
@@ -2175,7 +2175,7 @@ window.v12PrintDeposit = async function (billId) {
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 800);
-  } catch(e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { console.error(e); toast('พิมพ์ไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 /* ──────────────────────────────────────────────────────────────
@@ -2303,8 +2303,8 @@ async function v12DQRenderCards(bills) {
         ${b.delivery_address ? `<div class="v12-dq-address"><i class="material-icons-round" style="font-size:14px;color:#8b5cf6">location_on</i>${b.delivery_address}</div>` : ''}
         <div class="v12-dq-items">
           ${items.length
-            ? items.map(it => `<div class="v12-dq-item"><span>${it.name}</span><strong>${it.deliver_qty} ชิ้น</strong></div>`).join('')
-            : '<div style="font-size:13px;color:var(--text-muted,#9ca3af)">ไม่มีรายการส่ง</div>'}
+        ? items.map(it => `<div class="v12-dq-item"><span>${it.name}</span><strong>${it.deliver_qty} ชิ้น</strong></div>`).join('')
+        : '<div style="font-size:13px;color:var(--text-muted,#9ca3af)">ไม่มีรายการส่ง</div>'}
         </div>
       </div>
       <div class="v12-dq-card-footer">
@@ -2348,7 +2348,7 @@ window.v12DQMarkDone = async function (billId) {
       const multiplier = 1400; // 1 Unit = 1400 KG
       const deductedAmount = (it.deliver_qty || 0) * multiplier;
       const stockAfter = stockBefore - deductedAmount;
-      
+
       await db.from('สินค้า').update({ stock: stockAfter }).eq('id', it.product_id);
       try {
         await db.from('stock_movement').insert({
@@ -2358,7 +2358,7 @@ window.v12DQMarkDone = async function (billId) {
           ref_id: billId, ref_table: 'บิลขาย',
           staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : 'unknown',
         });
-      } catch(e) { console.warn('stock_movement skip:', e); }
+      } catch (e) { console.warn('stock_movement skip:', e); }
       if (prod) prod.stock = stockAfter;
     }
 
@@ -2531,7 +2531,7 @@ window.v12BMCLoad = async function () {
         </td>
       </tr>`;
     }).join('');
-  } catch(e) {
+  } catch (e) {
     console.error('[v12] BMCLoad error:', e);
     const tbody = document.getElementById('bmc-tbody');
     if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:#ef4444;">โหลดไม่สำเร็จ: ${e.message}</td></tr>`;
@@ -2578,7 +2578,7 @@ window.v12BMCExport = async function () {
     a.download = `sales_${date}.csv`;
     a.click();
     toast('Export สำเร็จ', 'success');
-  } catch(e) { toast('Export ไม่สำเร็จ: ' + e.message, 'error'); }
+  } catch (e) { toast('Export ไม่สำเร็จ: ' + e.message, 'error'); }
 };
 
 /* --- Implementation of Return Bill --- */
@@ -2603,14 +2603,14 @@ window.v12ReturnBill = async function (billId) {
     }
 
     const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
-    
+
     // Determine how much was already deducted
     const wasDelivered = bill.delivery_status === 'จัดส่งสำเร็จ';
     const multiplier = 1400;
 
     for (const it of (items || [])) {
       if (!it.product_id) continue;
-      
+
       let restoreQty = it.take_qty || 0;
       if (wasDelivered) restoreQty += (it.deliver_qty || 0);
 
@@ -2619,9 +2619,9 @@ window.v12ReturnBill = async function (billId) {
         const stockBefore = prod?.stock || 0;
         const restoreAmount = restoreQty * multiplier;
         const stockAfter = stockBefore + restoreAmount;
-        
+
         await db.from('สินค้า').update({ stock: stockAfter }).eq('id', it.product_id);
-        
+
         // Log movement
         try {
           await db.from('stock_movement').insert({
@@ -2631,7 +2631,7 @@ window.v12ReturnBill = async function (billId) {
             ref_id: billId, ref_table: 'บิลขาย',
             staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : 'system',
           });
-        } catch(e) {}
+        } catch (e) { }
         if (prod) prod.stock = stockAfter;
       }
     }
@@ -2650,13 +2650,13 @@ window.v12ReturnBill = async function (billId) {
             debt_amount: Math.max(0, (cust.debt_amount || 0) - debtAmt)
           }).eq('id', bill.customer_id);
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     toast('คืนสินค้าสำเร็จ คืนสต็อกเรียบร้อย', 'success');
     if (typeof loadProducts === 'function') await loadProducts();
     if (typeof updateHomeStats === 'function') updateHomeStats();
-    if (typeof v12BMCLoad === 'function') v12BMCLoad(); 
+    if (typeof v12BMCLoad === 'function') v12BMCLoad();
 
   } catch (e) {
     console.error('[v12] Return Error:', e);
