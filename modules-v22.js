@@ -1321,3 +1321,37 @@ console.log(
   '  ADD COLUMN IF NOT EXISTS cash_tx_id UUID,\n' +
   '  ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;\n'
 );
+
+/* ══════════════════════════════════════════════════════════════════
+   V22-9: PROJECT STATUS BADGE (จ่ายของให้โครงการ)
+══════════════════════════════════════════════════════════════════ */
+(function patchProjectBadges() {
+  function apply() {
+    // 1. Status Badge
+    if (typeof window.v12BMCBadge === 'function' && !window.v12BMCBadge._v22patched) {
+      const orig = window.v12BMCBadge;
+      window.v12BMCBadge = function(st) {
+        if (st === 'จ่ายของให้โครงการ') {
+          return '<span class="v12-status-badge" style="background:#eef2ff;color:#4f46e5;font-size:11px;border:1px solid #c7d2fe;">📦 จ่ายของให้โครงการ</span>';
+        }
+        return orig(st);
+      };
+      window.v12BMCBadge._v22patched = true;
+    }
+    // 2. Method Badge
+    if (typeof window.v12BMCMethodBadge === 'function' && !window.v12BMCMethodBadge._v22patched) {
+      const origM = window.v12BMCMethodBadge;
+      window.v12BMCMethodBadge = function(m) {
+        if (m === 'โครงการ') {
+          return '<span class="v12-status-badge v12-badge-purple" style="font-size:11px">🏗️ โครงการ</span>';
+        }
+        return origM(m);
+      };
+      window.v12BMCMethodBadge._v22patched = true;
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+  setTimeout(apply, 800);
+})();
+

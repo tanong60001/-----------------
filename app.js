@@ -37,17 +37,17 @@ let checkoutState = {
 // Cash denominations with correct Thai baht colors
 const BILLS = [
   { value: 1000, label: '1,000', color: '#8B5E3C', bg: '#C4936A', textColor: '#fff', name: 'พัน' },
-  { value: 500,  label: '500',   color: '#6B3FA0', bg: '#9B6FD0', textColor: '#fff', name: 'ห้าร้อย' },
-  { value: 100,  label: '100',   color: '#C8102E', bg: '#E84060', textColor: '#fff', name: 'ร้อย' },
-  { value: 50,   label: '50',    color: '#0066CC', bg: '#3388EE', textColor: '#fff', name: 'ห้าสิบ' },
-  { value: 20,   label: '20',    color: '#1A7A3C', bg: '#2EA855', textColor: '#fff', name: 'ยี่สิบ' }
+  { value: 500, label: '500', color: '#6B3FA0', bg: '#9B6FD0', textColor: '#fff', name: 'ห้าร้อย' },
+  { value: 100, label: '100', color: '#C8102E', bg: '#E84060', textColor: '#fff', name: 'ร้อย' },
+  { value: 50, label: '50', color: '#0066CC', bg: '#3388EE', textColor: '#fff', name: 'ห้าสิบ' },
+  { value: 20, label: '20', color: '#1A7A3C', bg: '#2EA855', textColor: '#fff', name: 'ยี่สิบ' }
 ];
 
 const COINS = [
-  { value: 10, label: '10',  color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'สิบ' },
-  { value: 5,  label: '5',   color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'ห้า' },
-  { value: 2,  label: '2',   color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'สอง' },
-  { value: 1,  label: '1',   color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'หนึ่ง' }
+  { value: 10, label: '10', color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'สิบ' },
+  { value: 5, label: '5', color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'ห้า' },
+  { value: 2, label: '2', color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'สอง' },
+  { value: 1, label: '1', color: '#B8860B', bg: '#DAA520', textColor: '#fff', name: 'หนึ่ง' }
 ];
 
 // Pagination for products
@@ -129,22 +129,22 @@ function sendToDisplay(data) {
 
 // Permission map: page key → USER_PERMS field
 const PAGE_PERM_MAP = {
-  pos:      'can_pos',
-  inv:      'can_inv',
-  cash:     'can_cash',
-  exp:      'can_exp',
-  debt:     'can_debt',
-  att:      'can_att',
+  pos: 'can_pos',
+  inv: 'can_inv',
+  cash: 'can_cash',
+  exp: 'can_exp',
+  debt: 'can_debt',
+  att: 'can_att',
   purchase: 'can_purchase',
-  dash:     'can_dash',
-  history:  'can_log',
-  log:      'can_log',
+  dash: 'can_dash',
+  history: 'can_log',
+  log: 'can_log',
   // pages below require admin or always open
-  home:     null,
+  home: null,
   customer: null,
   quotation: null,
-  payable:  null,
-  admin:    null,
+  payable: null,
+  admin: null,
 };
 
 function hasPermission(page) {
@@ -257,7 +257,7 @@ function go(page) {
   const titles = {
     home: '🏠 หน้าหลัก', pos: '🛒 ขายสินค้า', inv: '📦 คลังสินค้า', cash: '💰 ลิ้นชักเงินสด',
     dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', debt: '👥 ลูกค้าค้างชำระ', customer: '⭐ ลูกค้าประจำ',
-    purchase: '📥 รับสินค้าเข้า', history: '📜 ประวัติการขาย', att: '🪪 พนักงาน/ลงเวลา',
+    purchase: '📥 รับสินค้าเข้า', history: '📜 ', att: '🪪 พนักงาน/ลงเวลา',
     log: '📑 ประวัติกิจกรรม', payable: '🏦 เจ้าหนี้ร้าน', quotation: '📄 ใบเสนอราคา', admin: '🔧 ผู้ดูแลระบบ'
   };
   document.getElementById('page-title-text').textContent = titles[page] || page;
@@ -282,7 +282,7 @@ function go(page) {
     case 'log': renderActivityLog(); break;
     case 'payable': renderPayables(); break;
     case 'quotation': renderQuotations(); break;
-    case 'dash': if(typeof renderDashboardV3 !== 'undefined') renderDashboardV3(); else renderDashboard(); break;
+    case 'dash': if (typeof renderDashboardV3 !== 'undefined') renderDashboardV3(); else renderDashboard(); break;
     case 'admin': renderAdmin(); break;
   }
   document.getElementById('sidebar')?.classList.remove('show');
@@ -300,13 +300,13 @@ async function updateHomeStats() {
     const ordersCount = bills?.length || 0;
     const todayBillIds = bills?.map(b => b.id) || [];
     let profit = 0;
-    
+
     if (todayBillIds.length > 0) {
       const { data: items } = await db.from('รายการในบิล').select('total, cost, qty, bill_id, name').in('bill_id', todayBillIds);
-      
+
       // Calculate Gross Profit from original items
       let grossProfit = (items || []).reduce((sum, i) => sum + ((i.total || 0) - ((i.cost || 0) * (i.qty || 1))), 0);
-      
+
       // Deduct Profit lost from Returns
       let lostProfitFromReturns = 0;
       (bills || []).forEach(b => {
@@ -315,7 +315,7 @@ async function updateHomeStats() {
             const retQty = retItem.qty || 0;
             const retTotal = retItem.total || (retItem.price * retQty) || 0;
             // Use cost from return_info if available (v11), else lookup from bill items
-            const retCost = retItem.cost || retItem.cost === 0 ? retItem.cost : 
+            const retCost = retItem.cost || retItem.cost === 0 ? retItem.cost :
               ((items || []).find(i => i.bill_id === b.id && i.name === retItem.name)?.cost || 0);
             lostProfitFromReturns += (retTotal - (retCost * retQty));
           });
@@ -323,7 +323,7 @@ async function updateHomeStats() {
       });
       profit = grossProfit - lostProfitFromReturns;
     }
-    
+
     const cashBalance = await getCashBalance();
     document.getElementById('home-sales').textContent = `฿${formatNum(totalSales)}`;
     document.getElementById('home-orders').textContent = formatNum(ordersCount);
@@ -357,7 +357,7 @@ async function updateAlerts() {
     if (lowItems.length > 0) alerts.push({ type: 'warning', icon: 'inventory', text: `สินค้าใกล้หมด ${lowItems.length} รายการ` });
     const { data: session } = await db.from('cash_session').select('id').eq('status', 'open').limit(1);
     if (!session || session.length === 0) alerts.push({ type: 'info', icon: 'account_balance_wallet', text: 'ยังไม่ได้เปิดรอบเงินสด' });
-  } catch {}
+  } catch { }
   if (alerts.length === 0) alerts.push({ type: 'info', icon: 'check_circle', text: 'ระบบพร้อมใช้งาน' });
   alertsList.innerHTML = alerts.map(a => `<div class="alert-item alert-${a.type}"><i class="material-icons-round">${a.icon}</i><span>${a.text}</span></div>`).join('');
 }
@@ -636,11 +636,11 @@ async function selectCustomerType(type) {
       <input type="text" class="form-input" placeholder="ค้นหาลูกค้า..." id="customer-search" oninput="filterCustomerList()" style="margin-bottom:10px;">
       <div id="customer-list" style="max-height:200px;overflow-y:auto;">
         ${(customers || []).map(c => {
-          const safeName = c.name.replace(/'/g, '&apos;');
-          return `<div class="customer-type-btn" style="padding:12px;margin-bottom:8px;" onclick="selectCustomer('${c.id}','${safeName}')">
+      const safeName = c.name.replace(/'/g, '&apos;');
+      return `<div class="customer-type-btn" style="padding:12px;margin-bottom:8px;" onclick="selectCustomer('${c.id}','${safeName}')">
           <div class="customer-type-info"><h4>${c.name}</h4><p>${c.phone || '-'} | ยอดสะสม ฿${formatNum(c.total_purchase)}</p></div>
         </div>`;
-        }).join('')}
+    }).join('')}
       </div></div>`;
   } else {
     extra.innerHTML = `<div style="margin-top:16px;">
@@ -697,8 +697,13 @@ function renderStep2(container) {
         <button class="payment-method-btn ${checkoutState.method === 'credit' ? 'selected' : ''}" onclick="selectPaymentMethod('credit')">
           <i class="material-icons-round">credit_card</i><span>บัตรเครดิต</span>
         </button>
+        <!-- ปุ่มค้างชำระ (debt) เหมือนเดิม -->
         <button class="payment-method-btn ${checkoutState.method === 'debt' ? 'selected' : ''}" onclick="selectPaymentMethod('debt')" ${checkoutState.customer.type === 'general' ? 'disabled style="opacity:.5"' : ''}>
           <i class="material-icons-round">access_time</i><span>ค้างชำระ</span>
+        </button>
+        <!-- [NEW] ปุ่มจ่ายของให้โครงการ (project) -->
+        <button class="payment-method-btn ${checkoutState.method === 'project' ? 'selected' : ''}" onclick="selectPaymentMethod('project')" style="border-color:#6366f1;">
+          <i class="material-icons-round" style="color:#6366f1;">business_center</i><span style="color:#3730a3;">จ่ายของให้โครงการ</span>
         </button>
       </div>
       <div id="payment-qr-section" style="display:none; text-align:center; margin-top:20px; padding:20px; background:var(--bg-base); border-radius:var(--radius-md);">
@@ -719,7 +724,7 @@ function selectPaymentMethod(method) {
     if (method === 'transfer') {
       qrSection.style.display = 'block';
       // Use PromptPay QR from shop config or generate via API
-      const qrUrl = SHOP_CONFIG.promptpay_qr_url || `https://promptpay.io/${SHOP_CONFIG.phone?.replace(/-/g,'')}/${checkoutState.total}.png`;
+      const qrUrl = SHOP_CONFIG.promptpay_qr_url || `https://promptpay.io/${SHOP_CONFIG.phone?.replace(/-/g, '')}/${checkoutState.total}.png`;
       document.getElementById('promptpay-qr').src = qrUrl;
       sendToDisplay({ type: 'qr', amount: checkoutState.total, qrUrl });
     } else {
@@ -831,7 +836,8 @@ function renderStep4(container) {
 
       <div style="background:var(--bg-base);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;border:1px solid var(--border-light);">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">ลูกค้า</span><strong>${checkoutState.customer.name}</strong></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">วิธีชำระ</span><strong>${{ cash:'เงินสด', transfer:'โอน/พร้อมเพย์', credit:'บัตรเครดิต', debt:'ค้างชำระ' }[checkoutState.method]}</strong></div>
+        <!-- [UPDATED] เพิ่ม project เข้าไปใน map วิธีชำระ -->
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">วิธีชำระ</span><strong>${{ cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', credit: 'บัตรเครดิต', debt: 'ค้างชำระ', project: 'จ่ายของให้โครงการ' }[checkoutState.method]}</strong></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:var(--text-secondary);">ยอดรวม</span><strong style="color:var(--primary)">฿${formatNum(checkoutState.total)}</strong></div>
       </div>
 
@@ -878,40 +884,89 @@ async function completePayment() {
   if (isProcessingPayment) return;
   isProcessingPayment = true;
   try {
+    const isProject = checkoutState.method === 'project'; // [NEW] ตรวจสอบว่าเป็นบิลโครงการ
+    const isDebt = checkoutState.method === 'debt';
+
     const { data: session } = await db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).single();
+
+    // [UPDATED] method map รวม 'project' ด้วย
+    const methodMap = { cash: 'เงินสด', transfer: 'โอนเงิน', credit: 'บัตรเครดิต', debt: 'ค้างชำระ', project: 'จ่ายของให้โครงการ' };
+
+    // [UPDATED] status: project → 'จ่ายของให้โครงการ', debt → 'ค้างชำระ', อื่นๆ → 'สำเร็จ'
+    const billStatus = isProject ? 'จ่ายของให้โครงการ' : isDebt ? 'ค้างชำระ' : 'สำเร็จ';
+
     const { data: bill, error: billError } = await db.from('บิลขาย').insert({
       date: new Date().toISOString(),
-      method: { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างชำระ' }[checkoutState.method] || 'เงินสด',
+      method: methodMap[checkoutState.method] || 'เงินสด',
       total: checkoutState.total, discount: checkoutState.discount,
       received: checkoutState.received, change: checkoutState.change,
       customer_name: checkoutState.customer.name, customer_id: checkoutState.customer.id || null,
-      staff_name: USER?.username, status: checkoutState.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
+      staff_name: USER?.username,
+      status: billStatus,
       denominations: checkoutState.receivedDenominations
     }).select().single();
     if (billError) throw billError;
+
+    // [UNCHANGED] ลูปบันทึกรายการสินค้า + ตัดสต็อกทันทีทุกกรณี
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
       await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, total: item.price * item.qty });
+      // ตัดสต็อกทันที ไม่ว่าจะเป็น method ไหนก็ตาม
       await db.from('สินค้า').update({ stock: (prod?.stock || 0) - item.qty }).eq('id', item.id);
-      await db.from('stock_movement').insert({ product_id: item.id, product_name: item.name, type: 'ขาย', direction: 'out', qty: item.qty, stock_before: prod?.stock || 0, stock_after: (prod?.stock || 0) - item.qty, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username });
+      // [UPDATED] stock_movement type แยกตาม method
+      const moveType = isProject ? 'จ่ายของให้โครงการ' : 'ขาย';
+      await db.from('stock_movement').insert({ product_id: item.id, product_name: item.name, type: moveType, direction: 'out', qty: item.qty, stock_before: prod?.stock || 0, stock_after: (prod?.stock || 0) - item.qty, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username });
     }
+
+    // [UNCHANGED] บันทึก cash_transaction เฉพาะ 'cash' เท่านั้น
     if (checkoutState.method === 'cash' && session) {
       await db.from('cash_transaction').insert({ session_id: session.id, type: 'ขาย', direction: 'in', amount: checkoutState.received, change_amt: checkoutState.change, net_amount: checkoutState.total, balance_after: 0, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username, denominations: checkoutState.receivedDenominations });
     }
+
+    // [UPDATED] อัปเดตข้อมูลลูกค้า: debt_amount บวกเพิ่มเฉพาะ 'debt' เท่านั้น ห้ามบวกถ้าเป็น 'project'
     if (checkoutState.customer.id) {
       const { data: cust } = await db.from('customer').select('total_purchase, visit_count, debt_amount').eq('id', checkoutState.customer.id).single();
-      await db.from('customer').update({ total_purchase: (cust?.total_purchase || 0) + checkoutState.total, visit_count: (cust?.visit_count || 0) + 1, debt_amount: checkoutState.method === 'debt' ? (cust?.debt_amount || 0) + checkoutState.total : (cust?.debt_amount || 0) }).eq('id', checkoutState.customer.id);
+      await db.from('customer').update({
+        total_purchase: (cust?.total_purchase || 0) + checkoutState.total,
+        visit_count: (cust?.visit_count || 0) + 1,
+        // [KEY] บวกหนี้เฉพาะ debt เท่านั้น — project ไม่นับเป็นหนี้
+        debt_amount: isDebt ? (cust?.debt_amount || 0) + checkoutState.total : (cust?.debt_amount || 0)
+      }).eq('id', checkoutState.customer.id);
     }
-    logActivity('ขายสินค้า', `บิล #${bill.bill_no} ยอด ฿${formatNum(checkoutState.total)}`, bill.id, 'บิลขาย');
+
+    // [NEW] ถ้าเป็น project ให้บันทึกเป็นรายจ่ายโครงการทันที
+    if (isProject) {
+      try {
+        await db.from('รายจ่ายโครงการ').insert({
+          project_id: checkoutState.projectId || null, // projectId ถ้ามีการเลือกโครงการ
+          description: 'เบิกสินค้าไปใช้ในโครงการ (อ้างอิงบิล #' + bill.bill_no + ')',
+          amount: checkoutState.total,
+          category: 'ค่าวัสดุ/อุปกรณ์',
+          type: 'expense',
+          bill_id: bill.id,
+          paid_at: new Date().toISOString() // บันทึกวันที่จ่าย
+        });
+      } catch (projErr) {
+        // ไม่ throw เพราะบิลบันทึกแล้ว แค่ log warning
+        console.warn('[app] project expense insert warn:', projErr.message);
+      }
+    }
+
+    // [UPDATED] log activity แยกข้อความตาม method
+    const activityType = isProject ? 'จ่ายของให้โครงการ' : 'ขายสินค้า';
+    logActivity(activityType, `บิล #${bill.bill_no} ยอด ฿${formatNum(checkoutState.total)}`, bill.id, 'บิลขาย');
     sendToDisplay({ type: 'thanks', billNo: bill.bill_no, total: checkoutState.total });
     closeCheckout();
     cart = [];
     await loadProducts();
     renderCart(); renderProductGrid(); updateHomeStats();
-    Swal.fire({ icon: 'success', title: 'บันทึกการขายสำเร็จ', text: `บิล #${bill.bill_no} | ยอด ฿${formatNum(checkoutState.total)}`, confirmButtonColor: '#10B981', timer: 3000, timerProgressBar: true });
+
+    // [UPDATED] ข้อความ popup แยกตาม method
+    const successTitle = isProject ? 'จ่ายของให้โครงการสำเร็จ' : 'บันทึกการขายสำเร็จ';
+    Swal.fire({ icon: 'success', title: successTitle, text: `บิล #${bill.bill_no} | ยอด ฿${formatNum(checkoutState.total)}`, confirmButtonColor: isProject ? '#6366f1' : '#10B981', timer: 3000, timerProgressBar: true });
   } catch (e) {
     console.error('Payment error:', e);
-    toast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+    toast('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่', 'error');
   } finally { isProcessingPayment = false; }
 }
 
@@ -1202,7 +1257,12 @@ async function loadHistoryData() {
       <td><span class="badge ${b.method === 'เงินสด' ? 'badge-success' : 'badge-info'}">${b.method}</span></td>
       <td class="text-right"><strong>฿${formatNum(b.total)}</strong></td>
       <td>${b.staff_name || '-'}</td>
-      <td><span class="badge ${b.status === 'สำเร็จ' ? 'badge-success' : b.status === 'ค้างชำระ' ? 'badge-warning' : 'badge-danger'}">${b.status}</span></td>
+      <!-- [UPDATED] เพิ่มสี badge สำหรับ 'จ่ายของให้โครงการ' (badge-info = สีฟ้า) -->
+      <td><span class="badge ${b.status === 'สำเร็จ' ? 'badge-success' :
+      b.status === 'ค้างชำระ' ? 'badge-warning' :
+        b.status === 'จ่ายของให้โครงการ' ? 'badge-info' :
+          'badge-danger'
+    }">${b.status}</span></td>
       <td>
         <button class="btn btn-ghost btn-icon" onclick="viewBillDetail('${b.id}')" title="ดูรายละเอียด"><i class="material-icons-round">receipt</i></button>
         ${b.status === 'สำเร็จ' ? `<button class="btn btn-ghost btn-icon" style="color:var(--danger)" onclick="cancelBill('${b.id}')" title="ยกเลิก"><i class="material-icons-round">cancel</i></button>` : ''}
@@ -1339,7 +1399,7 @@ async function viewCustomerHistory(customerId, name) {
   openModal(`ประวัติการซื้อ: ${name}`, `
     <div style="max-height:400px;overflow-y:auto;">
       ${(bills || []).length === 0 ? '<p style="text-align:center;padding:40px;color:var(--text-tertiary);">ไม่มีประวัติการซื้อ</p>' :
-        (bills || []).map(b => `<div style="display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid var(--border-light);">
+      (bills || []).map(b => `<div style="display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid var(--border-light);">
           <div><strong>#${b.bill_no}</strong> <span style="color:var(--text-secondary);font-size:13px;">${formatDateTime(b.date)}</span></div>
           <strong style="color:var(--primary)">฿${formatNum(b.total)}</strong>
         </div>`).join('')}
@@ -1428,7 +1488,7 @@ function showAddExpenseModal() {
         <div class="form-group"><label class="form-label">วิธีชำระ</label>
           <select class="form-input" id="exp-method"><option>เงินสด</option><option>โอนเงิน</option><option>บัตรเครดิต</option></select>
         </div>
-        <div class="form-group"><label class="form-label">วันที่</label><input type="datetime-local" class="form-input" id="exp-datetime" value="${new Date().toISOString().slice(0,16)}"></div>
+        <div class="form-group"><label class="form-label">วันที่</label><input type="datetime-local" class="form-input" id="exp-datetime" value="${new Date().toISOString().slice(0, 16)}"></div>
       </div>
       <div class="form-group"><label class="form-label">หมายเหตุ</label><input type="text" class="form-input" id="exp-note"></div>
       <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;"><i class="material-icons-round">save</i> บันทึก</button>
@@ -1468,7 +1528,7 @@ async function renderDebts() {
               <td>${c.phone || '-'}</td>
               <td class="text-right"><strong style="color:var(--danger)">฿${formatNum(c.debt_amount)}</strong></td>
               <td class="text-right">฿${formatNum(c.credit_limit)}</td>
-              <td><button class="btn btn-primary btn-sm" onclick="recordDebtPayment('${c.id}','${c.name.replace(/'/g,'&apos;')}')"><i class="material-icons-round">payments</i> รับชำระ</button></td>
+              <td><button class="btn btn-primary btn-sm" onclick="recordDebtPayment('${c.id}','${c.name.replace(/'/g, '&apos;')}')"><i class="material-icons-round">payments</i> รับชำระ</button></td>
             </tr>`).join('')}</tbody>
         </table>
       </div>
@@ -1544,10 +1604,10 @@ async function renderAttendance() {
   const section = document.getElementById('page-att');
   if (!section) return;
   const today = new Date().toISOString().split('T')[0];
-  
+
   const { data: employees } = await db.from('พนักงาน').select('*').eq('status', 'ทำงาน').order('name');
   const { data: todayAttRes } = await db.from('เช็คชื่อ').select('*').eq('date', today);
-  
+
   const attMap = {};
   (todayAttRes || []).forEach(a => { attMap[a.employee_id] = a; });
 
@@ -1601,11 +1661,11 @@ async function renderAttendance() {
             </tr>
           </thead>
           <tbody>${employees.map(emp => {
-            const att = attMap[emp.id];
-            const hasCheckedIn = att && att.status === 'มา';
-            const hasCheckedOut = att && att.time_out;
-            
-            return `
+    const att = attMap[emp.id];
+    const hasCheckedIn = att && att.status === 'มา';
+    const hasCheckedOut = att && att.time_out;
+
+    return `
             <tr style="transition: background 0.2s;">
               <td style="padding-left: 20px;">
                 <div style="display:flex; align-items:center; gap:12px;">
@@ -1648,7 +1708,7 @@ async function renderAttendance() {
                 ` : ''}
               </td>
             </tr>`;
-          }).join('')}</tbody>
+  }).join('')}</tbody>
         </table>
       </div>
       `}
@@ -1657,13 +1717,13 @@ async function renderAttendance() {
 
 async function checkIn(employeeId) {
   const now = new Date();
-  await db.from('เช็คชื่อ').insert({ employee_id: employeeId, date: now.toISOString().split('T')[0], status: 'มา', time_in: now.toTimeString().slice(0,5), staff_name: USER?.username });
+  await db.from('เช็คชื่อ').insert({ employee_id: employeeId, date: now.toISOString().split('T')[0], status: 'มา', time_in: now.toTimeString().slice(0, 5), staff_name: USER?.username });
   toast('บันทึกเวลาเข้างานสำเร็จ', 'success'); renderAttendance();
 }
 
 async function checkOut(attId) {
   const now = new Date();
-  await db.from('เช็คชื่อ').update({ time_out: now.toTimeString().slice(0,5) }).eq('id', attId);
+  await db.from('เช็คชื่อ').update({ time_out: now.toTimeString().slice(0, 5) }).eq('id', attId);
   toast('บันทึกเวลาออกงานสำเร็จ', 'success'); renderAttendance();
 }
 
@@ -1741,8 +1801,8 @@ async function renderPayables() {
         <table class="data-table">
           <thead><tr><th>ผู้จำหน่าย</th><th>วันที่</th><th>ครบกำหนด</th><th class="text-right">ยอดรวม</th><th class="text-right">ชำระแล้ว</th><th class="text-right">คงค้าง</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
           <tbody>${(data || []).map(d => {
-            const splName = d.supplier_name || (Array.isArray(d.ซัพพลายเออร์) ? d.ซัพพลายเออร์[0]?.name : d.ซัพพลายเออร์?.name) || d.supplier?.name || '-';
-            return `
+    const splName = d.supplier_name || (Array.isArray(d.ซัพพลายเออร์) ? d.ซัพพลายเออร์[0]?.name : d.ซัพพลายเออร์?.name) || d.supplier?.name || '-';
+    return `
             <tr>
               <td><strong>${splName}</strong></td>
               <td>${formatDate(d.date)}</td>
@@ -1753,7 +1813,7 @@ async function renderPayables() {
               <td><span class="badge ${d.status === 'ชำระแล้ว' ? 'badge-success' : 'badge-danger'}">${d.status}</span></td>
               <td>${d.status !== 'ชำระแล้ว' ? `<button class="btn btn-primary btn-sm" onclick="payPayable('${d.id}','${d.balance}')"><i class="material-icons-round">payments</i> ชำระ</button>` : ''}</td>
             </tr>`;
-          }).join('')}</tbody>
+  }).join('')}</tbody>
         </table>
       </div>
     </div>`;
@@ -1796,7 +1856,7 @@ async function renderQuotations() {
               <td><span class="badge ${q.status === 'อนุมัติ' ? 'badge-success' : q.status === 'ยกเลิก' ? 'badge-danger' : 'badge-warning'}">${q.status}</span></td>
               <td>
                 ${q.status === 'รออนุมัติ' ? `
-                  <button class="btn btn-primary btn-sm" onclick="convertQuotation('${q.id}','${q.customer_name.replace(/'/g,'&apos;')}','${q.total}')"><i class="material-icons-round">shopping_cart</i> สร้างบิล</button>
+                  <button class="btn btn-primary btn-sm" onclick="convertQuotation('${q.id}','${q.customer_name.replace(/'/g, '&apos;')}','${q.total}')"><i class="material-icons-round">shopping_cart</i> สร้างบิล</button>
                 ` : ''}
               </td>
             </tr>`).join('')}</tbody>
@@ -1879,7 +1939,7 @@ async function renderDashboard() {
           <div style="display:flex;align-items:flex-end;gap:8px;height:140px;">
             ${days.map(d => `
               <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-                <div style="font-size:10px;color:var(--text-tertiary);">฿${d.total > 0 ? formatNum(Math.round(d.total/1000)) + 'k' : '0'}</div>
+                <div style="font-size:10px;color:var(--text-tertiary);">฿${d.total > 0 ? formatNum(Math.round(d.total / 1000)) + 'k' : '0'}</div>
                 <div style="width:100%;background:var(--primary);border-radius:4px 4px 0 0;height:${Math.round((d.total / maxVal) * 100)}px;min-height:${d.total > 0 ? 4 : 0}px;transition:height .3s;"></div>
                 <div style="font-size:10px;color:var(--text-secondary);text-align:center;">${d.label}</div>
               </div>`).join('')}
@@ -1890,15 +1950,15 @@ async function renderDashboard() {
           <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
             <div>
               <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;"><span>เงินสด</span><strong>${cashBills} บิล</strong></div>
-              <div style="background:var(--bg-hover);border-radius:4px;height:8px;"><div style="background:var(--success);height:100%;border-radius:4px;width:${cashBills + transferBills > 0 ? Math.round(cashBills/(cashBills+transferBills)*100) : 0}%;"></div></div>
+              <div style="background:var(--bg-hover);border-radius:4px;height:8px;"><div style="background:var(--success);height:100%;border-radius:4px;width:${cashBills + transferBills > 0 ? Math.round(cashBills / (cashBills + transferBills) * 100) : 0}%;"></div></div>
             </div>
             <div>
               <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;"><span>โอนเงิน</span><strong>${transferBills} บิล</strong></div>
-              <div style="background:var(--bg-hover);border-radius:4px;height:8px;"><div style="background:var(--info);height:100%;border-radius:4px;width:${cashBills + transferBills > 0 ? Math.round(transferBills/(cashBills+transferBills)*100) : 0}%;"></div></div>
+              <div style="background:var(--bg-hover);border-radius:4px;height:8px;"><div style="background:var(--info);height:100%;border-radius:4px;width:${cashBills + transferBills > 0 ? Math.round(transferBills / (cashBills + transferBills) * 100) : 0}%;"></div></div>
             </div>
           </div>
           <h3 style="font-size:15px;font-weight:600;margin-top:24px;margin-bottom:12px;">สินค้าขายดี</h3>
-          ${topList.map((p, i) => `<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;"><span><span style="color:var(--primary);font-weight:700;margin-right:6px;">#${i+1}</span>${p[0]}</span><strong>${p[1]} ชิ้น</strong></div>`).join('')}
+          ${topList.map((p, i) => `<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;"><span><span style="color:var(--primary);font-weight:700;margin-right:6px;">#${i + 1}</span>${p[0]}</span><strong>${p[1]} ชิ้น</strong></div>`).join('')}
           ${topList.length === 0 ? '<p style="color:var(--text-tertiary);font-size:13px;">ยังไม่มีข้อมูล</p>' : ''}
         </div>
       </div>`;
@@ -1994,7 +2054,7 @@ async function showAddUserModal() {
     </form>`);
   document.getElementById('user-form').onsubmit = async (e) => {
     e.preventDefault();
-    const pin = document.getElementById('user-pin').value.toString().padStart(4, '0').slice(0,4);
+    const pin = document.getElementById('user-pin').value.toString().padStart(4, '0').slice(0, 4);
     const { error } = await db.from('ผู้ใช้งาน').insert({ username: document.getElementById('user-name').value, pin, role: document.getElementById('user-role').value });
     if (error?.code === '23505') { toast('PIN ซ้ำกับผู้ใช้อื่น', 'error'); return; }
     toast('เพิ่มผู้ใช้สำเร็จ', 'success'); closeModal(); renderAdmin();
@@ -2019,26 +2079,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const pinInputs = document.querySelectorAll('.pin-input');
   pinInputs.forEach((input, index) => {
     input.addEventListener('input', (e) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 1) val = val.slice(-1);
-    e.target.value = val;
+      let val = e.target.value.replace(/\D/g, '');
+      if (val.length > 1) val = val.slice(-1);
+      e.target.value = val;
 
-    // --- ส่วนที่เพิ่มเข้ามา เพื่อโชว์/ซ่อน จุดดำทันที ---
-    if (val) {
-      e.target.classList.add('filled');
-    } else {
-      e.target.classList.remove('filled');
-    }
-    // ------------------------------------------
+      // --- ส่วนที่เพิ่มเข้ามา เพื่อโชว์/ซ่อน จุดดำทันที ---
+      if (val) {
+        e.target.classList.add('filled');
+      } else {
+        e.target.classList.remove('filled');
+      }
+      // ------------------------------------------
 
-    if (val && index < pinInputs.length - 1) {
-      setTimeout(() => pinInputs[index + 1].focus(), 10);
-    }
-    
-    if (Array.from(pinInputs).every(i => i.value)) {
-      setTimeout(checkLogin, 50);
-    }
-  });
+      if (val && index < pinInputs.length - 1) {
+        setTimeout(() => pinInputs[index + 1].focus(), 10);
+      }
+
+      if (Array.from(pinInputs).every(i => i.value)) {
+        setTimeout(checkLogin, 50);
+      }
+    });
     input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !e.target.value && index > 0) pinInputs[index - 1].focus(); });
   });
   document.getElementById('login-btn')?.addEventListener('click', checkLogin);
@@ -2078,10 +2138,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const cartOverlay = document.getElementById('cart-overlay');
 
-  if(cartHeader && posCart) {
+  if (cartHeader && posCart) {
     cartHeader.addEventListener('click', (e) => {
-      if(e.target.closest('#clear-cart-btn')) return;
-      if(window.innerWidth <= 768) {
+      if (e.target.closest('#clear-cart-btn')) return;
+      if (window.innerWidth <= 768) {
         posCart.classList.toggle('cart-open');
         cartOverlay?.classList.toggle('show');
       }
@@ -2095,7 +2155,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fallback for clicking inside POS products (legacy safety)
     document.querySelector('.pos-products')?.addEventListener('click', () => {
-      if(window.innerWidth <= 768 && posCart.classList.contains('cart-open')) {
+      if (window.innerWidth <= 768 && posCart.classList.contains('cart-open')) {
         posCart.classList.remove('cart-open');
         cartOverlay?.classList.remove('show');
       }
@@ -2123,15 +2183,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('menu-toggle')?.addEventListener('click', () => {
     setTimeout(() => { // wait for innate toggle
       const isShowing = document.getElementById('sidebar')?.classList.contains('show');
-      if(isShowing) document.getElementById('sidebar-overlay')?.classList.add('show');
+      if (isShowing) document.getElementById('sidebar-overlay')?.classList.add('show');
       else document.getElementById('sidebar-overlay')?.classList.remove('show');
     }, 10);
   });
-  
+
   document.getElementById('sidebar-close')?.addEventListener('click', () => {
     document.getElementById('sidebar-overlay')?.classList.remove('show');
   });
-  
+
   document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
     document.getElementById('sidebar')?.classList.remove('show');
     document.getElementById('sidebar-overlay')?.classList.remove('show');
@@ -2146,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Close header actions menu when clicking outside
   document.addEventListener('click', (e) => {
-    if(window.innerWidth <= 768 && pageActionsContainer?.classList.contains('menu-open')) {
+    if (window.innerWidth <= 768 && pageActionsContainer?.classList.contains('menu-open')) {
       pageActionsContainer.classList.remove('menu-open');
     }
   });
@@ -2154,13 +2214,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Dynamic Table-to-Cards data-label Injector
   // Guarantees any table rendered dynamically by JS works perfectly on mobile without touching original functions
   setInterval(() => {
-    if(window.innerWidth > 768) return;
+    if (window.innerWidth > 768) return;
     document.querySelectorAll('.data-table').forEach(table => {
       const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
       if (headers.length === 0) return;
       table.querySelectorAll('tbody tr').forEach(row => {
         row.querySelectorAll('td').forEach((cell, idx) => {
-          if(headers[idx] && !cell.hasAttribute('data-label')) {
+          if (headers[idx] && !cell.hasAttribute('data-label')) {
             cell.setAttribute('data-label', headers[idx]);
           }
         });
@@ -2170,7 +2230,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle floating toolbar actions (Inventory buttons ONLY)
     document.querySelectorAll('#page-inv .inv-toolbar').forEach(toolbar => {
       const actions = toolbar.querySelector('.toolbar-actions');
-      if(actions && !toolbar.querySelector('.mobile-action-toggle') && actions.children.length > 0) {
+      if (actions && !toolbar.querySelector('.mobile-action-toggle') && actions.children.length > 0) {
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'btn btn-outline mobile-action-toggle hidden-desktop';
         toggleBtn.innerHTML = '<i class="material-icons-round">more_horiz</i> ตัวเลือกเพิ่มเติม';
@@ -2184,7 +2244,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 // ดักจับการยิงบาร์โค้ดในช่องค้นหาหน้า POS
-document.getElementById('pos-search')?.addEventListener('keypress', function(e) {
+document.getElementById('pos-search')?.addEventListener('keypress', function (e) {
   if (e.key === 'Enter') {
     const barcode = this.value.trim();
     if (!barcode) return;

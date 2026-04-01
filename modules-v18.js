@@ -272,7 +272,7 @@ window.v12CompletePayment = async function() {
     /* Insert bill */
     const { data: bill, error: be } = await db.from('บิลขาย').insert({
       date:             new Date().toISOString(),
-      method:           'ค้างเครดิต',
+      method:           'โครงการ',
       total:            v12State.total,
       discount:         v12State.discount || 0,
       received:         0, change: 0,
@@ -280,7 +280,7 @@ window.v12CompletePayment = async function() {
       customer_id:      null,
       project_id:       projId,
       staff_name:       staff,
-      status:           'ค้างชำระ',
+      status:           'จ่ายของให้โครงการ',
       denominations: {}, change_denominations: {},
       delivery_mode: 'รับเอง', delivery_status: 'สำเร็จ', deposit_amount: 0,
     }).select().single();

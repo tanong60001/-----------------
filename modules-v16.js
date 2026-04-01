@@ -22,7 +22,7 @@ const _ss = () => (typeof USER !== 'undefined' && USER) ? USER.username : 'unkno
 const _st = (m, type = 'warning') => typeof toast === 'function' ? toast(m, type) : alert(m);
 
 function _sui() {
-  if (typeof v12UpdateStepBar  === 'function') v12UpdateStepBar();
+  if (typeof v12UpdateStepBar === 'function') v12UpdateStepBar();
   if (typeof v12RenderStepBody === 'function') v12RenderStepBody();
 }
 
@@ -120,19 +120,19 @@ function _sui() {
 /* ════════════════════════════════════════════════════════════════
    STEP BAR — สะอาด ไม่มี dependency
 ════════════════════════════════════════════════════════════════ */
-window.v12UpdateStepBar = function() {
+window.v12UpdateStepBar = function () {
   const bar = document.getElementById('v12-steps-bar');
   if (!bar) return;
-  const gen  = v12State.customer?.type === 'general';
+  const gen = v12State.customer?.type === 'general';
   const cash = v12State.method === 'cash';
   let labels, steps;
   if (gen) {
-    labels = cash ? ['ลูกค้า','วิธีชำระ','รับเงิน','บันทึก'] : ['ลูกค้า','วิธีชำระ','บันทึก'];
-    steps  = cash ? [1,4,5,6] : [1,4,6];
+    labels = cash ? ['ลูกค้า', 'วิธีชำระ', 'รับเงิน', 'บันทึก'] : ['ลูกค้า', 'วิธีชำระ', 'บันทึก'];
+    steps = cash ? [1, 4, 5, 6] : [1, 4, 6];
   } else {
-    labels = cash ? ['ลูกค้า','รูปแบบรับ','ชำระเงิน','วิธีชำระ','รับเงิน','บันทึก']
-                  : ['ลูกค้า','รูปแบบรับ','ชำระเงิน','วิธีชำระ','บันทึก'];
-    steps  = cash ? [1,2,3,4,5,6] : [1,2,3,4,6];
+    labels = cash ? ['ลูกค้า', 'รูปแบบรับ', 'ชำระเงิน', 'วิธีชำระ', 'รับเงิน', 'บันทึก']
+      : ['ลูกค้า', 'รูปแบบรับ', 'ชำระเงิน', 'วิธีชำระ', 'บันทึก'];
+    steps = cash ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6];
   }
   bar.innerHTML = labels.map((lbl, i) => {
     const r = steps[i], done = r < v12State.step, active = r === v12State.step;
@@ -148,7 +148,7 @@ window.v12UpdateStepBar = function() {
    NAVIGATION — v12NextStep / v12PrevStep (self-contained)
    ← หัวใจหลัก: เรียก window.v12CompletePayment (latest override)
 ════════════════════════════════════════════════════════════════ */
-window.v12NextStep = function() {
+window.v12NextStep = function () {
   /* Step 1: general → jump to step 4 */
   if (v12State.step === 1 && v12State.customer?.type === 'general') {
     v12State.step = 4; _sui(); return;
@@ -173,8 +173,8 @@ window.v12NextStep = function() {
       /* Non-cash: ข้ามไป step 6 แล้ว complete */
       const payAmt = v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total;
       v12State.received = v12State.method === 'debt' ? 0 : payAmt;
-      v12State.change   = 0;
-      v12State.step     = 6;
+      v12State.change = 0;
+      v12State.step = 6;
       _sui();
       window.v12CompletePayment(); /* ← เรียก LATEST override เสมอ */
       return;
@@ -182,15 +182,15 @@ window.v12NextStep = function() {
   }
   /* Step 5 (cash): validate received amount */
   if (v12State.step === 5) {
-    const payAmt  = v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total;
+    const payAmt = v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total;
     const allDenoms = [...(typeof V13_ALL !== 'undefined' ? V13_ALL : []),
-                       ...(typeof V14_ALL !== 'undefined' && !window.V13_ALL ? V14_ALL : [])];
-    const allD    = allDenoms.length > 0 ? allDenoms
-      : [{value:1000},{value:500},{value:100},{value:50},{value:20},{value:10},{value:5},{value:2},{value:1}];
-    const recv    = allD.reduce((s,d) => s + d.value * (v12State.receivedDenominations?.[d.value] || 0), 0);
+    ...(typeof V14_ALL !== 'undefined' && !window.V13_ALL ? V14_ALL : [])];
+    const allD = allDenoms.length > 0 ? allDenoms
+      : [{ value: 1000 }, { value: 500 }, { value: 100 }, { value: 50 }, { value: 20 }, { value: 10 }, { value: 5 }, { value: 2 }, { value: 1 }];
+    const recv = allD.reduce((s, d) => s + d.value * (v12State.receivedDenominations?.[d.value] || 0), 0);
     if (recv < payAmt) { _st('ยอดรับเงินไม่เพียงพอ', 'error'); return; }
     v12State.received = recv;
-    v12State.change   = recv - payAmt;
+    v12State.change = recv - payAmt;
     if (typeof calcChangeDenominations === 'function') {
       v12State.changeDenominations = calcChangeDenominations(v12State.change);
     }
@@ -204,11 +204,11 @@ window.v12NextStep = function() {
   _sui();
 };
 
-window.v12PrevStep = function() {
+window.v12PrevStep = function () {
   const gen = v12State.customer?.type === 'general';
   if ((v12State.step === 4 || v12State.step === 5) && gen) { v12State.step = 1; }
   else if (v12State.step === 5) { v12State.step = 4; }
-  else if (v12State.step > 1)   { v12State.step--; }
+  else if (v12State.step > 1) { v12State.step--; }
   _sui();
 };
 
@@ -216,7 +216,7 @@ window.v12PrevStep = function() {
 /* ════════════════════════════════════════════════════════════════
    STEP 4: PAYMENT METHOD — SELF-CONTAINED (no v13SetMethod)
 ════════════════════════════════════════════════════════════════ */
-window._skSetMethod = function(method) {
+window._skSetMethod = function (method) {
   v12State.method = method;
   /* Update card visual */
   document.querySelectorAll('.sk-pay-card').forEach(c => {
@@ -274,6 +274,18 @@ function _skPayInfo(method) {
         ของ <strong>${v12State.customer?.name || 'ลูกค้า'}</strong>
       </div>
     </div>`;
+  // [NEW] project info panel
+  if (method === 'project') return `
+    <div style="background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:14px;padding:16px;margin-top:4px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <i class="material-icons-round" style="font-size:22px;color:#6366f1;">business_center</i>
+        <div style="font-weight:700;color:#3730a3;font-size:14px;">จ่ายของให้โครงการ</div>
+      </div>
+      <div style="font-size:13px;color:#4338ca;line-height:1.7;">
+        ตัดสต็อก <strong>฿${_sf(payAmt)}</strong> ทันที<br>
+        ไม่นับเป็นรายรับในแดชบอร์ด — บันทึกเป็นรายจ่ายโครงการอัตโนมัติ
+      </div>
+    </div>`;
   if (method === 'cash') return `
     <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;padding:16px;margin-top:4px;text-align:center;">
       <i class="material-icons-round" style="font-size:40px;color:#10b981;display:block;margin-bottom:6px;">payments</i>
@@ -283,9 +295,9 @@ function _skPayInfo(method) {
   return '';
 }
 
-window.v12S4 = function(container) {
+window.v12S4 = function (container) {
   const payAmt = v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total;
-  const isGen  = v12State.customer?.type === 'general';
+  const isGen = v12State.customer?.type === 'general';
   const isProj = v12State.customer?.type === 'project';
 
   /* PROJECT TYPE: force debt, show locked view */
@@ -295,9 +307,9 @@ window.v12S4 = function(container) {
       <h2 class="v12-step-title">วิธีชำระเงิน</h2>
       <p class="v12-step-subtitle">ยอดที่ต้องรับ: <strong style="color:#3b82f6;font-size:20px;">฿${_sf(payAmt)}</strong></p>
       <div class="sk-pay-grid">
-        ${['เงินสด','โอนเงิน','บัตรเครดิต'].map((m, i) => `
+        ${['เงินสด', 'โอนเงิน', 'บัตรเครดิต'].map((m, i) => `
           <div class="sk-pay-card disabled">
-            <i class="material-icons-round">${['payments','account_balance','credit_card'][i]}</i>
+            <i class="material-icons-round">${['payments', 'account_balance', 'credit_card'][i]}</i>
             <div class="sk-pay-title">${m}</div>
           </div>`).join('')}
         <div class="sk-pay-card selected" data-method="debt">
@@ -330,12 +342,14 @@ window.v12S4 = function(container) {
     return;
   }
 
-  /* NORMAL TYPE: 4 cards */
+  /* NORMAL TYPE: 5 cards — เพิ่ม project */
   const cards = [
-    { key:'cash',     icon:'payments',           label:'เงินสด',     sub:'นับแบงค์/เหรียญ' },
-    { key:'transfer', icon:'account_balance',    label:'โอนเงิน',    sub:'PromptPay / QR' },
-    { key:'credit',   icon:'credit_card',        label:'บัตรเครดิต', sub:'Visa / Master' },
-    { key:'debt',     icon:'pending_actions',    label:'ค้างเครดิต', sub: isGen ? '⚠ ต้องมีลูกค้า' : 'บันทึกหนี้' },
+    { key: 'cash',     icon: 'payments',        label: 'เงินสด',                 sub: 'นับแบงค์/เหรียญ' },
+    { key: 'transfer', icon: 'account_balance', label: 'โอนเงิน',                sub: 'PromptPay / QR' },
+    { key: 'credit',   icon: 'credit_card',     label: 'บัตรเครดิต',             sub: 'Visa / Master' },
+    { key: 'debt',     icon: 'pending_actions', label: 'ค้างชำระ',               sub: isGen ? '⚠ ต้องมีลูกค้า' : 'บันทึกหนี้' },
+    // [NEW] จ่ายของให้โครงการ — ตัดสต็อกทันที ไม่นับรายรับ
+    { key: 'project',  icon: 'business_center', label: 'จ่ายของให้โครงการ',      sub: 'ตัดสต็อกทันที' },
   ];
 
   container.innerHTML = `
@@ -343,9 +357,9 @@ window.v12S4 = function(container) {
     <p class="v12-step-subtitle">ยอดที่ต้องรับ: <strong style="color:#3b82f6;font-size:20px;letter-spacing:-.3px;">฿${_sf(payAmt)}</strong></p>
     <div class="sk-pay-grid">
       ${cards.map(c => {
-        const sel = v12State.method === c.key;
-        const dis = c.key === 'debt' && isGen;
-        return `<div class="sk-pay-card ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''}"
+    const sel = v12State.method === c.key;
+    const dis = c.key === 'debt' && isGen;
+    return `<div class="sk-pay-card ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''}"
           data-method="${c.key}"
           onclick="${dis ? `_st('ต้องเลือกลูกค้าก่อน','warning')` : `_skSetMethod('${c.key}')`}">
           <div class="sk-sel-dot"><i class="material-icons-round">check</i></div>
@@ -353,7 +367,7 @@ window.v12S4 = function(container) {
           <div class="sk-pay-title">${c.label}</div>
           <div class="sk-pay-sub">${c.sub}</div>
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>
     <div id="sk-pay-info">${_skPayInfo(v12State.method || '')}</div>`;
 
@@ -365,7 +379,7 @@ window.v12S4 = function(container) {
 /* ════════════════════════════════════════════════════════════════
    STEP 6: SUCCESS — Beautiful Professional Design
 ════════════════════════════════════════════════════════════════ */
-window.v12S6 = function(container) {
+window.v12S6 = function (container) {
   if (!v12State?.savedBill) {
     container.innerHTML = `
       <div style="text-align:center;padding:48px 20px;">
@@ -377,29 +391,31 @@ window.v12S6 = function(container) {
     return;
   }
 
-  const b      = v12State.savedBill;
+  const b = v12State.savedBill;
   const method = v12State.method || 'cash';
   const isDebt = method === 'debt';
   const isCash = method === 'cash';
   const isProj = v12State.customer?.type === 'project';
   const hasDel = v12State.deliveryMode !== 'self';
-  const isDep  = v12State.paymentType === 'deposit';
+  const isDep = v12State.paymentType === 'deposit';
 
   const bannerClass = isProj ? 'project' : isDebt ? 'debt' : 'success';
-  const bannerIcon  = isProj ? 'business_center' : isDebt ? 'pending_actions' : 'check_circle';
+  const bannerIcon = isProj ? 'business_center' : isDebt ? 'pending_actions' : 'check_circle';
   const bannerTitle = isProj ? 'บันทึกบิลโครงการสำเร็จ!' : isDebt ? 'บันทึกค้างชำระสำเร็จ!' : 'บันทึกการขายสำเร็จ!';
-  const mLbl = {cash:'💵 เงินสด', transfer:'📱 โอนเงิน', credit:'💳 บัตรเครดิต', debt:'📋 ค้างชำระ'}[method] || method;
+  const mLbl = isProj ? '📦 จ่ายของให้โครงการ' : ({ cash: '💵 เงินสด', transfer: '📱 โอนเงิน', credit: '💳 บัตรเครดิต', debt: '📋 ค้างชำระ' }[method] || method);
 
   /* Build stats */
   const stats = [];
-  stats.push({ lbl:'เลขบิล', val:`#${b.bill_no}`, color:'#3b82f6' });
-  stats.push({ lbl:'ยอดสุทธิ', val:`฿${_sf(v12State.total)}`, color:'#10b981' });
+  stats.push({ lbl: 'เลขบิล', val: `#${b.bill_no}`, color: '#3b82f6' });
+  stats.push({ lbl: 'ยอดสุทธิ', val: `฿${_sf(v12State.total)}`, color: '#10b981' });
   if (isCash) {
-    stats.push({ lbl:'เงินทอน', val:`฿${_sf(v12State.change)}`, color:'#d97706' });
-  } else if (isDebt || isProj) {
-    stats.push({ lbl:'ค้างชำระ', val:`฿${_sf(v12State.total)}`, color:'#dc2626' });
+    stats.push({ lbl: 'เงินทอน', val: `฿${_sf(v12State.change)}`, color: '#d97706' });
+  } else if (isProj) {
+    stats.push({ lbl: 'จ่ายของ', val: `฿${_sf(v12State.total)}`, color: '#6366f1' });
+  } else if (isDebt) {
+    stats.push({ lbl: 'ค้างชำระ', val: `฿${_sf(v12State.total)}`, color: '#dc2626' });
   } else {
-    stats.push({ lbl:'วิธีชำระ', val:mLbl, color:'#6366f1' });
+    stats.push({ lbl: 'วิธีชำระ', val: mLbl, color: '#6366f1' });
   }
 
   /* Change chips */
@@ -407,7 +423,7 @@ window.v12S6 = function(container) {
   if (isCash && (v12State.change || 0) > 0 && typeof calcChangeDenominations === 'function') {
     const m = calcChangeDenominations(v12State.change);
     const allD = [...(typeof V13_ALL !== 'undefined' ? V13_ALL : []),
-                  ...(typeof V14_ALL !== 'undefined' && !window.V13_ALL ? V14_ALL : [])];
+    ...(typeof V14_ALL !== 'undefined' && !window.V13_ALL ? V14_ALL : [])];
     const chips = allD.filter(d => (m[d.value] || 0) > 0)
       .map(d => `<span style="background:#dcfce7;color:#166534;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;">฿${d.label} ×${m[d.value]}</span>`)
       .join('');
@@ -420,11 +436,11 @@ window.v12S6 = function(container) {
 
   /* Print buttons */
   const prints = [
-    { icon:'receipt',       title:'ใบเสร็จ 80mm', sub:'ใช้กับเครื่องพิมพ์ความร้อน', fn:`v12PrintReceipt80mm('${b.id}')`, primary:true },
-    { icon:'description',   title:'ใบเสร็จ A4',   sub:'พิมพ์บน A4/เก็บเป็นไฟล์',    fn:`v12PrintReceiptA4('${b.id}')` },
+    { icon: 'receipt', title: 'ใบเสร็จ 80mm', sub: 'ใช้กับเครื่องพิมพ์ความร้อน', fn: `v12PrintReceipt80mm('${b.id}')`, primary: true },
+    { icon: 'description', title: 'ใบเสร็จ A4', sub: 'พิมพ์บน A4/เก็บเป็นไฟล์', fn: `v12PrintReceiptA4('${b.id}')` },
   ];
-  if (hasDel) prints.push({ icon:'local_shipping', title:'ใบส่งของ', sub:'สำหรับคนขับส่งสินค้า', fn:`v12PrintDeliveryNote('${b.id}')` });
-  if (isDep)  prints.push({ icon:'receipt_long',    title:'ใบมัดจำ',  sub:'ใบรับเงินมัดจำ',       fn:`v12PrintDeposit('${b.id}')` });
+  if (hasDel) prints.push({ icon: 'local_shipping', title: 'ใบส่งของ', sub: 'สำหรับคนขับส่งสินค้า', fn: `v12PrintDeliveryNote('${b.id}')` });
+  if (isDep) prints.push({ icon: 'receipt_long', title: 'ใบมัดจำ', sub: 'ใบรับเงินมัดจำ', fn: `v12PrintDeposit('${b.id}')` });
 
   container.innerHTML = `
     <div class="sk-s6-wrap">
@@ -509,29 +525,33 @@ async function _sfetchUnits(ids) {
       um[u.product_id][u.unit_name] = parseFloat(u.conv_rate) || 1;
     });
     (prods || []).forEach(p => { bm[p.id] = p.unit || 'ชิ้น'; cm[p.id] = parseFloat(p.cost) || 0; });
-  } catch(e) { console.warn('[v16] fetchUnits:', e.message); }
+  } catch (e) { console.warn('[v16] fetchUnits:', e.message); }
   return { um, bm, cm };
 }
 
-window.v12CompletePayment = async function() {
+window.v12CompletePayment = async function () {
   if (window._v16busy) return;
   window._v16busy = true;
-  try { if (typeof isProcessingPayment !== 'undefined') isProcessingPayment = true; } catch(_) {}
+  try { if (typeof isProcessingPayment !== 'undefined') isProcessingPayment = true; } catch (_) { }
 
   /* Show loading */
   _sui();
 
   try {
     /* Identify payment type */
-    const isProj = (v12State.customer?.type === 'project' || v12State._forceDebt) && !!v12State.customer?.project_id;
-    const isDebt = v12State.method === 'debt';
+    const isProj = v12State.method === 'project'
+               || (v12State.customer?.type === 'project' && !!v12State.customer?.project_id)
+               || !!v12State._forceDebt;
+    const isDebt = v12State.method === 'debt' && !isProj;
     const isCash = v12State.method === 'cash';
-    const methodMap = { cash:'เงินสด', transfer:'โอนเงิน', credit:'บัตรเครดิต', debt:'ค้างเครดิต' };
-    const delivMap  = { self:'รับเอง', deliver:'จัดส่ง', partial:'รับบางส่วน' };
+    // [UPDATED] เพิ่ม 'project' เข้า map
+    const methodMap = { cash: 'เงินสด', transfer: 'โอนเงิน', credit: 'บัตรเครดิต', debt: 'ค้างชำระ', project: 'จ่ายของให้โครงการ' };
+    const delivMap = { self: 'รับเอง', deliver: 'จัดส่ง', partial: 'รับบางส่วน' };
 
-    const payAmt  = (isDebt || isProj) ? 0 : (v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total);
+    const payAmt = (isDebt || isProj) ? 0 : (v12State.paymentType === 'deposit' ? v12State.depositAmount : v12State.total);
     const debtAmt = (isDebt && !isProj) ? v12State.total : (v12State.paymentType === 'deposit' ? (v12State.total - v12State.depositAmount) : 0);
-    const billStatus = (isDebt || isProj) ? 'ค้างชำระ' : (debtAmt > 0 ? 'ค้างชำระ' : (v12State.deliveryMode !== 'self' ? 'รอจัดส่ง' : 'สำเร็จ'));
+    // [UPDATED] status ถ้าเป็น project ใช้คำว่า 'จ่ายของให้โครงการ'
+    const billStatus = isProj ? 'จ่ายของให้โครงการ' : (isDebt ? 'ค้างชำระ' : (debtAmt > 0 ? 'ค้างชำระ' : (v12State.deliveryMode !== 'self' ? 'รอจัดส่ง' : 'สำเร็จ')));
     const hasDeliver = Object.values(v12State.itemModes || {}).some(m => m.deliver > 0);
 
     /* Cash session */
@@ -541,7 +561,7 @@ window.v12CompletePayment = async function() {
         const { data } = await db.from('cash_session').select('*')
           .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
         session = data;
-      } catch(_) {}
+      } catch (_) { }
     }
 
     const cartArr = window.cart || (typeof cart !== 'undefined' ? cart : []);
@@ -550,35 +570,35 @@ window.v12CompletePayment = async function() {
 
     /* Insert bill */
     const { data: bill, error: be } = await db.from('บิลขาย').insert({
-      date:             new Date().toISOString(),
-      method:           methodMap[v12State.method] || 'เงินสด',
-      total:            v12State.total,
-      discount:         v12State.discount || 0,
-      received:         payAmt,
-      change:           (isDebt || isProj) ? 0 : (v12State.change || 0),
-      customer_name:    v12State.customer?.name || 'ลูกค้าทั่วไป',
-      customer_id:      (!isProj && v12State.customer?.id) ? v12State.customer.id : null,
-      project_id:       isProj ? v12State.customer.project_id : null,
-      staff_name:       _ss(),
-      status:           billStatus,
-      denominations:    v12State.receivedDenominations || {},
+      date: new Date().toISOString(),
+      method: methodMap[v12State.method] || 'เงินสด',
+      total: v12State.total,
+      discount: v12State.discount || 0,
+      received: payAmt,
+      change: (isDebt || isProj) ? 0 : (v12State.change || 0),
+      customer_name: v12State.customer?.name || 'ลูกค้าทั่วไป',
+      customer_id: (!isProj && v12State.customer?.id) ? v12State.customer.id : null,
+      project_id: isProj ? v12State.customer.project_id : null,
+      staff_name: _ss(),
+      status: billStatus,
+      denominations: v12State.receivedDenominations || {},
       change_denominations: v12State.changeDenominations || {},
-      delivery_mode:    delivMap[v12State.deliveryMode] || 'รับเอง',
-      delivery_date:    v12State.deliveryDate   || null,
+      delivery_mode: delivMap[v12State.deliveryMode] || 'รับเอง',
+      delivery_date: v12State.deliveryDate || null,
       delivery_address: v12State.deliveryAddress || null,
-      delivery_phone:   v12State.deliveryPhone  || null,
-      delivery_status:  hasDeliver ? 'รอจัดส่ง' : 'สำเร็จ',
-      deposit_amount:   v12State.depositAmount || 0,
+      delivery_phone: v12State.deliveryPhone || null,
+      delivery_status: hasDeliver ? 'รอจัดส่ง' : 'สำเร็จ',
+      deposit_amount: v12State.depositAmount || 0,
     }).select().single();
     if (be) throw be;
 
     /* Bill items + stock deduction */
     let projCost = 0;
     for (const item of cartArr) {
-      const modes   = (v12State.itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
-      const su      = item.unit || 'ชิ้น';
-      const bu      = bm[item.id] || su;
-      let   cr      = 1;
+      const modes = (v12State.itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
+      const su = item.unit || 'ชิ้น';
+      const bu = bm[item.id] || su;
+      let cr = 1;
       if (su !== bu) { const pu = um[item.id] || {}; cr = parseFloat(pu[su]) || 1; }
       const costPSU = (cm[item.id] || item.cost || 0) * cr;
 
@@ -591,40 +611,50 @@ window.v12CompletePayment = async function() {
 
       if (modes.take > 0) {
         const baseQty = parseFloat((modes.take * cr).toFixed(6));
-        const allP    = typeof products !== 'undefined' ? products : [];
-        const prod    = allP.find(p => p.id === item.id);
-        const sb      = parseFloat(prod?.stock ?? 0);
-        const sa      = parseFloat((sb - baseQty).toFixed(6));
+        const allP = typeof products !== 'undefined' ? products : [];
+        const prod = allP.find(p => p.id === item.id);
+        const sb = parseFloat(prod?.stock ?? 0);
+        const sa = parseFloat((sb - baseQty).toFixed(6));
         await db.from('สินค้า').update({ stock: sa, updated_at: new Date().toISOString() }).eq('id', item.id);
         if (prod) prod.stock = sa;
         try {
           await db.from('stock_movement').insert({
             product_id: item.id, product_name: item.name,
-            type: isProj ? 'โครงการ' : 'ขาย', direction: 'out', qty: baseQty,
+            // [UPDATED] type แยกตาม method
+            type: isProj ? 'จ่ายของให้โครงการ' : 'ขาย', direction: 'out', qty: baseQty,
             stock_before: sb, stock_after: sa,
             ref_id: bill.id, ref_table: 'บิลขาย', staff_name: _ss(),
             note: cr !== 1 ? `${modes.take} ${su} × ${cr} = ${baseQty} ${bu}` : null,
           });
-        } catch(e) { console.warn('[v16] smov:', e.message); }
+        } catch (e) { console.warn('[v16] smov:', e.message); }
         if (isProj) projCost += costPSU * modes.take;
       }
     }
 
-    /* Project: record goods cost */
-    if (isProj && projCost > 0) {
+    /* Project: บันทึกรายจ่ายโครงการ — ใช้ยอดขาย (total) ไม่ใช้ต้นทุน */
+    if (isProj) {
       const names = cartArr.map(i => `${i.name} ×${i.qty}`).join(', ');
+      // ใช้ project_id จาก v12State.customer.project_id ถ้ามี หรือ null
+      const projId = v12State.customer?.project_id || null;
       try {
         await db.from('รายจ่ายโครงการ').insert({
-          project_id: v12State.customer.project_id,
-          description: `สินค้าจากร้าน: ${names}`,
-          amount: projCost, category: 'สินค้า', type: 'goods',
-          bill_id: bill.id, notes: `บิล #${bill.bill_no}`,
+          project_id: projId,
+          description: `เบิกสินค้าไปใช้ในโครงการ (อ้างอิงบิล #${bill.bill_no})`,
+          amount: v12State.total,          // ยอดขายทั้งหมด
+          category: 'ค่าวัสดุ/อุปกรณ์',
+          type: 'goods',
+          bill_id: bill.id,
+          paid_at: new Date().toISOString(),
+          notes: `บิล #${bill.bill_no} | รายการ: ${names}`,
         });
-        const { data: pj } = await db.from('โครงการ').select('total_goods_cost')
-          .eq('id', v12State.customer.project_id).maybeSingle();
-        await db.from('โครงการ').update({ total_goods_cost: (pj?.total_goods_cost || 0) + projCost })
-          .eq('id', v12State.customer.project_id);
-      } catch(e) { console.warn('[v16] projCost:', e.message); }
+        // อัปเดต total_goods_cost ถ้ามี projId
+        if (projId) {
+          const { data: pj } = await db.from('โครงการ').select('total_goods_cost')
+            .eq('id', projId).maybeSingle();
+          await db.from('โครงการ').update({ total_goods_cost: (pj?.total_goods_cost || 0) + v12State.total })
+            .eq('id', projId);
+        }
+      } catch (e) { console.warn('[v16] projExpense:', e.message); }
     }
 
     /* Cash transaction */
@@ -638,7 +668,7 @@ window.v12CompletePayment = async function() {
           denominations: v12State.receivedDenominations || {},
           change_denominations: v12State.changeDenominations || {},
         });
-      } catch(e) { console.warn('[v16] cashTx:', e.message); }
+      } catch (e) { console.warn('[v16] cashTx:', e.message); }
     }
 
     /* Customer update */
@@ -649,10 +679,10 @@ window.v12CompletePayment = async function() {
           .eq('id', v12State.customer.id).maybeSingle();
         await db.from('customer').update({
           total_purchase: (cu?.total_purchase || 0) + v12State.total,
-          visit_count:    (cu?.visit_count    || 0) + 1,
-          debt_amount:    (cu?.debt_amount    || 0) + debtAmt,
+          visit_count: (cu?.visit_count || 0) + 1,
+          debt_amount: (cu?.debt_amount || 0) + debtAmt,
         }).eq('id', v12State.customer.id);
-      } catch(e) { console.warn('[v16] cust:', e.message); }
+      } catch (e) { console.warn('[v16] cust:', e.message); }
     }
 
     /* Log + display */
@@ -666,20 +696,20 @@ window.v12CompletePayment = async function() {
     /* Finalize */
     v12State.savedBill = bill;
     window.cart = [];
-    if (typeof loadProducts       === 'function') await loadProducts();
-    if (typeof renderCart         === 'function') renderCart();
-    if (typeof renderProductGrid  === 'function') renderProductGrid();
-    if (typeof updateHomeStats    === 'function') updateHomeStats();
+    if (typeof loadProducts === 'function') await loadProducts();
+    if (typeof renderCart === 'function') renderCart();
+    if (typeof renderProductGrid === 'function') renderProductGrid();
+    if (typeof updateHomeStats === 'function') updateHomeStats();
     _sui(); /* renders S6 */
 
-  } catch(e) {
+  } catch (e) {
     console.error('[v16] payment:', e);
     _st('เกิดข้อผิดพลาด: ' + e.message, 'error');
     v12State.step = v12State.method === 'cash' ? 5 : 4;
     _sui();
   } finally {
     window._v16busy = false;
-    try { if (typeof isProcessingPayment !== 'undefined') isProcessingPayment = false; } catch(_) {}
+    try { if (typeof isProcessingPayment !== 'undefined') isProcessingPayment = false; } catch (_) { }
   }
 };
 
@@ -691,7 +721,7 @@ window.v13CompletePayment = window.v12CompletePayment;
 /* ════════════════════════════════════════════════════════════════
    PROJECT NAV — robust injection
 ════════════════════════════════════════════════════════════════ */
-window.goProjects = function() {
+window.goProjects = function () {
   document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
   const sec = document.getElementById('page-projects');
   if (sec) sec.classList.remove('hidden');
@@ -711,8 +741,8 @@ window.goProjects = function() {
       sec.id = 'page-projects';
       sec.className = 'page-section hidden';
       const p = document.getElementById('page-home')?.parentNode
-             || document.getElementById('main-content')
-             || document.body;
+        || document.getElementById('main-content')
+        || document.body;
       p.appendChild(sec);
     }
     /* Nav item */
@@ -728,12 +758,12 @@ window.goProjects = function() {
       a.addEventListener('click', () => window.goProjects());
       const adm = document.getElementById('nav-admin-section');
       if (adm) { nav.insertBefore(lbl, adm); nav.insertBefore(a, adm); }
-      else      { nav.appendChild(lbl); nav.appendChild(a); }
+      else { nav.appendChild(lbl); nav.appendChild(a); }
     }
     /* go() patch */
     if (typeof go === 'function' && !go._v16p) {
       const orig = go;
-      window.go = function(page) {
+      window.go = function (page) {
         if (page === 'projects') { window.goProjects(); return; }
         orig(page);
       };
@@ -754,8 +784,8 @@ const _v16mb = window.v12BMCMethodBadge;
 window.v12BMCMethodBadge = m => {
   const map = {
     'ค้างเครดิต': `<span class="v12-status-badge v12-badge-red"   style="font-size:11px">📋 ค้างชำระ</span>`,
-    'ค้างชำระ':   `<span class="v12-status-badge v12-badge-red"   style="font-size:11px">⚠ ค้างชำระ</span>`,
-    'โครงการ':    `<span class="v12-status-badge v12-badge-purple" style="font-size:11px">🏗️ โครงการ</span>`,
+    'ค้างชำระ': `<span class="v12-status-badge v12-badge-red"   style="font-size:11px">⚠ ค้างชำระ</span>`,
+    'โครงการ': `<span class="v12-status-badge v12-badge-purple" style="font-size:11px">🏗️ โครงการ</span>`,
   };
   return map[m] || (_v16mb ? _v16mb(m) : `<span class="v12-status-badge v12-badge-gray" style="font-size:11px">${m || '-'}</span>`);
 };
