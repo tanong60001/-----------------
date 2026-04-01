@@ -1610,17 +1610,28 @@ function v12PrintButtons(b, hasDelivery, isDeposit) {
 ══════════════════════════════════════════════════════ */
 async function v12CompletePayment() {
   if (isProcessingPayment) return;
-  isProcessingPayment = true;
 
+  // New Check: Require Open Session for Cash
+  let sessionToUse = null;
+  try {
+    const { data } = await db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).single();
+    sessionToUse = data;
+  } catch (e) { /* no open session */ }
+
+  if (v12State.method === 'cash' && !sessionToUse) {
+    if (typeof toast === 'function') toast('ไม่สามารถจ่ายเงินสดได้ กรุณาเปิดรอบลิ้นชัก (Session) ก่อน', 'warning');
+    v12State.step = 5;
+    v12UpdateStepBar();
+    v12RenderStepBody();
+    return;
+  }
+
+  isProcessingPayment = true;
   v12UpdateStepBar();
   v12RenderStepBody();
 
   try {
-    let session = null;
-    try {
-      const { data } = await db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).single();
-      session = data;
-    } catch (e) { /* no open session, ok */ }
+    let session = sessionToUse;
 
     const methodMap = { cash: 'เงินสด', transfer: 'โอนเงิน', credit: 'บัตรเครดิต' };
     const deliveryModeMap = { self: 'รับเอง', deliver: 'จัดส่ง', partial: 'รับบางส่วน' };
@@ -1657,6 +1668,13 @@ async function v12CompletePayment() {
     if (billError) throw billError;
 
     // Insert bill items
+    let um = {}, bm = {};
+    if (typeof _v20FetchConv === 'function') {
+      const pids = cart.map(i => i.id);
+      const cvInfo = await _v20FetchConv(pids);
+      um = cvInfo.um; bm = cvInfo.bm;
+    }
+
     for (const item of cart) {
       const modes = v12State.itemModes[item.id] || { take: item.qty, deliver: 0 };
       await db.from('รายการในบิล').insert({
@@ -1671,13 +1689,20 @@ async function v12CompletePayment() {
         deliver_qty: modes.deliver,
       });
 
-      // Deduct stock for take_qty (Apply 1 unit = 1400kg multiplier)
+      // Deduct stock for take_qty (Apply dynamic conversion rate)
       if (modes.take > 0) {
         const prod = (typeof products !== 'undefined') ? products.find(p => p.id === item.id) : null;
         const stockBefore = prod?.stock || 0;
-        const multiplier = 1400; // 1 Unit = 1400 KG
-        const deductedAmount = modes.take * multiplier;
-        const stockAfter = stockBefore - deductedAmount;
+        
+        let deductedAmount = modes.take;
+        if (typeof _v20BaseQty === 'function') {
+          deductedAmount = _v20BaseQty(modes.take, item.unit || 'ชิ้น', item.id, um, bm);
+        } else {
+          const multiplier = 1400; // fallback if loaded externally without v20
+          deductedAmount = modes.take * multiplier;
+        }
+        
+        const stockAfter = parseFloat((stockBefore - deductedAmount).toFixed(6));
 
         await db.from('สินค้า').update({ stock: stockAfter }).eq('id', item.id);
         if (prod) prod.stock = stockAfter;

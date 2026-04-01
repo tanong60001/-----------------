@@ -272,7 +272,7 @@ window.v12CompletePayment = async function() {
     /* Insert bill */
     const { data: bill, error: be } = await db.from('บิลขาย').insert({
       date:             new Date().toISOString(),
-      method:           'ค้างชำระ',
+      method:           'ค้างเครดิต',
       total:            v12State.total,
       discount:         v12State.discount || 0,
       received:         0, change: 0,
@@ -290,8 +290,20 @@ window.v12CompletePayment = async function() {
     for (const item of cartArr) {
       const modes  = (v12State.itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
       const su     = item.unit || 'ชิ้น';
-      const bu     = bm[item.id] || su;
-      const cr     = (su !== bu && um[item.id]?.[su]) ? parseFloat(um[item.id][su]) : 1;
+      
+      let baseQty = modes.take;
+      let bu = su;
+      let cr = 1;
+      
+      if (typeof _v20BaseQty === 'function') {
+        baseQty = _v20BaseQty(modes.take, su, item.id, um, bm);
+        bu = bm[item.id] || su;
+        cr = modes.take > 0 ? (baseQty / modes.take) : 1;
+      } else {
+        bu = bm[item.id] || su;
+        cr = (su !== bu && um[item.id]?.[su]) ? parseFloat(um[item.id][su]) : 1;
+        baseQty = parseFloat((modes.take * cr).toFixed(6));
+      }
 
       await db.from('รายการในบิล').insert({
         bill_id: bill.id, product_id: item.id, name: item.name,
@@ -303,7 +315,6 @@ window.v12CompletePayment = async function() {
       });
 
       if (modes.take > 0) {
-        const baseQty = parseFloat((modes.take * cr).toFixed(6));
         const allP    = typeof products !== 'undefined' ? products : [];
         const prod    = allP.find(p => p.id === item.id);
         const sb      = parseFloat(prod?.stock ?? 0);

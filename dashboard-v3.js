@@ -262,14 +262,16 @@
       const otherLimit = days > 30 ? 10000 : (days > 7 ? 2000 : 500);
 
       // Parallel Queries
-      const [bR, pR, eR, salR, advR, debtPaymentR, payrollR] = await Promise.all([
+      const [bR, pR, eR, salR, advR, debtPaymentR, payrollR, projExpR, projMsR] = await Promise.all([
         db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(billLimit),
         db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
         db.from('รายจ่าย').select('amount, category, date').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
         db.from('เช็คชื่อ').select('employee_id, status, date, deduction').gte('date', startStr + 'T00:00:00').limit(otherLimit),
         db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
         db.from('ชำระหนี้').select('amount, method, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').limit(otherLimit)
+        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').limit(otherLimit),
+        db.from('รายจ่ายโครงการ').select('amount, paid_at').not('paid_at','is',null).gte('paid_at', startStr + 'T00:00:00').limit(otherLimit),
+        db.from('งวดงาน').select('amount, billed_at').eq('status', 'billed').gte('billed_at', startStr + 'T00:00:00').limit(otherLimit)
       ]);
 
       // Filter paid bills only (ignore ค้างชำระ, ยกเลิก)
@@ -316,13 +318,17 @@
 
       const advances = (advR.data || []).filter(a => a.status === 'อนุมัติ');
       const debtPayments = debtPaymentR.data || [];
+      const projExpenses = projExpR.data || [];
+      const sumProjExpenses = projExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+      const projMilestones = projMsR.data || [];
+      const sumProjMilestones = projMilestones.reduce((s, m) => s + parseFloat(m.amount || 0), 0);
 
       // ─── ACCOUNTING LOGIC (CASH BASIS) ───────────────────────────
 
       // 1. REVENUE
       const sumPaidBills = actualPaidBills.reduce((s, b) => s + parseFloat(b.total || 0), 0);
       const sumDebtPayments = debtPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
-      const actualRevenue = sumPaidBills + sumDebtPayments;
+      const actualRevenue = sumPaidBills + sumDebtPayments + sumProjMilestones;
 
       // 2. COGS (Only from paid bills!)
       const rawCogs = billItems.reduce((s, i) => s + (parseFloat(i.cost || 0) * parseFloat(i.qty || 0)), 0);
@@ -353,7 +359,7 @@
       const actualCOGS = rawCogs - returnedCogs;
 
       // 3. OPEX
-      const sumExpenses = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+      const sumExpenses = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0) + sumProjExpenses;
       const sumSalariesAccrued = salaries.reduce((s, e) => s + parseFloat(e.net_paid || 0), 0); // จากเช็คชื่อรายวัน (P&L)
       const sumAdvances = advances.reduce((s, a) => s + parseFloat(a.amount || 0), 0);
 
@@ -418,6 +424,13 @@
             </div>
             <div class="pl-line-val" style="color:#3b82f6;">+฿${formatNum(Math.round(sumDebtPayments))}</div>
           </div>
+          <div class="dash-v3-row" style="background: color-mix(in srgb, #8b5cf6 5%, transparent);">
+            <div>
+              <div class="pl-line-item" style="color:#8b5cf6;">รับเงินงวดโครงการ</div>
+              <div style="font-size:11px; color:#a78bfa; margin-top:2px;">นำมานับรวมเป็นรายได้จริงของช่วงเวลานี้</div>
+            </div>
+            <div class="pl-line-val" style="color:#8b5cf6;">+฿${formatNum(Math.round(sumProjMilestones))}</div>
+          </div>
           
           <div style="display:flex; justify-content:space-between; padding:16px; margin: 8px 0; border-top: 1px dashed var(--border-light); border-bottom: 1px dashed var(--border-light);">
             <div style="font-size:16px; font-weight:700;">รายได้สุทธิ (Actual Revenue)</div>
@@ -440,7 +453,7 @@
           
           <div class="pl-group-header">หัก ค่าใช้จ่ายการดำเนินงาน (OPEX)</div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">รายจ่ายร้าน (บิล/ค่าแรง/จิปาถะ)</div>
+            <div class="pl-line-item">รายจ่ายรวม (ร้าน + โครงการ)</div>
             <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumExpenses))}</div>
           </div>
           <div class="dash-v3-row">
@@ -523,14 +536,16 @@
         // Sales for this day
         const daySales = actualPaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + parseFloat(b.total||0), 0);
         const dayDebtIn = debtPayments.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.amount||0), 0);
-        const dayCashIn = daySales + dayDebtIn;
+        const dayProjMs = projMilestones.filter(m => isSameLocalDay(m.billed_at, dStr)).reduce((s, m) => s + parseFloat(m.amount||0), 0);
+        const dayCashIn = daySales + dayDebtIn + dayProjMs;
 
         // Expenses for this day
         const dayExp = expenses.filter(e => isSameLocalDay(e.date, dStr)).reduce((s, e) => s + parseFloat(e.amount||0), 0);
         const dayPur = purchases.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.total||0), 0);
         const dayPayroll = payrollPaid.filter(sa => isSameLocalDay(sa.paid_date, dStr)).reduce((s, sa) => s + parseFloat(sa.net_paid||0), 0);
         const dayAdv = advances.filter(a => isSameLocalDay(a.date, dStr)).reduce((s, a) => s + parseFloat(a.amount||0), 0);
-        const dayCashOut = dayExp + dayPur + dayPayroll + dayAdv;
+        const dayProjExp = projExpenses.filter(e => isSameLocalDay(e.paid_at, dStr)).reduce((s, e) => s + parseFloat(e.amount||0), 0);
+        const dayCashOut = dayExp + dayPur + dayPayroll + dayAdv + dayProjExp;
 
         chartData.push({ date: dStr, in: dayCashIn, out: dayCashOut, dateObj: d });
       }
