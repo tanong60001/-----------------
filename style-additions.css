@@ -1070,3 +1070,138 @@ select.form-input {
   box-shadow: 0 6px 16px rgba(0,0,0,0.1);
 }
 .btn:active:not(:disabled) { transform: scale(0.96); }
+/* ═══════════════════════════════════════════════════════════════════
+   ✨ PREMIUM UI: SMOOTH BILL SLIDE ANIMATION (นับเงินลื่นไหล)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── พื้นหลังและกรอบ Popup ── */
+.v27ov { 
+  position: fixed; inset: 0; z-index: 10001; 
+  background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(8px); 
+  display: flex; align-items: center; justify-content: center; padding: 16px; 
+  animation: v11SlideFadeIn 0.3s ease; 
+}
+.v27pop { 
+  background: var(--bg-surface); padding: 8px; border-radius: var(--radius-xl); 
+  box-shadow: var(--shadow-xl); border: 1px solid var(--border-light); 
+  max-width: 720px; width: 100%; 
+  animation: v11SpringPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+}
+.v27in { 
+  background: var(--bg-base); border-radius: var(--radius-lg); 
+  padding: 24px; max-height: calc(95vh - 60px); overflow-y: auto; 
+}
+
+/* ── ส่วนหัว ── */
+.v27hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
+.v27ht { font-size: 20px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.v27ht i { color: var(--primary); font-size: 24px; }
+.v27hs { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; }
+.v27ha { font-size: 32px; font-weight: 900; color: var(--primary); letter-spacing: -1px; }
+.v27hl { font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; font-weight: 700; }
+
+.v27sc { display: flex; align-items: center; gap: 12px; margin: 20px 0 12px; }
+.v27sc h3 { font-size: 14px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; white-space: nowrap; }
+.v27sc .ln { flex: 1; height: 1px; background: var(--border-light); }
+
+/* ── 🌟 ฐานรองแบงค์ (ยุบลงเวลากด) ── */
+.v27bg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+@media(max-width:600px){ .v27bg { grid-template-columns: repeat(3, 1fr); } }
+
+.v27bc {
+  background: var(--bg-surface); border-radius: var(--radius-md); padding: 12px 8px 8px;
+  border: 2px solid var(--border-light); display: flex; flex-direction: column; align-items: center;
+  position: relative; cursor: pointer; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: var(--shadow-sm); user-select: none;
+}
+.v27bc:hover { 
+  border-color: var(--primary-200); background: var(--primary-50); 
+  box-shadow: var(--shadow-md); transform: translateY(-2px); 
+}
+.v27bc:active { 
+  transform: translateY(4px) scale(0.98); 
+  box-shadow: inset 0 4px 8px rgba(0,0,0,0.05); border-color: var(--primary); 
+}
+.v27bc.mt { opacity: 0.5; filter: grayscale(0.8); cursor: not-allowed; } 
+
+/* ── 🌟 เอฟเฟกต์ตัวแบงค์ (สไลด์รูดพุ่งขึ้น) ── */
+.v27bv {
+  width: 100%; aspect-ratio: 3/4; max-width: 90px; border-radius: var(--radius-sm);
+  display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px;
+  position: relative; margin: 12px 0 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.4);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+  z-index: 10;
+}
+.v27bv span { color: rgba(255,255,255,0.7); font-weight: 900; font-size: 20px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+/* ตอนเอาเมาส์ชี้: แบงค์ขยับโผล่ออกมาเตรียมตัว */
+.v27bc:hover .v27bv { transform: translateY(-12px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
+/* ตอนกดคลิก: แบงค์รูดพุ่งขึ้นบนเหมือนเอานิ้วดึง! */
+.v27bc:active .v27bv { 
+  transform: translateY(-40px) scale(1.1); 
+  box-shadow: 0 20px 30px rgba(0,0,0,0.25); 
+  transition: transform 0.05s ease-out; 
+}
+
+/* ── ตัวเลขป้ายจำนวน (สีแดง) ── */
+.v27bd {
+  position: absolute; top: -8px; right: -8px; min-width: 26px; height: 26px; border-radius: 13px;
+  font-size: 12px; font-weight: 800; color: var(--white); background: var(--primary) !important;
+  display: flex; align-items: center; justify-content: center; padding: 0 6px; z-index: 25;
+  box-shadow: var(--shadow-red); border: 2px solid var(--white);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.v27bd.z { opacity: 0; transform: scale(0.5); pointer-events: none; }
+.v27bn { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; }
+.v27ba { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* ── 🌟 เอฟเฟกต์เหรียญ ── */
+.v27cg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media(max-width:500px){ .v27cg { grid-template-columns: repeat(2, 1fr); } }
+.v27cc {
+  background: var(--bg-surface); border-radius: var(--radius-md); padding: 12px 8px;
+  border: 2px solid var(--border-light); display: flex; flex-direction: column; align-items: center;
+  position: relative; cursor: pointer; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); user-select: none;
+}
+.v27cc:hover { border-color: var(--primary-200); background: var(--primary-50); transform: translateY(-2px); }
+.v27cc:active { transform: translateY(4px) scale(0.98); border-color: var(--primary); }
+.v27cc.mt { opacity: 0.5; filter: grayscale(0.8); cursor: not-allowed; }
+
+.v27cv {
+  width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 16px; color: var(--white); box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  margin-bottom: 8px; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.v27cc:hover .v27cv { transform: translateY(-8px); box-shadow: 0 10px 16px rgba(0,0,0,0.2); }
+.v27cc:active .v27cv { transform: translateY(-24px) scale(1.15); box-shadow: 0 16px 24px rgba(0,0,0,0.3); transition: transform 0.05s ease-out; }
+
+/* ── สรุปยอดด้านล่าง ── */
+.v27sb {
+  background: var(--bg-surface); border-radius: var(--radius-lg); padding: 20px 24px; margin-top: 24px;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  border: 2px solid var(--border-light); box-shadow: var(--shadow-sm);
+}
+.v27sb .lb { font-size: 13px; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; }
+.v27sb .vl { font-size: 28px; font-weight: 900; transition: color 0.3s; }
+
+/* ── ปุ่มกดยืนยัน ── */
+.v27bt { display: flex; gap: 12px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+.v27b {
+  padding: 14px 32px; border-radius: var(--radius-md); font-size: 15px; font-weight: 700;
+  border: none; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; gap: 8px;
+}
+.v27b:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.v27b:active:not(:disabled) { transform: translateY(0); }
+.v27b:disabled { opacity: 0.5; cursor: not-allowed; }
+.v27b.ca { background: var(--bg-base); color: var(--text-secondary); border: 2px solid var(--border-light); }
+.v27b.ca:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-default); }
+.v27b.nx, .v27b.cf { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: var(--white); box-shadow: var(--shadow-red); }
+
+/* ── Step Progress (1-2) ── */
+.v27st { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; }
+.v27sd { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 2px solid transparent; transition: all 0.3s ease; }
+.v27sd.ac { background: var(--primary); color: var(--white); box-shadow: var(--shadow-red); }
+.v27sd.dn { background: var(--success); color: var(--white); }
+.v27sd.pd { background: var(--bg-base); color: var(--text-tertiary); border-color: var(--border-light); }
+.v27sl { width: 60px; height: 3px; background: var(--border-light); border-radius: 2px; transition: background 0.3s ease; }

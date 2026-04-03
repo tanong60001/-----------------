@@ -16,56 +16,92 @@ console.log('[v26-HR] Loading modules-v26-hr.js v2...');
   const s = document.createElement('style');
   s.id = 'v26-hr-css';
   s.textContent = `
-    /* ─── Header Banner ─── */
+   /* ─── Header Banner (Premium Redesign) ─── */
     .v26-banner {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
-      border-radius: 20px; padding: 28px 32px; margin-bottom: 24px;
-      color: #fff; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%);
+      border-radius: 24px; 
+      padding: 32px 40px; 
+      margin-bottom: 32px;
+      color: #ffffff;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 16px 32px -8px rgba(220, 38, 38, 0.4), 0 4px 16px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
+
+    /* Abstract Glow Shapes */
     .v26-banner::before {
-      content: ''; position: absolute; top: -60px; right: -40px;
-      width: 200px; height: 200px; border-radius: 50%;
-      background: rgba(255,255,255,0.07);
+      content: ''; position: absolute; top: -100px; right: -50px;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(8px);
     }
     .v26-banner::after {
-      content: ''; position: absolute; bottom: -80px; left: 30%;
-      width: 250px; height: 250px; border-radius: 50%;
-      background: rgba(255,255,255,0.04);
+      content: ''; position: absolute; bottom: -120px; left: 10%;
+      width: 400px; height: 400px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(12px);
     }
+
     .v26-banner-top {
       display: flex; justify-content: space-between; align-items: flex-start;
-      flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;
+      flex-wrap: wrap; gap: 16px; position: relative; z-index: 2;
     }
     .v26-banner h2 {
-      font-size: 22px; font-weight: 800; letter-spacing: -0.3px;
-      display: flex; align-items: center; gap: 8px;
+      font-size: 28px; font-weight: 900; letter-spacing: -0.5px;
+      display: flex; align-items: center; gap: 12px; margin: 0 0 6px 0;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    .v26-banner .v26-date { font-size: 14px; opacity: 0.8; margin-top: 4px; }
+    .v26-banner h2 i {
+      font-size: 32px; background: rgba(255,255,255,0.2);
+      padding: 8px; border-radius: 12px; backdrop-filter: blur(4px);
+    }
+    .v26-banner .v26-date { 
+      font-size: 15px; font-weight: 500; opacity: 0.95; 
+      display: flex; align-items: center; gap: 6px;
+    }
 
+    /* ─── Premium Stat Pills (Glassmorphism) ─── */
     .v26-stats-row {
-      display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
-      justify-content: center; position: relative; z-index: 1;
+      display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;
+      position: relative; z-index: 2;
     }
     .v26-stat-pill {
-      padding: 6px 16px; border-radius: 24px; font-size: 12px;
-      font-weight: 600; background: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.2);
-      backdrop-filter: blur(8px); transition: transform 0.2s;
-      display: flex; align-items: center; gap: 5px;
+      padding: 8px 16px 8px 20px; border-radius: 30px; font-size: 13px; font-weight: 700;
+      background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex; align-items: center; gap: 8px;
     }
-    .v26-stat-pill:hover { transform: scale(1.06); }
+    .v26-stat-pill:hover {
+      transform: translateY(-3px) scale(1.02); background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    .v26-stat-pill strong {
+      font-size: 14px; background: #ffffff; color: #dc2626;
+      padding: 2px 10px; border-radius: 12px; margin-left: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
 
+    /* ─── Actions Row ─── */
     .v26-actions-row {
-      display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
-      justify-content: center; position: relative; z-index: 1;
+      display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;
+      position: relative; z-index: 2; padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.15);
     }
     .v26-actions-row .btn {
-      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
-      color: #fff; border-radius: 10px; font-size: 13px; padding: 8px 16px;
-      font-weight: 600; backdrop-filter: blur(8px); transition: all 0.2s;
+      background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff; border-radius: 12px; font-size: 14px; padding: 10px 20px; font-weight: 700;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex; align-items: center; gap: 8px;
     }
-    .v26-actions-row .btn:hover { background: rgba(255,255,255,0.28); transform: translateY(-1px); }
-
+    .v26-actions-row .btn i { font-size: 18px; transition: transform 0.3s; }
+    .v26-actions-row .btn:hover {
+      background: #ffffff; color: #dc2626; border-color: #ffffff;
+      transform: translateY(-3px); box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
+    }
+    .v26-actions-row .btn:hover i { transform: scale(1.1); }
     /* ─── Card Grid ─── */
     .v26-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
