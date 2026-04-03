@@ -92,9 +92,45 @@ css.textContent = [
 '.v27sd.pd{background:#d7ccc8;color:#8d6e63}',
 '.v27sl{width:40px;height:2px;background:#d7ccc8}',
 /* Payroll */
-'.v27ph{background:#fef3c7;border:2px solid #fbbf24;border-radius:12px;padding:14px 18px;margin-bottom:16px}',
-'.v27ph h4{font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px}',
-'.v27pc{background:#dcfce7;border:2px solid #86efac;border-radius:12px;padding:14px 18px;margin-bottom:16px;text-align:center}'
+'.v27pc{background:#dcfce7;border:2px solid #86efac;border-radius:12px;padding:14px 18px;margin-bottom:16px;text-align:center}',
+'/* --- Premium Banner CSS --- */',
+'.v26-pay-banner { background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%); border-radius: 24px; padding: 32px 40px; color: #fff; margin-bottom: 24px; position: relative; overflow: hidden; box-shadow: 0 16px 32px -8px rgba(220, 38, 38, 0.4); border: 1px solid rgba(255, 255, 255, 0.2); }',
+'.v26-pay-banner::before { content: ""; position: absolute; top: -50px; right: -30px; width: 180px; height: 180px; border-radius: 50%; background: rgba(255,255,255,0.1); filter: blur(20px); }',
+'.v26-pay-inner { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 2; gap: 32px; }',
+'.v26-pay-left { display: flex; align-items: center; gap: 24px; }',
+'.v26-back-btn { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; padding: 12px 20px; border-radius: 14px; cursor: pointer; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px); transition: all 0.3s; font-family: inherit; }',
+'.v26-back-btn:hover { background: #fff; color: #dc2626; transform: translateX(-5px); }',
+'.v26-pay-title-wrap h2 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }',
+'.v26-pay-month { font-size: 14px; opacity: 0.8; font-weight: 500; margin-top: 4px; }',
+'.v26-total-box { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); padding: 16px 28px; border-radius: 20px; text-align: right; backdrop-filter: blur(10px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }',
+'.v26-total-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8; margin-bottom: 4px; }',
+'.v26-total-value { font-size: 32px; font-weight: 900; }',
+'.v26-salary-card { background: linear-gradient(135deg, #ffffff 0%, #fdf4ff 100%); border-radius: 28px; padding: 24px; border: 1px solid #fae8ff; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 4px 12px rgba(192, 38, 211, 0.05); }',
+'.v26-salary-card:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 20px 40px rgba(192, 38, 211, 0.15); border-color: #d946ef55; }',
+'.v26-avatar { width: 54px; height: 54px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25); border: 2px solid #fff; }',
+'.v26-summary-deduct { background: #fff1f2; border: 1.5px dashed #fecdd3; border-radius: 16px; padding: 16px; margin: 16px 0; display: flex; justify-content: space-between; align-items: center; }',
+'.v26-summary-label { color: #be123c; font-size: 13px; font-weight: 700; }',
+'.v26-summary-val { color: #be123c; font-size: 20px; font-weight: 900; }',
+'.v26-salary-card.paid { border-left: 5px solid #16a34a; }',
+'.v26-salary-card.pending { border-left: 5px solid #dc2626; }',
+'.v26-card-glow { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(220, 38, 38, 0.03) 0%, transparent 70%); opacity: 0; transition: opacity 0.3s; pointer-events: none; }',
+'.v26-salary-card:hover .v26-card-glow { opacity: 1; }',
+'.v26-card-header { display: flex; align-items: center; gap: 14px; position: relative; }',
+'.v26-emp-info { flex: 1; }',
+'.v26-emp-name { font-weight: 800; font-size: 16px; color: #1e293b; }',
+'.v26-emp-pos { font-size: 12px; color: #64748b; font-weight: 500; }',
+'.v26-paid-badge { background: #dcfce7; color: #166534; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 8px; display: flex; align-items: center; gap: 4px; text-transform: uppercase; }',
+'.v26-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 12px; }',
+'.v26-stat-label { font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }',
+'.v26-stat-val { font-size: 15px; font-weight: 800; color: #334155; }',
+'.v26-stat-val.warning { color: #d97706; }',
+'.v26-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; }',
+'.v26-footer-label { font-size: 11px; font-weight: 700; color: #64748b; }',
+'.v26-footer-val { font-size: 20px; font-weight: 900; color: #dc2626; }',
+'.v26-salary-card.paid .v26-footer-val { color: #16a34a; }',
+'.v26-arrow { color: #cbd5e1; transition: transform 0.3s; }',
+'.v26-salary-card:hover .v26-arrow { transform: translateX(4px); color: #dc2626; }',
+'@media (max-width: 768px) { .v26-pay-inner { flex-direction: column; text-align: center; gap: 20px; } .v26-pay-left { flex-direction: column; gap: 16px; } .v26-total-box { text-align: center; width: 100%; } }'
 ].join('\n');
 document.head.appendChild(css);
 console.log('[v27] CSS injected');
@@ -368,7 +404,7 @@ window.v26ShowPayDetail = function(eid){
     +'<i class="material-icons-round">arrow_back</i> กลับ</button>'
     +'<div class="v26-pay-detail" style="cursor:default;margin-bottom:24px;">'
     +'<div class="v26-pay-detail-head"><div style="display:flex;align-items:center;justify-content:center;gap:12px;">'
-    +'<div class="v26-avatar" style="width:52px;height:52px;font-size:20px;">'+(emp.name||'?')[0]+'</div>'
+    +'<div class="v26-avatar" style="width:64px;height:64px;font-size:32px;">'+(s.emoji||'👤')+'</div>'
     +'<div><div style="font-size:20px;font-weight:800;">'+emp.name+' '+(emp.lastname||'')+'</div>'
     +'<div style="font-size:13px;color:#64748b;">'+(emp.position||'')+'</div></div></div></div>'
     +'<div class="v26-pay-detail-body">'
@@ -380,13 +416,18 @@ window.v26ShowPayDetail = function(eid){
     +'<div style="font-size:26px;font-weight:900;color:'+(remaining>0?'#16a34a':'#dc2626')+';">฿'+fmt(remaining)+'</div></div>'
     +'<div class="v26-pr"><span>วันทำงาน</span><strong>'+(s.wd||0)+' วัน</strong></div>'
     +'<div class="v26-pr"><span>ค่าจ้างสะสม</span><strong style="color:#3b82f6;">฿'+fmt(earn)+'</strong></div>'
-    +'<div class="v26-pr"><span>เบิกล่วงหน้า</span><strong style="color:#d97706;">฿'+fmt(totalAdv)+'</strong></div>'
+    +'<div class="v26-pr"><span>เบิกล่วงหน้าเดือนนี้</span><strong style="color:#d97706;">฿'+fmt(totalAdv)+'</strong></div>'
+    +'<div class="v26-pr" style="background:#fff7ed; border-radius:8px; padding:4px 8px;"><span>หนี้เบิกที่เหลือ</span><strong style="color:#c2410c;">฿'+fmt(debtLeft)+'</strong></div>'
     +'<div class="v26-pr total"><span>เพดานจ่ายได้</span><strong style="color:#16a34a;">฿'+fmt(remaining)+'</strong></div>'
+    +'<div class="v26-summary-deduct">'
+    +'<div class="v26-summary-label">รวมหักเงินสะสมครั้งนี้</div>'
+    +'<div class="v26-summary-val" id="v26-sum-d-'+eid+'">฿0</div>'
+    +'</div>'
     +'<div class="v26-fields" style="margin-top:18px;">'
-    +'<div class="v26-field"><label>ยอดจ่าย (฿)</label><input type="number" id="v26r-'+eid+'" value="'+(remaining>0?remaining:0)+'" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+')"></div>'
-    +'<div class="v26-field"><label>หักหนี้เบิก</label><input type="number" id="v26d-'+eid+'" value="0" min="0" max="'+debtLeft+'" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+')"></div>'
-    +'<div class="v26-field"><label>หักประกันสังคม</label><input type="number" id="v26s-'+eid+'" value="0" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+')"></div>'
-    +'<div class="v26-field"><label>หักอื่นๆ</label><input type="number" id="v26o-'+eid+'" value="0" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+')"></div></div>'
+    +'<div class="v26-field"><label>ยอดจ่ายสุทธิ (฿)</label><input type="number" id="v26r-'+eid+'" value="'+(remaining>0?remaining:0)+'" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+','+debtLeft+')"></div>'
+    +'<div class="v26-field"><label>หักหนี้เบิก (Max: '+fmt(debtLeft)+')</label><input type="number" id="v26d-'+eid+'" value="0" min="0" max="'+debtLeft+'" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+','+debtLeft+')"></div>'
+    +'<div class="v26-field"><label>หักประกันสังคม</label><input type="number" id="v26s-'+eid+'" value="0" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+','+debtLeft+')"></div>'
+    +'<div class="v26-field"><label>หักอื่นๆ</label><input type="number" id="v26o-'+eid+'" value="0" min="0" oninput="v27PV(\''+eid+'\','+earn+','+(sumPN+sumPD+sumTD)+','+debtLeft+')"></div></div>'
     +'<div class="v26-field" style="margin-top:10px;"><label>หมายเหตุหักอื่นๆ</label><input type="text" id="v26on-'+eid+'" placeholder="ระบุเหตุผล..." style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #e2e8f0;font-size:15px;font-family:inherit;"></div>'
     +'<div class="v26-vmsg" id="v26vm-'+eid+'" style="margin-top:12px;padding:10px;border-radius:8px;font-size:13px;"></div>'
     +'<div class="v26-fields" style="margin-top:14px;">'
@@ -398,12 +439,23 @@ window.v26ShowPayDetail = function(eid){
 };
 console.log('[v27] v26ShowPayDetail overridden (pd fix)');
 
-window.v27PV = function(eid,gross,used){
+window.v27PV = function(eid,gross,used,debtLimit){
   var r=Number(document.getElementById('v26r-'+eid)?.value||0);
   var d=Number(document.getElementById('v26d-'+eid)?.value||0);
   var ss=Number(document.getElementById('v26s-'+eid)?.value||0);
   var o=Number(document.getElementById('v26o-'+eid)?.value||0);
-  var t=r+d+ss+o, left=gross-used;
+  
+  if(d > debtLimit) {
+    d = debtLimit;
+    var dInput = document.getElementById('v26d-'+eid);
+    if(dInput) dInput.value = d;
+  }
+
+  var sumD = d + ss + o;
+  var sumDEl = document.getElementById('v26-sum-d-'+eid);
+  if(sumDEl) sumDEl.innerText = '฿' + fmt(sumD);
+
+  var t=r+sumD, left=gross-used;
   var el=document.getElementById('v26vm-'+eid), btn=document.getElementById('v26pb-'+eid);
   if(r<0||d<0||ss<0||o<0){if(el){el.style.background='#fee2e2';el.style.color='#dc2626';el.innerHTML='❌ ห้ามค่าติดลบ';}if(btn)btn.disabled=true;}
   else if(t>gross){if(el){el.style.background='#fef3c7';el.style.color='#92400e';el.innerHTML='⚠️ เกินยอดสะสม — ยังจ่ายได้';}if(btn)btn.disabled=false;}
@@ -424,6 +476,7 @@ window.renderPayroll = window.renderPayrollV26 = function(){
   ]).then(function(results){
     var emps=(results[0]||[]).filter(function(e){return e.status==='ทำงาน';});
     var att=results[1].data||[], adv=results[2].data||[], paid=results[3].data||[];
+    var emojis = ['👨‍💼','👩‍💼','🧑‍🔧','👨‍🔬','👩‍🍳','👨‍🎤','👩‍🎨','👨‍🚀','👨‍🚒','👮','🕵️','🤵'];
     window._v26Pay=emps.map(function(emp){
       var ma=att.filter(function(a){return a.employee_id===emp.id;});
       var wd=ma.filter(function(a){return a.status!=='ขาด'&&a.status!=='ลา';}).length;
@@ -436,29 +489,59 @@ window.renderPayroll = window.renderPayrollV26 = function(){
       var sumPaidWithdraw=pastPays.reduce(function(s,p){return s+(p.deduct_withdraw||0);},0);
       var sumTotalDeduct=pastPays.reduce(function(s,p){return s+(p.deduct_absent||0)+(p.deduct_ss||0)+(p.deduct_other||0);},0);
       var net=Math.max(0,earn-sumPaidNet-sumPaidWithdraw-sumTotalDeduct);
-      return{emp:emp,wd:wd,td:td,earn:earn,taGross:taGross,net:net,pastPays:pastPays,sumPaidNet:sumPaidNet,sumPaidWithdraw:sumPaidWithdraw,sumTotalDeduct:sumTotalDeduct,paidCount:pastPays.length};
+      var emoji=emojis[emp.id.charCodeAt(0) % emojis.length];
+      return{emp:emp,wd:wd,td:td,earn:earn,taGross:taGross,net:net,pastPays:pastPays,sumPaidNet:sumPaidNet,sumPaidWithdraw:sumPaidWithdraw,sumTotalDeduct:sumTotalDeduct,paidCount:pastPays.length,emoji:emoji};
     });
     var totalNet=window._v26Pay.reduce(function(s,x){return s+x.net;},0);
-    sec.innerHTML='<div style="max-width:1200px;margin:0 auto;padding:0 8px;">'
-      +'<div class="v26-pay-banner"><div style="position:relative;z-index:1;">'
-      +'<h2 style="font-size:22px;font-weight:800;">💰 จ่ายเงินเดือน — '+ml+'</h2>'
-      +'<p style="font-size:14px;opacity:0.8;margin-top:4px;">ยอดรวมคงค้าง: <strong style="font-size:20px;">฿'+fmt(totalNet)+'</strong></p></div>'
-      +'<button onclick="renderAttendance()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;border-radius:10px;padding:10px 20px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;position:relative;z-index:1;">'
-      +'<i class="material-icons-round">arrow_back</i> กลับเช็คชื่อ</button></div>'
-      +'<div id="v26-pay-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">'
+    var emojis = ['💰','💸','🏦','💎','💵','💴','💶','💷','🪙','💳','📈','🎯'];
+    var randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+    sec.innerHTML='<div style="max-width:1000px;margin:0 auto;padding:0 8px;">'
+      +'<div class="v26-pay-banner">'
+        +'<div class="v26-pay-inner">'
+          +'<div class="v26-pay-left">'
+            +'<button class="v26-back-btn" onclick="renderAttendance()"><i class="material-icons-round">arrow_back</i> กลับเช็คชื่อ</button>'
+            +'<div class="v26-pay-title-wrap">'
+              +'<h2>'+randomEmoji+' จ่ายเงินเดือน</h2>'
+              +'<div class="v26-pay-month">'+ml+'</div>'
+            +'</div>'
+          +'</div>'
+          +'<div class="v26-pay-right">'
+            +'<div class="v26-total-box">'
+              +'<div class="v26-total-label">ยอดรวมค้างจ่ายสะสม</div>'
+              +'<div class="v26-total-value">฿'+fmt(totalNet)+'</div>'
+            +'</div>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div id="v26-pay-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;margin-top:8px;">'
       +window._v26Pay.map(function(s){
         var isPaid=s.paidCount>0;
-        return '<div onclick="v26ShowPayDetail(\''+s.emp.id+'\')" style="background:#fff;border-radius:16px;padding:20px;border:2px solid '+(isPaid?'#86efac':'#e2e8f0')+';cursor:pointer;transition:all .2s;position:relative;">'
-          +(isPaid?'<div style="position:absolute;top:10px;right:10px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;">จ่ายแล้ว '+s.paidCount+' ครั้ง</div>':'')
-          +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">'
-          +'<div class="v26-avatar" style="width:44px;height:44px;font-size:16px;">'+(s.emp.name||'?')[0]+'</div>'
-          +'<div><div style="font-weight:700;font-size:15px;">'+s.emp.name+' '+(s.emp.lastname||'')+'</div>'
-          +'<div style="font-size:12px;color:#64748b;">'+(s.emp.position||'')+'</div></div></div>'
-          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">'
-          +'<div><span style="color:#94a3b8;">สะสม</span><br><strong>฿'+fmt(s.earn)+'</strong></div>'
-          +'<div><span style="color:#94a3b8;">จ่ายแล้ว</span><br><strong style="color:'+(s.sumPaidNet>0?'#16a34a':'#94a3b8')+';">฿'+fmt(s.sumPaidNet)+'</strong></div>'
-          +'<div><span style="color:#94a3b8;">เบิก</span><br><strong style="color:#d97706;">฿'+fmt(s.taGross)+'</strong></div>'
-          +'<div><span style="color:#94a3b8;">คงเหลือ</span><br><strong style="color:'+(s.net>0?'#3b82f6':'#dc2626')+';">฿'+fmt(s.net)+'</strong></div></div></div>';
+        return '<div onclick="v26ShowPayDetail(\''+s.emp.id+'\')" class="v26-salary-card '+(isPaid?'paid':'pending')+'">'
+          +'<div class="v26-card-glow"></div>'
+          +'<div class="v26-card-header">'
+            +'<div class="v26-avatar">'+s.emoji+'</div>'
+            +'<div class="v26-emp-info">'
+              +'<div class="v26-emp-name">'+s.emp.name+' '+(s.emp.lastname||'')+'</div>'
+              +'<div class="v26-emp-pos">'+(s.emp.position||'พนักงาน')+'</div>'
+            +'</div>'
+            +(isPaid?'<div class="v26-paid-badge"><i class="material-icons-round">check_circle</i> จ่ายแล้ว</div>':'')
+          +'</div>'
+          +'<div class="v26-card-stats">'
+            +'<div class="v26-stat-item">'
+              +'<div class="v26-stat-label">สะสมเดือนนี้</div>'
+              +'<div class="v26-stat-val">฿'+fmt(s.earn)+'</div>'
+            +'</div>'
+            +'<div class="v26-stat-item">'
+              +'<div class="v26-stat-label">เบิกแล้ว</div>'
+              +'<div class="v26-stat-val warning">฿'+fmt(s.taGross)+'</div>'
+            +'</div>'
+          +'</div>'
+          +'<div class="v26-card-footer">'
+            +'<div class="v26-footer-label">คงเหลือสุทธิ</div>'
+            +'<div class="v26-footer-val">฿'+fmt(s.net)+'</div>'
+            +'<i class="material-icons-round v26-arrow">chevron_right</i>'
+          +'</div>'
+        +'</div>';
       }).join('')
       +'</div><div id="v26-pay-detail-wrap" style="display:none;margin-top:20px;"></div></div>';
   });

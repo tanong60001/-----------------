@@ -19,89 +19,119 @@ console.log('[v26-HR] Loading modules-v26-hr.js v2...');
    /* ─── Header Banner (Premium Redesign) ─── */
     .v26-banner {
       background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%);
-      border-radius: 24px; 
-      padding: 32px 40px; 
+      border-radius: 28px; 
+      padding: 32px; 
       margin-bottom: 32px;
       color: #ffffff;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 16px 32px -8px rgba(220, 38, 38, 0.4), 0 4px 16px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 20px 40px -10px rgba(220, 38, 38, 0.4), 0 4px 20px rgba(0, 0, 0, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .v26-banner-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      position: relative;
+      z-index: 2;
     }
 
     /* Abstract Glow Shapes */
     .v26-banner::before {
       content: ''; position: absolute; top: -100px; right: -50px;
       width: 300px; height: 300px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
-      filter: blur(8px);
+      background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(10px);
     }
     .v26-banner::after {
-      content: ''; position: absolute; bottom: -120px; left: 10%;
+      content: ''; position: absolute; bottom: -120px; left: 5%;
       width: 400px; height: 400px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%);
-      filter: blur(12px);
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(15px);
     }
 
-    .v26-banner-top {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      flex-wrap: wrap; gap: 16px; position: relative; z-index: 2;
-    }
-    .v26-banner h2 {
-      font-size: 28px; font-weight: 900; letter-spacing: -0.5px;
-      display: flex; align-items: center; gap: 12px; margin: 0 0 6px 0;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-    .v26-banner h2 i {
-      font-size: 32px; background: rgba(255,255,255,0.2);
-      padding: 8px; border-radius: 12px; backdrop-filter: blur(4px);
-    }
-    .v26-banner .v26-date { 
-      font-size: 15px; font-weight: 500; opacity: 0.95; 
-      display: flex; align-items: center; gap: 6px;
-    }
-
-    /* ─── Premium Stat Pills (Glassmorphism) ─── */
-    .v26-stats-row {
-      display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;
-      position: relative; z-index: 2;
+    .v26-header-left { display: flex; flex-direction: column; gap: 4px; }
+    .v26-header-left h2 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -1px; display: flex; align-items: center; gap: 12px; line-height: 1.1; }
+    .v26-header-left h2 div { font-size: 20px; opacity: 0.9; }
+    .v26-date { font-size: 13px; font-weight: 600; opacity: 0.85; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    
+    .v26-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      backdrop-filter: blur(10px);
     }
     .v26-stat-pill {
-      padding: 8px 16px 8px 20px; border-radius: 30px; font-size: 13px; font-weight: 700;
-      background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      display: flex; align-items: center; gap: 8px;
     }
-    .v26-stat-pill:hover {
-      transform: translateY(-3px) scale(1.02); background: rgba(255, 255, 255, 0.25);
-      border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    }
+    .v26-stat-pill .label-wrap { display: flex; align-items: center; gap: 8px; }
     .v26-stat-pill strong {
       font-size: 14px; background: #ffffff; color: #dc2626;
-      padding: 2px 10px; border-radius: 12px; margin-left: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
 
-    /* ─── Actions Row ─── */
-    .v26-actions-row {
-      display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;
-      position: relative; z-index: 2; padding-top: 20px;
-      border-top: 1px solid rgba(255,255,255,0.15);
+    /* ─── Actions Grid (Right) ─── */
+    .v26-header-right {
+      flex: 0 0 340px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      padding-left: 32px;
     }
-    .v26-actions-row .btn {
+    .v26-card {
+      background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
+      border-radius: 28px;
+      padding: 6px;
+      border: 1px solid #e0e7ff;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05);
+    }
+    .v26-card:hover {
+      transform: translateY(-8px) scale(1.03);
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.12);
+      border-color: #6366f155;
+      z-index: 10;
+    }
+    .v26-actions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+    }
+    .v26-actions-grid .btn {
       background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #fff; border-radius: 12px; font-size: 14px; padding: 10px 20px; font-weight: 700;
+      color: #fff; border-radius: 12px; font-size: 13.5px; padding: 10px 14px; font-weight: 700;
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      white-space: nowrap;
     }
-    .v26-actions-row .btn i { font-size: 18px; transition: transform 0.3s; }
-    .v26-actions-row .btn:hover {
+    .v26-actions-grid .btn i { font-size: 18px; transition: transform 0.3s; }
+    .v26-actions-grid .btn:hover {
       background: #ffffff; color: #dc2626; border-color: #ffffff;
-      transform: translateY(-3px); box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
+      transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     }
-    .v26-actions-row .btn:hover i { transform: scale(1.1); }
+    .v26-actions-grid .btn:hover i { transform: scale(1.1); }
+
+    @media (max-width: 1024px) {
+      .v26-banner-inner { flex-direction: column; align-items: flex-start; gap: 24px; }
+      .v26-header-left, .v26-stats-grid, .v26-header-right { flex: 1 1 auto; width: 100%; }
+      .v26-header-right { border-left: none; padding-left: 0; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; }
+    }
+    @media (max-width: 640px) {
+      .v26-stats-grid { grid-template-columns: 1fr 1fr; }
+      .v26-actions-grid { grid-template-columns: 1fr; }
+    }
     /* ─── Card Grid ─── */
     .v26-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -132,11 +162,13 @@ console.log('[v26-HR] Loading modules-v26-hr.js v2...');
       display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
     }
     .v26-avatar {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: linear-gradient(135deg, #dc2626, #ef4444);
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-weight: 800; font-size: 18px; flex-shrink: 0;
-      box-shadow: 0 3px 10px rgba(220,38,38,0.25);
+      width: 54px; height: 54px; 
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      color: #fff; border-radius: 18px; 
+      display: flex; align-items: center; justify-content: center; 
+      font-size: 24px; font-weight: 900;
+      box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25);
+      border: 2px solid #fff;
     }
     .v26-card-name { font-size: 16px; font-weight: 700; color: #1e293b; }
     .v26-card-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
@@ -200,17 +232,46 @@ console.log('[v26-HR] Loading modules-v26-hr.js v2...');
     .v26-save-btn:active { transform: scale(0.97); }
     .v26-save-btn.saving { background: #94a3b8; box-shadow: none; pointer-events: none; }
 
-    /* ─── Payroll ─── */
+    /* ─── Payroll Banner (Premium Redesign) ─── */
     .v26-pay-banner {
-      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-      border-radius: 20px; padding: 28px 32px; color: #fff;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%);
+      border-radius: 24px; padding: 32px 40px; color: #fff;
       margin-bottom: 24px; position: relative; overflow: hidden;
-      text-align: center;
+      box-shadow: 0 16px 32px -8px rgba(220, 38, 38, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
     .v26-pay-banner::before {
       content: ''; position: absolute; top: -50px; right: -30px;
       width: 180px; height: 180px; border-radius: 50%;
-      background: rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.1); filter: blur(20px);
+    }
+    .v26-pay-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      position: relative; z-index: 2; gap: 32px;
+    }
+    .v26-pay-left { display: flex; align-items: center; gap: 24px; }
+    .v26-back-btn {
+      background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff; padding: 12px 20px; border-radius: 14px; cursor: pointer;
+      font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+      backdrop-filter: blur(8px); transition: all 0.3s;
+    }
+    .v26-back-btn:hover { background: #fff; color: #dc2626; transform: translateX(-5px); }
+    .v26-pay-title-wrap h2 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+    .v26-pay-month { font-size: 14px; opacity: 0.8; font-weight: 500; margin-top: 4px; }
+
+    .v26-total-box {
+      background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 16px 28px; border-radius: 20px; text-align: right;
+      backdrop-filter: blur(10px); box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .v26-total-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px; }
+    .v26-total-value { font-size: 32px; font-weight: 900; }
+
+    @media (max-width: 768px) {
+      .v26-pay-inner { flex-direction: column; text-align: center; gap: 20px; }
+      .v26-pay-left { flex-direction: column; gap: 16px; }
+      .v26-total-box { text-align: center; width: 100%; }
     }
     .v26-pay-selector {
       max-width: 600px; margin: 0 auto 24px; text-align: center;
@@ -345,7 +406,7 @@ console.log('[v26-HR] Loading modules-v26-hr.js v2...');
 // ══════════════════════════════════════
 // SECTION 1.5: ADVANCE WIZARD (Override)
 // ══════════════════════════════════════
-window.openAdvanceWizard = function(empId, empName) {
+window.openAdvanceWizard = function (empId, empName) {
   Swal.fire({
     html: `
       <div class="v26-adv-modal" style="margin:-1.5em; width:calc(100% + 3em);">
@@ -386,7 +447,7 @@ window.openAdvanceWizard = function(empId, empName) {
       const save = async (denom = null) => {
         const { data: ins } = await db.from('เบิกเงิน').insert({ employee_id: empId, amount: amt, reason, date: new Date().toISOString(), status: 'อนุมัติ', approved_by: USER?.username }).select().single();
         if (method === 'เงินสด') {
-          const { data: sess } = await db.from('cash_session').select('id').eq('status','open').single();
+          const { data: sess } = await db.from('cash_session').select('id').eq('status', 'open').single();
           if (sess) await recordCashTx({ sessionId: sess.id, type: 'เบิกเงิน', direction: 'out', amount: amt, netAmount: amt, refId: ins.id, denominations: denom, note: `${empName} ${reason}` });
         }
         Swal.fire('สำเร็จ', 'บันทึกรายการเรียบร้อย', 'success');
@@ -404,11 +465,11 @@ window.openAdvanceWizard = function(empId, empName) {
 // SECTION 2: ATTENDANCE STATUS
 // ══════════════════════════════════════
 const V26_ST = {
-  'มา':      { label:'มาทำงาน',   color:'#16a34a', icon:'check_circle',  pct:0,   },
-  'ขาด':     { label:'ขาด',       color:'#dc2626', icon:'cancel',        pct:100, },
-  'ลา':      { label:'ลา',        color:'#7c3aed', icon:'event_busy',    pct:0,   },
-  'มาสาย':   { label:'มาสาย',     color:'#d97706', icon:'schedule',      pct:5,   },
-  'ครึ่งวัน': { label:'มาครึ่งวัน', color:'#0891b2', icon:'timelapse',     pct:50,  }
+  'มา': { label: 'มาทำงาน', color: '#16a34a', icon: 'check_circle', pct: 0, },
+  'ขาด': { label: 'ขาด', color: '#dc2626', icon: 'cancel', pct: 100, },
+  'ลา': { label: 'ลา', color: '#7c3aed', icon: 'event_busy', pct: 0, },
+  'มาสาย': { label: 'มาสาย', color: '#d97706', icon: 'schedule', pct: 5, },
+  'ครึ่งวัน': { label: 'มาครึ่งวัน', color: '#0891b2', icon: 'timelapse', pct: 50, }
 };
 
 let v26Att = {};
@@ -416,7 +477,7 @@ let v26Att = {};
 // ──────────────────────────────────────
 // RENDER ATTENDANCE
 // ──────────────────────────────────────
-window.renderAttendance = async function() {
+window.renderAttendance = async function () {
   const sec = document.getElementById('page-att');
   if (!sec) return;
   const today = new Date().toISOString().split('T')[0];
@@ -427,32 +488,53 @@ window.renderAttendance = async function() {
   (rows || []).forEach(a => { map[a.employee_id] = a; });
 
   v26Att = {};
+  const emojis = ['👨‍💼','👩‍💼','🧑‍🔧','👨‍🔬','👩‍🍳','👨‍🎤','👩‍🎨','👨‍🚀','👨‍🚒','👮','🕵️','🤵'];
   active.forEach(e => {
     const a = map[e.id];
-    v26Att[e.id] = { st: a?.status || null, note: a?.note || '', aid: a?.id || null, tin: a?.time_in || null, tout: a?.time_out || null };
+    v26Att[e.id] = { 
+      st: a?.status || null, 
+      note: a?.note || '', 
+      aid: a?.id || null, 
+      tin: a?.time_in || null, 
+      tout: a?.time_out || null,
+      emoji: emojis[e.id.charCodeAt(0) % emojis.length]
+    };
   });
 
   const cnt = {}; Object.keys(V26_ST).forEach(k => { cnt[k] = 0; }); let unc = 0;
   active.forEach(e => { const s = v26Att[e.id]?.st; if (s && cnt[s] !== undefined) cnt[s]++; else unc++; });
 
+  const statsEmojis = ['📊','📈','📉','✅','❌','🕒','📅','👥','📎','🏷️','📌','📍'];
+  const randomEmoji = statsEmojis[Math.floor(Math.random() * statsEmojis.length)];
   sec.innerHTML = `
-    <div style="max-width:1200px;margin:0 auto;padding:0 8px;">
+    <div style="max-width:1400px;margin:0 auto;padding:0 8px;">
       <div class="v26-banner">
-        <div class="v26-banner-top">
-          <div>
-            <h2><i class="material-icons-round">badge</i> เช็คชื่อพนักงาน</h2>
+        <div class="v26-banner-inner">
+          <div class="v26-header-left">
+            <h2>${randomEmoji} <div>เช็คชื่อ<br>พนักงาน</div></h2>
             <div class="v26-date">📅 ${new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</div>
           </div>
-        </div>
-        <div class="v26-stats-row" id="v26-stats">
-          ${Object.entries(V26_ST).map(([k, v]) => `<span class="v26-stat-pill"><i class="material-icons-round" style="font-size:14px;">${v.icon}</i> ${v.label} <strong>${cnt[k]}</strong></span>`).join('')}
-          <span class="v26-stat-pill" style="color:#fde68a;"><i class="material-icons-round" style="font-size:14px;">hourglass_empty</i> ยังไม่ลง <strong>${unc}</strong></span>
-        </div>
-        <div class="v26-actions-row">
-          <button class="btn" onclick="showAttDatePicker()"><i class="material-icons-round">calendar_today</i> ย้อนหลัง</button>
-          <button class="btn" onclick="renderPayrollV26()"><i class="material-icons-round">account_balance_wallet</i> จ่ายเงินเดือน</button>
-          <button class="btn" onclick="v26ShowCSVExport()"><i class="material-icons-round">download</i> ส่งออก CSV</button>
-          <button class="btn" onclick="showEmployeeModal()"><i class="material-icons-round">person_add</i> เพิ่มพนักงาน</button>
+          
+          <div class="v26-stats-grid" id="v26-stats">
+            ${Object.entries(V26_ST).map(([k, v]) => `
+              <span class="v26-stat-pill">
+                <span class="label-wrap"><i class="material-icons-round" style="font-size:16px;">${v.icon}</i> ${v.label}</span>
+                <strong>${cnt[k]}</strong>
+              </span>`).join('')}
+            <span class="v26-stat-pill" style="background: rgba(253, 230, 138, 0.15); border-color: rgba(253, 230, 138, 0.3);">
+              <span class="label-wrap" style="color:#fde68a;"><i class="material-icons-round" style="font-size:16px;">hourglass_empty</i> ยังไม่ลง</span>
+              <strong style="background:#fde68a; color:#92400e;">${unc}</strong>
+            </span>
+          </div>
+
+          <div class="v26-header-right">
+            <div class="v26-actions-grid">
+              <button class="btn" onclick="showAttDatePicker()"><i class="material-icons-round">history</i> ย้อนหลัง</button>
+              <button class="btn" onclick="renderPayrollV26()"><i class="material-icons-round">payments</i> จ่ายเงินเดือน</button>
+              <button class="btn" onclick="v26ShowCSVExport()"><i class="material-icons-round">file_download</i> ส่งออก CSV</button>
+              <button class="btn" onclick="showEmployeeModal()"><i class="material-icons-round">person_add</i> เพิ่มพนักงาน</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="v26-grid">${active.map(e => v26Card(e)).join('')}</div>
@@ -470,28 +552,28 @@ function v26Card(emp) {
   const stCls = st ? `st-${st}` : 'st-none';
   return `
     <div class="v26-card ${stCls}" id="v26c-${emp.id}">
-      <div class="v26-card-inner">
-        <div class="v26-card-head">
-          <div class="v26-avatar">${(emp.name||'?')[0]}</div>
-          <div>
-            <div class="v26-card-name">${emp.name} ${emp.lastname||''}</div>
-            <div class="v26-card-sub">${emp.position||'พนักงาน'} · ฿${formatNum(emp.daily_wage||0)}/วัน</div>
+      <div class="v26-card-inner" onclick="v26Pick('${emp.id}')">
+        <div style="display:flex;align-items:center;gap:15px;padding:12px 15px;">
+          <div class="v26-avatar">${d.emoji}</div>
+          <div style="flex:1;">
+            <div style="font-weight:900;font-size:16px;color:#1e293b;">${emp.name} ${emp.lastname || ''}</div>
+            <div class="v26-card-sub">${emp.position || 'พนักงาน'} · ฿${formatNum(emp.daily_wage || 0)}/วัน</div>
           </div>
         </div>
         <div class="v26-opts">
           ${Object.entries(V26_ST).map(([k, v]) => {
-            const on = st === k;
-            return `<label class="v26-opt ${on?'on':''}" style="--oc:${v.color};" onclick="v26Pick('${emp.id}','${k}')">
-              <input type="radio" name="v26r-${emp.id}" value="${k}" ${on?'checked':''}>
+    const on = st === k;
+    return `<label class="v26-opt ${on ? 'on' : ''}" style="--oc:${v.color};" onclick="event.stopPropagation(); v26Pick('${emp.id}','${k}')">
+              <input type="radio" name="v26r-${emp.id}" value="${k}" ${on ? 'checked' : ''}>
               <span class="v26-dot"></span>
               <span class="v26-opt-label">${v.label}</span>
-              <span class="v26-opt-info">${v.pct > 0 ? `หัก ${v.pct}%` : (k==='ลา'?'ไม่หัก':'เต็ม')}</span>
+              <span class="v26-opt-info">${v.pct > 0 ? `หัก ${v.pct}%` : (k === 'ลา' ? 'ไม่หัก' : 'เต็ม')}</span>
             </label>`;
-          }).join('')}
+  }).join('')}
         </div>
         <textarea class="v26-card-note" rows="1" placeholder="หมายเหตุ..." id="v26n-${emp.id}"
-          onchange="v26Att['${emp.id}'].note=this.value">${d.note||''}</textarea>
-        <div class="v26-card-actions">
+          onchange="v26Att['${emp.id}'].note=this.value" onclick="event.stopPropagation()">${d.note || ''}</textarea>
+        <div class="v26-card-actions" onclick="event.stopPropagation()">
           <button class="btn" onclick="openAdvanceWizard('${emp.id}','${emp.name}')">
             <i class="material-icons-round" style="font-size:15px;">payments</i> เบิกเงิน
           </button>
@@ -500,16 +582,15 @@ function v26Card(emp) {
     </div>`;
 }
 
-window.v26Pick = function(eid, st) {
-  v26Att[eid] = v26Att[eid] || {};
-  v26Att[eid].st = st;
+window.v26Pick = function (eid, st) {
+  if (st) v26Att[eid].st = st;
   const card = document.getElementById(`v26c-${eid}`);
   if (card) {
-    card.className = `v26-card st-${st}`;
+    card.className = `v26-card st-${v26Att[eid].st}`;
     card.querySelectorAll('.v26-opt').forEach(o => {
       const v = o.querySelector('input')?.value;
-      v === st ? o.classList.add('on') : o.classList.remove('on');
-      if (v === st) o.querySelector('input').checked = true;
+      v === v26Att[eid].st ? o.classList.add('on') : o.classList.remove('on');
+      if (v === v26Att[eid].st) o.querySelector('input').checked = true;
     });
   }
   v26UpdStats();
@@ -519,12 +600,20 @@ function v26UpdStats() {
   const cnt = {}; Object.keys(V26_ST).forEach(k => { cnt[k] = 0; }); let unc = 0;
   Object.values(v26Att).forEach(d => { if (d.st && cnt[d.st] !== undefined) cnt[d.st]++; else unc++; });
   const el = document.getElementById('v26-stats');
-  if (el) el.innerHTML = Object.entries(V26_ST).map(([k, v]) =>
-    `<span class="v26-stat-pill"><i class="material-icons-round" style="font-size:14px;">${v.icon}</i> ${v.label} <strong>${cnt[k]}</strong></span>`
-  ).join('') + `<span class="v26-stat-pill" style="color:#fde68a;"><i class="material-icons-round" style="font-size:14px;">hourglass_empty</i> ยังไม่ลง <strong>${unc}</strong></span>`;
+  if (el) {
+    el.innerHTML = Object.entries(V26_ST).map(([k, v]) => `
+      <span class="v26-stat-pill">
+        <span class="label-wrap"><i class="material-icons-round" style="font-size:16px;">${v.icon}</i> ${v.label}</span>
+        <strong>${cnt[k]}</strong>
+      </span>`).join('') + `
+      <span class="v26-stat-pill" style="background: rgba(253, 230, 138, 0.15); border-color: rgba(253, 230, 138, 0.3);">
+        <span class="label-wrap" style="color:#fde68a;"><i class="material-icons-round" style="font-size:16px;">hourglass_empty</i> ยังไม่ลง</span>
+        <strong style="background:#fde68a; color:#92400e;">${unc}</strong>
+      </span>`;
+  }
 }
 
-window.v26SaveAll = async function() {
+window.v26SaveAll = async function () {
   const btn = document.getElementById('v26-save-btn');
   if (btn) { btn.classList.add('saving'); btn.innerHTML = '<i class="material-icons-round">sync</i> กำลังบันทึก...'; }
   const today = new Date().toISOString().split('T')[0];
@@ -534,106 +623,110 @@ window.v26SaveAll = async function() {
     for (const [eid, d] of Object.entries(v26Att)) {
       if (!d.st) { skip++; continue; }
       const { data: emp } = await db.from('พนักงาน').select('daily_wage,salary,pay_type').eq('id', eid).maybeSingle();
-      
+
       let ded = 0;
       if (emp?.pay_type === 'รายเดือน') {
-        const dailyEq = (emp.salary||0) / 30;
+        const dailyEq = (emp.salary || 0) / 30;
         if (d.st === 'ขาด') ded = dailyEq * 1;
         else if (d.st === 'มาครึ่งวัน') ded = dailyEq * 0.5;
         else if (d.st === 'มาสาย') ded = dailyEq * 0.05;
       } else {
-        const dWage = emp?.daily_wage||0;
+        const dWage = emp?.daily_wage || 0;
         if (d.st === 'มาครึ่งวัน') ded = dWage * 0.5;
         else if (d.st === 'มาสาย') ded = dWage * 0.05;
       }
       ded = Math.round(ded);
 
-      const rec = { employee_id: eid, date: today, status: d.st, deduction: ded, note: d.note||'', staff_name: USER?.username, time_in: d.tin || (d.st !== 'ขาด' ? now.toTimeString().slice(0,5) : null) };
+      const rec = { employee_id: eid, date: today, status: d.st, deduction: ded, note: d.note || '', staff_name: USER?.username, time_in: d.tin || (d.st !== 'ขาด' ? now.toTimeString().slice(0, 5) : null) };
       if (d.aid) { await db.from('เช็คชื่อ').update(rec).eq('id', d.aid); }
       else { const { data: n } = await db.from('เช็คชื่อ').insert(rec).select().single(); if (n) v26Att[eid].aid = n.id; }
       ok++;
     }
-    toast(`บันทึกสำเร็จ ${ok} คน${skip>0?` (ข้าม ${skip})`:''}`,'success');
+    toast(`บันทึกสำเร็จ ${ok} คน${skip > 0 ? ` (ข้าม ${skip})` : ''}`, 'success');
     logActivity('เช็คชื่อพนักงาน', `บันทึก ${ok} คน`);
-  } catch(e) { console.error(e); toast('Error: '+e.message,'error'); }
+  } catch (e) { console.error(e); toast('Error: ' + e.message, 'error'); }
   if (btn) { btn.classList.remove('saving'); btn.innerHTML = '<i class="material-icons-round">save</i> บันทึกทั้งหมด'; }
 };
 
 // ══════════════════════════════════════
 // SECTION 3: PAYROLL (Select One)
 // ══════════════════════════════════════
-window.renderPayroll = window.renderPayrollV26 = async function() {
+window.renderPayroll = window.renderPayrollV26 = async function () {
   const sec = document.getElementById('page-att');
   if (!sec) return;
   const now = new Date();
   const ms = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const me = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
-  const ml = now.toLocaleDateString('th-TH', { month:'long', year:'numeric' });
+  const me = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const ml = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
   const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
   const { data: att } = await db.from('เช็คชื่อ').select('*').gte('date', ms).lte('date', me);
-  const { data: adv } = await db.from('เบิกเงิน').select('*').eq('status','อนุมัติ').gte('date', ms+'T00:00:00');
+  const { data: adv } = await db.from('เบิกเงิน').select('*').eq('status', 'อนุมัติ').gte('date', ms + 'T00:00:00');
   const { data: paid } = await db.from('จ่ายเงินเดือน').select('*').eq('month', ms);
 
   window._v26Pay = emps.map(emp => {
-    const ma = (att||[]).filter(a => a.employee_id === emp.id);
+    const ma = (att || []).filter(a => a.employee_id === emp.id);
     const wd = ma.filter(a => a.status !== 'ขาด' && a.status !== 'ลา').length;
-    const td = ma.reduce((s,a) => s+(a.deduction||0), 0);
-    
+    const td = ma.reduce((s, a) => s + (a.deduction || 0), 0);
+
     let earn = 0;
     if (emp.pay_type === 'รายเดือน') {
-      earn = (emp.salary||0) - td;
+      earn = (emp.salary || 0) - td;
     } else {
-      const w = emp.daily_wage||0;
-      earn = (wd*w) - td;
+      const w = emp.daily_wage || 0;
+      earn = (wd * w) - td;
     }
 
-    const myA = (adv||[]).filter(a => a.employee_id === emp.id);
-    const taGross = myA.reduce((s,a) => s+a.amount, 0);
+    const myA = (adv || []).filter(a => a.employee_id === emp.id);
+    const taGross = myA.reduce((s, a) => s + a.amount, 0);
 
-    const pastPays = (paid||[]).filter(p => p.employee_id === emp.id);
-    const sumPaidNet = pastPays.reduce((s,p) => s+p.net_paid, 0);
-    const sumPaidWithdraw = pastPays.reduce((s,p) => s+p.deduct_withdraw, 0);
-    const sumTotalDeduct = pastPays.reduce((s,p) => s+p.deduct_absent + p.deduct_ss + p.deduct_other, 0);
-    
-    // 'earn' is gross entitlement so far. The portion they already 'used up' includes what we gave them (sumPaidNet)
-    // plus what was strictly deducted mathematically during that payout (sumTotalDeduct).
+    const pastPays = (paid || []).filter(p => p.employee_id === emp.id);
+    const sumPaidNet = pastPays.reduce((s, p) => s + p.net_paid, 0);
+    const sumPaidWithdraw = pastPays.reduce((s, p) => s + p.deduct_withdraw, 0);
+    const sumTotalDeduct = pastPays.reduce((s, p) => s + p.deduct_absent + p.deduct_ss + p.deduct_other, 0);
+
     const consumedEarn = sumPaidNet + sumPaidWithdraw + sumTotalDeduct;
-    
+
     const remEarn = Math.max(0, earn - consumedEarn);
     const remTa = Math.max(0, taGross - sumPaidWithdraw);
-    
+
     const net = remEarn;
-    
+
     return { emp, wd, earn, td, ta: remTa, net, myA, pastPays };
   });
 
-  const totalNet = window._v26Pay.reduce((s,x) => s+x.net, 0);
+  const totalNet = window._v26Pay.reduce((s, x) => s + x.net, 0);
 
   sec.innerHTML = `
-    <div style="max-width:700px;margin:0 auto;padding:0 8px;">
+    <div style="max-width:900px;margin:0 auto;padding:0 8px;">
       <div class="v26-pay-banner">
-        <div style="position:relative;z-index:1;">
-          <h2 style="font-size:22px;font-weight:800;margin-bottom:4px;">
-            <i class="material-icons-round" style="vertical-align:middle;">account_balance_wallet</i> จ่ายเงินเดือน
-          </h2>
-          <div style="opacity:.7;font-size:14px;">${ml}</div>
-          <div style="font-size:28px;font-weight:800;margin-top:12px;">฿${formatNum(totalNet)}</div>
-          <div style="font-size:12px;opacity:.6;">ยอดรวมที่ต้องจ่ายทั้งหมด</div>
-          <button class="btn" style="margin-top:14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:10px;" onclick="renderAttendance()">
-            <i class="material-icons-round">arrow_back</i> กลับเช็คชื่อ
-          </button>
+        <div class="v26-pay-inner">
+          <div class="v26-pay-left">
+            <button class="v26-back-btn" onclick="renderAttendance()">
+              <i class="material-icons-round">arrow_back</i> กลับเช็คชื่อ
+            </button>
+            <div class="v26-pay-title-wrap">
+              <h2><i class="material-icons-round">payments</i> จ่ายเงินเดือน</h2>
+              <div class="v26-pay-month">${ml}</div>
+            </div>
+          </div>
+          <div class="v26-pay-right">
+            <div class="v26-total-box">
+              <div class="v26-total-label">ยอดรวมค้างจ่ายสะสม</div>
+              <div class="v26-total-value">฿${formatNum(totalNet)}</div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="v26-pay-grid" id="v26-pay-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top:20px;">
         ${window._v26Pay.map(s => `
-          <div class="v26-pay-card" onclick="v26ShowPayDetail('${s.emp.id}')" style="background:#fff; border-radius:16px; border:2px solid ${s.pastPays.length>0 ? '#3b82f6' : '#e2e8f0'}; padding:20px; cursor:pointer; position:relative; box-shadow:0 4px 15px rgba(0,0,0,0.04); transition:all 0.2s;">
-            ${s.pastPays.length>0 ? `<div style="position:absolute; top:-10px; right:-10px; background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:800; box-shadow:0 2px 8px rgba(59,130,246,0.4);"><i class="material-icons-round" style="font-size:16px;vertical-align:middle;margin-right:2px;">history</i> จ่ายไปแล้ว ${s.pastPays.length} รอบ</div>` : ''}
+          <div class="v26-pay-card" onclick="v26ShowPayDetail('${s.emp.id}')" style="background:#fff; border-radius:16px; border:2px solid ${s.pastPays.length > 0 ? '#3b82f6' : '#e2e8f0'}; padding:20px; cursor:pointer; position:relative; box-shadow:0 4px 15px rgba(0,0,0,0.04); transition:all 0.2s;">
+            ${s.pastPays.length > 0 ? `<div style="position:absolute; top:-10px; right:-10px; background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:800; box-shadow:0 2px 8px rgba(59,130,246,0.4);"><i class="material-icons-round" style="font-size:16px;vertical-align:middle;margin-right:2px;">history</i> จ่ายไปแล้ว ${s.pastPays.length} รอบ</div>` : ''}
             <div style="display:flex; align-items:center; gap:16px;">
-              <div style="width:50px; height:50px; border-radius:50%; background:${s.pastPays.length>0 ? '#eff6ff' : '#f8fafc'}; color:${s.pastPays.length>0 ? '#2563eb' : '#475569'}; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800;">${s.emp.name[0]}</div>
+              <div style="width:50px; height:50px; border-radius:50%; background:${s.pastPays.length > 0 ? '#eff6ff' : '#f8fafc'}; color:${s.pastPays.length > 0 ? '#2563eb' : '#475569'}; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800;">${s.emp.name[0]}</div>
               <div style="flex:1;">
-                <div style="font-weight:800; font-size:18px; color:#1e293b;">${s.emp.name} ${s.emp.lastname||''}</div>
+                <div style="font-weight:800; font-size:18px; color:#1e293b;">${s.emp.name} ${s.emp.lastname || ''}</div>
                 <div style="font-size:13px; color:#64748b; margin-top:2px;">${s.emp.pay_type} / ทำงาน ${s.wd} วัน</div>
               </div>
             </div>
@@ -655,12 +748,11 @@ window.renderPayroll = window.renderPayrollV26 = async function() {
     </div>`;
 };
 
-window.v26HidePayDetail = function() {
+window.v26HidePayDetail = function () {
   document.getElementById('v26-pay-detail-wrap').style.display = 'none';
   document.getElementById('v26-pay-grid').style.display = 'grid';
 };
-
-window.v26ShowPayDetail = function(eid) {
+window.v26ShowPayDetail = function (eid) {
   const wrap = document.getElementById('v26-pay-detail-wrap');
   if (!wrap || !eid) return;
   document.getElementById('v26-pay-grid').style.display = 'none';
@@ -668,6 +760,9 @@ window.v26ShowPayDetail = function(eid) {
 
   const s = window._v26Pay?.find(x => x.emp.id === eid);
   if (!s) return;
+
+  const { emp, wd, earn, td, ta, myA, pastPays } = s;
+  const pd = pastPays.length > 0 ? pastPays[0] : null;
 
   if (pd) {
     wrap.innerHTML = `
@@ -680,7 +775,7 @@ window.v26ShowPayDetail = function(eid) {
           <div style="color:#10b981; font-size:32px;">฿${formatNum(pd.net_paid)}</div>
           <div style="font-size:14px;color:#64748b;margin-top:8px;">ยอดรับเข้ากระเป๋าจริง</div>
           <div style="font-size:13px;color:#94a3b8;margin-top:12px;padding-top:12px;border-top:1px dashed #e2e8f0;">
-             หักหนี้ ฿${formatNum(pd.deduct_withdraw)}  |  หมายเหตุ: ${pd.note||'-'}
+             หักหนี้ ฿${formatNum(pd.deduct_withdraw)}  |  หมายเหตุ: ${pd.note || '-'}
           </div>
         </div>
       </div>
@@ -693,13 +788,12 @@ window.v26ShowPayDetail = function(eid) {
     <div class="v26-pay-detail" style="cursor:default; margin-bottom:24px;">
       <div class="v26-pay-detail-head">
         <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
-          <div class="v26-avatar" style="width:52px;height:52px;font-size:20px;">${(emp.name||'?')[0]}</div>
+          <div class="v26-avatar" style="width:52px;height:52px;font-size:20px;">${(emp.name || '?')[0]}</div>
           <div style="text-align:left;">
-            <div style="font-size:18px;font-weight:700;color:#1e293b;">${emp.name} ${emp.lastname||''}</div>
-            <div style="font-size:13px;color:#64748b;">${emp.position} · ฿${formatNum(emp.daily_wage||0)}/วัน</div>
+            <div style="font-size:18px;font-weight:700;color:#1e293b;">${emp.name} ${emp.lastname || ''}</div>
+            <div style="font-size:13px;color:#64748b;">${emp.position} · ฿${formatNum(emp.daily_wage || 0)}/วัน</div>
           </div>
         </div>
-        ${pd ? `<div style="margin-top:10px;"><span style="background:#dcfce7;color:#16a34a;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;">✓ จ่ายแล้ว ฿${formatNum(pd.net_paid)}</span></div>` : ''}
       </div>
       <div class="v26-pay-detail-body">
         <div class="v26-pr"><span>วันทำงาน</span><strong>${wd} วัน</strong></div>
@@ -712,23 +806,23 @@ window.v26ShowPayDetail = function(eid) {
             <i class="material-icons-round" style="font-size:16px;vertical-align:middle;">warning</i> 
             มียอดเบิก/หนี้เดือนนี้สะสม: ฿${formatNum(ta)} (นำไปกรอกหักหนี้ด้านล่าง)
           </div>
-          ${myA.map(a => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#92400e;"><span>${formatDate(a.date)} — ${a.reason||'ไม่ระบุ'}</span><strong>฿${formatNum(a.amount)}</strong></div>`).join('')}
+          ${myA.map(a => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#92400e;"><span>${formatDate(a.date)} — ${a.reason || 'ไม่ระบุ'}</span><strong>฿${formatNum(a.amount)}</strong></div>`).join('')}
         </div>` : ''}
 
         <div class="v26-fields">
           <div class="v26-field"><label>พนักงานรับจริง (฿)</label>
-            <input type="number" id="v26r-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn})"></div>
-          <div class="v26-field"><label>หักหนี้ / ยอดเบิก (฿)</label>
-            <input type="number" id="v26d-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn})"></div>
+            <input type="number" id="v26r-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn},${ta})"></div>
+          <div class="v26-field"><label>หักหนี้ / ยอดเบิก (฿) <span style="color:#dc2626;font-weight:700;font-size:11px;">(ค้าง ฿${formatNum(ta)})</span></label>
+            <input type="number" id="v26d-${eid}" value="" placeholder="0" min="0" max="${ta}" oninput="v26Val('${eid}',${earn},${ta})"></div>
           <div class="v26-field"><label>หักประกันสังคม (฿)</label>
-            <input type="number" id="v26s-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn})"></div>
+            <input type="number" id="v26s-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn},${ta})"></div>
           <div class="v26-field"><label>หักอื่นๆ / เรียกเก็บ (฿)</label>
-            <input type="number" id="v26o-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn})"></div>
+            <input type="number" id="v26o-${eid}" value="" placeholder="0" min="0" oninput="v26Val('${eid}',${earn},${ta})"></div>
         </div>
         <div class="v26-field" style="margin-top:10px;"><label>หมายเหตุหักอื่นๆ</label>
           <input type="text" id="v26on-${eid}" placeholder="ระบุเหตุผล..."></div>
 
-        <div class="v26-vmsg" id="v26vm-${eid}"></div>
+        <div class="v26-vmsg" id="v26vm-${eid}" style="display:block; min-height:60px;"></div>
 
         <div class="v26-fields" style="margin-top:14px;">
           <div class="v26-field"><label>วิธีจ่าย</label>
@@ -737,83 +831,117 @@ window.v26ShowPayDetail = function(eid) {
             <input type="text" id="v26pn-${eid}" placeholder="หมายเหตุ..."></div>
         </div>
 
-        <button class="v26-pay-confirm" id="v26pb-${eid}" onclick="v26DoPay('${eid}')">
+        <button class="v26-pay-confirm v26-btn-pay" id="v26pb-${eid}" onclick="v26DoPay('${eid}')">
           <i class="material-icons-round">payments</i> ยืนยันจ่ายเงินเดือน
         </button>
       </div>
     </div>`;
 
-  v26Val(eid, earn);
+  v26Val(eid, earn, ta);
 };
 
-window.v26Val = function(eid, max) {
-  const r = Number(document.getElementById(`v26r-${eid}`)?.value||0);
-  const d = Number(document.getElementById(`v26d-${eid}`)?.value||0);
-  const ss = Number(document.getElementById(`v26s-${eid}`)?.value||0);
-  const o = Number(document.getElementById(`v26o-${eid}`)?.value||0);
+window.v26Val = function (eid, max, maxDebt) {
+  const r = Number(document.getElementById(`v26r-${eid}`)?.value || 0);
+  const d = Number(document.getElementById(`v26d-${eid}`)?.value || 0);
+  const ss = Number(document.getElementById(`v26s-${eid}`)?.value || 0);
+  const o = Number(document.getElementById(`v26o-${eid}`)?.value || 0);
   const t = r + d + ss + o;
   const el = document.getElementById(`v26vm-${eid}`);
   const btn = document.getElementById(`v26pb-${eid}`);
 
-  if (t > max) {
-    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:16px;">error</i> ยอดรวม ฿${formatNum(t)} เกินยอดสะสม ฿${formatNum(max)} (เกิน ฿${formatNum(t-max)})`; }
+  if (d > maxDebt) {
+    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ยอดหักหนี้ (฿${formatNum(d)}) เกินยอดหนี้ที่ค้างอยู่ (฿${formatNum(maxDebt)})`; }
+    if (btn) btn.disabled = true;
+  } else if (t > max) {
+    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ยอดรวม ฿${formatNum(t)} เกินยอดสะสมสูงสุด ฿${formatNum(max)}`; }
     if (btn) btn.disabled = true;
   } else if (r < 0 || d < 0 || ss < 0 || o < 0) {
-    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:16px;">error</i> ห้ามกรอกค่าติดลบ`; }
+    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ห้ามกรอกค่าติดลบ`; }
     if (btn) btn.disabled = true;
   } else {
-    if (el) { el.className = 'v26-vmsg show good'; el.innerHTML = `<i class="material-icons-round" style="font-size:16px;">check_circle</i> รับจริง ฿${formatNum(r)} | หักรวม ฿${formatNum(d+ss+o)} | คงเหลือ ฿${formatNum(max-t)}`; }
+    // โชว์สรุปเมื่อข้อมูลถูกต้อง
+    if (el) {
+      el.className = 'v26-vmsg show good';
+      el.innerHTML = `
+         <div style="display:flex; flex-direction:column; width:100%;">
+           <div style="display:flex; align-items:center; gap:8px; font-size:15px;">
+             <i class="material-icons-round" style="font-size:20px;">check_circle</i>
+             <span>สรุปการจ่ายรอบนี้:</span>
+           </div>
+           <div style="margin-top:10px; font-size:14px; background:rgba(255,255,255,0.7); padding:10px 14px; border-radius:10px; display:flex; flex-direction:column; gap:6px; color:#334155;">
+             <div style="display:flex; justify-content:space-between;"><span>ยอดหักรวมทั้งหมด:</span> <strong>฿${formatNum(d + ss + o)}</strong></div>
+             ${d > 0 ? `<div style="display:flex; justify-content:space-between; color:#b45309; font-size:13px;"><span>- หักชำระหนี้: ฿${formatNum(d)}</span> <span>(เหลือหนี้ค้าง ฿${formatNum(maxDebt - d)})</span></div>` : ''}
+             <div style="display:flex; justify-content:space-between; color:#16a34a; margin-top:6px; padding-top:8px; border-top:1px dashed #bbf7d0; font-size:16px;"><span>รับเงินจริงสุทธิ:</span> <strong>฿${formatNum(r)}</strong></div>
+           </div>
+         </div>
+       `;
+    }
     if (btn) btn.disabled = false;
   }
 };
 
-window.v26DoPay = async function(eid) {
+window.v26DoPay = async function (eid) {
   const s = window._v26Pay?.find(x => x.emp.id === eid);
   if (!s) return;
-  const recv = Number(document.getElementById(`v26r-${eid}`)?.value||0);
-  const debt = Number(document.getElementById(`v26d-${eid}`)?.value||0);
-  const ss = Number(document.getElementById(`v26s-${eid}`)?.value||0);
-  const oth = Number(document.getElementById(`v26o-${eid}`)?.value||0);
+  const recv = Number(document.getElementById(`v26r-${eid}`)?.value || 0);
+  const debt = Number(document.getElementById(`v26d-${eid}`)?.value || 0);
+  const ss = Number(document.getElementById(`v26s-${eid}`)?.value || 0);
+  const oth = Number(document.getElementById(`v26o-${eid}`)?.value || 0);
   const tot = recv + debt + ss + oth;
-  if (tot > s.net) { toast('ยอดรวมเกินยอดสะสม!','error'); return; }
 
-  const method = document.getElementById(`v26m-${eid}`)?.value||'เงินสด';
-  const note = document.getElementById(`v26pn-${eid}`)?.value||'';
-  const oNote = document.getElementById(`v26on-${eid}`)?.value||'';
+  if (tot > s.net) { toast('ยอดรวมเกินยอดสะสม!', 'error'); return; }
+  if (debt > s.ta) { toast('หักหนี้เกินยอดค้างชำระ!', 'error'); return; } // ตรวจจับก่อนเซฟอีกชั้น
 
-  const r = await Swal.fire({ title:'ยืนยันจ่ายเงินเดือน', html:`<p><strong>${s.emp.name}</strong></p><p>รับจริง: ฿${formatNum(recv)}</p>${debt>0?`<p>หักหนี้: ฿${formatNum(debt)}</p>`:''}${ss>0?`<p>หักประกันสังคม: ฿${formatNum(ss)}</p>`:''}${oth>0?`<p>หักอื่นๆ: ฿${formatNum(oth)} ${oNote?`(${oNote})`:''}</p>`:''}`, icon:'question', showCancelButton:true, confirmButtonText:'ยืนยัน', cancelButtonText:'ยกเลิก', confirmButtonColor:'#dc2626' });
+  const method = document.getElementById(`v26m-${eid}`)?.value || 'เงินสด';
+  const note = document.getElementById(`v26pn-${eid}`)?.value || '';
+  const oNote = document.getElementById(`v26on-${eid}`)?.value || '';
+
+  const r = await Swal.fire({ title: 'ยืนยันจ่ายเงินเดือน', html: `<p><strong>${s.emp.name}</strong></p><p>รับจริง: ฿${formatNum(recv)}</p>${debt > 0 ? `<p>หักหนี้: ฿${formatNum(debt)}</p>` : ''}${ss > 0 ? `<p>หักประกันสังคม: ฿${formatNum(ss)}</p>` : ''}${oth > 0 ? `<p>หักอื่นๆ: ฿${formatNum(oth)} ${oNote ? `(${oNote})` : ''}</p>` : ''}`, icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626' });
   if (!r.isConfirmed) return;
 
-  if (method === 'เงินสด' && recv > 0) { try { await assertCashEnough(recv,'จ่ายเงินเดือน'); } catch(e) { Swal.fire({icon:'error',title:'เงินไม่พอ',text:e.message}); return; } }
+  if (method === 'เงินสด' && recv > 0) { try { await assertCashEnough(recv, 'จ่ายเงินเดือน'); } catch (e) { Swal.fire({ icon: 'error', title: 'เงินไม่พอ', text: e.message }); return; } }
 
   const processPayrollSave = async () => {
     const now = new Date();
     const ms = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    
+
     const noteDetails = [];
     if (debt > 0) noteDetails.push(`หักหนี้ ฿${debt}`);
     if (ss > 0) noteDetails.push(`หักประกันสังคม ฿${ss}`);
-    if (oth > 0) noteDetails.push(`หักอื่นๆ ฿${oth} ${oNote ? '('+oNote+')' : ''}`);
-    const noteFull = `${note} (จ่ายทาง ${method}) ${noteDetails.length ? '['+noteDetails.join(', ')+']' : ''}`.trim();
+    if (oth > 0) noteDetails.push(`หักอื่นๆ ฿${oth} ${oNote ? '(' + oNote + ')' : ''}`);
+    const noteFull = `${note} (จ่ายทาง ${method}) ${noteDetails.length ? '[' + noteDetails.join(', ') + ']' : ''}`.trim();
 
-    const { error: pErr, data: pIns } = await db.from('จ่ายเงินเดือน').insert({ 
-      employee_id:eid, month:ms, working_days:s.wd, base_salary:s.earn, 
-      deduct_withdraw:debt, deduct_absent:s.td, bonus:0, net_paid:recv, 
-      paid_date:now.toISOString(), staff_name:USER?.username, note: noteFull 
+    const { error: pErr, data: pIns } = await db.from('จ่ายเงินเดือน').insert({
+      employee_id: eid, month: ms, working_days: s.wd, base_salary: s.earn,
+      deduct_withdraw: debt, deduct_absent: s.td, bonus: 0, net_paid: recv,
+      paid_date: now.toISOString(), staff_name: USER?.username, note: noteFull
     }).select().single();
 
     if (pErr) { toast('Error: ' + pErr.message, 'error'); return; }
 
     if (method === 'เงินสด' && recv > 0) {
-      const { data: sess } = await db.from('cash_session').select('id').eq('status','open').limit(1).single();
-      if (sess) await recordCashTx({ sessionId:sess.id, type:'จ่ายเงินเดือน', direction:'out', amount:recv, netAmount:recv, refId:pIns?.id, note:`${s.emp.name} ${note}` });
+      const { data: sess } = await db.from('cash_session').select('id').eq('status', 'open').limit(1).single();
+      if (sess) await recordCashTx({ sessionId: sess.id, type: 'จ่ายเงินเดือน', direction: 'out', amount: recv, netAmount: recv, refId: pIns?.id, note: `${s.emp.name} ${note}` });
     }
+
+    // อัปเดตสถานะการจ่ายหนี้ (เบิกเงิน)
     if (debt > 0) {
-      const { data: advs } = await db.from('เบิกเงิน').select('*').eq('employee_id',eid).eq('status','อนุมัติ').order('date');
-      let rem = debt; for (const a of (advs||[])) { if (rem<=0) break; if (a.amount<=rem) { await db.from('เบิกเงิน').update({status:'ชำระแล้ว'}).eq('id',a.id); rem-=a.amount; } else { await db.from('เบิกเงิน').update({amount: a.amount - rem}).eq('id',a.id); rem = 0; } }
+      const { data: advs } = await db.from('เบิกเงิน').select('*').eq('employee_id', eid).eq('status', 'อนุมัติ').order('date');
+      let rem = debt;
+      for (const a of (advs || [])) {
+        if (rem <= 0) break;
+        if (a.amount <= rem) {
+          await db.from('เบิกเงิน').update({ status: 'ชำระแล้ว' }).eq('id', a.id);
+          rem -= a.amount;
+        } else {
+          await db.from('เบิกเงิน').update({ amount: a.amount - rem }).eq('id', a.id);
+          rem = 0;
+        }
+      }
     }
-    toast(`จ่าย ${s.emp.name} ฿${formatNum(recv)} สำเร็จ`,'success');
-    logActivity('จ่ายเงินเดือน',`${s.emp.name} ฿${formatNum(recv)}`);
+
+    toast(`จ่าย ${s.emp.name} ฿${formatNum(recv)} สำเร็จ`, 'success');
+    logActivity('จ่ายเงินเดือน', `${s.emp.name} ฿${formatNum(recv)}`);
     renderPayrollV26();
   };
 
@@ -823,7 +951,7 @@ window.v26DoPay = async function(eid) {
 // ══════════════════════════════════════
 // SECTION 4: Expense Modal Override
 // ══════════════════════════════════════
-window.showAddExpenseModal = function() {
+window.showAddExpenseModal = function () {
   Swal.fire({
     html: `
       <div class="v26-adv-modal" style="margin:-1.5em; width:calc(100% + 3em); border-top-color:#3b82f6;">
@@ -872,39 +1000,39 @@ window.showAddExpenseModal = function() {
       const amt = Number(document.getElementById('exp-amount').value);
       const desc = document.getElementById('exp-desc').value.trim();
       if (!amt || amt <= 0 || !desc) { Swal.showValidationMessage('กรุณากรอกข้อมูลและยอดเงินให้ครบถ้วน'); return false; }
-      return { 
-         amount: amt, desc, cat: document.getElementById('exp-cat').value,
-         note: document.getElementById('exp-note').value, method: document.getElementById('exp-m-val').value
+      return {
+        amount: amt, desc, cat: document.getElementById('exp-cat').value,
+        note: document.getElementById('exp-note').value, method: document.getElementById('exp-m-val').value
       };
     }
   }).then(async (res) => {
     if (res.isConfirmed) {
       const { amount, desc, cat, note, method } = res.value;
       if (method === 'เงินสด') {
-        try { await assertCashEnough(amount, 'จ่ายรายจ่าย'); } catch(e) { Swal.fire({ icon:'error', title:'เงินไม่พอ', text:e.message }); return; }
+        try { await assertCashEnough(amount, 'จ่ายรายจ่าย'); } catch (e) { Swal.fire({ icon: 'error', title: 'เงินไม่พอ', text: e.message }); return; }
       }
-      
+
       const processExp = async (outCounts = null, inCounts = null) => {
         const { data: exp, error } = await db.from('รายจ่าย').insert({
           description: desc, amount, method, category: cat, note,
           staff_name: USER?.username, date: new Date().toISOString()
         }).select().single();
-        if (error) { toast('Error: '+error.message, 'error'); return; }
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
 
         if (method === 'เงินสด') {
-          const { data: sess } = await db.from('cash_session').select('id').eq('status','open').limit(1).single();
+          const { data: sess } = await db.from('cash_session').select('id').eq('status', 'open').limit(1).single();
           if (sess) {
-             let finalDenom = null;
-             if (outCounts) {
-                finalDenom = { ...outCounts };
-                if (inCounts) {
-                   Object.keys(inCounts).forEach(k => {
-                      finalDenom[k] = (finalDenom[k] || 0) - inCounts[k];
-                      if (finalDenom[k] === 0) delete finalDenom[k];
-                   });
-                }
-             }
-             await recordCashTx({ sessionId:sess.id, type:'รายจ่าย', direction:'out', amount, netAmount:amount, refId:exp?.id, refTable:'รายจ่าย', note:desc, denominations: finalDenom });
+            let finalDenom = null;
+            if (outCounts) {
+              finalDenom = { ...outCounts };
+              if (inCounts) {
+                Object.keys(inCounts).forEach(k => {
+                  finalDenom[k] = (finalDenom[k] || 0) - inCounts[k];
+                  if (finalDenom[k] === 0) delete finalDenom[k];
+                });
+              }
+            }
+            await recordCashTx({ sessionId: sess.id, type: 'รายจ่าย', direction: 'out', amount, netAmount: amount, refId: exp?.id, refTable: 'รายจ่าย', note: desc, denominations: finalDenom });
           }
         }
         toast('บันทึกรายจ่ายสำเร็จ', 'success');
@@ -933,73 +1061,73 @@ window.showAddExpenseModal = function() {
 // ══════════════════════════════════════
 // SECTION 5: V26 Cash Flow Wizards
 // ══════════════════════════════════════
-window.v26StartCashWizard = async function(opts) {
+window.v26StartCashWizard = async function (opts) {
   const { title, desc, targetAmount, mustBeExact, onConfirm } = opts;
-  const { data: sess } = await db.from('cash_session').select('denominations').eq('status','open').maybeSingle();
-  if (!sess) { toast('ลิ้นชักปิดอยู่','error'); return; }
+  const { data: sess } = await db.from('cash_session').select('denominations').eq('status', 'open').maybeSingle();
+  if (!sess) { toast('ลิ้นชักปิดอยู่', 'error'); return; }
   let stock = {};
   if (sess.denominations) {
-     stock = typeof sess.denominations === 'string' ? JSON.parse(sess.denominations) : sess.denominations;
+    stock = typeof sess.denominations === 'string' ? JSON.parse(sess.denominations) : sess.denominations;
   }
-  
+
   let currentCounts = {};
-  [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(k => currentCounts[k]=0);
-  
+  [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(k => currentCounts[k] = 0);
+
   const getDObj = (d) => {
-    switch(Number(d)) {
-      case 1000: return { type:'bank', c:'#6b7280', l:'แบงค์พัน' }; // Gray
-      case 500: return { type:'bank', c:'#9333ea', l:'แบงค์ห้าร้อย' }; // Purple
-      case 100: return { type:'bank', c:'#dc2626', l:'แบงค์ร้อย' }; // Red
-      case 50: return { type:'bank', c:'#2563eb', l:'แบงค์ห้าสิบ' }; // Blue
-      case 20: return { type:'bank', c:'#16a34a', l:'แบงค์ยี่สิบ' }; // Green
-      case 10: return { type:'coin', c:'#475569', l:'เหรียญสิบ', bg:'#f1f5f9' };
-      case 5: return { type:'coin', c:'#b45309', l:'เหรียญห้า', bg:'#fffbeb' };
-      case 2: return { type:'coin', c:'#b45309', l:'เหรียญสอง', bg:'#fffbeb' };
-      case 1: return { type:'coin', c:'#475569', l:'เหรียญบาท', bg:'#f1f5f9' };
+    switch (Number(d)) {
+      case 1000: return { type: 'bank', c: '#6b7280', l: 'แบงค์พัน' }; // Gray
+      case 500: return { type: 'bank', c: '#9333ea', l: 'แบงค์ห้าร้อย' }; // Purple
+      case 100: return { type: 'bank', c: '#dc2626', l: 'แบงค์ร้อย' }; // Red
+      case 50: return { type: 'bank', c: '#2563eb', l: 'แบงค์ห้าสิบ' }; // Blue
+      case 20: return { type: 'bank', c: '#16a34a', l: 'แบงค์ยี่สิบ' }; // Green
+      case 10: return { type: 'coin', c: '#475569', l: 'เหรียญสิบ', bg: '#f1f5f9' };
+      case 5: return { type: 'coin', c: '#b45309', l: 'เหรียญห้า', bg: '#fffbeb' };
+      case 2: return { type: 'coin', c: '#b45309', l: 'เหรียญสอง', bg: '#fffbeb' };
+      case 1: return { type: 'coin', c: '#475569', l: 'เหรียญบาท', bg: '#f1f5f9' };
     }
   }
 
   const renderDrawerSection = (list, totalAcc) => {
-     let html = '';
-     list.forEach(d => {
-        const qty = currentCounts[d];
-        const max = stock[d] || 0;
-        totalAcc.val += qty * d;
-        const o = getDObj(d);
-        const has = qty > 0;
-        
-        // 3D Cash Slot styling
-        let slotStyle = `background:#1e293b; border-radius:8px; border:2px solid #0f172a; box-shadow:inset 0 10px 15px rgba(0,0,0,0.6); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.1s; height:${o.type==='bank'?'120px':'90px'}; aspect-ratio:${o.type==='bank'?'3/4':'1/1'}; margin:0 auto;`;
-        
-        let itemInsides = has ? `
-          <div style="position:absolute; inset:6px; background:${o.c}; border-radius:${o.type==='coin'?'50%':'4px'}; box-shadow:0 3px 6px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.2); display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid rgba(0,0,0,0.2);">
-             <div style="font-size:${o.type==='coin'?'18px':'22px'}; color:#fff; font-weight:900; text-shadow:1px 1px 3px rgba(0,0,0,0.6);">฿${d}</div>
+    let html = '';
+    list.forEach(d => {
+      const qty = currentCounts[d];
+      const max = stock[d] || 0;
+      totalAcc.val += qty * d;
+      const o = getDObj(d);
+      const has = qty > 0;
+
+      // 3D Cash Slot styling
+      let slotStyle = `background:#1e293b; border-radius:8px; border:2px solid #0f172a; box-shadow:inset 0 10px 15px rgba(0,0,0,0.6); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.1s; height:${o.type === 'bank' ? '120px' : '90px'}; aspect-ratio:${o.type === 'bank' ? '3/4' : '1/1'}; margin:0 auto;`;
+
+      let itemInsides = has ? `
+          <div style="position:absolute; inset:6px; background:${o.c}; border-radius:${o.type === 'coin' ? '50%' : '4px'}; box-shadow:0 3px 6px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.2); display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid rgba(0,0,0,0.2);">
+             <div style="font-size:${o.type === 'coin' ? '18px' : '22px'}; color:#fff; font-weight:900; text-shadow:1px 1px 3px rgba(0,0,0,0.6);">฿${d}</div>
              <div style="background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:10px; color:#fff; font-size:12px; margin-top:4px; font-weight:700;">${qty}</div>
           </div>
         ` : `
           <div style="position:absolute; inset:0; display:flex; justify-content:center; align-items:center; color:#475569; font-size:18px; font-weight:800; opacity:0.4;">฿${d}</div>
         `;
-        
-        html += `
+
+      html += `
         <div style="text-align:center;">
            <div style="${slotStyle}" onclick="document.getElementById('v26cw-upd').value='${d},1'; document.getElementById('v26cw-btn').click();" onmousedown="this.style.transform='scale(0.95)';" onmouseup="this.style.transform='scale(1)';">
               ${itemInsides}
            </div>
-           <div style="margin-top:8px; font-size:11px; color:${qty>max?'#f87171':'#64748b'}; font-weight:800;">${max<=0?'(หมด)':`สต็อก: ${max}`}</div>
+           <div style="margin-top:8px; font-size:11px; color:${qty > max ? '#f87171' : '#64748b'}; font-weight:800;">${max <= 0 ? '(หมด)' : `สต็อก: ${max}`}</div>
            ${has ? `<button onclick="document.getElementById('v26cw-upd').value='${d},-1'; document.getElementById('v26cw-btn').click();" style="margin-top:4px; border:none; background:#ef4444; color:#fff; border-radius:4px; font-size:12px; padding:2px 10px; cursor:pointer;"><i class="material-icons-round" style="font-size:12px;vertical-align:middle;">remove</i> คืน</button>` : `<div style="height:24px;margin-top:4px;"></div>`}
         </div>`;
-     });
-     return html;
+    });
+    return html;
   };
-  
+
   const redraw = () => {
     let tObj = { val: 0 };
     let bHtml = renderDrawerSection([1000, 500, 100, 50, 20], tObj);
     let cHtml = renderDrawerSection([10, 5, 2, 1], tObj);
-    
+
     let diff = tObj.val - targetAmount;
     let isOk = mustBeExact ? (diff === 0) : (diff >= 0);
-    
+
     let html = `<div class="v26-dwrap">
       <div class="v26-dhead">
         <div><h3 style="margin:0;color:#1e3a8a;font-size:22px;">${title}</h3><p style="margin:4px 0 0;color:#64748b;">${desc}</p></div>
@@ -1019,7 +1147,7 @@ window.v26StartCashWizard = async function(opts) {
       </div>
       <div style="background:#f8fafc; padding:20px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
          <span style="font-size:16px;font-weight:700;color:#334155;">รวมที่หยิบแล้ว:</span>
-         <span style="font-size:32px;font-weight:800;color:${isOk? '#10b981': (diff>0? '#3b82f6':'#dc2626')}">฿${formatNum(tObj.val)} ${diff>0 ? `<span style="font-size:14px;color:#64748b;margin-left:8px;">(ทอน ฿${formatNum(diff)})</span>` : ''}</span>
+         <span style="font-size:32px;font-weight:800;color:${isOk ? '#10b981' : (diff > 0 ? '#3b82f6' : '#dc2626')}">฿${formatNum(tObj.val)} ${diff > 0 ? `<span style="font-size:14px;color:#64748b;margin-left:8px;">(ทอน ฿${formatNum(diff)})</span>` : ''}</span>
       </div>
       <input type="hidden" id="v26cw-upd"><button type="button" id="v26cw-btn" style="display:none;"></button>
     </div>`;
@@ -1029,27 +1157,27 @@ window.v26StartCashWizard = async function(opts) {
   const showStep1 = async () => {
     let st = redraw();
     const r = await Swal.fire({
-      html: st.html, showCancelButton:true, confirmButtonText:'ยืนยันความถูกต้อง', cancelButtonText:'ยกเลิก', width:'800px',
-      confirmButtonColor:'#3b82f6',
+      html: st.html, showCancelButton: true, confirmButtonText: 'ยืนยันความถูกต้อง', cancelButtonText: 'ยกเลิก', width: '800px',
+      confirmButtonColor: '#3b82f6',
       didOpen: () => {
         document.getElementById('v26cw-btn').onclick = () => {
-           let val = document.getElementById('v26cw-upd').value;
-           let [d, delta] = val.split(',').map(Number);
-           currentCounts[d] += delta;
-           let nst = redraw();
-           document.querySelector('.swal2-html-container').innerHTML = nst.html;
-           if(nst.isOk) Swal.enableButtons(); else Swal.disableButtons();
-           // re-bind
-           const nb = document.getElementById('v26cw-btn');
-           if(nb) nb.onclick = document.getElementById('v26cw-btn').onclick;
+          let val = document.getElementById('v26cw-upd').value;
+          let [d, delta] = val.split(',').map(Number);
+          currentCounts[d] += delta;
+          let nst = redraw();
+          document.querySelector('.swal2-html-container').innerHTML = nst.html;
+          if (nst.isOk) Swal.enableButtons(); else Swal.disableButtons();
+          // re-bind
+          const nb = document.getElementById('v26cw-btn');
+          if (nb) nb.onclick = document.getElementById('v26cw-btn').onclick;
         };
-        if(!st.isOk) Swal.disableButtons();
+        if (!st.isOk) Swal.disableButtons();
       },
       preConfirm: () => {
-         let t = 0; Object.entries(currentCounts).forEach(([k,v]) => { t += Number(k)*v; });
-         if (mustBeExact && t !== targetAmount) { Swal.showValidationMessage('ต้องนับให้พอดีเป๊ะ ห้ามขาดห้ามเกิน (ห้ามทอน)'); return false; }
-         if (!mustBeExact && t < targetAmount) { Swal.showValidationMessage('จำนวนเงินที่นับไม่พอกับยอดที่ต้องจ่าย'); return false; }
-         return t;
+        let t = 0; Object.entries(currentCounts).forEach(([k, v]) => { t += Number(k) * v; });
+        if (mustBeExact && t !== targetAmount) { Swal.showValidationMessage('ต้องนับให้พอดีเป๊ะ ห้ามขาดห้ามเกิน (ห้ามทอน)'); return false; }
+        if (!mustBeExact && t < targetAmount) { Swal.showValidationMessage('จำนวนเงินที่นับไม่พอกับยอดที่ต้องจ่าย'); return false; }
+        return t;
       }
     });
     return r.isConfirmed ? r.value : null;
@@ -1057,42 +1185,42 @@ window.v26StartCashWizard = async function(opts) {
 
   let totalGiven = await showStep1();
   if (totalGiven === null) return;
-  
+
   if (mustBeExact || totalGiven === targetAmount) {
-     onConfirm({...currentCounts}, null); // no change wrapper
-     return;
+    onConfirm({ ...currentCounts }, null); // no change wrapper
+    return;
   }
-  
+
   // Step 2: Receive Change
   let changeNeeded = totalGiven - targetAmount;
   let changeCounts = {};
-  [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(k => changeCounts[k]=0);
-  
+  [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(k => changeCounts[k] = 0);
+
   const redrawChange = () => {
     let tObj = { val: 0 };
     // We don't limit change by drawer stock, because change is PUT INTO the drawer by the customer.
     // Wait, the change is what we give OUT of the drawer back? No, the change is what the customer gives back.
     // If the Expense cost is 200, we put 1000 OUT to customer. Customer gives 800 BACK as change. We PUT 800 IN drawer.
     // The previous implementation added `delta` to `changeCounts` without checking max. Which is correct!
-    
+
     let cHtml = '';
     [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(d => {
-       const qty = changeCounts[d];
-       const o = getDObj(d);
-       tObj.val += qty * d;
-       const has = qty > 0;
-       
-       let slotStyle = `background:#1e293b; border-radius:8px; border:2px solid #0f172a; box-shadow:inset 0 10px 15px rgba(0,0,0,0.6); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.1s; height:${o.type==='bank'?'120px':'90px'}; aspect-ratio:${o.type==='bank'?'3/4':'1/1'}; margin:0 auto;`;
-       let itemInsides = has ? `
-         <div style="position:absolute; inset:6px; background:${o.c}; border-radius:${o.type==='coin'?'50%':'4px'}; box-shadow:0 3px 6px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.2); display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid rgba(0,0,0,0.2);">
-            <div style="font-size:${o.type==='coin'?'18px':'22px'}; color:#fff; font-weight:900; text-shadow:1px 1px 3px rgba(0,0,0,0.6);">฿${d}</div>
+      const qty = changeCounts[d];
+      const o = getDObj(d);
+      tObj.val += qty * d;
+      const has = qty > 0;
+
+      let slotStyle = `background:#1e293b; border-radius:8px; border:2px solid #0f172a; box-shadow:inset 0 10px 15px rgba(0,0,0,0.6); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.1s; height:${o.type === 'bank' ? '120px' : '90px'}; aspect-ratio:${o.type === 'bank' ? '3/4' : '1/1'}; margin:0 auto;`;
+      let itemInsides = has ? `
+         <div style="position:absolute; inset:6px; background:${o.c}; border-radius:${o.type === 'coin' ? '50%' : '4px'}; box-shadow:0 3px 6px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.2); display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid rgba(0,0,0,0.2);">
+            <div style="font-size:${o.type === 'coin' ? '18px' : '22px'}; color:#fff; font-weight:900; text-shadow:1px 1px 3px rgba(0,0,0,0.6);">฿${d}</div>
             <div style="background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:10px; color:#fff; font-size:12px; margin-top:4px; font-weight:700;">${qty}</div>
          </div>
        ` : `
          <div style="position:absolute; inset:0; display:flex; justify-content:center; align-items:center; color:#475569; font-size:18px; font-weight:800; opacity:0.4;">฿${d}</div>
        `;
-       
-       cHtml += `
+
+      cHtml += `
        <div style="text-align:center;">
           <div style="${slotStyle}" onclick="document.getElementById('v26cwc-upd').value='${d},1'; document.getElementById('v26cwc-btn').click();" onmousedown="this.style.transform='scale(0.95)';" onmouseup="this.style.transform='scale(1)';">
              ${itemInsides}
@@ -1116,7 +1244,7 @@ window.v26StartCashWizard = async function(opts) {
        </div>
        <div style="background:#f8fafc; padding:20px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
          <span style="font-size:16px;font-weight:700;color:#334155;">เงินทอนที่นับแล้ว:</span>
-         <span style="font-size:32px;font-weight:800;color:${isOk? '#10b981':'#dc2626'}">฿${formatNum(tObj.val)}</span>
+         <span style="font-size:32px;font-weight:800;color:${isOk ? '#10b981' : '#dc2626'}">฿${formatNum(tObj.val)}</span>
       </div>
       <input type="hidden" id="v26cwc-upd"><button type="button" id="v26cwc-btn" style="display:none;"></button>
     </div>`;
@@ -1126,38 +1254,38 @@ window.v26StartCashWizard = async function(opts) {
   const showStep2 = async () => {
     let st = redrawChange();
     const r2 = await Swal.fire({
-      html: st.html, showCancelButton:false, confirmButtonText:'<i class="material-icons-round">done_all</i> ยืนยันการทอนเงิน', width:'800px',
-      confirmButtonColor:'#10b981', allowOutsideClick: false,
+      html: st.html, showCancelButton: false, confirmButtonText: '<i class="material-icons-round">done_all</i> ยืนยันการทอนเงิน', width: '800px',
+      confirmButtonColor: '#10b981', allowOutsideClick: false,
       didOpen: () => {
         document.getElementById('v26cwc-btn').onclick = () => {
-           let val = document.getElementById('v26cwc-upd').value;
-           let [d, delta] = val.split(',').map(Number);
-           changeCounts[d] += delta;
-           let nst = redrawChange();
-           document.querySelector('.swal2-html-container').innerHTML = nst.html;
-           if(nst.isOk) Swal.enableButtons(); else Swal.disableButtons();
-           const nb = document.getElementById('v26cwc-btn');
-           if(nb) nb.onclick = document.getElementById('v26cwc-btn').onclick;
+          let val = document.getElementById('v26cwc-upd').value;
+          let [d, delta] = val.split(',').map(Number);
+          changeCounts[d] += delta;
+          let nst = redrawChange();
+          document.querySelector('.swal2-html-container').innerHTML = nst.html;
+          if (nst.isOk) Swal.enableButtons(); else Swal.disableButtons();
+          const nb = document.getElementById('v26cwc-btn');
+          if (nb) nb.onclick = document.getElementById('v26cwc-btn').onclick;
         };
-        if(!st.isOk) Swal.disableButtons();
+        if (!st.isOk) Swal.disableButtons();
       },
       preConfirm: () => {
-         let t = 0; Object.entries(changeCounts).forEach(([k,v]) => { t += Number(k)*v; });
-         if (t !== changeNeeded) { Swal.showValidationMessage('คุณต้องนับเงินทอนให้พอดีเป๊ะ ห้ามขาดและห้ามเกิน'); return false; }
-         return true;
+        let t = 0; Object.entries(changeCounts).forEach(([k, v]) => { t += Number(k) * v; });
+        if (t !== changeNeeded) { Swal.showValidationMessage('คุณต้องนับเงินทอนให้พอดีเป๊ะ ห้ามขาดและห้ามเกิน'); return false; }
+        return true;
       }
     });
     return r2.isConfirmed;
   };
-  
+
   let ok2 = await showStep2();
-  if (ok2) onConfirm({...currentCounts}, {...changeCounts});
+  if (ok2) onConfirm({ ...currentCounts }, { ...changeCounts });
 };
 
 // ══════════════════════════════════════
 // SECTION 4: CSV EXPORT
 // ══════════════════════════════════════
-window.v26ShowCSVExport = function() {
+window.v26ShowCSVExport = function () {
   const now = new Date();
   openModal('📊 ส่งออกสรุปรายเดือน', `
     <div style="text-align:center;margin-bottom:16px;">
@@ -1165,7 +1293,7 @@ window.v26ShowCSVExport = function() {
       <p style="font-size:14px;color:#64748b;margin-top:6px;">เลือกเดือนแล้วดาวน์โหลดเป็น CSV</p>
     </div>
     <div class="form-group"><label class="form-label">เดือน</label>
-      <input type="month" class="form-input" id="v26cm" value="${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}"></div>
+      <input type="month" class="form-input" id="v26cm" value="${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}"></div>
     <div id="v26cpw"></div>
     <div style="display:flex;gap:8px;margin-top:14px;">
       <button class="btn btn-outline" style="flex:1;" onclick="v26Preview()"><i class="material-icons-round">visibility</i> ตัวอย่าง</button>
@@ -1175,45 +1303,47 @@ window.v26ShowCSVExport = function() {
 
 async function v26CSVData() {
   const mv = document.getElementById('v26cm')?.value; if (!mv) return null;
-  const [y,m] = mv.split('-');
+  const [y, m] = mv.split('-');
   const ms = `${y}-${m}-01`, me = new Date(+y, +m, 0).toISOString().split('T')[0];
-  const ml = new Date(+y, +m-1).toLocaleDateString('th-TH', { month:'long', year:'numeric' });
+  const ml = new Date(+y, +m - 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
   const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
-  const { data: at } = await db.from('เช็คชื่อ').select('*').gte('date',ms).lte('date',me);
-  const { data: av } = await db.from('เบิกเงิน').select('*').eq('status','อนุมัติ').gte('date',ms+'T00:00:00').lte('date',me+'T23:59:59');
-  const { data: pd } = await db.from('จ่ายเงินเดือน').select('*').eq('month',ms);
+  const { data: at } = await db.from('เช็คชื่อ').select('*').gte('date', ms).lte('date', me);
+  const { data: av } = await db.from('เบิกเงิน').select('*').eq('status', 'อนุมัติ').gte('date', ms + 'T00:00:00').lte('date', me + 'T23:59:59');
+  const { data: pd } = await db.from('จ่ายเงินเดือน').select('*').eq('month', ms);
 
-  return { ml, rows: emps.map(emp => {
-    const ma = (at||[]).filter(a => a.employee_id === emp.id);
-    const days = k => ma.filter(a => a.status === k).map(a => new Date(a.date).getDate()).sort((a,b)=>a-b).join(',') || '-';
-    const wc = ma.filter(a => a.status !== 'ขาด').length;
-    const td = ma.reduce((s,a) => s+(a.deduction||0), 0);
-    const w = emp.daily_wage||0, earn = (wc*w)-td;
-    const myA = (av||[]).filter(a => a.employee_id === emp.id);
-    const ta = myA.reduce((s,a) => s+a.amount, 0);
-    const ad = myA.map(a => `${new Date(a.date).getDate()}/${+m}: ฿${a.amount}`).join('; ') || '-';
-    const p = (pd||[]).find(p => p.employee_id === emp.id);
-    return { name: `${emp.name} ${emp.lastname||''}`.trim(), pos: emp.position||'', wpd: w, wc, present: days('มา'), late: days('มาสาย'), half: days('ครึ่งวัน'), leave: days('ลา'), absent: days('ขาด'), td, earn, ad, ta, ss: p?.deduct_ss||0, od: p?.deduct_other||0, net: earn, paid: p?.net_paid||0, paidDate: p?.paid_date ? new Date(p.paid_date).toLocaleDateString('th-TH') : '-' };
-  })};
+  return {
+    ml, rows: emps.map(emp => {
+      const ma = (at || []).filter(a => a.employee_id === emp.id);
+      const days = k => ma.filter(a => a.status === k).map(a => new Date(a.date).getDate()).sort((a, b) => a - b).join(',') || '-';
+      const wc = ma.filter(a => a.status !== 'ขาด').length;
+      const td = ma.reduce((s, a) => s + (a.deduction || 0), 0);
+      const w = emp.daily_wage || 0, earn = (wc * w) - td;
+      const myA = (av || []).filter(a => a.employee_id === emp.id);
+      const ta = myA.reduce((s, a) => s + a.amount, 0);
+      const ad = myA.map(a => `${new Date(a.date).getDate()}/${+m}: ฿${a.amount}`).join('; ') || '-';
+      const p = (pd || []).find(p => p.employee_id === emp.id);
+      return { name: `${emp.name} ${emp.lastname || ''}`.trim(), pos: emp.position || '', wpd: w, wc, present: days('มา'), late: days('มาสาย'), half: days('ครึ่งวัน'), leave: days('ลา'), absent: days('ขาด'), td, earn, ad, ta, ss: p?.deduct_ss || 0, od: p?.deduct_other || 0, net: earn, paid: p?.net_paid || 0, paidDate: p?.paid_date ? new Date(p.paid_date).toLocaleDateString('th-TH') : '-' };
+    })
+  };
 }
 
-window.v26Preview = async function() {
-  const d = await v26CSVData(); if (!d) { toast('เลือกเดือน','warning'); return; }
+window.v26Preview = async function () {
+  const d = await v26CSVData(); if (!d) { toast('เลือกเดือน', 'warning'); return; }
   const w = document.getElementById('v26cpw'); if (!w) return;
   let t = `สรุป ${d.ml}\n${'─'.repeat(50)}\n`;
   d.rows.forEach(r => { t += `${r.name} | ${r.pos} | ทำงาน ${r.wc} วัน | สะสม ฿${r.earn} | เบิก ฿${r.ta} | สุทธิ ฿${r.net}\n`; });
   w.innerHTML = `<div class="v26-csv-pre">${t}</div>`;
 };
 
-window.v26DlCSV = async function() {
-  const d = await v26CSVData(); if (!d) { toast('เลือกเดือน','warning'); return; }
-  const h = ['ชื่อ','ตำแหน่ง','ค่าจ้าง/วัน','วันทำงาน','วันที่มา','วันสาย','วันครึ่งวัน','วันลา','วันขาด','หักสาย/ขาด','ค่าจ้างสะสม','เบิกเงิน(รายการ)','ยอดเบิก','หักประกันสังคม','หักอื่นๆ','ยอดสุทธิ','จ่ายแล้ว','วันที่จ่าย'];
+window.v26DlCSV = async function () {
+  const d = await v26CSVData(); if (!d) { toast('เลือกเดือน', 'warning'); return; }
+  const h = ['ชื่อ', 'ตำแหน่ง', 'ค่าจ้าง/วัน', 'วันทำงาน', 'วันที่มา', 'วันสาย', 'วันครึ่งวัน', 'วันลา', 'วันขาด', 'หักสาย/ขาด', 'ค่าจ้างสะสม', 'เบิกเงิน(รายการ)', 'ยอดเบิก', 'หักประกันสังคม', 'หักอื่นๆ', 'ยอดสุทธิ', 'จ่ายแล้ว', 'วันที่จ่าย'];
   const rows = [h.join(',')];
-  d.rows.forEach(r => { rows.push([`"${r.name}"`,`"${r.pos}"`,r.wpd,r.wc,`"${r.present}"`,`"${r.late}"`,`"${r.half}"`,`"${r.leave}"`,`"${r.absent}"`,r.td,r.earn,`"${r.ad}"`,r.ta,r.ss,r.od,r.net,r.paid,`"${r.paidDate}"`].join(',')); });
-  const blob = new Blob(['\uFEFF'+rows.join('\n')], { type:'text/csv;charset=utf-8;' });
+  d.rows.forEach(r => { rows.push([`"${r.name}"`, `"${r.pos}"`, r.wpd, r.wc, `"${r.present}"`, `"${r.late}"`, `"${r.half}"`, `"${r.leave}"`, `"${r.absent}"`, r.td, r.earn, `"${r.ad}"`, r.ta, r.ss, r.od, r.net, r.paid, `"${r.paidDate}"`].join(',')); });
+  const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `สรุปพนักงาน_${d.ml.replace(/\s/g,'_')}.csv`; a.click();
-  toast('ดาวน์โหลด CSV สำเร็จ','success'); closeModal();
+  a.download = `สรุปพนักงาน_${d.ml.replace(/\s/g, '_')}.csv`; a.click();
+  toast('ดาวน์โหลด CSV สำเร็จ', 'success'); closeModal();
 };
 
 console.info('%c[v26-HR] ✅%c White-Red Attendance | Payroll Selector | CSV | Social Security', 'color:#dc2626;font-weight:700', 'color:#6B7280');

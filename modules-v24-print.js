@@ -45,8 +45,12 @@ function v24NumberToThaiWords(n) {
 
 /* ═══ HELPERS ═══ */
 const _v24f = n => Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const _v24d = d => d ? new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
-
+const _v24d = d => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
+         dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+};
 /* ═══ DOC TYPES — ALL RED/WHITE ═══ */
 const V24_TYPES = {
   receipt: { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE', sk: 'receipt_a4', sig: ['ผู้รับของ / Received By', 'ผู้อนุมัติ / Authorized'] },
@@ -153,15 +157,26 @@ function v24Hdr(rc, dt, bill, pn, tp, ds) {
 /* ═══ RENDER: Customer ═══ */
 function v24Cust(bill, ds, dt) {
   if (ds?.show_customer === false) return '';
+  
+  // สำรองข้อมูล เผื่อมีใน delivery_address/phone
+  const custAddr = bill.customer_address || bill.delivery_address || '';
+  const custPhone = bill.customer_phone || bill.delivery_phone || '';
+
   return `<div class="cbox"><div class="cbox-h">ข้อมูลลูกค้า / CUSTOMER</div><div class="cbox-b">
-    <div class="cbox-l"><div class="cn">${bill.customer_name || 'ลูกค้าทั่วไป'}</div>
-      ${bill.customer_address ? `<div class="cd" style="white-space:pre-line">${bill.customer_address}</div>` : ''}
-      ${bill.customer_phone ? `<div class="cd">โทร: ${bill.customer_phone}</div>` : ''}
-    </div><div class="cbox-r">
-      ${ds?.show_staff !== false ? `<div class="cf"><span class="cf-l">พนักงาน</span><span class="cf-v">${bill.staff_name || '-'}</span></div>` : ''}
-      ${ds?.show_method !== false ? `<div class="cf"><span class="cf-l">วิธีชำระ</span><span class="cf-v">${bill.method || '-'}</span></div>` : ''}
-      ${dt === 'delivery' && bill.delivery_address ? `<div class="cf"><span class="cf-l">ที่อยู่จัดส่ง</span><span class="cf-v">${bill.delivery_address}</span></div>` : ''}
-    </div></div></div>`;
+    <div class="cbox-l">
+      <div class="cn">${bill.customer_name || 'ลูกค้าทั่วไป'}</div>
+      <div class="cd">
+        ${custAddr ? `<span style="display:block;white-space:pre-line;margin-bottom:2px;">${custAddr}</span>` : ''}
+        ${custPhone ? `<span style="display:block;font-weight:600;color:#475569;"><span style="font-size:10px;">📞</span> ${custPhone}</span>` : ''}
+        ${!custAddr && !custPhone && bill.customer_name !== 'ลูกค้าทั่วไป' ? 'ไม่มีข้อมูลที่อยู่และเบอร์โทร' : ''}
+      </div>
+    </div>
+    <div class="cbox-r">
+      ${ds?.show_staff !== false ? `<div class="cf"><span class="cf-l">พนักงานขาย:</span><span class="cf-v">${bill.staff_name || '-'}</span></div>` : ''}
+      ${ds?.show_method !== false ? `<div class="cf"><span class="cf-l">วิธีชำระเงิน:</span><span class="cf-v">${bill.method || '-'}</span></div>` : ''}
+      ${dt === 'delivery' && bill.delivery_address && bill.delivery_address !== custAddr ? `<div class="cf" style="margin-top:4px;padding-top:4px;border-top:1px dashed #e2e8f0;"><span class="cf-l">สถานที่จัดส่ง:</span><span class="cf-v" style="text-align:right;">${bill.delivery_address}</span></div>` : ''}
+    </div>
+  </div></div>`;
 }
 
 /* ═══ RENDER: Table ═══ */
