@@ -840,12 +840,18 @@ window.v26ShowPayDetail = function (eid) {
   v26Val(eid, earn, ta);
 };
 
-window.v26Val = function (eid, max, maxDebt) {
-  const r = Number(document.getElementById(`v26r-${eid}`)?.value || 0);
-  const d = Number(document.getElementById(`v26d-${eid}`)?.value || 0);
-  const ss = Number(document.getElementById(`v26s-${eid}`)?.value || 0);
-  const o = Number(document.getElementById(`v26o-${eid}`)?.value || 0);
-  const t = r + d + ss + o;
+window.v26Val = function(eid, max, maxDebt) {
+  const r = Number(document.getElementById(`v26r-${eid}`)?.value||0);
+  const d = Number(document.getElementById(`v26d-${eid}`)?.value||0);
+  const ss = Number(document.getElementById(`v26s-${eid}`)?.value||0);
+  const o = Number(document.getElementById(`v26o-${eid}`)?.value||0);
+  
+  // ยอดรวมทั้ง 4 ช่อง
+  const t = r + d + ss + o; 
+  
+  // ยอดรวมเฉพาะส่วนที่หัก (หนี้ + ประกัน + อื่นๆ)
+  const deductions = d + ss + o; 
+
   const el = document.getElementById(`v26vm-${eid}`);
   const btn = document.getElementById(`v26pb-${eid}`);
 
@@ -853,28 +859,50 @@ window.v26Val = function (eid, max, maxDebt) {
     if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ยอดหักหนี้ (฿${formatNum(d)}) เกินยอดหนี้ที่ค้างอยู่ (฿${formatNum(maxDebt)})`; }
     if (btn) btn.disabled = true;
   } else if (t > max) {
-    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ยอดรวม ฿${formatNum(t)} เกินยอดสะสมสูงสุด ฿${formatNum(max)}`; }
+    if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ยอดรวมทั้ง 4 ช่อง (฿${formatNum(t)}) เกินยอดสะสมสูงสุดที่ได้ (฿${formatNum(max)})`; }
     if (btn) btn.disabled = true;
   } else if (r < 0 || d < 0 || ss < 0 || o < 0) {
     if (el) { el.className = 'v26-vmsg show bad'; el.innerHTML = `<i class="material-icons-round" style="font-size:18px;">error</i> ห้ามกรอกค่าติดลบ`; }
     if (btn) btn.disabled = true;
   } else {
     // โชว์สรุปเมื่อข้อมูลถูกต้อง
-    if (el) {
-      el.className = 'v26-vmsg show good';
-      el.innerHTML = `
-         <div style="display:flex; flex-direction:column; width:100%;">
-           <div style="display:flex; align-items:center; gap:8px; font-size:15px;">
-             <i class="material-icons-round" style="font-size:20px;">check_circle</i>
-             <span>สรุปการจ่ายรอบนี้:</span>
+    if (el) { 
+       el.className = 'v26-vmsg show good'; 
+       el.style.display = 'block'; // บังคับให้เป็น block เพื่อไม่ให้ layout พัง
+       el.innerHTML = `
+         <div style="width:100%;">
+           
+           <div style="display:flex; justify-content:space-between; align-items:center; background:#dcfce7; border:1px solid #bbf7d0; padding:12px 16px; border-radius:8px; margin-bottom:12px;">
+             <div style="display:flex; align-items:center; gap:8px;">
+               <i class="material-icons-round" style="color:#059669; font-size:22px;">calculate</i>
+               <span style="font-size:14px; font-weight:700; color:#065f46;">ยอดรวมที่กรอก (4 ช่อง):</span>
+               <strong style="font-size:18px; color:#047857;">฿${formatNum(t)}</strong>
+             </div>
+             <div style="font-size:13px; color:#15803d; font-weight:600; background:#fff; padding:4px 10px; border-radius:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+               เบิกได้อีก ฿${formatNum(max - t)}
+             </div>
            </div>
-           <div style="margin-top:10px; font-size:14px; background:rgba(255,255,255,0.7); padding:10px 14px; border-radius:10px; display:flex; flex-direction:column; gap:6px; color:#334155;">
-             <div style="display:flex; justify-content:space-between;"><span>ยอดหักรวมทั้งหมด:</span> <strong>฿${formatNum(d + ss + o)}</strong></div>
-             ${d > 0 ? `<div style="display:flex; justify-content:space-between; color:#b45309; font-size:13px;"><span>- หักชำระหนี้: ฿${formatNum(d)}</span> <span>(เหลือหนี้ค้าง ฿${formatNum(maxDebt - d)})</span></div>` : ''}
-             <div style="display:flex; justify-content:space-between; color:#16a34a; margin-top:6px; padding-top:8px; border-top:1px dashed #bbf7d0; font-size:16px;"><span>รับเงินจริงสุทธิ:</span> <strong>฿${formatNum(r)}</strong></div>
+
+           <div style="font-size:14px; background:rgba(255,255,255,0.9); padding:14px 16px; border-radius:8px; display:flex; flex-direction:column; gap:10px; color:#334155; border:1px solid #e2e8f0;">
+             <div style="display:flex; justify-content:space-between; align-items:center;">
+               <span style="color:#64748b; font-weight:600;">รวมหักเงินสะสมครั้งนี้:</span> 
+               <strong style="font-size:16px; color:#dc2626;">฿${formatNum(deductions)}</strong>
+             </div>
+             
+             ${d > 0 ? `
+             <div style="display:flex; justify-content:space-between; align-items:center; color:#b45309; font-size:13px; padding-left:10px; border-left:2px solid #fcd34d;">
+               <span>- หักชำระหนี้: ฿${formatNum(d)}</span> 
+               <span style="opacity:0.8;">(หนี้คงค้างจะเหลือ ฿${formatNum(maxDebt-d)})</span>
+             </div>` : ''}
+             
+             <div style="display:flex; justify-content:space-between; align-items:center; color:#16a34a; margin-top:4px; padding-top:12px; border-top:1px dashed #cbd5e1;">
+               <span style="font-weight:700;">พนักงานรับเงินจริงสุทธิ:</span> 
+               <strong style="font-size:20px;">฿${formatNum(r)}</strong>
+             </div>
            </div>
+           
          </div>
-       `;
+       `; 
     }
     if (btn) btn.disabled = false;
   }
