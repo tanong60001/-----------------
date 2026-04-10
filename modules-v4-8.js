@@ -2660,7 +2660,7 @@ window.generateBarcode = async function(productId) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div>
             <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">จำนวนที่จะพิมพ์</label>
-            <input id="bc-qty-inp" type="number" value="1" min="1" max="100"
+            <input id="bc-qty-inp" type="number" value="3" min="1" max="500"
               style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;text-align:center;">
           </div>
           <div>
@@ -2668,22 +2668,46 @@ window.generateBarcode = async function(productId) {
             <select id="bc-format-sel" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;">
               <option value="label">Label (58mm)</option>
               <option value="a4">A4 (เต็มแผ่น)</option>
+              <option value="sticker3" selected>สติ๊กเกอร์ 3 แถบ (3.2x2.5 ซม.)</option>
             </select>
           </div>
+        </div>
+        <div id="bc-note" style="font-size:11px;color:#64748b;margin-top:10px;text-align:center;">
+          * กระดาษ 1 แถว จะได้ 3 ดวง (แนะนำพิมพ์จำนวนที่หาร 3 ลงตัว)
         </div>
       </div>`,
     showCancelButton: true,
     confirmButtonText: '<i class="material-icons-round" style="font-size:14px;vertical-align:middle;">print</i> พิมพ์',
     cancelButtonText: 'ยกเลิก',
     confirmButtonColor: '#DC2626',
+    didOpen: () => {
+      // คอยตรวจสอบว่าถ้าไม่ได้เลือก 3 แถบ ให้ซ่อนข้อความแนะนำ
+      const sel = document.getElementById('bc-format-sel');
+      const note = document.getElementById('bc-note');
+      sel.addEventListener('change', (e) => {
+        note.style.display = e.target.value === 'sticker3' ? 'block' : 'none';
+      });
+    },
     preConfirm: () => ({
-      qty:    parseInt(document.getElementById('bc-qty-inp')?.value || 1, 10),
+      qty:    parseInt(document.getElementById('bc-qty-inp')?.value || 3, 10),
       format: document.getElementById('bc-format-sel')?.value || 'label'
     })
   });
+  
   if (!formVals) return;
 
-  v6PrintBarcodeLabels(product, barcode, formVals.qty, formVals.format);
+  // แยกเงื่อนไขการพิมพ์ตาม Format ที่เลือก
+  if (formVals.format === 'sticker3') {
+    // โยนไปให้ฟังก์ชันสติ๊กเกอร์ 3 แถบ (ที่ให้ไปในคำตอบก่อนหน้า) จัดการ
+    if (typeof v24PrintBarcodeSticker === 'function') {
+      v24PrintBarcodeSticker(barcode, product.name, product.price, formVals.qty);
+    } else {
+      typeof toast === 'function' ? toast('ยังไม่ได้เพิ่มฟังก์ชัน v24PrintBarcodeSticker', 'error') : alert('เกิดข้อผิดพลาด');
+    }
+  } else {
+    // ถ้าเป็น label หรือ a4 ให้โยนเข้าฟังก์ชันเก่าของคุณตามปกติ
+    v6PrintBarcodeLabels(product, barcode, formVals.qty, formVals.format);
+  }
 };
 
 function v6PrintBarcodeLabels(product, barcode, qty, format) {

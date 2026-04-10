@@ -105,15 +105,41 @@ function calcChangeDenominations(amount) {
   return result;
 }
 
-// Open customer display in new window
-function openCustomerDisplay() {
+// Open customer display — จอที่ 2 + fullscreen อัตโนมัติ
+async function openCustomerDisplay() {
   if (customerDisplayWindow && !customerDisplayWindow.closed) {
     customerDisplayWindow.focus();
+    customerDisplayWindow.postMessage({ type: 'fullscreen' }, '*');
     return;
   }
-  const w = window.screen.width > 1400 ? 800 : window.screen.width / 2;
-  const h = window.screen.height;
-  customerDisplayWindow = window.open('customer-display.html', 'CustomerDisplay', `width=${w},height=${h},left=${window.screen.width - w},top=0,toolbar=no,menubar=no,scrollbars=no`);
+
+  let left = 0, top = 0, w = 1920, h = 1080;
+
+  try {
+    // Window Management API (Chrome 100+ / Edge 100+) — ตรวจจอที่ 2 โดยตรง
+    if ('getScreenDetails' in window) {
+      const sd = await window.getScreenDetails();
+      const sec = sd.screens.find(s => !s.isPrimary) ?? sd.screens[sd.screens.length - 1];
+      left = sec.left   ?? sec.availLeft ?? 0;
+      top  = sec.top    ?? sec.availTop  ?? 0;
+      w    = sec.width  || sec.availWidth  || 1920;
+      h    = sec.height || sec.availHeight || 1080;
+    } else {
+      throw new Error('api unavailable');
+    }
+  } catch (_) {
+    // Fallback: ดันหน้าต่างออกไปทางขวาของจอปัจจุบัน (จะขึ้นจอ 2 อัตโนมัติ)
+    left = (window.screen.availLeft || 0) + window.screen.width;
+    top  = window.screen.availTop  || 0;
+    w    = window.screen.width;
+    h    = window.screen.height;
+  }
+
+  customerDisplayWindow = window.open(
+    'customer-display.html',
+    'CustomerDisplay',
+    `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=yes`
+  );
 }
 
 // Send data to customer display window

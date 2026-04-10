@@ -176,9 +176,114 @@ window.v9ShowQuotModal = async function () {
 
 
 
-  const prodOpts = quotProds.map(p =>
-    `<option value="${p.id}">${p.name} — ฿${typeof formatNum === 'function' ? formatNum(p.price) : p.price}${p.stock <= 0 ? ' (หมด)' : ''}</option>`
-  ).join('');
+  // ─── Searchable Product Picker ──────────────────────────────────
+  window._v25AllProds = quotProds;
+  window._v25DropIdx  = -1;
+  const _fmt = typeof formatNum === 'function' ? formatNum : (n) => Number(n || 0).toLocaleString('th-TH');
+
+  window._v25FilterProds = (q) => {
+    const dd = document.getElementById('v25q-dropdown');
+    if (!dd) return;
+    const term = q.trim().toLowerCase();
+    if (!term) { dd.style.display = 'none'; window._v25DropIdx = -1; return; }
+
+    const matches = (window._v25AllProds || [])
+      .filter(p =>
+        p.name?.toLowerCase().includes(term) ||
+        p.barcode?.toLowerCase().includes(term) ||
+        p.category?.toLowerCase().includes(term)
+      ).slice(0, 60);
+
+    if (!matches.length) {
+      dd.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-tertiary,#94a3b8);font-size:13px">
+        <i class="material-icons-round" style="font-size:28px;display:block;opacity:.4;margin-bottom:6px">search_off</i>
+        ไม่พบสินค้า — ลองปุ่ม <b>+ นอกระบบ</b></div>`;
+      dd.style.display = 'block';
+      return;
+    }
+
+    window._v25DropIdx = -1;
+    dd.innerHTML = matches.map((p, i) => {
+      const inCart = (window._v25QuotItems || [])
+        .filter(x => x.product_id === p.id).reduce((s, x) => s + x.qty, 0);
+      const stockColor = p.stock <= 0 ? '#ef4444' : p.stock <= (p.min_stock || 3) ? '#f59e0b' : '#10b981';
+      const stockLabel = p.stock <= 0 ? 'หมดสต็อก' : `มี ${_fmt(p.stock)} ${p.unit || 'ชิ้น'}`;
+      return `<div class="v25-drop-item" data-id="${p.id}" data-idx="${i}"
+        onmousedown="event.preventDefault();window._v25PickProd('${p.id}')"
+        onmouseenter="window._v25DropIdx=${i};window._v25Highlight()"
+        style="display:flex;justify-content:space-between;align-items:center;
+          padding:9px 12px;cursor:pointer;gap:10px;
+          border-bottom:1px solid #f1f5f9;transition:background .1s">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary,#1e293b);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;align-items:center">
+            ${p.barcode ? `<span style="font-family:monospace;background:#f1f5f9;padding:1px 4px;border-radius:3px">${p.barcode}</span>` : ''}
+            ${p.category ? `<span style="color:#64748b">${p.category}</span>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:800;color:var(--primary,#3b82f6)">฿${_fmt(p.price)}</div>
+          <div style="font-size:10px;color:${stockColor}">
+            ${stockLabel}${inCart ? ` · <b style="color:#6366f1">ใส่แล้ว ${inCart}</b>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    dd.style.display = 'block';
+  };
+
+  window._v25Highlight = () => {
+    const dd = document.getElementById('v25q-dropdown');
+    if (!dd) return;
+    dd.querySelectorAll('.v25-drop-item').forEach((el, i) => {
+      el.style.background = i === window._v25DropIdx ? '#eff6ff' : '';
+    });
+  };
+
+  window._v25PickProd = (id) => {
+    window._v25AddFromStock(id);
+    // อัปเดต dropdown ให้แสดง "ใส่แล้ว X" ใหม่
+    const inp = document.getElementById('v25q-search');
+    if (inp && inp.value) window._v25FilterProds(inp.value);
+    inp?.focus();
+  };
+
+  window._v25KeyNav = (e) => {
+    const dd = document.getElementById('v25q-dropdown');
+    if (!dd || dd.style.display === 'none') return;
+    const items = dd.querySelectorAll('.v25-drop-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      window._v25DropIdx = Math.min((window._v25DropIdx ?? -1) + 1, items.length - 1);
+      window._v25Highlight();
+      items[window._v25DropIdx]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      window._v25DropIdx = Math.max((window._v25DropIdx ?? 0) - 1, 0);
+      window._v25Highlight();
+      items[window._v25DropIdx]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && window._v25DropIdx >= 0) {
+      e.preventDefault();
+      const id = items[window._v25DropIdx]?.dataset?.id;
+      if (id) window._v25PickProd(id);
+    } else if (e.key === 'Escape') {
+      dd.style.display = 'none';
+      window._v25DropIdx = -1;
+    }
+  };
+
+  // ปิด dropdown เมื่อคลิกออกนอก — auto-cleanup เมื่อ modal ถูกปิด
+  window._v25CloseDD = (e) => {
+    const dd = document.getElementById('v25q-dropdown');
+    if (!dd) { document.removeEventListener('mousedown', window._v25CloseDD); return; }
+    if (!e.target.closest('#v25q-search') && !e.target.closest('#v25q-dropdown')) {
+      dd.style.display = 'none';
+    }
+  };
+  document.addEventListener('mousedown', window._v25CloseDD);
+  // ────────────────────────────────────────────────────────────────
 
   openModal('สร้างใบเสนอราคา', `
     <div>
@@ -195,22 +300,45 @@ window.v9ShowQuotModal = async function () {
         </div>
       </div>
 
-      <!-- ปุ่มเพิ่มสินค้า -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-        <label class="form-label" style="margin:0;font-weight:700">รายการสินค้า / บริการ</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <select id="v25q-prod-sel" class="form-input" style="font-size:11px;width:180px">
-            <option value="">🔍 เลือกจากคลัง</option>${prodOpts}
-          </select>
-          <button type="button" class="btn btn-outline btn-sm"
-            onclick="const s=document.getElementById('v25q-prod-sel');if(s.value){window._v25AddFromStock(s.value);s.value=''}">
-            เพิ่ม
-          </button>
-          <button type="button" class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer"
+      <!-- ค้นหาสินค้า — Searchable Picker -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;
+        margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <label class="form-label" style="margin:0;font-weight:700;padding-top:8px">
+          รายการสินค้า / บริการ
+        </label>
+        <div style="display:flex;gap:6px;flex:1;min-width:0;max-width:480px">
+          <!-- Search input + floating dropdown -->
+          <div style="position:relative;flex:1;min-width:0">
+            <i class="material-icons-round"
+              style="position:absolute;left:9px;top:50%;transform:translateY(-50%);
+                font-size:16px;color:#94a3b8;pointer-events:none;z-index:1">search</i>
+            <input id="v25q-search" class="form-input"
+              placeholder="พิมพ์ชื่อ / บาร์โค้ด / หมวดหมู่... (คลิกเพื่อค้นหา)"
+              style="padding-left:32px;font-size:13px"
+              oninput="window._v25FilterProds(this.value)"
+              onkeydown="window._v25KeyNav(event)"
+              autocomplete="off" spellcheck="false">
+            <!-- Floating dropdown -->
+            <div id="v25q-dropdown"
+              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+                background:var(--bg-surface,#fff);
+                border:1.5px solid var(--border-light,#e2e8f0);
+                border-radius:10px;
+                box-shadow:0 16px 40px rgba(0,0,0,.15);
+                z-index:10000;max-height:280px;overflow-y:auto">
+            </div>
+          </div>
+          <!-- ปุ่มสินค้านอกระบบ -->
+          <button type="button"
+            style="background:#f59e0b;color:#fff;border:none;border-radius:8px;
+              padding:0 14px;font-size:12px;font-weight:700;cursor:pointer;
+              display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;
+              font-family:inherit;transition:background .15s"
+            onmouseover="this.style.background='#d97706'"
+            onmouseout="this.style.background='#f59e0b'"
             onclick="window._v25AddCustom()">
-            <i class="material-icons-round" style="font-size:13px;vertical-align:middle">inventory_2</i> + สินค้านอกระบบ
+            <i class="material-icons-round" style="font-size:14px">add</i>นอกระบบ
           </button>
-          
         </div>
       </div>
 
@@ -253,6 +381,8 @@ window.v9ShowQuotModal = async function () {
     </div>`);
 
   _render();
+  // Focus ช่องค้นหาหลัง modal render เสร็จ
+  setTimeout(() => document.getElementById('v25q-search')?.focus(), 120);
 };
 
 // expose

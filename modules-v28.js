@@ -589,4 +589,531 @@ window.v26StartCashWizard = function(opts){
   });
 };
 
+/* ═══════════════════════════════════════════════════════════════
+   4. DEBT PAYMENT WIZARD (รับชำระเงินลูกหนี้ 2 step)
+═══════════════════════════════════════════════════════════════ */
+/* opts: {customerId, name, payAmt, onSuccess, cashOnly}
+   cashOnly=true → wizard เป็นแค่หน้านับเงินสด ไม่บันทึก DB เอง (ให้ caller จัดการ)
+   onSuccess(paidAmt, recvTotal, chgTotal, recvDenoms, chgDenoms) */
+window.v28DebtPayWiz = function(customerId, name, payAmt, onSuccess, cashOnly) {
+  loadDrawer().then(function(drawer) {
+    var st = {step:1, recv:{}, chg:{}};
+    ALL.forEach(function(d){st.recv[d.v]=0; st.chg[d.v]=0;});
+
+    var old = document.getElementById('v28do'); if(old) old.remove();
+    var ov = document.createElement('div'); ov.id='v28do'; ov.className='v27ov';
+
+    function rT(){var s=0;ALL.forEach(function(d){s+=d.v*(st.recv[d.v]||0);});return s;}
+    function cT(){var s=0;ALL.forEach(function(d){s+=d.v*(st.chg[d.v]||0);});return s;}
+
+    function render(full){
+      var recv=rT(), cn=Math.max(0,recv-payAmt), cg=cT();
+      var enough=recv>=payAmt, cd=cn<=0||Math.abs(cn-cg)<0.01;
+      if(full){
+        if(st.step===1){
+          ov.innerHTML='<div class="v27pop"><div class="v27in">'
+            +'<div class="v27st"><div class="v27sd ac">1</div><div class="v27sl"></div><div class="v27sd pd">2</div></div>'
+            +'<div class="v27hdr"><div><div class="v27ht"><i class="material-icons-round">account_balance_wallet</i> รับเงินจากลูกหนี้</div><div class="v27hs">กดที่แบงค์/เหรียญเพื่อนับ · กดค้างเพื่อลบ</div></div>'
+            +'<div style="text-align:right;"><div class="v27hl">หนี้คงค้าง: '+name+'</div><div class="v27ha">฿'+fmt(payAmt)+'</div></div></div>'
+            +'<div class="v27sc"><h3>💵 ธนบัตรที่รับ</h3><div class="ln"></div></div>'
+            +'<div class="v27bg">'+BILLS.map(function(d){return billCard(d,st.recv[d.v],null);}).join('')+'</div>'
+            +'<div class="v27sc"><h3>🪙 เหรียญที่รับ</h3><div class="ln"></div></div>'
+            +'<div class="v27cg">'+COINS.map(function(d){return coinCard(d,st.recv[d.v],null);}).join('')+'</div>'
+            +'<div class="v27sb"><div><div class="lb">รับมาแล้ว</div><div class="vl" id="d1-recv" style="color:'+(enough?'#16a34a':'#3e2723')+';">฿'+fmt(recv)+'</div></div>'
+            +'<div style="text-align:right;" id="d1-res">'+(enough?'<div class="lb">เงินทอน</div><div class="vl" style="color:#d97706;">฿'+fmt(cn)+'</div>':'<div class="lb">ยังขาด</div><div class="vl" style="color:#ef4444;">฿'+fmt(payAmt-recv)+'</div>')+'</div></div>'
+            +'<div class="v27bt">'
+            +'<button class="v27b ca" onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'x\'}}))"><i class="material-icons-round">close</i> ยกเลิก</button>'
+            +'<button class="v27b ca" onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'r1\'}}))"><i class="material-icons-round">refresh</i> ล้าง</button>'
+            +'<button class="v27b nx" id="d1-nx" style="display:'+(enough?'':'none')+'" onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'n\'}}))"><i class="material-icons-round">arrow_forward</i> ถัดไป — ทอน ฿'+fmt(cn)+'</button>'
+            +'</div></div></div>';
+        } else {
+          ov.innerHTML='<div class="v27pop"><div class="v27in">'
+            +'<div class="v27st"><div class="v27sd dn">✓</div><div class="v27sl" style="background:#16a34a;"></div><div class="v27sd ac">2</div></div>'
+            +'<div class="v27hdr"><div><div class="v27ht"><i class="material-icons-round">payments</i> นับเงินทอน</div><div class="v27hs">เลือกแบงค์/เหรียญจากลิ้นชักที่จะทอนให้ลูกค้า</div></div>'
+            +'<div style="text-align:right;"><div class="v27hl">ต้องทอน</div><div class="v27ha" style="color:#d97706;">฿'+fmt(cn)+'</div></div></div>'
+            +'<div class="v27sc"><h3>💵 ธนบัตรในลิ้นชัก</h3><div class="ln"></div></div>'
+            +'<div class="v27bg">'+BILLS.map(function(d){return billCard(d,st.chg[d.v],drawer[d.v]||0);}).join('')+'</div>'
+            +'<div class="v27sc"><h3>🪙 เหรียญในลิ้นชัก</h3><div class="ln"></div></div>'
+            +'<div class="v27cg">'+COINS.map(function(d){return coinCard(d,st.chg[d.v],drawer[d.v]||0);}).join('')+'</div>'
+            +'<div class="v27sb"><div><div class="lb">นับทอนแล้ว</div><div class="vl" id="d2-cg" style="color:'+(cd?'#16a34a':'#d97706')+';">฿'+fmt(cg)+'</div></div>'
+            +'<div style="text-align:right;" id="d2-res">'+(cd?'<div style="color:#16a34a;font-weight:800;font-size:15px;">✅ ครบแล้ว!</div>':'<div class="lb">ยังขาด</div><div class="vl" style="color:#ef4444;">฿'+fmt(cn-cg)+'</div>')+'</div></div>'
+            +'<div class="v27bt">'
+            +'<button class="v27b ca" onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'b\'}}))"><i class="material-icons-round">arrow_back</i> ย้อนกลับ</button>'
+            +'<button class="v27b ca" onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'r2\'}}))"><i class="material-icons-round">refresh</i> ล้าง</button>'
+            +'<button class="v27b cf" id="d2-ok" '+(cd?'':'disabled')+' onclick="document.dispatchEvent(new CustomEvent(\'v28d\',{detail:{a:\'ok\'}}))"><i class="material-icons-round">check_circle</i> ยืนยัน — รับชำระ ฿'+fmt(payAmt)+'</button>'
+            +'</div></div></div>';
+        }
+        bindCards(ov,'v28d');
+      } else {
+        ALL.forEach(function(d){
+          var cnt=st.step===1?st.recv[d.v]:st.chg[d.v];
+          var el=ov.querySelector('[data-v="'+d.v+'"] .v27bd');
+          if(el){el.innerText=cnt>0?cnt:'0'; if(cnt>0)el.classList.remove('z'); else el.classList.add('z');}
+          if(st.step===2){
+            var cEl=ov.querySelector('[data-v="'+d.v+'"]');
+            var avail=(drawer[d.v]||0)-cnt;
+            var ba=cEl.querySelector('.v27ba');
+            if(ba) ba.innerText=avail<=0?'หมด':avail+' ใบ';
+            if(avail<=0) cEl.classList.add('mt'); else cEl.classList.remove('mt');
+          }
+        });
+        if(st.step===1){
+          var vR=ov.querySelector('#d1-recv'); if(vR){vR.innerText='฿'+fmt(recv); vR.style.color=enough?'#16a34a':'#3e2723';}
+          var eR=ov.querySelector('#d1-res');
+          if(eR) eR.innerHTML=enough?'<div class="lb">เงินทอน</div><div class="vl" style="color:#d97706;">฿'+fmt(cn)+'</div>':'<div class="lb">ยังขาด</div><div class="vl" style="color:#ef4444;">฿'+fmt(payAmt-recv)+'</div>';
+          var nx=ov.querySelector('#d1-nx');
+          if(nx){nx.style.display=enough?'':'none'; nx.innerHTML='<i class="material-icons-round">arrow_forward</i> ถัดไป — ทอน ฿'+fmt(cn);}
+        } else {
+          var vC=ov.querySelector('#d2-cg'); if(vC){vC.innerText='฿'+fmt(cg); vC.style.color=cd?'#16a34a':'#d97706';}
+          var s2R=ov.querySelector('#d2-res');
+          if(s2R) s2R.innerHTML=cd?'<div style="color:#16a34a;font-weight:800;font-size:15px;">✅ ครบแล้ว!</div>':'<div class="lb">ยังขาด</div><div class="vl" style="color:#ef4444;">฿'+fmt(cn-cg)+'</div>';
+          var okBtn=ov.querySelector('#d2-ok'); if(okBtn) okBtn.disabled=!cd;
+        }
+      }
+    }
+
+    function handle(e){
+      var a=e.detail.a, v=e.detail.v;
+      if(a==='x'){done();return;}
+      if(a==='r1'){ALL.forEach(function(d){st.recv[d.v]=0;}); render(false); return;}
+      if(a==='r2'){ALL.forEach(function(d){st.chg[d.v]=0;}); render(false); return;}
+      if(a==='n'){st.step=2; render(true); return;}
+      if(a==='b'){st.step=1; render(true); return;}
+      if(a==='add'){
+        if(st.step===1) st.recv[v]=(st.recv[v]||0)+1;
+        else {
+          if((st.chg[v]||0)<(drawer[v]||0)) st.chg[v]=(st.chg[v]||0)+1;
+          else if(typeof toast==='function') toast('ธนบัตรในลิ้นชักไม่พอ','warning');
+        }
+        render(false);
+      }
+      if(a==='rem'){
+        if(st.step===1){if((st.recv[v]||0)>0)st.recv[v]--;}
+        else{if((st.chg[v]||0)>0)st.chg[v]--;}
+        render(false);
+      }
+      if(a==='ok'){
+        var recvSnap=Object.assign({},st.recv), chgSnap=Object.assign({},st.chg);
+        var recvTotal=rT(), chgTotal=cT(), paidAmt=recvTotal-chgTotal;
+        done();
+        if(cashOnly){
+          if(onSuccess) onSuccess(paidAmt, recvTotal, chgTotal, recvSnap, chgSnap);
+          return;
+        }
+        (async function(){
+          try{
+            var r1=await db.from('customer').select('debt_amount').eq('id',customerId).single();
+            var newDebt=Math.max(0,(r1.data?.debt_amount||0)-paidAmt);
+            await db.from('customer').update({debt_amount:newDebt}).eq('id',customerId);
+            await db.from('ชำระหนี้').insert({customer_id:customerId,amount:paidAmt,method:'เงินสด',staff_name:window.USER?.username});
+            var r2=await db.from('cash_session').select('id').eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle();
+            if(r2.data){
+              await db.from('cash_transaction').insert({
+                session_id:r2.data.id, type:'รับชำระหนี้', direction:'in',
+                amount:recvTotal, change_amt:chgTotal, net_amount:paidAmt,
+                balance_after:0, ref_table:'ชำระหนี้', staff_name:window.USER?.username,
+                denominations:recvSnap, change_denominations:chgSnap,
+                note:'รับจาก '+name
+              });
+            }
+            if(typeof logActivity==='function') logActivity('รับชำระหนี้',name+' ฿'+fmt(paidAmt));
+            if(typeof toast==='function') toast('รับชำระ ฿'+fmt(paidAmt)+' สำเร็จ'+(chgTotal>0?' (ทอน ฿'+fmt(chgTotal)+')':''),'success');
+            if(typeof loadCustomerData==='function') loadCustomerData();
+            if(typeof loadCashBalance==='function') loadCashBalance();
+            if(onSuccess) onSuccess(paidAmt);
+          }catch(err){
+            if(typeof toast==='function') toast('เกิดข้อผิดพลาด','error');
+            console.error(err);
+          }
+        })();
+      }
+    }
+    function done(){document.removeEventListener('v28d',handle); ov.remove();}
+    document.addEventListener('v28d',handle);
+    render(true); document.body.appendChild(ov);
+  });
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   5. BEAUTIFUL PAYMENT INPUT DIALOG (bill-style)
+   v28ShowPayDialog(opts) — opts: { title, subtitle, billNo, customerName,
+     rows:[{label,val,color?}], maxAmt, defaultAmt, methods, onConfirm(amt,method) }
+═══════════════════════════════════════════════════════════════ */
+(function(){
+var oldPcss=document.getElementById('v28pcss'); if(oldPcss) oldPcss.remove();
+var pcss=document.createElement('style'); pcss.id='v28pcss';
+pcss.textContent=`
+.v28pd-ov{position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;animation:v27fi .2s ease}
+.v28pd-box{background:#fff;border-radius:24px;box-shadow:0 32px 80px rgba(0,0,0,0.35);max-width:420px;width:100%;overflow:hidden;animation:v27su .3s cubic-bezier(.34,1.56,.64,1)}
+.v28pd-head{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#1d4ed8 100%);padding:24px 24px 20px;color:#fff;position:relative;overflow:hidden}
+.v28pd-head::before{content:'';position:absolute;top:-40px;right:-40px;width:150px;height:150px;background:rgba(255,255,255,0.05);border-radius:50%}
+.v28pd-head::after{content:'';position:absolute;bottom:-30px;left:-20px;width:100px;height:100px;background:rgba(255,255,255,0.04);border-radius:50%}
+.v28pd-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;position:relative;z-index:1}
+.v28pd-htitle{font-size:22px;font-weight:900;line-height:1.2;margin-bottom:4px;position:relative;z-index:1}
+.v28pd-hsub{font-size:12px;color:rgba(255,255,255,0.65);position:relative;z-index:1}
+.v28pd-receipt{background:#fafafa;border-left:1px dashed #e2e8f0;border-right:1px dashed #e2e8f0;padding:18px 24px 0}
+.v28pd-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed #f1f5f9}
+.v28pd-row:last-child{border-bottom:none}
+.v28pd-rl{font-size:12px;color:#64748b;font-weight:500}
+.v28pd-rv{font-size:13px;font-weight:700;color:#1e293b}
+.v28pd-divider{margin:0 24px;display:flex;align-items:center;gap:0;position:relative}
+.v28pd-divider::before,.v28pd-divider::after{content:'';position:absolute;top:50%;transform:translateY(-50%);width:20px;height:20px;background:#f0f4f8;border-radius:50%;border:1px solid #e2e8f0}
+.v28pd-divider::before{left:-32px} .v28pd-divider::after{right:-32px}
+.v28pd-divline{flex:1;border:none;border-top:2px dashed #cbd5e1;margin:16px 0}
+.v28pd-body{padding:20px 24px}
+.v28pd-flabel{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.v28pd-amt-wrap{position:relative;margin-bottom:18px}
+.v28pd-amt-wrap .sym{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:900;color:#1d4ed8;pointer-events:none}
+.v28pd-amt-inp{width:100%;border:2px solid #e2e8f0;border-radius:14px;padding:14px 16px 14px 38px;font-size:28px;font-weight:900;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:border-color .2s,background .2s;font-family:inherit}
+.v28pd-amt-inp:focus{border-color:#1d4ed8;background:#fff;box-shadow:0 0 0 4px rgba(29,78,216,0.1)}
+.v28pd-err{font-size:12px;color:#ef4444;margin-top:-12px;margin-bottom:10px;min-height:16px;font-weight:600}
+.v28pd-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+.v28pd-mb{border:2px solid #e2e8f0;border-radius:14px;padding:12px 8px;cursor:pointer;text-align:center;transition:all .2s;background:#fff;display:flex;flex-direction:column;align-items:center;gap:5px}
+.v28pd-mb:hover{border-color:#93c5fd;background:#eff6ff}
+.v28pd-mb.sel{border-color:#1d4ed8;background:linear-gradient(135deg,#eff6ff,#dbeafe);box-shadow:0 4px 12px rgba(29,78,216,0.15)}
+.v28pd-mb .ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:2px;font-size:18px}
+.v28pd-mb .lbl{font-size:11px;font-weight:700;color:#334155}
+.v28pd-mb.sel .lbl{color:#1d4ed8}
+.v28pd-foot{display:flex;gap:10px;padding:0 24px 24px}
+.v28pd-cancel{flex:0 0 auto;padding:14px 20px;border-radius:14px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
+.v28pd-cancel:hover{border-color:#94a3b8;color:#334155}
+.v28pd-ok{flex:1;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;box-shadow:0 4px 16px rgba(29,78,216,0.3)}
+.v28pd-ok:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(29,78,216,0.4)}
+.v28pd-ok:disabled{opacity:.45;cursor:not-allowed;transform:none}
+`;
+document.head.appendChild(pcss);
+})();
+
+function v28ShowPayDialog(opts) {
+  var f=function(n){return typeof formatNum==='function'?formatNum(n):Number(n||0).toLocaleString('th-TH');};
+  var methods=opts.methods||[
+    {v:'เงินสด', icon:'💵', label:'เงินสด', color:'#16a34a'},
+    {v:'โอนเงิน', icon:'📱', label:'โอนเงิน', color:'#0891b2'},
+    {v:'บัตรเครดิต', icon:'💳', label:'บัตรเครดิต', color:'#7c3aed'}
+  ];
+  var selMethod=methods[0].v;
+  var maxAmt=opts.maxAmt||0;
+
+  var old=document.getElementById('v28pdo'); if(old) old.remove();
+  var ov=document.createElement('div'); ov.id='v28pdo'; ov.className='v28pd-ov';
+
+  var rowsHtml=(opts.rows||[]).map(function(r){
+    return '<div class="v28pd-row"><span class="v28pd-rl">'+r.label+'</span><span class="v28pd-rv"'+(r.color?' style="color:'+r.color+'"':'')+'>'+(r.val||'')+'</span></div>';
+  }).join('');
+
+  var methodsHtml=methods.map(function(m){
+    return '<button type="button" class="v28pd-mb'+(m.v===selMethod?' sel':'')+'" data-mv="'+m.v+'">'
+      +'<div class="ico">'+m.icon+'</div>'
+      +'<span class="lbl">'+m.label+'</span></button>';
+  }).join('');
+
+  ov.innerHTML='<div class="v28pd-box">'
+    +'<div class="v28pd-head">'
+    +'<div class="v28pd-badge"><i class="material-icons-round" style="font-size:13px">receipt</i> '+(opts.billNo?'บิล #'+opts.billNo:'รับชำระเงิน')+'</div>'
+    +'<div class="v28pd-htitle">'+(opts.title||'รับชำระเงิน')+'</div>'
+    +'<div class="v28pd-hsub">'+(opts.subtitle||'')+'</div>'
+    +'</div>'
+    +'<div class="v28pd-receipt">'+rowsHtml+'</div>'
+    +'<div class="v28pd-divider"><hr class="v28pd-divline"></div>'
+    +'<div class="v28pd-body">'
+    +'<div class="v28pd-flabel">จำนวนที่รับชำระ (บาท)</div>'
+    +'<div class="v28pd-amt-wrap"><span class="sym">฿</span><input id="v28pd-amt" class="v28pd-amt-inp" type="number" min="1" max="'+maxAmt+'" value="'+(opts.defaultAmt||maxAmt||'')+'" placeholder="0.00"></div>'
+    +'<div class="v28pd-err" id="v28pd-err"></div>'
+    +'<div class="v28pd-flabel">วิธีชำระเงิน</div>'
+    +'<div class="v28pd-methods">'+methodsHtml+'</div>'
+    +'</div>'
+    +'<div class="v28pd-foot">'
+    +'<button class="v28pd-cancel" id="v28pd-cancel"><i class="material-icons-round" style="font-size:16px;vertical-align:-3px">close</i> ยกเลิก</button>'
+    +'<button class="v28pd-ok" id="v28pd-ok"><i class="material-icons-round">arrow_forward</i> ถัดไป</button>'
+    +'</div></div>';
+
+  document.body.appendChild(ov);
+
+  /* bind method buttons */
+  ov.querySelectorAll('.v28pd-mb').forEach(function(btn){
+    btn.onclick=function(){
+      selMethod=btn.dataset.mv;
+      ov.querySelectorAll('.v28pd-mb').forEach(function(b){b.classList.remove('sel');});
+      btn.classList.add('sel');
+    };
+  });
+
+  /* validate on input */
+  var inp=ov.querySelector('#v28pd-amt');
+  var errEl=ov.querySelector('#v28pd-err');
+  inp.oninput=function(){
+    var v=Number(inp.value);
+    if(!v||v<=0){errEl.textContent='กรุณาระบุจำนวนที่ถูกต้อง';}
+    else if(maxAmt>0&&v>maxAmt){errEl.textContent='เกินยอดค้าง (สูงสุด ฿'+f(maxAmt)+')';}
+    else errEl.textContent='';
+  };
+  inp.focus(); inp.select();
+
+  ov.querySelector('#v28pd-cancel').onclick=function(){ov.remove();};
+  ov.onclick=function(e){if(e.target===ov) ov.remove();};
+
+  ov.querySelector('#v28pd-ok').onclick=function(){
+    var v=Number(inp.value);
+    if(!v||v<=0){errEl.textContent='กรุณาระบุจำนวนที่ถูกต้อง'; inp.focus(); return;}
+    if(maxAmt>0&&v>maxAmt){errEl.textContent='เกินยอดค้าง (สูงสุด ฿'+f(maxAmt)+')'; inp.focus(); return;}
+    ov.remove();
+    if(opts.onConfirm) opts.onConfirm(v, selMethod);
+  };
+}
+
+/* Override recordDebtPayment — ใช้ v28 payment dialog + wizard */
+window.recordDebtPayment = async function(customerId, name) {
+  var r=await db.from('customer').select('debt_amount,phone').eq('id',customerId).single();
+  var cust=r.data||{}; var debt=cust.debt_amount||0;
+  if(debt<=0){if(typeof toast==='function') toast('ไม่มีหนี้คงค้าง','info'); return;}
+  v28ShowPayDialog({
+    title: 'รับชำระหนี้',
+    subtitle: name+(cust.phone?' · '+cust.phone:''),
+    rows:[
+      {label:'ลูกค้า', val: name},
+      {label:'หนี้คงค้างทั้งหมด', val:'฿'+(typeof formatNum==='function'?formatNum(debt):debt.toLocaleString('th-TH')), color:'#ef4444'}
+    ],
+    maxAmt: debt,
+    defaultAmt: debt,
+    onConfirm: function(amt, method) {
+      if(method==='เงินสด'){
+        window.v28DebtPayWiz(customerId, name, amt);
+      } else {
+        (async function(){
+          try{
+            var r1=await db.from('customer').select('debt_amount').eq('id',customerId).single();
+            var newDebt=Math.max(0,(r1.data?.debt_amount||0)-amt);
+            await db.from('customer').update({debt_amount:newDebt}).eq('id',customerId);
+            await db.from('ชำระหนี้').insert({customer_id:customerId,amount:amt,method:method,staff_name:window.USER?.username});
+            if(typeof logActivity==='function') logActivity('รับชำระหนี้',name+' ฿'+(typeof formatNum==='function'?formatNum(amt):amt)+' '+method);
+            if(typeof toast==='function') toast('รับชำระ ฿'+(typeof formatNum==='function'?formatNum(amt):amt)+' สำเร็จ ('+method+')','success');
+            if(typeof loadCustomerData==='function') loadCustomerData();
+          }catch(e){if(typeof toast==='function') toast('เกิดข้อผิดพลาด','error'); console.error(e);}
+        })();
+      }
+    }
+  });
+};
+
+/* Override v20BMCPayDebt — ใช้ v28 payment dialog + wizard สำหรับเงินสด */
+window.v20BMCPayDebt = async function(billId) {
+  try{
+    var r=await db.from('บิลขาย').select('*').eq('id',billId).single();
+    var bill=r.data; if(!bill){if(typeof toast==='function') toast('ไม่พบบิล','error'); return;}
+    var rem=bill.total-(bill.deposit_amount||0);
+    var f2=function(n){return typeof formatNum==='function'?formatNum(n):Number(n||0).toLocaleString('th-TH');};
+    var dt=bill.date?new Date(bill.date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'';
+
+    var saveDebt=async function(paidAmt,method,recvTotal,chgTotal,recvD,chgD){
+      var nd=(bill.deposit_amount||0)+paidAmt, full=nd>=bill.total;
+      var ns=full?(bill.delivery_status==='รอจัดส่ง'?'รอจัดส่ง':'สำเร็จ'):'ค้างชำระ';
+      await db.from('บิลขาย').update({deposit_amount:nd,status:ns,method:full?method:bill.method}).eq('id',billId);
+      if(bill.customer_id){try{var rc=await db.from('customer').select('debt_amount').eq('id',bill.customer_id).maybeSingle();if(rc.data)await db.from('customer').update({debt_amount:Math.max(0,(rc.data.debt_amount||0)-paidAmt)}).eq('id',bill.customer_id);}catch(_){}}
+      if(method==='เงินสด'){
+        var r2=await db.from('cash_session').select('id').eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle();
+        if(r2.data) await db.from('cash_transaction').insert({session_id:r2.data.id,type:'รับชำระหนี้',direction:'in',amount:recvTotal||paidAmt,change_amt:chgTotal||0,net_amount:paidAmt,balance_after:0,ref_table:'บิลขาย',staff_name:window.USER?.username,denominations:recvD||{},change_denominations:chgD||{},note:'รับชำระบิล #'+bill.bill_no});
+      }
+      if(typeof logActivity==='function') logActivity('รับชำระ','บิล #'+bill.bill_no+' ฿'+f2(paidAmt)+' '+method+(full?' (ครบ)':''),billId,'บิลขาย');
+      if(typeof toast==='function') toast('รับชำระ ฿'+f2(paidAmt)+' สำเร็จ'+(full?' — ครบแล้ว':''),'success');
+      if(typeof v12BMCLoad==='function') v12BMCLoad();
+    };
+
+    v28ShowPayDialog({
+      title: 'รับชำระบิล',
+      subtitle: (bill.customer_name||'ลูกค้าทั่วไป')+(dt?' · '+dt:''),
+      billNo: bill.bill_no,
+      rows:[
+        {label:'ลูกค้า', val: bill.customer_name||'ลูกค้าทั่วไป'},
+        {label:'ยอดรวมบิล', val:'฿'+f2(bill.total)},
+        bill.deposit_amount>0?{label:'ชำระแล้ว', val:'฿'+f2(bill.deposit_amount), color:'#16a34a'}:null,
+        {label:'ยอดค้างชำระ', val:'฿'+f2(rem), color:'#ef4444'}
+      ].filter(Boolean),
+      maxAmt: rem,
+      defaultAmt: rem,
+      onConfirm: function(amt, method) {
+        if(method==='เงินสด'){
+          window.v28DebtPayWiz(bill.customer_id||'__bill__', bill.customer_name||'ลูกค้า', amt, async function(paidAmt, recvTotal, chgTotal, recvD, chgD){
+            try{ await saveDebt(paidAmt, method, recvTotal, chgTotal, recvD, chgD); }
+            catch(e){console.error('[v28] PayDebt cash save:',e);}
+          }, true);
+        } else {
+          saveDebt(amt, method, 0, 0, {}, {});
+        }
+      }
+    });
+  }catch(e){console.error('[v28] PayDebt:',e); if(typeof toast==='function') toast('ผิดพลาด: '+e.message,'error');}
+};
+/* ════════════════════════════════════════════════════════════════
+   BARCODE STICKER PRINT (3.2 x 2.5 cm | 3 แถบ) - ใหญ่สุด + เว้นขอบกันตกขอบ
+════════════════════════════════════════════════════════════════ */
+
+window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
+  if (!barcode) {
+    typeof toast === 'function' ? toast('ไม่มีบาร์โค้ดสำหรับสินค้านี้', 'error') : alert('ไม่มีบาร์โค้ด');
+    return;
+  }
+
+  count = parseInt(count) || 3;
+  const win = window.open('', '_blank', 'width=800,height=600');
+  if (!win) {
+    typeof toast === 'function' && toast('กรุณาอนุญาต popup ให้เว็บนี้', 'error');
+    return;
+  }
+
+  // 1 แถว = 3 ดวง
+  const rows = Math.ceil(count / 3);
+  let printed = 0;
+  
+  let html = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Print Barcode - ${barcode}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@600;700;800&display=swap');
+    
+    @page { 
+      size: 100mm 25mm; 
+      margin: 0; 
+    }
+    
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    body { 
+      font-family: 'Sarabun', sans-serif; 
+      background: #fff; 
+      color: #000;
+      width: 100mm;
+    }
+    
+    .page-row { 
+      width: 100mm; 
+      height: 25mm; 
+      display: grid; 
+      grid-template-columns: 31mm 31mm 31mm; 
+      justify-content: space-evenly; 
+      align-items: center;
+      page-break-after: always; 
+      overflow: hidden;
+    }
+    
+    .sticker { 
+      width: 100%; 
+      height: 25mm; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: space-between; 
+      align-items: center; 
+      /* 🔴 จุดสำคัญ: เพิ่ม Safe Margin 1.5mm รอบด้าน กันสติ๊กเกอร์ตกขอบเวลาเครื่องปริ้นดึงกระดาษเบี้ยว */
+      padding: 1.5mm 1.5mm; 
+      overflow: hidden;
+    }
+    
+    .name { 
+      font-size: 8.5px; 
+      font-weight: 700; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      width: 100%; 
+      text-align: center;
+      line-height: 1;
+      margin-bottom: 0; 
+    }
+    
+    .barcode-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%; 
+      overflow: hidden;
+    }
+    
+    .barcode-svg { 
+      width: 100%; 
+      height: 100%;
+      max-height: 16mm; /* คุมความสูงไม่ให้ดันข้อความทะลุขอบ 1.5mm ที่เราตั้งไว้ */
+      object-fit: contain;
+    }
+    
+    .footer {
+      display: flex;
+      justify-content: space-between; 
+      align-items: flex-end;
+      width: 100%;
+      line-height: 1;
+      margin-top: 0; 
+    }
+    
+    .shop-name {
+      font-size: 7px;
+      font-weight: 600;
+      color: #111;
+    }
+    
+    .price { 
+      font-size: 11.5px; 
+      font-weight: 800; 
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+</head>
+<body>`;
+
+  for (let r = 0; r < rows; r++) {
+    html += `<div class="page-row">`;
+    for (let c = 0; c < 3; c++) {
+      if (printed < count) {
+        html += `
+        <div class="sticker">
+          <div class="name">${name || ''}</div>
+          <div class="barcode-container">
+             <svg class="barcode-svg" data-val="${barcode}"></svg>
+          </div>
+          <div class="footer">
+             <div class="shop-name">SK Materials</div>
+             <div class="price">${Number(price || 0).toLocaleString()}.-</div>
+          </div>
+        </div>`;
+        printed++;
+      } else {
+        html += `<div class="sticker"></div>`; 
+      }
+    }
+    html += `</div>`;
+  }
+
+  html += `
+  <script>
+    window.onload = function() {
+      document.querySelectorAll('.barcode-svg').forEach(el => {
+         JsBarcode(el, el.getAttribute('data-val'), {
+            format: "CODE128",
+            displayValue: true, 
+            fontSize: 12, 
+            fontOptions: "bold",
+            margin: 0,
+            textMargin: 1,
+            height: 40, /* ลดลงนิดนึงให้พอดีกับขอบที่เพิ่มขึ้น */
+            width: 1.6  /* ความกว้างแท่งหนากำลังดี สแกนติดง่ายและไม่ล้น */
+         });
+      });
+      setTimeout(() => {
+         window.print();
+         setTimeout(() => window.close(), 1000);
+      }, 500);
+    };
+  <\/script>
+</body>
+</html>`;
+
+  win.document.write(html);
+  win.document.close();
+};
+
 })();

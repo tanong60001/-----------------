@@ -1060,6 +1060,10 @@ input, select, textarea {
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* 👇 เพิ่ม 3 บรรทัดนี้ครับ 👇 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .product-card:hover {
@@ -1108,6 +1112,10 @@ input, select, textarea {
 
 .product-info {
   padding: 12px;
+  /* 👇 เพิ่ม 3 บรรทัดนี้ครับ 👇 */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .product-name {
@@ -1133,6 +1141,9 @@ input, select, textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+
+  /* 👇 เพิ่ม 1 บรรทัดนี้ครับ 👇 */
+  margin-top: auto;
 }
 
 .product-price {
