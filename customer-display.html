@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700;9..40,900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script src="config.js"></script>
   <style>
     :root {
       --red-700:#B91C1C;--red-600:#DC2626;--red-500:#EF4444;--red-400:#F87171;--red-200:#FECACA;--red-100:#FEE2E2;--red-50:#FEF2F2;
@@ -71,17 +72,25 @@
     .screen.active{opacity:1;visibility:visible;transform:scale(1)}
 
     /* ═══ IDLE ═══ */
-    .sc-idle{background:var(--white);flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
+    .sc-idle{background:var(--white);flex-direction:column;align-items:center;justify-content:flex-start;position:relative;overflow:hidden;padding:22px 0 70px}
     .idle-bg{position:absolute;inset:0;pointer-events:none}
     .idle-bg::before{content:'';position:absolute;top:-20%;right:-10%;width:700px;height:700px;background:radial-gradient(circle,var(--red-50) 0%,transparent 70%);border-radius:50%}
     .idle-bg::after{content:'';position:absolute;bottom:-15%;left:-5%;width:500px;height:500px;background:radial-gradient(circle,var(--red-50) 0%,transparent 70%);border-radius:50%}
-    .idle-body{position:relative;z-index:2;text-align:center;animation:fadeUp .8s ease}
+    .idle-body{position:relative;z-index:2;text-align:center;animation:fadeUp .8s ease;flex-shrink:0}
+    .idle-layout{position:relative;z-index:2;width:min(1500px,96vw);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:18px}
+    .ad-panel{display:none;width:min(1480px,96vw);height:clamp(340px,43vh,520px);border:1px solid var(--g200);border-radius:18px;background:var(--white);box-shadow:0 18px 46px rgba(17,24,39,.1);overflow:hidden;animation:fadeUp .8s ease;flex-shrink:0;position:relative}
+    .ad-panel.show{display:flex;flex-direction:column}
+    .ad-media{flex:1;min-height:0;background:var(--g100);position:relative}
+    .ad-media img{width:100%;height:100%;object-fit:cover;display:block}
+    .ad-caption{position:absolute;left:0;right:0;bottom:0;padding:28px 34px;background:linear-gradient(0deg,rgba(17,24,39,.68),rgba(17,24,39,0));color:#fff;pointer-events:none}
+    .ad-title{font-size:34px;font-weight:900;color:#fff;line-height:1.18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 16px rgba(0,0,0,.22)}
+    .ad-sub{font-size:17px;font-weight:700;color:rgba(255,255,255,.86);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-    .idle-ring{width:160px;height:160px;border-radius:50%;background:linear-gradient(135deg,var(--red-600),var(--red-500));display:flex;align-items:center;justify-content:center;margin:0 auto 36px;box-shadow:0 8px 32px rgba(220,38,38,.3),0 0 0 14px var(--red-50);animation:ipulse 3s infinite}
+    .idle-ring{width:112px;height:112px;border-radius:50%;background:linear-gradient(135deg,var(--red-600),var(--red-500));display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 8px 32px rgba(220,38,38,.3),0 0 0 12px var(--red-50);animation:ipulse 3s infinite}
     @keyframes ipulse{0%,100%{box-shadow:0 8px 32px rgba(220,38,38,.3),0 0 0 14px var(--red-50)}50%{box-shadow:0 8px 40px rgba(220,38,38,.4),0 0 0 22px var(--red-50)}}
-    .idle-ring i{font-size:80px;color:var(--white)}
-    .idle-h{font-size:52px;font-weight:900;color:var(--g900);letter-spacing:-2px;margin-bottom:10px}
-    .idle-p{font-size:22px;color:var(--g400);margin-bottom:48px}
+    .idle-ring i{font-size:58px;color:var(--white)}
+    .idle-h{font-size:40px;font-weight:900;color:var(--g900);letter-spacing:-2px;margin-bottom:5px}
+    .idle-p{font-size:18px;color:var(--g400);margin-bottom:14px}
     .idle-feats{display:flex;gap:36px;justify-content:center;flex-wrap:wrap}
     .idle-f{display:flex;align-items:center;gap:8px;font-size:16px;color:var(--g500);font-weight:600}
     .idle-f i{font-size:24px;color:var(--red-400)}
@@ -186,6 +195,7 @@
       .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:28px 32px}.cash-r{padding:24px 32px}.cblk-val{font-size:48px}
       .thx-h{font-size:44px}.thx-p{font-size:20px}.thx-ring{width:120px;height:120px}.thx-ring i{font-size:64px}
       .step-bar{height:56px}.sb-label{font-size:12px}.sb-num{width:30px;height:30px;font-size:12px}
+      .idle-layout{gap:14px;width:94vw}.ad-panel.show{width:94vw;height:clamp(260px,38vh,420px)}.ad-title{font-size:24px}
     }
     @media(max-width:640px){
       .hdr{padding:0 14px;height:52px}.hdr-logo{width:36px;height:36px;font-size:15px}.hdr-clock{font-size:18px}.hdr-name{font-size:13px}
@@ -196,7 +206,8 @@
       .pay-method-chip{font-size:14px;padding:11px 20px}.pay-method-chip i{font-size:20px}
       .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:20px 20px}.cash-r{padding:18px 20px}.cblk-val{font-size:36px}.cblk-lbl{font-size:12px}
       .thx-h{font-size:34px}.thx-p{font-size:17px}.thx-ring{width:90px;height:90px}.thx-ring i{font-size:52px}
-      .idle-ring{width:110px;height:110px}.idle-ring i{font-size:60px}.idle-h{font-size:36px}.idle-p{font-size:17px}
+      .idle-ring{width:88px;height:88px;margin-bottom:14px}.idle-ring i{font-size:48px}.idle-h{font-size:30px}.idle-p{font-size:15px;margin-bottom:12px}
+      .idle-layout{gap:12px}.ad-panel.show{width:92vw;height:clamp(170px,30vh,260px)}.ad-caption{padding:16px 18px}.ad-title{font-size:18px}
       .step-bar{height:52px}.sb-label{font-size:11px}.sb-num{width:26px;height:26px;font-size:11px}
     }
   </style>
@@ -226,6 +237,7 @@
     <!-- IDLE -->
     <div class="screen sc-idle active" id="screen-idle">
       <div class="idle-bg"></div>
+      <div class="idle-layout" id="idle-layout">
       <div class="idle-body">
         <div class="idle-ring"><i class="material-icons-round">storefront</i></div>
         <div class="idle-h">ยินดีต้อนรับ</div>
@@ -236,6 +248,14 @@
           <div class="idle-f"><i class="material-icons-round">credit_card</i> บัตรเครดิต</div>
           <div class="idle-f"><i class="material-icons-round">stars</i> สะสมแต้ม</div>
         </div>
+      </div>
+        <aside class="ad-panel" id="ad-panel">
+          <div class="ad-media"><img id="ad-image" alt=""></div>
+          <div class="ad-caption">
+            <div class="ad-title" id="ad-title"></div>
+            <div class="ad-sub" id="ad-subtitle"></div>
+          </div>
+        </aside>
       </div>
       <div class="idle-mq"><span class="mq-text">ขอบคุณที่ใช้บริการ SK POS &nbsp;&nbsp;&nbsp; รับชำระเงินสด / โอนเงิน / บัตรเครดิต &nbsp;&nbsp;&nbsp; สะสมแต้มลูกค้าประจำ &nbsp;&nbsp;&nbsp; PromptPay พร้อมให้บริการ &nbsp;&nbsp;&nbsp;</span></div>
     </div>
@@ -320,6 +340,90 @@
     const METHOD_ICONS = {cash:'payments',transfer:'qr_code',credit:'credit_card',debt:'pending_actions',project:'business_center'};
     const METHOD_BG = {cash:'cash-bg',transfer:'transfer-bg',credit:'credit-bg',debt:'debt-bg',project:'debt-bg'};
     const LBL_CLS = {cash:'cash-lbl',transfer:'transfer-lbl',credit:'credit-lbl',debt:'debt-lbl',project:'debt-lbl'};
+    let adSettings = { enabled:false, images:[] };
+    let adIndex = 0;
+    let adTimer = null;
+    let adRenderSeq = 0;
+
+    function customerAdDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('sk_pos_customer_ads', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('images', { keyPath: 'id' });
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function getCustomerAdImageSrc(id) {
+      const dbi = await customerAdDb();
+      const row = await new Promise((resolve, reject) => {
+        const tx = dbi.transaction('images', 'readonly');
+        const req = tx.objectStore('images').get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      dbi.close();
+      return row?.dataUrl || '';
+    }
+
+    async function resolveAdImageSrc(item) {
+      if (typeof item === 'string') return item;
+      if (item?.src) return item.src;
+      if (item?.id) return await getCustomerAdImageSrc(item.id);
+      return '';
+    }
+
+    function loadAdSettings() {
+      try {
+        adSettings = JSON.parse(localStorage.getItem('sk_customer_display_ads') || '{}') || {};
+      } catch (_) {
+        adSettings = {};
+      }
+      adSettings.images = (adSettings.images || []).map(x => typeof x === 'string' ? { src:x } : x).filter(x => x?.src || x?.id);
+      renderAdPanel();
+    }
+
+    async function loadRemoteAdSettings() {
+      try {
+        if (typeof SUPA_URL !== 'string' || !SUPA_URL) return;
+        const url = `${SUPA_URL}/storage/v1/object/public/product-images/ads/customer-display-settings.json?t=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) return;
+        const remote = await res.json();
+        if (!remote || !Array.isArray(remote.images)) return;
+        localStorage.setItem('sk_customer_display_ads', JSON.stringify(remote));
+        adSettings = remote;
+        adSettings.images = (adSettings.images || []).map(x => typeof x === 'string' ? { src:x } : x).filter(x => x?.src || x?.id);
+        renderAdPanel();
+      } catch (e) {
+        console.warn('[customer-display] remote ads skipped:', e);
+      }
+    }
+
+    async function renderAdPanel() {
+      const panel = document.getElementById('ad-panel');
+      const img = document.getElementById('ad-image');
+      if (!panel || !img) return;
+      const enabled = adSettings.enabled !== false && adSettings.images?.length;
+      panel.classList.toggle('show', !!enabled);
+      clearInterval(adTimer);
+      if (!enabled) return;
+      adIndex = adIndex % adSettings.images.length;
+      const current = adSettings.images[adIndex];
+      const seq = ++adRenderSeq;
+      const src = await resolveAdImageSrc(current);
+      if (seq !== adRenderSeq || !src) return;
+      img.src = src;
+      const title = adSettings.title || '';
+      const subtitle = adSettings.subtitle || '';
+      document.getElementById('ad-title').textContent = title;
+      document.getElementById('ad-subtitle').textContent = subtitle;
+      document.querySelector('.ad-caption')?.style.setProperty('display', (title || subtitle) ? '' : 'none');
+      adTimer = setInterval(() => {
+        adIndex = (adIndex + 1) % adSettings.images.length;
+        renderAdPanel();
+      }, Math.max(3, Number(adSettings.interval || 8)) * 1000);
+    }
 
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -505,9 +609,22 @@
 
         case 'idle': { showScreen('idle');setStep(0);hideCustomer(); break; }
 
+        case 'adSettings': {
+          adSettings = data.settings || {};
+          localStorage.setItem('sk_customer_display_ads', JSON.stringify(adSettings));
+          loadAdSettings();
+          break;
+        }
+
         case 'fullscreen': { _showFsOverlay(); break; }
       }
     });
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'sk_customer_display_ads') loadAdSettings();
+    });
+    loadAdSettings();
+    loadRemoteAdSettings();
 
     /* ══ Fullscreen overlay helpers ═════════════════════════════════
        Browser blocks requestFullscreen() unless triggered by a real

@@ -676,6 +676,454 @@ if (typeof isProcessingPayment === 'undefined') {
 }
 .v12-bmc-empty i { font-size: 44px; display: block; margin-bottom: 10px; }
 
+/* V12 checkout refresh: light gray / white production UI */
+.v12-checkout-overlay {
+  background: rgba(15,23,42,.34) !important;
+  backdrop-filter: blur(10px) saturate(110%) !important;
+  padding: 20px !important;
+}
+.v12-checkout-shell {
+  width: min(1240px, 96vw) !important;
+  height: min(760px, 92vh) !important;
+  display: grid !important;
+  grid-template-columns: 360px minmax(0, 1fr) !important;
+  background: #fff !important;
+  border: 1px solid #dbe3ec !important;
+  border-radius: 22px !important;
+  box-shadow: 0 28px 80px rgba(15,23,42,.24) !important;
+  overflow: hidden !important;
+}
+.v12-left {
+  width: auto !important;
+  min-width: 0 !important;
+  background: #f3f6fa !important;
+  color: #0f172a !important;
+  border-right: 1px solid #dbe3ec !important;
+}
+.v12-left-header {
+  min-height: 88px !important;
+  padding: 24px 24px 18px !important;
+  border-bottom: 1px solid #dbe3ec !important;
+  background: linear-gradient(180deg,#fff,#f3f6fa) !important;
+}
+.v12-left-header h3 {
+  color: #64748b !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.v12-left-header .v12-bill-no {
+  color: #0f172a !important;
+  font-size: 34px !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0 !important;
+}
+.v12-cart-list {
+  padding: 18px 18px 12px !important;
+  background: #f8fafc !important;
+}
+.v12-cart-list::-webkit-scrollbar-thumb { background: #cbd5e1 !important; }
+.v12-cart-item {
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) auto auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+  min-height: 54px !important;
+  margin-bottom: 8px !important;
+  padding: 12px 14px !important;
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 22px rgba(15,23,42,.035) !important;
+}
+.v12-cart-item:hover { background: #fff !important; border-color: #cbd5e1 !important; }
+.v12-item-name { color: #0f172a !important; font-size: 14px !important; font-weight: 800 !important; letter-spacing: 0 !important; }
+.v12-item-qty { color: #94a3b8 !important; font-weight: 800 !important; }
+.v12-item-price { color: #334155 !important; font-size: 15px !important; font-weight: 900 !important; }
+.v12-left-footer {
+  padding: 18px 24px 24px !important;
+  border-top: 1px solid #dbe3ec !important;
+  background: #fff !important;
+}
+.v12-summary-row { color: #64748b !important; font-weight: 700 !important; }
+.v12-summary-row.total { color: #334155 !important; font-size: 38px !important; font-weight: 900 !important; letter-spacing: 0 !important; }
+.v12-summary-row.total span:first-child { color: #64748b !important; font-size: 13px !important; font-weight: 800 !important; }
+.v12-deposit-badge { background: #f8fafc !important; color: #475569 !important; border-color: #cbd5e1 !important; border-radius: 10px !important; }
+.v12-right { background: #fff !important; min-width: 0 !important; }
+.v12-right-header {
+  min-height: 88px !important;
+  padding: 18px 28px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+}
+.v12-steps-bar { width: 100% !important; justify-content: center !important; gap: 8px !important; }
+.v12-step-pill {
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  color: #94a3b8 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  background: transparent !important;
+}
+.v12-step-pill .pill-num {
+  width: 28px !important;
+  height: 28px !important;
+  background: #eef2f6 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.v12-step-pill.active {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+}
+.v12-step-pill.active .pill-num,
+.v12-step-pill.done .pill-num {
+  background: #64748b !important;
+  border-color: #64748b !important;
+  color: #fff !important;
+}
+.v12-step-pill.done { color: #64748b !important; }
+.v12-step-connector,
+.v12-step-connector.done { width: 34px !important; background: #dbe3ec !important; }
+.v12-right-body {
+  padding: 34px 32px !important;
+  background: linear-gradient(180deg,#fff 0%,#fbfdff 100%) !important;
+}
+.v12-step-title {
+  color: #0f172a !important;
+  font-size: 32px !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+  margin-bottom: 8px !important;
+}
+.v12-step-subtitle {
+  color: #94a3b8 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  margin-bottom: 28px !important;
+}
+.v12-cust-grid,
+.v12-delivery-grid,
+.v12-method-grid {
+  grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+  gap: 16px !important;
+}
+.v12-cust-card,
+.v12-delivery-card,
+.v12-pay-type-card,
+.v12-method-card {
+  min-height: 154px !important;
+  background: #fff !important;
+  border: 1.5px solid #dbe3ec !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 30px rgba(15,23,42,.04) !important;
+  color: #0f172a !important;
+}
+.v12-cust-card:hover,
+.v12-delivery-card:hover,
+.v12-pay-type-card:hover,
+.v12-method-card:hover {
+  transform: translateY(-1px) !important;
+  border-color: #94a3b8 !important;
+  box-shadow: 0 18px 34px rgba(15,23,42,.065) !important;
+}
+.v12-cust-card.selected,
+.v12-delivery-card.selected,
+.v12-pay-type-card.selected,
+.v12-method-card.selected {
+  background: #f8fafc !important;
+  border-color: #64748b !important;
+  box-shadow: 0 0 0 3px #e2e8f0, 0 18px 34px rgba(15,23,42,.05) !important;
+}
+.v12-cust-card i,
+.v12-delivery-card i,
+.v12-pay-type-card i,
+.v12-method-card i {
+  color: #94a3b8 !important;
+}
+.v12-cust-card.selected i,
+.v12-delivery-card.selected i,
+.v12-pay-type-card.selected i,
+.v12-method-card.selected i {
+  color: #475569 !important;
+}
+.v12-cust-card h4,
+.v12-delivery-card h4,
+.v12-pay-type-card h4,
+.v12-method-card h4 {
+  color: #0f172a !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+.v12-cust-card p,
+.v12-delivery-card p,
+.v12-pay-type-card p,
+.v12-method-card p {
+  color: #b3bfcc !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+.v12-right-footer {
+  min-height: 84px !important;
+  padding: 16px 28px !important;
+  background: #fff !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+.v12-btn-close,
+.v12-btn-back {
+  min-height: 48px !important;
+  border-radius: 12px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #fff !important;
+  color: #94a3b8 !important;
+  font-weight: 900 !important;
+}
+.v12-btn-close:hover,
+.v12-btn-back:hover {
+  border-color: #94a3b8 !important;
+  color: #475569 !important;
+}
+.v12-btn-next {
+  min-width: 260px !important;
+  min-height: 52px !important;
+  border-radius: 12px !important;
+  background: #475569 !important;
+  color: #fff !important;
+  box-shadow: 0 18px 30px rgba(71,85,105,.22) !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+.v12-btn-next:hover,
+.v12-btn-next.green,
+.v12-btn-next.green:hover {
+  background: #334155 !important;
+  box-shadow: 0 18px 30px rgba(51,65,85,.24) !important;
+}
+.v12-form-group input,
+.v12-form-group textarea,
+.v12-form-group select,
+.v12-deposit-big-input {
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+  border-radius: 12px !important;
+  color: #0f172a !important;
+}
+.v12-form-group input:focus,
+.v12-form-group textarea:focus,
+.v12-form-group select:focus,
+.v12-deposit-big-input:focus {
+  border-color: #64748b !important;
+  box-shadow: 0 0 0 3px #e2e8f0 !important;
+}
+.v12-cash-header,
+.v12-received-bar,
+.v12-change-breakdown,
+.v12-deposit-box,
+.v12-delivery-form,
+.v12-qr-box {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+}
+.v12-denom-btn,
+.v12-quick-btn {
+  background: #fff !important;
+  border-color: #dbe3ec !important;
+  border-radius: 12px !important;
+  color: #334155 !important;
+}
+.v12-denom-btn:hover,
+.v12-quick-btn:hover {
+  border-color: #94a3b8 !important;
+  color: #334155 !important;
+}
+.v12-pro-shell {
+  grid-template-columns: 390px minmax(0,1fr) !important;
+  border-radius: 24px !important;
+}
+.v12-pro-shell .v12-left {
+  display: grid !important;
+  grid-template-rows: auto minmax(0,1fr) auto !important;
+}
+.v12-order-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8edf3;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+}
+.v12-order-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+.v12-pro-shell .v12-left-header h3 {
+  display: none !important;
+}
+.v12-pro-shell .v12-left-header .v12-bill-no {
+  margin-top: 12px !important;
+  color: #0f172a !important;
+  font-size: 34px !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+}
+.v12-order-count {
+  color: #0f172a;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 950;
+}
+.v12-order-meta {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+.v12-cart-item.v12-pro-item {
+  grid-template-columns: 34px minmax(0,1fr) auto !important;
+  min-height: 66px !important;
+}
+.v12-item-index {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2f6;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v12-item-main {
+  min-width: 0;
+}
+.v12-item-sub {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 750;
+}
+.v12-item-amount {
+  text-align: right;
+}
+.v12-pro-totals {
+  display: grid;
+  gap: 10px;
+}
+.v12-pro-total-card {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: linear-gradient(180deg,#fff,#f8fafc);
+}
+.v12-pro-total-card .label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v12-pro-total-card .value {
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+.v12-right-head-copy {
+  min-width: 170px;
+}
+.v12-window-title {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.1;
+}
+.v12-window-sub {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 750;
+}
+.v12-pro-shell .v12-right-header {
+  gap: 22px !important;
+}
+.v12-pro-shell .v12-steps-bar {
+  justify-content: flex-end !important;
+  min-width: 0;
+  overflow-x: auto;
+}
+.v12-pro-shell .v12-right-body {
+  padding: 38px 40px !important;
+}
+.v12-step-title {
+  max-width: 720px;
+}
+.v12-cust-grid {
+  max-width: 920px;
+}
+.v12-cust-card {
+  position: relative;
+  padding: 24px 18px !important;
+  overflow: hidden;
+}
+.v12-cust-card::after,
+.v12-method-card::after,
+.v12-delivery-card::after,
+.v12-pay-type-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 18px 14px 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+}
+.v12-cust-card.selected::after,
+.v12-method-card.selected::after,
+.v12-delivery-card.selected::after,
+.v12-pay-type-card.selected::after {
+  background: #64748b;
+}
+.v12-cust-card i,
+.v12-method-card i,
+.v12-delivery-card i,
+.v12-pay-type-card i {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px !important;
+  background: #f1f5f9;
+}
+.v12-cust-card.selected i,
+.v12-method-card.selected i,
+.v12-delivery-card.selected i,
+.v12-pay-type-card.selected i {
+  background: #e2e8f0;
+}
+.v12-pro-shell .v12-btn-close {
+  order: 1;
+}
+.v12-pro-shell .v12-btn-back {
+  order: 2;
+}
+.v12-pro-shell .v12-btn-next {
+  order: 3;
+  margin-left: auto;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .v12-checkout-shell { flex-direction: column; width: 98vw; height: 95vh; }
@@ -774,10 +1222,13 @@ function v12RenderShell() {
     el.className = 'v12-checkout-overlay';
     document.body.appendChild(el);
   }
+  const itemQty = cart.reduce((s, item) => s + Number(item.qty || 0), 0);
+  const subtotal = cart.reduce((s, item) => s + Number(item.price || 0) * Number(item.qty || 0), 0);
   el.innerHTML = `
-    <div class="v12-checkout-shell">
+    <div class="v12-checkout-shell v12-pro-shell">
       <div class="v12-left">
         <div class="v12-left-header">
+          <div class="v12-order-kicker"><i class="material-icons-round" style="font-size:14px">receipt_long</i> รายการในตะกร้า</div>
           <h3>รายการในตะกร้า</h3>
           <div class="v12-bill-no">${cart.length} รายการ</div>
         </div>
@@ -795,6 +1246,10 @@ function v12RenderShell() {
       </div>
       <div class="v12-right">
         <div class="v12-right-header">
+          <div class="v12-right-head-copy">
+            <div class="v12-window-title">Checkout</div>
+            <div class="v12-window-sub">ตรวจสอบข้อมูลก่อนบันทึกบิล</div>
+          </div>
           <div class="v12-steps-bar" id="v12-steps-bar"></div>
           <button onclick="closeCheckout()" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:8px;color:var(--text-muted,#9ca3af);font-size:20px;line-height:1;" title="ปิด">
             <i class="material-icons-round">close</i>
@@ -814,8 +1269,43 @@ function v12RenderShell() {
         </div>
       </div>
     </div>`;
+  v12PolishCheckoutShell(el, itemQty, subtotal);
   v12UpdateStepBar();
   v12RenderStepBody();
+}
+
+function v12PolishCheckoutShell(el, itemQty, subtotal) {
+  const header = el.querySelector('.v12-left-header');
+  if (header) {
+    header.innerHTML = `
+      <div class="v12-order-kicker"><i class="material-icons-round" style="font-size:14px">receipt_long</i> รายการในตะกร้า</div>
+      <div class="v12-order-title-row">
+        <div class="v12-order-count">${cart.length} รายการ</div>
+        <div class="v12-order-meta">${formatNum(itemQty)} ชิ้น<br>ก่อนส่วนลด ฿${formatNum(subtotal)}</div>
+      </div>`;
+  }
+  const list = el.querySelector('.v12-cart-list');
+  if (list) {
+    list.innerHTML = cart.map((item, idx) => `
+      <div class="v12-cart-item v12-pro-item">
+        <span class="v12-item-index">${idx + 1}</span>
+        <span class="v12-item-main">
+          <span class="v12-item-name">${item.name}</span>
+          <span class="v12-item-sub">จำนวน ${formatNum(item.qty)} ${item.unit || 'ชิ้น'} · ฿${formatNum(item.price)} / ${item.unit || 'ชิ้น'}</span>
+        </span>
+        <span class="v12-item-amount">
+          <span class="v12-item-price">฿${formatNum(item.price * item.qty)}</span>
+        </span>
+      </div>`).join('');
+  }
+  const rightHeader = el.querySelector('.v12-right-header');
+  if (rightHeader && !rightHeader.querySelector('.v12-right-head-copy')) {
+    rightHeader.insertAdjacentHTML('afterbegin', `
+      <div class="v12-right-head-copy">
+        <div class="v12-window-title">Checkout</div>
+        <div class="v12-window-sub">ตรวจสอบข้อมูลก่อนบันทึกบิล</div>
+      </div>`);
+  }
 }
 
 function v12LeftFooterHTML() {
@@ -832,6 +1322,21 @@ function v12LeftFooterHTML() {
 }
 
 /* ── Step Bar ── */
+v12LeftFooterHTML = function () {
+  const subtotal = cart.reduce((s, c) => s + Number(c.price || 0) * Number(c.qty || 0), 0);
+  let html = '<div class="v12-pro-totals">';
+  html += `<div class="v12-summary-row"><span>ราคารวม</span><span>฿${formatNum(subtotal)}</span></div>`;
+  if (v12State.discount > 0) {
+    html += `<div class="v12-summary-row"><span>ส่วนลด</span><span style="color:#ef4444">-฿${formatNum(v12State.discount)}</span></div>`;
+  }
+  html += `<div class="v12-pro-total-card"><div class="label">ยอดสุทธิ</div><div class="value">฿${formatNum(v12State.total)}</div></div>`;
+  if (v12State.paymentType === 'deposit' && v12State.depositAmount > 0) {
+    html += `<div class="v12-deposit-badge">มัดจำ ฿${formatNum(v12State.depositAmount)} | ค้าง ฿${formatNum(v12State.total - v12State.depositAmount)}</div>`;
+  }
+  html += '</div>';
+  return html;
+};
+
 function v12NeedsStepCash() { return v12State.method === 'cash'; }
 function v12GetMaxStep() { return v12NeedsStepCash() ? 6 : 5; }
 function v12IsLastStep() { return v12State.step === v12GetMaxStep(); }

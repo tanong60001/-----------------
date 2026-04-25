@@ -64,15 +64,17 @@ const V24C = '#DC2626';
 /* ═══ CSS — FIX1: ลด min-height ป้องกันลายเซ็นล่น ═══ */
 function v24CSS(n, ds) {
   const bw = ds?.bw_mode, C = bw ? '#000' : (ds?.header_color || V24C);
-  const fs = n <= 8 ? 12 : n <= 14 ? 11 : n <= 20 ? 10 : 9;
-  const tp = n <= 14 ? '7px 10px' : '5px 8px';
+  const fs = n <= 8 ? 12 : n <= 12 ? 11 : n <= 20 ? 9.5 : n <= 32 ? 8.5 : 7.5;
+  const tp = n <= 12 ? '6px 9px' : n <= 24 ? '4px 7px' : '2.5px 5px';
+  const zoom = n <= 12 ? 1 : n <= 20 ? .94 : n <= 32 ? .86 : n <= 48 ? .76 : .68;
   return `
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&display=swap');
 @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{font-family:'Sarabun',sans-serif;font-size:${fs}px;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.page{page-break-after:always;display:flex;flex-direction:column;min-height:calc(297mm - 16mm);padding:0}
-.page:last-child{page-break-after:avoid}
+body{zoom:${zoom}}
+.page{page-break-after:avoid;break-after:avoid;display:flex;flex-direction:column;min-height:calc(297mm - 16mm);padding:0}
+.page:last-child{page-break-after:avoid;break-after:avoid}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:8px;border-bottom:3px solid ${C};margin-bottom:10px}
 .sn{font-size:${fs + 10}px;font-weight:800;color:${C};line-height:1.2}
 .sa{font-size:${fs - 1}px;color:#64748b;line-height:1.6;margin-top:2px}
@@ -96,11 +98,11 @@ table.it tbody tr{border-bottom:.5px solid #f1f5f9} table.it tbody tr:nth-child(
 table.it tbody td{padding:${tp};font-size:${fs}px;vertical-align:middle}
 .sum{display:flex;justify-content:space-between;gap:14px;margin-top:6px}
 .sum-l{flex:1} .sum-r{min-width:200px}
-.wb{background:#fef2f2;border:1.5px solid #fecaca;border-radius:7px;padding:6px 10px;margin-bottom:6px}
+.wb{background:#fff;border:none;border-radius:0;padding:0 0 6px;margin-bottom:6px}
 .wb-l{font-size:${fs - 2}px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px}
 .wb-v{font-size:${fs}px;font-weight:700;color:${C}}
-.nb{background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:5px 8px;font-size:${fs - 1}px}
-.nb b{color:#d97706} .nb p{color:#92400e;line-height:1.4;margin-top:1px}
+.nb{background:#fff;border:none;border-radius:0;padding:0;font-size:${fs - 1}px}
+.nb b{color:#334155} .nb p{color:#475569;line-height:1.4;margin-top:1px}
 .sr{display:flex;justify-content:space-between;padding:2px 0;font-size:${fs}px;border-bottom:.5px solid #f1f5f9}
 .sr-l{color:#64748b} .sr-v{font-weight:600}
 .gt{background:${C};color:#fff;border-radius:7px;padding:8px 12px;margin-top:5px;text-align:center}
@@ -113,7 +115,7 @@ table.it tbody td{padding:${tp};font-size:${fs}px;vertical-align:middle}
 .sig-n{font-size:${fs}px;font-weight:700} .sig-d{font-size:${fs - 2}px;color:#94a3b8;margin-top:2px}
 .ft{text-align:center;font-size:${fs - 2}px;color:#94a3b8;margin-top:5px;padding-top:3px;border-top:.5px solid #f1f5f9}
 .cont{text-align:center;font-size:${fs - 1}px;color:#94a3b8;font-style:italic;padding:6px;margin-top:auto}
-@media print{.page{min-height:calc(297mm - 16mm);page-break-inside:avoid}.sig{page-break-inside:avoid}}`;
+@media print{.page{min-height:calc(297mm - 16mm);page-break-inside:avoid;break-inside:avoid}.sig{page-break-inside:avoid;break-inside:avoid}}`;
 }
 
 /* ═══ QR ═══ */
@@ -128,6 +130,7 @@ function v24QR(ds, rc, amt) {
 /* ═══ PAGES ═══ */
 function v24Pages(items, mf = 12, mp = 20) {
   const pg = []; if (!items?.length) { pg.push({ items: [], f: true, l: true, n: 1, t: 1 }); return pg; }
+  pg.push({ items: [...items], f: true, l: true, n: 1, t: 1 }); return pg;
   if (items.length <= mf) { pg.push({ items: [...items], f: true, l: true, n: 1, t: 1 }); return pg; }
   pg.push({ items: items.slice(0, mf), f: true, l: false, n: 1 }); let o = mf;
   while (o < items.length) { pg.push({ items: items.slice(o, o + mp), f: false, l: o + mp >= items.length, n: pg.length + 1 }); o += mp; }

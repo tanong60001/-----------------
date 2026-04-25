@@ -582,7 +582,7 @@
        CHECKOUT MODAL — Popup ชำระเงิน (Step-by-Step)
        ═══════════════════════════════════════════════════════════════ -->
   <div id="checkout-overlay" class="checkout-overlay hidden">
-    <div class="checkout-modal">
+    <div class="checkout-modal v36-checkout-modal">
       <!-- Progress Steps -->
       <div class="checkout-progress">
         <div class="progress-step active" data-step="1">
@@ -632,6 +632,21 @@
   <!-- ═══════════════════════════════════════════════════════════════
        GENERIC MODAL
        ═══════════════════════════════════════════════════════════════ -->
+  <style id="v36-checkout-force-style">
+    #checkout-overlay .checkout-modal.v36-checkout-modal{background:#f8fafc!important;border:1px solid #dbe3ec!important;box-shadow:0 28px 70px rgba(15,23,42,.22)!important;color:#0f172a!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal::before,#checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-summary{background:#f1f5f9!important;border-right:1px solid #dbe3ec!important;color:#0f172a!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-item{background:#fff!important;border:1px solid #e2e8f0!important;color:#0f172a!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-total strong,#checkout-overlay .checkout-modal.v36-checkout-modal .amount-value{color:#334155!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .checkout-progress,#checkout-overlay .checkout-modal.v36-checkout-modal .checkout-footer,#checkout-overlay .checkout-modal.v36-checkout-modal .checkout-content{background:#fff!important;border-color:#e2e8f0!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .step-num{background:#eef2f6!important;border-color:#dbe3ec!important;color:#64748b!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active .step-num,#checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.completed .step-num{background:#64748b!important;border-color:#64748b!important;color:#fff!important;box-shadow:0 0 0 5px #e2e8f0!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active span{color:#475569!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn{background:#fff!important;border:1.5px solid #d7dee7!important;box-shadow:0 10px 24px rgba(15,23,42,.04)!important;color:#0f172a!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected{background:#f8fafc!important;border-color:#64748b!important;box-shadow:0 0 0 3px #e2e8f0!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected .customer-type-icon,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected i{background:#64748b!important;color:#fff!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal #checkout-next{background:#475569!important;border-color:#475569!important;color:#fff!important}
+  </style>
+
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal-box">
       <div class="modal-header">
@@ -739,7 +754,7 @@
   <script src="modules-v9.js"></script>
   <script src="modules-v10.js?v=2"></script>
   <script src="modules-v11.js"></script>
-  <script src="modules-v12.js?v=4"></script>
+  <script src="modules-v12.js?v=7"></script>
   <script src="modules-v13.js"></script>
   <script src="modules-v14.js"></script>
   <script src="modules-v15.js"></script>
@@ -751,12 +766,12 @@
   <script src="modules-v21.js"></script>
   <script src="modules-v22.js"></script>
   <script src="modules-v23.js"></script>
-  <script src="modules-v24-print.js"></script>
+  <script src="modules-v24-print.js?v=2"></script>
   <script src="modules-v24-display.js"></script>
   <script src="modules-v25-quotation.js"></script>
   <script src="modules-v26-hr.js"></script>
   <script src="modules-v27.js"></script>
-  <script src="modules-v28.js?v=2"></script>
+  <script src="modules-v28.js?v=3"></script>
   <script src="modules-v29-inbox.js"></script>
   <script src="modules-v23-projectui.js"></script>
   <script src="modules-v30-fastsale.js"></script>
@@ -765,7 +780,7 @@
   <script src="modules-v34-ui.js?v=4"></script>
   <script src="modules-v33-fixes.js"></script>
   <script src="modules-v35-grand-ui.js"></script>
-  <script src="modules-v36-usage-safety.js?v=4"></script>
+  <script src="modules-v36-usage-safety.js?v=22"></script>
   <script src="scanner.js"></script>
 </body>
 

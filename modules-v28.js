@@ -295,7 +295,61 @@ window.v28SellWiz = function(){
 /* ═══════════════════════════════════════════════════════════════
    2. EXPENSE 2-STEP WIZARD (หน้ารายจ่าย)
 ═══════════════════════════════════════════════════════════════ */
+function v28DenomTotalV2(counts) {
+  return Object.keys(counts || {}).reduce(function (sum, key) {
+    return sum + (Number(key) || 0) * (Number(counts[key]) || 0);
+  }, 0);
+}
+
+async function v28ExpenseWizModernV2(expAmt, drawer, onConfirm) {
+  var liveDrawer = typeof window.v32LoadDrawer === 'function' ? await window.v32LoadDrawer() : (drawer || {});
+  var drawerTotal = v28DenomTotalV2(liveDrawer);
+  var out = await window.v32ShowDenomWizard({
+    title: 'นับเงินคืนสินค้า / เงินออก',
+    subtitle: 'เลือกธนบัตรและเหรียญจากลิ้นชัก ระบบจะนำยอดนี้ไปบันทึกเงินสดออกทันที',
+    icon: '<i class="material-icons-round">assignment_return</i>',
+    dir: 'out',
+    targetAmount: Number(expAmt || 0),
+    mustBeExact: false,
+    drawer: liveDrawer,
+    showBalance: true,
+    balance: drawerTotal,
+    confirmText: 'ถัดไป',
+    cancelText: 'ยกเลิก'
+  });
+  if (!out) return;
+
+  var outTotal = v28DenomTotalV2(out);
+  var changeTarget = Math.max(0, outTotal - Number(expAmt || 0));
+  var inc = {};
+  var inTotal = 0;
+  if (changeTarget > 0) {
+    inc = await window.v32ShowDenomWizard({
+      title: 'นับเงินทอนกลับเข้าลิ้นชัก',
+      subtitle: 'ถ้าหยิบเงินออกเกินยอดคืน ให้นับเงินทอนที่กลับเข้าลิ้นชักให้ครบ',
+      icon: '<i class="material-icons-round">keyboard_return</i>',
+      dir: 'in',
+      targetAmount: changeTarget,
+      mustBeExact: true,
+      confirmText: 'ยืนยัน',
+      cancelText: 'ย้อนกลับ'
+    });
+    if (!inc) return;
+    inTotal = v28DenomTotalV2(inc);
+  }
+  if (typeof onConfirm === 'function') onConfirm({ out: out, outTotal: outTotal, in: inc, inTotal: inTotal });
+}
+
 window.v28ExpenseWiz = function(expAmt, drawer, onConfirm) {
+  if (typeof window.v32ShowDenomWizard === 'function' && !window.__v28UseLegacyExpenseWiz) {
+    v28ExpenseWizModernV2(expAmt, drawer, onConfirm).catch(function (err) {
+      console.error('[v28] modern expense wizard failed:', err);
+      window.__v28UseLegacyExpenseWiz = true;
+      try { window.v28ExpenseWiz(expAmt, drawer, onConfirm); }
+      finally { window.__v28UseLegacyExpenseWiz = false; }
+    });
+    return;
+  }
   var st={step:1, out:{}, in:{}};
   ALL.forEach(function(d){st.out[d.v]=0;st.in[d.v]=0;});
 
