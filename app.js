@@ -2484,3 +2484,4 @@ document.getElementById('pos-search')?.addEventListener('keypress', function (e)
   }
 });
 console.log('[SK POS v2.0] ✅ Application loaded — 100% Complete');
+
