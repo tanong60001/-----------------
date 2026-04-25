@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SK POS — ระบบจัดการร้านค้าอัจฉริยะ</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-additions.css">
+</head>
+
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       LOGIN SCREEN — หน้าล็อกอิน Premium
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-bg-pattern"></div>
+    <div class="login-card">
+      <div class="login-logo-wrap">
+        <div class="login-logo">SK</div>
+        <div class="login-logo-glow"></div>
+      </div>
+      <h1 class="login-title">เข้าสู่ระบบ</h1>
+      <p class="login-subtitle">กรุณาระบุรหัส PIN 4 หลัก</p>
+      <div class="pin-container">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-1" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-2" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-3" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+        <input type="tel" class="pin-input" maxlength="1" id="pin-4" inputmode="numeric" pattern="[0-9]*"
+          autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-lg" id="login-btn">
+        <i class="material-icons-round">login</i>
+        เข้าสู่ระบบ
+      </button>
+      <div class="login-footer">SK POS v2.0 — Powered by Supabase</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       APP LAYOUT — โครงสร้างหลัก
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="app-layout" class="app-layout hidden">
+
+    <!-- Sidebar Overlay (all screen sizes — controls via .show class) -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+    <div id="cart-overlay" class="sidebar-overlay hidden" style="z-index: 1055;"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">SK</div>
+        <span class="sidebar-title">SK POS</span>
+        <button class="sidebar-close" id="sidebar-close">
+          <i class="material-icons-round">close</i>
+        </button>
+      </div>
+
+      <div class="user-card">
+        <div class="user-avatar">
+          <i class="material-icons-round">person</i>
+        </div>
+        <div class="user-info">
+          <div class="user-name" id="user-display-name">Loading...</div>
+          <div class="user-role" id="user-display-role">...</div>
+        </div>
+      </div>
+
+      <div class="cash-widget">
+        <div class="cash-icon">
+          <i class="material-icons-round">account_balance_wallet</i>
+        </div>
+        <div class="cash-info">
+          <span class="cash-label">เงินในลิ้นชัก</span>
+          <span class="cash-value" id="global-cash-balance">฿0</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-section">หลัก</div>
+        <a class="nav-item active" data-page="home">
+          <i class="material-icons-round">home</i>
+          <span>หน้าหลัก</span>
+        </a>
+        <a class="nav-item" data-page="pos">
+          <i class="material-icons-round">point_of_sale</i>
+          <span>ขายสินค้า</span>
+          <kbd>F2</kbd>
+        </a>
+        <a class="nav-item" data-page="inv">
+          <i class="material-icons-round">inventory_2</i>
+          <span>คลังสินค้า</span>
+        </a>
+
+        <div class="nav-section">การเงิน</div>
+        <a class="nav-item" data-page="cash">
+          <i class="material-icons-round">account_balance_wallet</i>
+          <span>ลิ้นชักเงินสด</span>
+        </a>
+        <a class="nav-item" data-page="exp">
+          <i class="material-icons-round">receipt_long</i>
+          <span>รายจ่าย</span>
+        </a>
+        <a class="nav-item" data-page="debt">
+          <i class="material-icons-round">people</i>
+          <span>ลูกค้าค้างชำระ</span>
+        </a>
+        <a class="nav-item" data-page="payable">
+          <i class="material-icons-round">account_balance</i>
+          <span>เจ้าหนี้ร้าน</span>
+        </a>
+
+        <div class="nav-section">สินค้า & ลูกค้า</div>
+        <a class="nav-item" data-page="purchase">
+          <i class="material-icons-round">local_shipping</i>
+          <span>รับสินค้าเข้า</span>
+        </a>
+        <a class="nav-item" data-page="customer">
+          <i class="material-icons-round">star</i>
+          <span>ลูกค้าประจำ</span>
+        </a>
+        <a class="nav-item" data-page="quotation">
+          <i class="material-icons-round">description</i>
+          <span>ใบเสนอราคา</span>
+        </a>
+
+        <div class="nav-section">รายงาน & HR</div>
+        <a class="nav-item" data-page="dash">
+          <i class="material-icons-round">bar_chart</i>
+          <span>วิเคราะห์ธุรกิจ</span>
+        </a>
+        <a class="nav-item" data-page="history">
+          <i class="material-icons-round">history</i>
+          <span>ประวัติการขาย</span>
+        </a>
+        <a class="nav-item" data-page="att">
+          <i class="material-icons-round">badge</i>
+          <span>พนักงาน/ลงเวลา</span>
+        </a>
+        <a class="nav-item" data-page="log">
+          <i class="material-icons-round">manage_search</i>
+          <span>ประวัติกิจกรรม</span>
+        </a>
+
+        <div class="nav-section" id="nav-admin-section" style="display:none;">ผู้ดูแล</div>
+        <a class="nav-item" data-page="admin" id="nav-admin" style="display:none;">
+          <i class="material-icons-round">admin_panel_settings</i>
+          <span>ผู้ดูแลระบบ</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="logout-btn" id="logout-btn">
+          <i class="material-icons-round">logout</i>
+          <span>ออกจากระบบ</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-header">
+        <button class="menu-toggle" id="menu-toggle">
+          <i class="material-icons-round">menu</i>
+        </button>
+        <h1 class="page-title" id="page-title-text">🏠 หน้าหลัก</h1>
+        <div class="header-actions">
+          <div class="live-clock" id="live-clock"></div>
+          <!-- Activity Inbox Button -->
+          <button id="inbox-btn" onclick="toggleActivityInbox()"
+            style="position:relative;width:40px;height:40px;border-radius:50%;border:none;background:var(--bg-hover);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:all .2s;flex-shrink:0;"
+            title="ประวัติกิจกรรม">
+            <i class="material-icons-round" style="font-size:20px;">notifications</i>
+            <span id="inbox-badge" style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;border-radius:8px;background:#EF4444;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 3px;font-family:var(--font-display);">0</span>
+          </button>
+          <button id="mobile-page-actions-btn" class="btn btn-icon hidden-desktop"
+            style="background:transparent;border:none;color:var(--text-primary);padding:8px;">
+            <i class="material-icons-round">more_vert</i>
+          </button>
+          <div id="page-actions"></div>
+        </div>
+      </header>
+
+      <div class="content-area">
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             PAGE: HOME — หน้าหลัก Dashboard
+             ═══════════════════════════════════════════════════════════════ -->
+        <section id="page-home" class="page-section">
+          <div class="home-container">
+            <!-- Welcome Banner -->
+            <div class="welcome-banner">
+              <div class="welcome-content">
+                <h2 class="welcome-title">สวัสดี, <span id="home-username">Admin</span> 👋</h2>
+                <p class="welcome-subtitle">ยินดีต้อนรับสู่ระบบ SK POS — พร้อมให้บริการวันนี้</p>
+              </div>
+              <div class="welcome-datetime">
+                <div class="welcome-date" id="home-date"></div>
+                <div class="welcome-time" id="home-time"></div>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+              <div class="stat-card stat-sales">
+                <div class="stat-icon"><i class="material-icons-round">trending_up</i></div>
+                <div class="stat-content">
+                  <span class="stat-value" id="home-sales">฿0</span>
+                  <span class="stat-label">ยอดขายวันนี้</span>
+                </div>
+              </div>
+              <div class="stat-card stat-orders">
+                <div class="stat-icon"><i class="material-icons-round">receipt</i></div>
+                <div class="stat-content">
+                  <span class="stat-value" id="home-orders">0</span>
+                  <span class="stat-label">รายการขาย</span>
+                </div>
+              </div>
+              <div class="stat-card stat-profit">
+                <div class="stat-icon"><i class="material-icons-round">payments</i></div>
+                <div class="stat-content">
+                  <span class="stat-value" id="home-profit">฿0</span>
+                  <span class="stat-label">กำไรวันนี้</span>
+                </div>
+              </div>
+              <div class="stat-card stat-cash">
+                <div class="stat-icon"><i class="material-icons-round">account_balance_wallet</i></div>
+                <div class="stat-content">
+                  <span class="stat-value" id="home-cash">฿0</span>
+                  <span class="stat-label">เงินในลิ้นชัก</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+              <h3 class="section-title">
+                <i class="material-icons-round">flash_on</i>
+                เมนูลัด
+              </h3>
+              <div class="actions-grid">
+                <button class="action-btn" onclick="go('pos')">
+                  <div class="action-icon sales"><i class="material-icons-round">point_of_sale</i></div>
+                  <span>ขายสินค้า</span>
+                </button>
+                <button class="action-btn" onclick="go('inv')">
+                  <div class="action-icon inventory"><i class="material-icons-round">inventory_2</i></div>
+                  <span>คลังสินค้า</span>
+                </button>
+                <button class="action-btn" onclick="go('cash')">
+                  <div class="action-icon cash"><i class="material-icons-round">account_balance_wallet</i></div>
+                  <span>ลิ้นชักเงินสด</span>
+                </button>
+                <button class="action-btn" onclick="go('customer')">
+                  <div class="action-icon customer"><i class="material-icons-round">groups</i></div>
+                  <span>ลูกค้าประจำ</span>
+                </button>
+                <button class="action-btn" onclick="go('exp')">
+                  <div class="action-icon expense"><i class="material-icons-round">receipt_long</i></div>
+                  <span>บันทึกรายจ่าย</span>
+                </button>
+                <button class="action-btn" onclick="go('dash')">
+                  <div class="action-icon report"><i class="material-icons-round">analytics</i></div>
+                  <span>รายงาน</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="alerts-section">
+              <h3 class="section-title">
+                <i class="material-icons-round">notifications_active</i>
+                การแจ้งเตือน
+              </h3>
+              <div class="alerts-list" id="home-alerts">
+                <div class="alert-item alert-info">
+                  <i class="material-icons-round">info</i>
+                  <span>ระบบพร้อมใช้งาน</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             PAGE: POS — หน้าขายสินค้า (รองรับ 2000 ชิ้น)
+             ═══════════════════════════════════════════════════════════════ -->
+        <section id="page-pos" class="page-section hidden">
+          <div class="pos-layout">
+            <!-- Left: Products -->
+            <div class="pos-products">
+              <!-- Search & Filter -->
+              <div class="pos-toolbar">
+                <div class="search-box">
+                  <i class="material-icons-round">search</i>
+                  <input type="text" id="pos-search" placeholder="ค้นหาสินค้า หรือสแกนบาร์โค้ด...">
+                  <button class="scan-btn" id="pos-scan-btn" title="สแกน QR/Barcode">
+                    <i class="material-icons-round">qr_code_scanner</i>
+                  </button>
+                </div>
+                <div class="view-toggle">
+                  <button class="view-btn active" data-view="grid" title="Grid View">
+                    <i class="material-icons-round">grid_view</i>
+                  </button>
+                  <button class="view-btn" data-view="list" title="List View">
+                    <i class="material-icons-round">view_list</i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Categories -->
+              <div class="category-tabs" id="pos-categories">
+                <button class="cat-tab active" data-cat="ทั้งหมด">ทั้งหมด</button>
+              </div>
+
+              <!-- Product Grid with Virtual Scroll -->
+              <div class="products-container" id="products-container">
+                <div class="product-grid" id="pos-product-grid"></div>
+                <div class="loading-more" id="loading-more" style="display:none;">
+                  <div class="spinner"></div>
+                  <span>กำลังโหลด...</span>
+                </div>
+              </div>
+
+              <!-- Pagination Info -->
+              <div class="products-info">
+                <span id="products-count">แสดง 0 จาก 0 รายการ</span>
+              </div>
+            </div>
+
+            <!-- Right: Cart -->
+            <div class="pos-cart">
+              <div class="cart-header">
+                <div class="cart-title">
+                  <i class="material-icons-round">shopping_cart</i>
+                  <span>รายการขาย</span>
+                  <span class="cart-badge" id="cart-count">0</span>
+                </div>
+                <button class="btn btn-ghost btn-sm" id="clear-cart-btn">
+                  <i class="material-icons-round">delete_sweep</i>
+                  ล้าง
+                </button>
+              </div>
+
+              <div class="cart-items" id="cart-list">
+                <div class="cart-empty">
+                  <i class="material-icons-round">shopping_basket</i>
+                  <p>ไม่มีสินค้าในตะกร้า</p>
+                  <span>เลือกสินค้าจากรายการด้านซ้าย</span>
+                </div>
+              </div>
+
+              <div class="cart-summary">
+                <div class="summary-row">
+                  <span>ส่วนลด</span>
+                  <div class="discount-input">
+                    <span>฿</span>
+                    <input type="number" id="pos-discount" value="0" min="0">
+                  </div>
+                </div>
+                <div class="summary-row total">
+                  <span>รวมทั้งสิ้น</span>
+                  <span class="total-amount" id="pos-total">฿0</span>
+                </div>
+              </div>
+
+              <!-- Print Format Selection -->
+              <div class="print-format">
+                <label class="format-option">
+                  <input type="radio" name="print-format" value="80mm" checked>
+                  <span class="format-label">
+                    <i class="material-icons-round">receipt</i>
+                    80mm
+                  </span>
+                </label>
+                <label class="format-option">
+                  <input type="radio" name="print-format" value="A4">
+                  <span class="format-label">
+                    <i class="material-icons-round">description</i>
+                    A4
+                  </span>
+                </label>
+              </div>
+
+              <button class="btn btn-primary btn-checkout" id="checkout-btn" disabled>
+                <i class="material-icons-round">shopping_cart_checkout</i>
+                ชำระเงิน
+                <kbd>F10</kbd>
+              </button>
+            </div>
+
+            <!-- Mobile Cart Floating Action Button -->
+            <button id="cart-fab" class="cart-fab hidden-desktop">
+              <i class="material-icons-round">shopping_basket</i>
+              <span id="cart-fab-badge" class="cart-fab-badge">0</span>
+            </button>
+
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             PAGE: INVENTORY — คลังสินค้า
+             ═══════════════════════════════════════════════════════════════ -->
+        <section id="page-inv" class="page-section hidden">
+          <div class="inv-container">
+            <!-- Toolbar -->
+            <div class="inv-toolbar">
+              <div class="search-box">
+                <i class="material-icons-round">search</i>
+                <input type="text" id="inv-search" placeholder="ค้นหาสินค้า...">
+              </div>
+              <div class="toolbar-actions">
+                <button class="btn btn-outline" id="inv-export-btn">
+                  <i class="material-icons-round">download</i>
+                  ส่งออก
+                </button>
+                <button class="btn btn-primary" id="inv-add-btn">
+                  <i class="material-icons-round">add</i>
+                  เพิ่มสินค้า
+                </button>
+              </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="inv-stats">
+              <div class="inv-stat">
+                <span class="inv-stat-value" id="inv-total">0</span>
+                <span class="inv-stat-label">สินค้าทั้งหมด</span>
+              </div>
+              <div class="inv-stat warning">
+                <span class="inv-stat-value" id="inv-low">0</span>
+                <span class="inv-stat-label">ใกล้หมด</span>
+              </div>
+              <div class="inv-stat danger">
+                <span class="inv-stat-value" id="inv-out">0</span>
+                <span class="inv-stat-label">หมดสต็อก</span>
+              </div>
+              <div class="inv-stat success">
+                <span class="inv-stat-value" id="inv-value">฿0</span>
+                <span class="inv-stat-label">มูลค่าคลัง</span>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrapper">
+              <table class="data-table" id="inv-table">
+                <thead>
+                  <tr>
+                    <th style="width:60px;">รูป</th>
+                    <th>ชื่อสินค้า</th>
+                    <th>บาร์โค้ด</th>
+                    <th>หมวดหมู่</th>
+                    <th class="text-right">ราคา</th>
+                    <th class="text-right">ต้นทุน</th>
+                    <th class="text-center">สต็อก</th>
+                    <th style="width:150px;">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="inv-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             PAGE: CASH — ลิ้นชักเงินสด (Premium v32)
+             ═══════════════════════════════════════════════════════════════ -->
+        <section id="page-cash" class="page-section hidden">
+          <div class="v32pg">
+
+            <!-- ── Hero balance card ── -->
+            <div class="v32hc" id="v32-hero">
+              <div class="v32hc-top">
+                <div class="v32hc-icon"><i class="material-icons-round">account_balance_wallet</i></div>
+                <div class="v32hc-right">
+                  <div class="v32hc-lbl">💰 ยอดเงินในลิ้นชัก</div>
+                  <div class="v32hc-amt" id="cash-current-balance">฿0</div>
+                  <div class="v32hc-st" id="cash-session-status">ยังไม่ได้เปิดลิ้นชักวันนี้</div>
+                </div>
+              </div>
+              <div class="v32hc-stats">
+                <div class="v32hc-stat">
+                  <span class="v32hc-slbl">ยอดเปิด</span>
+                  <span class="v32hc-sval" id="v32-open-amt">฿0</span>
+                </div>
+                <div class="v32hc-sdiv"></div>
+                <div class="v32hc-stat">
+                  <span class="v32hc-slbl">รับเข้าวันนี้ ↑</span>
+                  <span class="v32hc-sval green" id="v32-day-in">฿0</span>
+                </div>
+                <div class="v32hc-sdiv"></div>
+                <div class="v32hc-stat">
+                  <span class="v32hc-slbl">จ่ายออกวันนี้ ↓</span>
+                  <span class="v32hc-sval red" id="v32-day-out">฿0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Action buttons ── -->
+            <div class="v32acts">
+              <button class="v32act v32act-open" id="cash-open-btn">
+                <i class="material-icons-round">lock_open</i>
+                <span>เปิดลิ้นชัก</span>
+              </button>
+              <button class="v32act v32act-add" id="cash-add-btn">
+                <i class="material-icons-round">add_circle</i>
+                <span>เพิ่มเงิน</span>
+              </button>
+              <button class="v32act v32act-wd" id="cash-withdraw-btn">
+                <i class="material-icons-round">remove_circle</i>
+                <span>เบิกเงิน</span>
+              </button>
+              <button class="v32act v32act-exc" id="cash-close-btn">
+                <i class="material-icons-round">currency_exchange</i>
+                <span>แลกเงิน</span>
+              </button>
+            </div>
+
+            <!-- ── Denomination breakdown ── -->
+            <div class="v32dc" id="v32-denom-section" style="display:none;">
+              <div class="v32dc-hdr">
+                <span>💵 แบงค์/เหรียญในลิ้นชัก</span>
+                <span class="v32dc-total" id="v32-denom-total"></span>
+              </div>
+              <div class="v32dc-grid" id="v32-denom-list"></div>
+            </div>
+
+            <!-- ── Transaction history ── -->
+            <div class="v32txc">
+              <div class="v32txc-hdr">
+                <span><i class="material-icons-round">history</i> ประวัติรายการวันนี้</span>
+                <span class="v32txc-count" id="v32-tx-count"></span>
+              </div>
+              <div class="transactions-list" id="cash-transactions"></div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- Other Pages (Placeholders) -->
+        <section id="page-dash" class="page-section hidden"></section>
+        <section id="page-exp" class="page-section hidden"></section>
+        <section id="page-debt" class="page-section hidden"></section>
+        <section id="page-purchase" class="page-section hidden"></section>
+        <section id="page-customer" class="page-section hidden"></section>
+        <section id="page-att" class="page-section hidden"></section>
+        <section id="page-history" class="page-section hidden"></section>
+        <section id="page-log" class="page-section hidden"></section>
+        <section id="page-payable" class="page-section hidden"></section>
+        <section id="page-quotation" class="page-section hidden"></section>
+        <section id="page-admin" class="page-section hidden"></section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Customer Display is now a separate window (customer-display.html) -->
+  <!-- Open via the button in POS page header, or call openCustomerDisplay() -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       CHECKOUT MODAL — Popup ชำระเงิน (Step-by-Step)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="checkout-overlay" class="checkout-overlay hidden">
+    <div class="checkout-modal">
+      <!-- Progress Steps -->
+      <div class="checkout-progress">
+        <div class="progress-step active" data-step="1">
+          <div class="step-num">1</div>
+          <span>ลูกค้า</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="2">
+          <div class="step-num">2</div>
+          <span>ชำระเงิน</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="3">
+          <div class="step-num">3</div>
+          <span>รับเงิน</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="4">
+          <div class="step-num">4</div>
+          <span>ทอนเงิน</span>
+        </div>
+      </div>
+
+      <!-- Step Content -->
+      <div class="checkout-content" id="checkout-content">
+        <!-- จะถูก render โดย JS -->
+      </div>
+
+      <!-- Footer -->
+      <div class="checkout-footer">
+        <button class="btn btn-ghost" id="checkout-cancel">
+          <i class="material-icons-round">close</i>
+          ยกเลิก
+        </button>
+        <button class="btn btn-ghost" id="checkout-back" style="display:none;">
+          <i class="material-icons-round">arrow_back</i>
+          ย้อนกลับ
+        </button>
+        <button class="btn btn-primary" id="checkout-next">
+          ถัดไป
+          <i class="material-icons-round">arrow_forward</i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       GENERIC MODAL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">Modal</h3>
+        <button class="modal-close" id="modal-close">
+          <i class="material-icons-round">close</i>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       ACTIVITY INBOX DRAWER (Right Side Panel)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="inbox-backdrop" onclick="closeActivityInbox()"
+    style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);"></div>
+
+  <div id="inbox-drawer"
+    style="position:fixed;top:0;right:0;bottom:0;z-index:10001;width:400px;max-width:100vw;
+           background:var(--bg-surface);display:flex;flex-direction:column;
+           box-shadow:-8px 0 40px rgba(0,0,0,.18);
+           transform:translateX(100%);transition:transform .32s cubic-bezier(0.16,1,0.3,1);
+           overflow:hidden;">
+
+    <!-- Drawer Header -->
+    <div style="background:linear-gradient(135deg,#1e293b,#334155);padding:0;flex-shrink:0;">
+      <div style="padding:18px 20px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;">
+              <i class="material-icons-round" style="color:#fff;font-size:20px;">notifications</i>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#fff;">ประวัติกิจกรรม</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.55);" id="inbox-subtitle">กำลังโหลด...</div>
+            </div>
+          </div>
+          <button onclick="closeActivityInbox()"
+            style="width:32px;height:32px;border-radius:8px;border:none;background:rgba(255,255,255,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);">
+            <i class="material-icons-round" style="font-size:18px;">close</i>
+          </button>
+        </div>
+        <!-- Search Bar -->
+        <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;">
+          <i class="material-icons-round" style="color:rgba(255,255,255,.5);font-size:16px;">search</i>
+          <input id="inbox-search" type="text" placeholder="ค้นหากิจกรรม..."
+            oninput="filterInboxItems(this.value)"
+            style="flex:1;border:none;background:none;outline:none;color:#fff;font-family:var(--font-thai);font-size:13px;"
+          >
+        </div>
+      </div>
+      <!-- Category Tabs -->
+      <div id="inbox-tabs" style="display:flex;gap:0;overflow-x:auto;padding:0 16px;scrollbar-width:none;">
+      </div>
+    </div>
+
+    <!-- Drawer Content -->
+    <div id="inbox-list" style="flex:1;overflow-y:auto;padding:12px 0;">
+      <div style="text-align:center;padding:40px 20px;color:var(--text-tertiary);">
+        <i class="material-icons-round" style="font-size:40px;display:block;margin-bottom:8px;">hourglass_empty</i>
+        <div style="font-size:13px;">กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <!-- Drawer Footer -->
+    <div style="padding:12px 16px;border-top:1px solid var(--border-light);background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:12px;color:var(--text-tertiary);" id="inbox-count-label">—</span>
+      <button onclick="loadInboxActivities(true)"
+        style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;font-family:var(--font-thai);display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:6px;font-weight:600;">
+        <i class="material-icons-round" style="font-size:14px;">refresh</i> รีเฟรช
+      </button>
+    </div>
+  </div>
+
+  <div id="scanner-modal" class="modal-overlay hidden" style="z-index: 9999;">
+    <div class="modal-box" style="max-width: 400px; padding: 0; overflow: hidden;">
+      <div class="modal-header" style="padding: 16px;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <i class="material-icons-round">qr_code_scanner</i> สแกนบาร์โค้ด
+        </h3>
+        <button class="modal-close" id="scanner-close-btn">
+          <i class="material-icons-round">close</i>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 0; background: #000;">
+        <div id="reader" style="width: 100%; border-radius: 0 0 12px 12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="config.js"></script>
+  <script src="app.js?v=2"></script>
+  <script src="modules.js"></script>
+  <script src="modules-v2.js"></script>
+  <script src="dashboard-v3.js"></script>
+  <script src="modules-v2-patch.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="modules-v3.js"></script>
+  <script src="modules-v4-8.js"></script>
+  <script src="modules-v9.js"></script>
+  <script src="modules-v10.js?v=2"></script>
+  <script src="modules-v11.js"></script>
+  <script src="modules-v12.js?v=4"></script>
+  <script src="modules-v13.js"></script>
+  <script src="modules-v14.js"></script>
+  <script src="modules-v15.js"></script>
+  <script src="modules-v16.js"></script>
+  <script src="modules-v17.js"></script>
+  <script src="modules-v18.js"></script>
+  <script src="modules-v19.js"></script>
+  <script src="modules-v20.js"></script>
+  <script src="modules-v21.js"></script>
+  <script src="modules-v22.js"></script>
+  <script src="modules-v23.js"></script>
+  <script src="modules-v24-print.js"></script>
+  <script src="modules-v24-display.js"></script>
+  <script src="modules-v25-quotation.js"></script>
+  <script src="modules-v26-hr.js"></script>
+  <script src="modules-v27.js"></script>
+  <script src="modules-v28.js?v=2"></script>
+  <script src="modules-v29-inbox.js"></script>
+  <script src="modules-v23-projectui.js"></script>
+  <script src="modules-v30-fastsale.js"></script>
+  <script src="modules-v31-payrollui.js"></script>
+  <script src="modules-v32-cashui.js"></script>
+  <script src="modules-v34-ui.js?v=4"></script>
+  <script src="modules-v33-fixes.js"></script>
+  <script src="modules-v35-grand-ui.js"></script>
+  <script src="modules-v36-usage-safety.js?v=3"></script>
+  <script src="scanner.js"></script>
+</body>
+
+</html>

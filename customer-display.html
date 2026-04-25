@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SK POS — หน้าจอลูกค้า</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700;9..40,900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    :root {
+      --red-700:#B91C1C;--red-600:#DC2626;--red-500:#EF4444;--red-400:#F87171;--red-200:#FECACA;--red-100:#FEE2E2;--red-50:#FEF2F2;
+      --white:#FFF;--g50:#F9FAFB;--g100:#F3F4F6;--g200:#E5E7EB;--g300:#D1D5DB;--g400:#9CA3AF;--g500:#6B7280;--g600:#4B5563;--g700:#374151;--g800:#1F2937;--g900:#111827;
+      --emerald:#059669;--amber:#D97706;--purple:#7C3AED;
+      --font:'Noto Sans Thai',sans-serif;--num:'DM Sans',sans-serif;
+      --r-md:12px;--r-lg:20px;--r-xl:28px;--r-full:9999px;
+    }
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow:hidden;font-family:var(--font);background:var(--white);color:var(--g800);-webkit-font-smoothing:antialiased}
+
+    /* ═══ FULLSCREEN OVERLAY ═══ */
+    #fs-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;cursor:pointer;transition:opacity .3s}
+    #fs-overlay.hidden{opacity:0;pointer-events:none}
+    #fs-overlay i{font-size:72px;color:#fff;opacity:.9;animation:fs-pulse 2s ease-in-out infinite}
+    #fs-overlay p{color:#fff;font-size:22px;font-weight:600;letter-spacing:.5px;opacity:.9}
+    #fs-overlay small{color:rgba(255,255,255,.5);font-size:13px}
+    @keyframes fs-pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.08);opacity:1}}
+
+    /* ═══ HEADER ═══ */
+    .hdr{position:fixed;top:0;left:0;right:0;height:68px;background:var(--white);border-bottom:2px solid var(--g200);display:flex;align-items:center;justify-content:space-between;padding:0 36px;z-index:100}
+    .hdr-brand{display:flex;align-items:center;gap:14px}
+    .hdr-logo{width:48px;height:48px;background:var(--red-600);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;color:var(--white);font-family:var(--num);font-weight:900;font-size:20px;letter-spacing:-1px;box-shadow:0 2px 12px rgba(220,38,38,.35)}
+    .hdr-name{font-size:17px;font-weight:700;color:var(--g700)}
+    .hdr-sub{font-size:13px;color:var(--g400);margin-top:1px}
+    .hdr-clock{font-family:var(--num);font-size:28px;font-weight:800;color:var(--g800);letter-spacing:-.5px}
+    .hdr-date{font-size:13px;color:var(--g400);text-align:right;margin-top:2px}
+
+    /* ═══ CUSTOMER BANNER ═══ */
+    .cust-banner{position:fixed;top:68px;left:0;right:0;height:0;overflow:hidden;z-index:90;transition:height .35s cubic-bezier(.4,0,.2,1);background:linear-gradient(135deg,var(--red-600),var(--red-500));color:var(--white);display:flex;align-items:center;padding:0 36px;gap:14px}
+    .cust-banner.show{height:56px}
+    .cust-banner i{font-size:26px;opacity:.85}
+    .cust-banner .cb-name{font-size:18px;font-weight:800;flex:1}
+    .cust-banner .cb-tag{font-size:13px;background:rgba(255,255,255,.2);padding:4px 14px;border-radius:var(--r-full);font-weight:600}
+
+    /* ═══ PROGRESS ═══ */
+    .prog{position:fixed;top:68px;left:0;right:0;height:4px;background:var(--g100);z-index:89;display:flex}
+    .prog-seg{flex:1;transition:background .5s ease}
+    .prog-seg.done{background:var(--red-600)}
+    .prog-seg.active{background:var(--red-400);animation:pp 2s infinite}
+    @keyframes pp{0%,100%{opacity:1}50%{opacity:.5}}
+
+    /* ═══ STEP BAR BOTTOM ═══ */
+    .step-bar{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--white);border-top:2px solid var(--g200);display:flex;align-items:center;justify-content:center;z-index:90;transition:transform .3s}
+    .step-bar.hide{transform:translateY(100%)}
+    .sb-item{display:flex;align-items:center;gap:8px;padding:0 20px}
+    .sb-num{width:34px;height:34px;border-radius:50%;background:var(--g100);color:var(--g400);display:flex;align-items:center;justify-content:center;font-family:var(--num);font-size:14px;font-weight:700;transition:all .3s ease;flex-shrink:0}
+    .sb-num.active{background:var(--red-600);color:var(--white);box-shadow:0 0 0 4px var(--red-100);transform:scale(1.1)}
+    .sb-num.done{background:var(--red-600);color:var(--white)}
+    .sb-label{font-size:14px;color:var(--g400);font-weight:500;white-space:nowrap;transition:color .3s}
+    .sb-num.active+.sb-label,.sb-num.done+.sb-label{color:var(--red-600);font-weight:700}
+    .sb-line{width:36px;height:2px;background:var(--g200);transition:background .3s}
+    .sb-line.done{background:var(--red-600)}
+
+    /* ═══ CONTENT ═══ */
+    .content{position:fixed;top:72px;left:0;right:0;bottom:64px;overflow:hidden;transition:top .35s ease}
+    .content.with-banner{top:128px}
+
+    /* ═══ SCREEN ═══ */
+    .screen{position:absolute;inset:0;display:flex;opacity:0;visibility:hidden;transition:opacity .45s ease,transform .45s ease;transform:scale(.97)}
+    .screen.active{opacity:1;visibility:visible;transform:scale(1)}
+
+    /* ═══ IDLE ═══ */
+    .sc-idle{background:var(--white);flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
+    .idle-bg{position:absolute;inset:0;pointer-events:none}
+    .idle-bg::before{content:'';position:absolute;top:-20%;right:-10%;width:700px;height:700px;background:radial-gradient(circle,var(--red-50) 0%,transparent 70%);border-radius:50%}
+    .idle-bg::after{content:'';position:absolute;bottom:-15%;left:-5%;width:500px;height:500px;background:radial-gradient(circle,var(--red-50) 0%,transparent 70%);border-radius:50%}
+    .idle-body{position:relative;z-index:2;text-align:center;animation:fadeUp .8s ease}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+    .idle-ring{width:160px;height:160px;border-radius:50%;background:linear-gradient(135deg,var(--red-600),var(--red-500));display:flex;align-items:center;justify-content:center;margin:0 auto 36px;box-shadow:0 8px 32px rgba(220,38,38,.3),0 0 0 14px var(--red-50);animation:ipulse 3s infinite}
+    @keyframes ipulse{0%,100%{box-shadow:0 8px 32px rgba(220,38,38,.3),0 0 0 14px var(--red-50)}50%{box-shadow:0 8px 40px rgba(220,38,38,.4),0 0 0 22px var(--red-50)}}
+    .idle-ring i{font-size:80px;color:var(--white)}
+    .idle-h{font-size:52px;font-weight:900;color:var(--g900);letter-spacing:-2px;margin-bottom:10px}
+    .idle-p{font-size:22px;color:var(--g400);margin-bottom:48px}
+    .idle-feats{display:flex;gap:36px;justify-content:center;flex-wrap:wrap}
+    .idle-f{display:flex;align-items:center;gap:8px;font-size:16px;color:var(--g500);font-weight:600}
+    .idle-f i{font-size:24px;color:var(--red-400)}
+    .idle-mq{position:absolute;bottom:0;left:0;right:0;background:var(--red-600);padding:13px 0;overflow:hidden;white-space:nowrap;z-index:3}
+    .mq-text{display:inline-block;color:var(--white);font-size:16px;font-weight:600;animation:mq 25s linear infinite}
+    @keyframes mq{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+    /* ═══ ITEMS ═══ */
+    .sc-items{background:var(--g50);flex-direction:column}
+    .items-wrap{flex:1;display:flex;flex-direction:column;width:100%;padding:20px 40px;overflow:hidden}
+    .items-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .items-top-l{display:flex;align-items:center;gap:12px}
+    .items-ic{width:48px;height:48px;border-radius:var(--r-md);background:var(--red-50);display:flex;align-items:center;justify-content:center}
+    .items-ic i{font-size:26px;color:var(--red-600)}
+    .items-h{font-size:24px;font-weight:800;color:var(--g900)}
+    .items-badge{background:var(--red-600);color:var(--white);font-family:var(--num);font-size:15px;font-weight:700;padding:6px 18px;border-radius:var(--r-full)}
+    .items-list{flex:1;overflow:hidden;display:flex;flex-direction:column}
+    .it-row{display:flex;align-items:center;justify-content:space-between;background:var(--white);border-radius:var(--r-md);border:1px solid var(--g100);opacity:0;transform:translateX(-16px);animation:itS .35s ease forwards;flex-shrink:1;min-height:0}
+    @keyframes itS{to{opacity:1;transform:translateX(0)}}
+    .it-left{display:flex;align-items:center;gap:14px;overflow:hidden}
+    .it-num{border-radius:50%;background:var(--red-50);color:var(--red-600);display:flex;align-items:center;justify-content:center;font-family:var(--num);font-weight:800;flex-shrink:0}
+    .it-name{font-weight:700;color:var(--g800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .it-meta{color:var(--g400)}
+    .it-price{font-family:var(--num);font-weight:800;color:var(--g900);letter-spacing:-.5px;flex-shrink:0;white-space:nowrap}
+    .tot-bar{background:var(--white);border-top:2px solid var(--g200);padding:18px 40px;display:flex;align-items:center;justify-content:space-between}
+    .tot-lbl{font-size:18px;color:var(--g500);font-weight:600}
+    .tot-amt{font-family:var(--num);font-size:68px;font-weight:900;color:var(--red-600);letter-spacing:-3px}
+    .disc-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red-50);color:var(--red-600);border-radius:var(--r-full);padding:4px 12px;font-size:14px;font-weight:600;margin-top:4px}
+
+    /* ═══ PAYMENT ═══ */
+    .sc-pay{background:var(--white);align-items:center;justify-content:center}
+    .pay-card{width:100%;max-width:640px;text-align:center;padding:28px;animation:payIn .5s ease}
+    @keyframes payIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+    .pay-lbl{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:var(--r-full);font-size:17px;font-weight:700;margin-bottom:28px}
+    .pay-lbl.cash-lbl{background:var(--red-50);color:var(--red-700)}
+    .pay-lbl.transfer-lbl{background:#F5F3FF;color:var(--purple)}
+    .pay-lbl.credit-lbl{background:#EFF6FF;color:#2563EB}
+    .pay-lbl.debt-lbl{background:#FFFBEB;color:var(--amber)}
+    .pay-lbl i{font-size:20px}
+    .pay-box{border-radius:var(--r-xl);padding:48px 40px;color:var(--white);margin-bottom:28px;position:relative;overflow:hidden}
+    .pay-box.cash-bg{background:linear-gradient(135deg,var(--red-600),var(--red-700));box-shadow:0 12px 40px rgba(220,38,38,.35)}
+    .pay-box.transfer-bg{background:linear-gradient(135deg,var(--purple),#6D28D9);box-shadow:0 12px 40px rgba(124,58,237,.35)}
+    .pay-box.credit-bg{background:linear-gradient(135deg,#2563EB,#1D4ED8);box-shadow:0 12px 40px rgba(37,99,235,.35)}
+    .pay-box.debt-bg{background:linear-gradient(135deg,var(--amber),#B45309);box-shadow:0 12px 40px rgba(217,119,6,.35)}
+    .pay-box::before{content:'';position:absolute;top:-40%;right:-20%;width:360px;height:360px;background:rgba(255,255,255,.06);border-radius:50%}
+    .pay-sub{font-size:18px;opacity:.85;margin-bottom:10px;font-weight:500}
+    .pay-val{font-family:var(--num);font-size:76px;font-weight:900;letter-spacing:-4px;position:relative}
+    .pay-method-chip{display:inline-flex;align-items:center;gap:10px;background:var(--white);border:2px solid var(--g200);color:var(--g700);border-radius:var(--r-full);padding:16px 32px;font-size:20px;font-weight:700}
+    .pay-method-chip i{font-size:28px}
+    .debt-info{background:#FFFBEB;border:2px solid #FDE68A;border-radius:var(--r-lg);padding:28px;text-align:left;margin-top:24px}
+    .debt-info h4{font-size:18px;font-weight:700;color:#92400E;display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .debt-info h4 i{font-size:26px}
+    .debt-info p{font-size:16px;color:#92400E;line-height:1.7}
+    .qr-wrap{margin-top:28px}
+    .qr-frame{display:inline-block;background:var(--white);border:3px solid var(--purple);border-radius:var(--r-lg);padding:20px;box-shadow:0 6px 24px rgba(124,58,237,.2)}
+    .qr-frame img,#qr-container canvas,#qr-container table{display:block;width:260px;height:260px;border-radius:10px}
+    .qr-hint{margin-top:12px;font-size:16px;color:var(--g400);font-weight:500}
+
+    /* ═══ CASH ═══ */
+    .sc-cash{background:var(--g50);flex-direction:row}
+    .cash-l{width:55%;background:var(--white);display:flex;flex-direction:column;justify-content:center;padding:48px 56px;border-right:2px solid var(--g200)}
+    .cash-r{flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 40px}
+    .cblk{margin-bottom:36px}
+    .cblk:last-child{margin-bottom:0;padding-top:32px;border-top:2px solid var(--g100)}
+    .cblk-lbl{font-size:14px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+    .cblk-val{font-family:var(--num);font-size:68px;font-weight:900;letter-spacing:-3px;color:var(--g900)}
+    .cblk-val.red{color:var(--red-600)}
+    .cblk-val.green{color:var(--emerald)}
+    .ch-denoms{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .ch-pill{display:inline-flex;align-items:center;gap:4px;border-radius:var(--r-full);padding:7px 16px;font-family:var(--num);font-size:16px;font-weight:700;color:var(--white);opacity:0;transform:scale(.7);animation:dpop .3s cubic-bezier(.34,1.56,.64,1) forwards}
+    @keyframes dpop{to{opacity:1;transform:scale(1)}}
+    .cash-card{background:var(--white);border-radius:var(--r-lg);padding:32px;border:1px solid var(--g200)}
+    .cash-card-h{font-size:15px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+    .cash-card-h i{font-size:20px;color:var(--red-400)}
+    .sr{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--g100);font-size:18px;color:var(--g600)}
+    .sr:last-child{border-bottom:none}
+    .sr .sv{font-family:var(--num);font-weight:800;font-size:22px;color:var(--g900)}
+
+    /* ═══ THANKS ═══ */
+    .sc-thanks{background:linear-gradient(135deg,var(--red-600) 0%,var(--red-700) 50%,#7F1D1D 100%);color:var(--white);align-items:center;justify-content:center;flex-direction:column;position:relative;overflow:hidden}
+    .thx-shape{position:absolute;border-radius:50%;background:rgba(255,255,255,.04)}
+    .thx-shape:nth-child(1){width:700px;height:700px;top:-240px;right:-200px}
+    .thx-shape:nth-child(2){width:500px;height:500px;bottom:-160px;left:-120px}
+    .thx-body{position:relative;z-index:2;text-align:center;animation:thxIn .6s ease}
+    @keyframes thxIn{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
+    .thx-ring{width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;margin:0 auto 36px;animation:thxB .6s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes thxB{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+    .thx-ring i{font-size:88px}
+    .thx-h{font-size:60px;font-weight:900;margin-bottom:12px;letter-spacing:-2px}
+    .thx-p{font-size:26px;opacity:.8;margin-bottom:40px}
+    .thx-bill{font-size:18px;opacity:.65}
+    .thx-bill strong{font-family:var(--num);font-size:24px;font-weight:800}
+    .thx-brand{position:absolute;bottom:40px;font-family:var(--num);font-size:36px;font-weight:900;opacity:.12;z-index:2}
+
+    @media(max-width:1024px){
+      .hdr{padding:0 20px;height:60px}.hdr-logo{width:42px;height:42px;font-size:18px}.hdr-clock{font-size:22px}.hdr-name{font-size:15px}
+      .cust-banner{top:60px;padding:0 20px}.cust-banner.show{height:50px}
+      .prog{top:60px}.content{top:64px}.content.with-banner{top:114px}
+      .items-wrap{padding:14px 20px}.tot-amt{font-size:48px}.tot-lbl{font-size:15px}
+      .pay-val{font-size:56px}.pay-box{padding:36px 28px}.pay-sub{font-size:15px}
+      .pay-method-chip{font-size:17px;padding:13px 26px}.pay-method-chip i{font-size:24px}
+      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:28px 32px}.cash-r{padding:24px 32px}.cblk-val{font-size:48px}
+      .thx-h{font-size:44px}.thx-p{font-size:20px}.thx-ring{width:120px;height:120px}.thx-ring i{font-size:64px}
+      .step-bar{height:56px}.sb-label{font-size:12px}.sb-num{width:30px;height:30px;font-size:12px}
+    }
+    @media(max-width:640px){
+      .hdr{padding:0 14px;height:52px}.hdr-logo{width:36px;height:36px;font-size:15px}.hdr-clock{font-size:18px}.hdr-name{font-size:13px}
+      .cust-banner{top:52px;padding:0 14px}.cust-banner.show{height:44px}
+      .prog{top:52px}.content{top:56px}.content.with-banner{top:100px}
+      .items-wrap{padding:10px 14px}.tot-amt{font-size:36px}.tot-lbl{font-size:13px}
+      .pay-val{font-size:44px}.pay-box{padding:28px 20px}.pay-sub{font-size:13px}
+      .pay-method-chip{font-size:14px;padding:11px 20px}.pay-method-chip i{font-size:20px}
+      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:20px 20px}.cash-r{padding:18px 20px}.cblk-val{font-size:36px}.cblk-lbl{font-size:12px}
+      .thx-h{font-size:34px}.thx-p{font-size:17px}.thx-ring{width:90px;height:90px}.thx-ring i{font-size:52px}
+      .idle-ring{width:110px;height:110px}.idle-ring i{font-size:60px}.idle-h{font-size:36px}.idle-p{font-size:17px}
+      .step-bar{height:52px}.sb-label{font-size:11px}.sb-num{width:26px;height:26px;font-size:11px}
+    }
+  </style>
+</head>
+<body>
+  <!-- FULLSCREEN PROMPT OVERLAY -->
+  <div id="fs-overlay" class="hidden" onclick="_enterFullscreen()">
+    <i class="material-icons-round">fullscreen</i>
+    <p>แตะเพื่อเปิดเต็มจอ</p>
+    <small>Tap anywhere to enter fullscreen</small>
+  </div>
+
+  <header class="hdr">
+    <div class="hdr-brand"><div class="hdr-logo">SK</div><div><div class="hdr-name">SK POS</div><div class="hdr-sub">หน้าจอลูกค้า</div></div></div>
+    <div class="hdr-right"><div><div class="hdr-clock" id="clock">00:00</div><div class="hdr-date" id="date-disp"></div></div></div>
+  </header>
+
+  <div class="cust-banner" id="cust-banner">
+    <i class="material-icons-round">person</i>
+    <span class="cb-name" id="cust-name-text">ลูกค้าทั่วไป</span>
+    <span class="cb-tag" id="cust-tag">ลูกค้าประจำ</span>
+  </div>
+
+  <div class="prog"><div class="prog-seg" id="seg-0"></div><div class="prog-seg" id="seg-1"></div><div class="prog-seg" id="seg-2"></div><div class="prog-seg" id="seg-3"></div></div>
+
+  <div class="content" id="main-content">
+    <!-- IDLE -->
+    <div class="screen sc-idle active" id="screen-idle">
+      <div class="idle-bg"></div>
+      <div class="idle-body">
+        <div class="idle-ring"><i class="material-icons-round">storefront</i></div>
+        <div class="idle-h">ยินดีต้อนรับ</div>
+        <div class="idle-p">Welcome — กรุณาเลือกสินค้าที่ต้องการ</div>
+        <div class="idle-feats">
+          <div class="idle-f"><i class="material-icons-round">payments</i> เงินสด</div>
+          <div class="idle-f"><i class="material-icons-round">qr_code</i> พร้อมเพย์</div>
+          <div class="idle-f"><i class="material-icons-round">credit_card</i> บัตรเครดิต</div>
+          <div class="idle-f"><i class="material-icons-round">stars</i> สะสมแต้ม</div>
+        </div>
+      </div>
+      <div class="idle-mq"><span class="mq-text">ขอบคุณที่ใช้บริการ SK POS &nbsp;&nbsp;&nbsp; รับชำระเงินสด / โอนเงิน / บัตรเครดิต &nbsp;&nbsp;&nbsp; สะสมแต้มลูกค้าประจำ &nbsp;&nbsp;&nbsp; PromptPay พร้อมให้บริการ &nbsp;&nbsp;&nbsp;</span></div>
+    </div>
+
+    <!-- ITEMS -->
+    <div class="screen sc-items" id="screen-items">
+      <div class="items-wrap">
+        <div class="items-top">
+          <div class="items-top-l"><div class="items-ic"><i class="material-icons-round">shopping_cart</i></div><div class="items-h">รายการสินค้า</div></div>
+          <div class="items-badge" id="items-count">0 รายการ</div>
+        </div>
+        <div class="items-list" id="items-list"></div>
+      </div>
+      <div class="tot-bar">
+        <div><div class="tot-lbl">ยอดรวมทั้งสิ้น</div><div id="discount-info" style="display:none" class="disc-badge"></div></div>
+        <div class="tot-amt" id="total-display">฿0</div>
+      </div>
+    </div>
+
+    <!-- PAYMENT -->
+    <div class="screen sc-pay" id="screen-payment">
+      <div class="pay-card">
+        <div class="pay-lbl cash-lbl" id="pay-status-label"><i class="material-icons-round">sync</i> กำลังดำเนินการชำระเงิน</div>
+        <div class="pay-box cash-bg" id="pay-box">
+          <div class="pay-sub">ยอดที่ต้องชำระ</div>
+          <div class="pay-val" id="pay-amount">฿0</div>
+        </div>
+        <div class="pay-method-chip" id="method-chip"><i class="material-icons-round">payments</i><span id="method-text">เงินสด</span></div>
+        <div class="qr-wrap" id="qr-section" style="display:none"><div class="qr-frame" id="qr-box"><div id="qr-container"></div></div><div class="qr-hint" id="qr-label">สแกน QR Code เพื่อชำระเงิน</div></div>
+        <div class="debt-info" id="debt-section" style="display:none"><h4><i class="material-icons-round">pending_actions</i> ค้างชำระ</h4><p id="debt-text">ระบบจะบันทึกเป็นหนี้ค้างชำระ</p></div>
+      </div>
+    </div>
+
+    <!-- CASH -->
+    <div class="screen sc-cash" id="screen-cash">
+      <div class="cash-l">
+        <div class="cblk"><div class="cblk-lbl">ยอดที่ต้องชำระ</div><div class="cblk-val red" id="cash-need">฿0</div></div>
+        <div class="cblk"><div class="cblk-lbl">รับเงินมา</div><div class="cblk-val" id="cash-received">฿0</div></div>
+        <div class="cblk"><div class="cblk-lbl">เงินทอน</div><div class="cblk-val green" id="cash-change">฿0</div><div class="ch-denoms" id="change-denoms"></div></div>
+      </div>
+      <div class="cash-r">
+        <div class="cash-card">
+          <div class="cash-card-h"><i class="material-icons-round">receipt_long</i> สรุปรายการ</div>
+          <div class="sr"><span>ลูกค้า</span><span class="sv" id="cs-customer">ลูกค้าทั่วไป</span></div>
+          <div class="sr"><span>วิธีชำระ</span><span class="sv" id="cs-method">เงินสด</span></div>
+          <div class="sr"><span>ยอดรวม</span><span class="sv" style="color:var(--red-600)" id="cs-total">฿0</span></div>
+          <div class="sr" id="cs-change-row"><span>เงินทอน</span><span class="sv" style="color:var(--emerald)" id="cs-change">฿0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- THANKS -->
+    <div class="screen sc-thanks" id="screen-thanks">
+      <div class="thx-shape"></div><div class="thx-shape"></div>
+      <div class="thx-body">
+        <div class="thx-ring"><i class="material-icons-round">check_circle</i></div>
+        <div class="thx-h">ขอบคุณที่ใช้บริการ</div>
+        <div class="thx-p">Thank you for your purchase</div>
+        <div class="thx-bill" id="thanks-bill"></div>
+      </div>
+      <div class="thx-brand">SK POS</div>
+    </div>
+  </div>
+
+  <!-- STEP BAR -->
+  <div class="step-bar" id="step-bar">
+    <div class="sb-item"><div class="sb-num" id="sd-0">1</div><div class="sb-label">สินค้า</div></div>
+    <div class="sb-line" id="sl-0"></div>
+    <div class="sb-item"><div class="sb-num" id="sd-1">2</div><div class="sb-label">ลูกค้า</div></div>
+    <div class="sb-line" id="sl-1"></div>
+    <div class="sb-item"><div class="sb-num" id="sd-2">3</div><div class="sb-label">ชำระเงิน</div></div>
+    <div class="sb-line" id="sl-2"></div>
+    <div class="sb-item"><div class="sb-num" id="sd-3"><i class="material-icons-round" style="font-size:14px">check</i></div><div class="sb-label">เสร็จสิ้น</div></div>
+  </div>
+
+  <script>
+    let currentCustomer = { name:'', type:'' };
+    const DENOM_COLORS = {1000:'#8B5E3C',500:'#6B3FA0',100:'#C8102E',50:'#0066CC',20:'#1A7A3C',10:'#B8860B',5:'#B8860B',2:'#B8860B',1:'#B8860B'};
+    const DENOM_LABELS = {1000:'1,000',500:'500',100:'100',50:'50',20:'20',10:'10',5:'5',2:'2',1:'1'};
+    const fmt = n => Number(n||0).toLocaleString('th-TH');
+    const METHOD_MAP = {cash:'เงินสด',transfer:'โอน/พร้อมเพย์',credit:'บัตรเครดิต',debt:'ค้างชำระ',project:'จ่ายให้โครงการ'};
+    const METHOD_ICONS = {cash:'payments',transfer:'qr_code',credit:'credit_card',debt:'pending_actions',project:'business_center'};
+    const METHOD_BG = {cash:'cash-bg',transfer:'transfer-bg',credit:'credit-bg',debt:'debt-bg',project:'debt-bg'};
+    const LBL_CLS = {cash:'cash-lbl',transfer:'transfer-lbl',credit:'credit-lbl',debt:'debt-lbl',project:'debt-lbl'};
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      const el=document.getElementById('screen-'+id);
+      if(el)el.classList.add('active');
+      document.getElementById('step-bar').classList.toggle('hide',id==='idle'||id==='thanks');
+    }
+
+    function setStep(step) {
+      for(let i=0;i<4;i++){
+        const seg=document.getElementById('seg-'+i);
+        if(seg){seg.classList.remove('active','done');if(i<step)seg.classList.add('done');else if(i===step)seg.classList.add('active')}
+        const dot=document.getElementById('sd-'+i);
+        const line=document.getElementById('sl-'+i);
+        if(dot){dot.classList.remove('active','done');if(i+1===step)dot.classList.add('active');else if(i+1<step)dot.classList.add('done')}
+        if(line){line.classList.remove('done');if(i+1<step)line.classList.add('done')}
+      }
+    }
+
+    function showCustomer(name,type) {
+      currentCustomer={name,type};
+      const banner=document.getElementById('cust-banner');
+      const content=document.getElementById('main-content');
+      if(name&&name!=='ลูกค้าทั่วไป'){
+        document.getElementById('cust-name-text').textContent=name;
+        document.getElementById('cust-tag').textContent=type==='new'?'ลูกค้าใหม่':'ลูกค้าประจำ';
+        banner.classList.add('show');content.classList.add('with-banner');
+      } else { banner.classList.remove('show');content.classList.remove('with-banner'); }
+      document.getElementById('cs-customer').textContent=name||'ลูกค้าทั่วไป';
+    }
+
+    function hideCustomer() {
+      document.getElementById('cust-banner').classList.remove('show');
+      document.getElementById('main-content').classList.remove('with-banner');
+      currentCustomer={name:'',type:''};
+    }
+
+    function showPaymentMethod(method,total,extra) {
+      document.getElementById('pay-amount').textContent=`฿${fmt(total)}`;
+      document.getElementById('pay-box').className='pay-box '+(METHOD_BG[method]||'cash-bg');
+      document.getElementById('method-chip').innerHTML=`<i class="material-icons-round">${METHOD_ICONS[method]||'payments'}</i><span>${METHOD_MAP[method]||'เงินสด'}</span>`;
+      const lbl=document.getElementById('pay-status-label');
+      lbl.className='pay-lbl '+(LBL_CLS[method]||'cash-lbl');
+      lbl.innerHTML=method==='debt'
+        ?'<i class="material-icons-round">pending_actions</i> บันทึกค้างชำระ'
+        :'<i class="material-icons-round">sync</i> กำลังดำเนินการชำระเงิน';
+      document.getElementById('qr-section').style.display='none';
+      document.getElementById('debt-section').style.display='none';
+      if(method==='transfer'){
+        document.getElementById('qr-section').style.display='block';
+        if(extra?.qrPayload)renderQRDisplay(extra.qrPayload,extra.qrLabel);
+      } else if(method==='debt'){
+        document.getElementById('debt-section').style.display='block';
+        document.getElementById('debt-text').innerHTML=`ระบบจะบันทึกยอด <strong>฿${fmt(total)}</strong> เป็นหนี้ค้างชำระของ <strong>${currentCustomer.name||'ลูกค้า'}</strong>`;
+      }
+      showScreen('payment');setStep(3);
+    }
+
+    function renderQRDisplay(payload,label) {
+      const c=document.getElementById('qr-container');c.innerHTML='';
+      if(window.QRCode){new QRCode(c,{text:payload,width:200,height:200,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M})}
+      else{c.innerHTML=`<img src="${payload}" style="width:200px;height:200px" alt="QR">`}
+      document.getElementById('qr-label').textContent=label||'สแกน QR Code เพื่อชำระเงิน';
+    }
+
+    function showCash(total,received,change,method,denomGiven) {
+      document.getElementById('cash-need').textContent=`฿${fmt(total)}`;
+      document.getElementById('cash-received').textContent=`฿${fmt(received)}`;
+      document.getElementById('cash-change').textContent=`฿${fmt(Math.max(0,change))}`;
+      document.getElementById('cs-total').textContent=`฿${fmt(total)}`;
+      document.getElementById('cs-method').textContent=METHOD_MAP[method]||'เงินสด';
+      document.getElementById('cs-change').textContent=`฿${fmt(Math.max(0,change))}`;
+      // Only show denomination pills when explicitly provided by cashier (not auto-calc)
+      if(denomGiven && typeof denomGiven==='object'){
+        showChangeGiven(denomGiven);
+      }
+      // Don't clear existing pills if no denomGiven — keep what cashier already sent
+      showScreen('cash');setStep(3);
+    }
+
+    /** Show actual change denominations chosen by cashier */
+    function showChangeGiven(denomMap) {
+      const el=document.getElementById('change-denoms');
+      if(!el)return;
+      const pills=[];
+      [1000,500,100,50,20,10,5,2,1].forEach(function(v){
+        const cnt=denomMap[v]||denomMap[String(v)]||0;
+        if(cnt>0) pills.push({value:v,count:cnt});
+      });
+      if(pills.length>0){
+        el.innerHTML=pills.map(function(d,i){
+          return '<div class="ch-pill" style="background:'+
+            (DENOM_COLORS[d.value]||'#888')+';animation-delay:'+
+            (i*.06)+'s">฿'+(DENOM_LABELS[d.value]||d.value)+' × '+d.count+'</div>';
+        }).join('');
+      } else {
+        el.innerHTML='';
+      }
+    }
+
+    function tick() {
+      const now=new Date();
+      document.getElementById('clock').textContent=now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      document.getElementById('date-disp').textContent=now.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'2-digit'});
+    }
+    setInterval(tick,1000);tick();
+
+    /* ═══ MESSAGE HANDLER ═══ */
+    window.addEventListener('message',(e)=>{
+      const data=e.data; if(!data?.type)return;
+      switch(data.type){
+
+        case 'cart': {
+          const cart=data.cart||[],total=data.total||0;
+          const qty=cart.reduce((s,c)=>s+c.qty,0);
+          document.getElementById('items-count').textContent=`${qty} รายการ`;
+          // Dynamic sizing: shrink items to fit without scrolling
+          const n=cart.length;
+          const sz=n<=4?{p:'18px 24px',mb:'12px',fn:'24px',fm:'16px',fp:'32px',num:'42px',numF:'16px',gap:'18px'}
+                  :n<=7?{p:'14px 20px',mb:'9px',fn:'20px',fm:'14px',fp:'26px',num:'36px',numF:'14px',gap:'14px'}
+                  :n<=12?{p:'10px 18px',mb:'6px',fn:'17px',fm:'12px',fp:'22px',num:'30px',numF:'13px',gap:'12px'}
+                  :n<=20?{p:'7px 14px',mb:'4px',fn:'14px',fm:'10px',fp:'18px',num:'24px',numF:'11px',gap:'10px'}
+                  :n<=30?{p:'5px 12px',mb:'3px',fn:'12px',fm:'9px',fp:'15px',num:'20px',numF:'10px',gap:'8px'}
+                  :{p:'3px 10px',mb:'2px',fn:'11px',fm:'8px',fp:'13px',num:'16px',numF:'9px',gap:'6px'};
+          document.getElementById('items-list').innerHTML=cart.map((item,i)=>`
+            <div class="it-row" style="animation-delay:${Math.min(i*.03,.3)}s;padding:${sz.p};margin-bottom:${sz.mb};border-radius:${n>20?'6px':'var(--r-md)'}">
+              <div class="it-left" style="gap:${sz.gap}"><div class="it-num" style="width:${sz.num};height:${sz.num};font-size:${sz.numF}">${i+1}</div><div><div class="it-name" style="font-size:${sz.fn}">${item.name}</div><div class="it-meta" style="font-size:${sz.fm}">฿${fmt(item.price)} × ${item.qty} ${item.unit||'ชิ้น'}</div></div></div>
+              <div class="it-price" style="font-size:${sz.fp}">฿${fmt(item.price*item.qty)}</div>
+            </div>`).join('');
+          document.getElementById('total-display').textContent=`฿${fmt(total)}`;
+          if(cart.length>0){showScreen('items');setStep(1)} else {showScreen('idle');setStep(0);hideCustomer()}
+          break;
+        }
+
+        case 'customer': {
+          showCustomer(data.name||'ลูกค้าทั่วไป',data.customerType||'member');
+          // Keep on items screen but show customer banner
+          if(document.querySelector('.sc-items.active')||document.querySelector('.sc-idle.active')){
+            /* stay on current screen */ setStep(2);
+          }
+          break;
+        }
+
+        case 'payment_method': {
+          showPaymentMethod(data.method,data.total,{qrPayload:data.qrPayload,qrLabel:data.qrLabel});
+          break;
+        }
+
+        case 'qr': {
+          showPaymentMethod('transfer',data.amount,{qrPayload:data.qrPayload||data.qrUrl,qrLabel:data.qrLabel});
+          break;
+        }
+
+        case 'checkout': {
+          const {step,total,method,received,change}=data;
+          if(step===2){ showPaymentMethod(method,total,{}) }
+          else if(step>=3){ showCash(total,received||0,change||0,method,data.changeDenominations) }
+          break;
+        }
+
+        case 'cash_update': {
+          showCash(data.total,data.received,data.change||0,data.method||'cash',data.changeDenominations);
+          break;
+        }
+
+        /* ── CHANGE GIVEN — แบงค์ทอนที่พนักงานกดเลือก ── */
+        case 'change_given': {
+          showChangeGiven(data.denominations||{});
+          // Also update change amount display
+          if(data.givenTotal!==undefined){
+            document.getElementById('cash-change').textContent=`฿${fmt(data.givenTotal)}`;
+            document.getElementById('cs-change').textContent=`฿${fmt(data.givenTotal)}`;
+          }
+          break;
+        }
+
+        case 'thanks': {
+          document.getElementById('thanks-bill').innerHTML=data.billNo?`บิล #<strong>${data.billNo}</strong> — ฿${fmt(data.total)}`:'';
+          showScreen('thanks');setStep(4);
+          setTimeout(()=>{showScreen('idle');setStep(0);hideCustomer()},6000);
+          break;
+        }
+
+        case 'idle': { showScreen('idle');setStep(0);hideCustomer(); break; }
+
+        case 'fullscreen': { _showFsOverlay(); break; }
+      }
+    });
+
+    /* ══ Fullscreen overlay helpers ═════════════════════════════════
+       Browser blocks requestFullscreen() unless triggered by a real
+       user gesture inside THIS document. Solution: show a tap-overlay;
+       the click itself IS the user gesture that unlocks fullscreen.
+    ═══════════════════════════════════════════════════════════════ */
+    function _showFsOverlay() {
+      document.getElementById('fs-overlay').classList.remove('hidden');
+    }
+    function _hideFsOverlay() {
+      document.getElementById('fs-overlay').classList.add('hidden');
+    }
+    function _enterFullscreen() {
+      const el = document.documentElement;
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+      if (fn) {
+        fn.call(el, { navigationUI: 'hide' })
+          .then(_hideFsOverlay)
+          .catch(_hideFsOverlay);
+      } else {
+        _hideFsOverlay();
+      }
+    }
+
+    // Re-show overlay if user exits fullscreen (presses Esc)
+    document.addEventListener('fullscreenchange', function() {
+      if (!document.fullscreenElement) _showFsOverlay();
+    });
+    document.addEventListener('webkitfullscreenchange', function() {
+      if (!document.webkitFullscreenElement) _showFsOverlay();
+    });
+
+    // Show overlay automatically when opened from POS (window.opener exists)
+    if (window.opener) {
+      _showFsOverlay();
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</body>
+</html>
