@@ -79,6 +79,10 @@ console.log('[v36] Usage safety patch loaded');
     }[ch]));
   }
 
+  function jsString(value) {
+    return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+  }
+
   async function refreshAfterSale() {
     try { if (typeof loadProducts === 'function') await loadProducts(); } catch (e) { console.warn('[v36] loadProducts:', e); }
     try {
@@ -772,6 +776,283 @@ console.log('[v36] Usage safety patch loaded');
     };
   }
 
+  const PERMISSION_DEFS = [
+    { key: 'can_pos', page: 'pos', label: 'POS ขาย', icon: 'point_of_sale', desc: 'ขายสินค้าและออกบิล' },
+    { key: 'can_inv', page: 'inv', label: 'คลังสินค้า', icon: 'inventory_2', desc: 'ดู/แก้ไขสินค้าและสต็อก' },
+    { key: 'can_manage', page: 'manage', label: 'จัดการสินค้า', icon: 'settings_suggest', desc: 'หมวดหมู่ หน่วยนับ สูตร ซัพพลายเออร์ ผลิต' },
+    { key: 'can_cash', page: 'cash', label: 'ลิ้นชักเงินสด', icon: 'account_balance_wallet', desc: 'เปิด/ปิดรอบ เพิ่ม/เบิกเงิน' },
+    { key: 'can_exp', page: 'exp', label: 'รายจ่าย', icon: 'receipt_long', desc: 'บันทึกและดูรายจ่าย' },
+    { key: 'can_debt', page: 'debt', label: 'ลูกค้าค้างชำระ', icon: 'groups', desc: 'ดูหนี้และรับชำระหนี้' },
+    { key: 'can_customer', page: 'customer', label: 'ลูกค้าประจำ', icon: 'star', desc: 'จัดการข้อมูลลูกค้า' },
+    { key: 'can_purchase', page: 'purchase', label: 'รับสินค้าเข้า', icon: 'local_shipping', desc: 'รับสินค้าเข้าคลังและเจ้าหนี้' },
+    { key: 'can_payable', page: 'payable', label: 'เจ้าหนี้ร้าน', icon: 'account_balance', desc: 'ดู/ชำระเจ้าหนี้และซัพพลายเออร์' },
+    { key: 'can_quotation', page: 'quotation', label: 'ใบเสนอราคา', icon: 'description', desc: 'สร้างและจัดการใบเสนอราคา' },
+    { key: 'can_delivery', page: 'delivery', label: 'คิวจัดส่ง', icon: 'local_shipping', desc: 'ดูคิวและปิดงานจัดส่ง' },
+    { key: 'can_projects', page: 'projects', label: 'โครงการ', icon: 'business_center', desc: 'ติดตามงบ รายจ่าย และกำไรโครงการ' },
+    { key: 'can_att', page: 'att', label: 'พนักงาน/เงินเดือน', icon: 'badge', desc: 'เช็กชื่อ เงินเดือน และ HR' },
+    { key: 'can_dash', page: 'dash', label: 'Dashboard', icon: 'analytics', desc: 'ดูรายงานและวิเคราะห์ธุรกิจ' },
+    { key: 'can_history', page: 'history', label: 'ประวัติขาย', icon: 'history', desc: 'ดูบิลย้อนหลังและยกเลิก/พิมพ์ซ้ำ' },
+    { key: 'can_log', page: 'log', label: 'ประวัติกิจกรรม', icon: 'manage_search', desc: 'ดู log การใช้งานระบบ' },
+  ];
+
+  const PERMISSION_PAGE_MAP = PERMISSION_DEFS.reduce((acc, item) => {
+    acc[item.page] = item.key;
+    return acc;
+  }, {
+    home: null,
+    admin: '__admin__',
+    ap: 'can_payable',
+    vendor: 'can_payable',
+  });
+
+  let v36PermissionColumns = null;
+
+  function canAccessPageV36(page) {
+    if (!USER) return false;
+    if (USER.role === 'admin') return true;
+    const key = PERMISSION_PAGE_MAP[page];
+    if (key === null || key === undefined) return true;
+    if (key === '__admin__') return false;
+    if (key === 'can_history') return USER_PERMS?.can_history === true || USER_PERMS?.can_log === true;
+    if (key === 'can_payable') return USER_PERMS?.can_payable === true || USER_PERMS?.can_purchase === true;
+    return USER_PERMS?.[key] === true;
+  }
+
+  function applyNavPermissionsV36() {
+    if (!USER) return;
+    const isAdmin = USER.role === 'admin';
+    document.getElementById('nav-admin-section')?.style.setProperty('display', isAdmin ? 'block' : 'none');
+    document.getElementById('nav-admin')?.style.setProperty('display', isAdmin ? 'flex' : 'none');
+    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+      const page = item.dataset.page;
+      if (page === 'admin') return;
+      item.style.display = canAccessPageV36(page) ? '' : 'none';
+    });
+  }
+
+  function installPermissionMapCompleteness() {
+    try {
+      if (typeof PAGE_PERM_MAP !== 'undefined') {
+        Object.assign(PAGE_PERM_MAP, PERMISSION_PAGE_MAP, {
+          customer: 'can_customer',
+          quotation: 'can_quotation',
+          payable: 'can_payable',
+          history: 'can_history',
+          delivery: 'can_delivery',
+          projects: 'can_projects',
+          manage: 'can_manage',
+          ap: 'can_payable',
+          vendor: 'can_payable',
+          admin: '__admin__',
+        });
+      }
+    } catch (e) {
+      console.warn('[v36-perms] map patch skipped:', e);
+    }
+
+    if (typeof window.hasPermission !== 'function' || !window.hasPermission.__v36perms) {
+      window.hasPermission = canAccessPageV36;
+      try { hasPermission = canAccessPageV36; } catch (_) {}
+      window.hasPermission.__v36perms = true;
+    }
+
+    if (typeof window.applyNavPermissions !== 'function' || !window.applyNavPermissions.__v36perms) {
+      window.applyNavPermissions = applyNavPermissionsV36;
+      try { applyNavPermissions = applyNavPermissionsV36; } catch (_) {}
+      window.applyNavPermissions.__v36perms = true;
+    }
+
+    if (typeof window.go === 'function' && !window.go.__v36perms) {
+      const originalGo = window.go;
+      window.go = function (page) {
+        if (!canAccessPageV36(page)) {
+          notify('คุณไม่มีสิทธิ์เข้าถึงหน้านี้', 'error');
+          page = 'home';
+        }
+        if (page === 'history' && USER_PERMS?.can_log === true) USER_PERMS.can_history = true;
+        if ((page === 'payable' || page === 'ap' || page === 'vendor') && USER_PERMS?.can_purchase === true) USER_PERMS.can_payable = true;
+        return originalGo.call(this, page);
+      };
+      try { go = window.go; } catch (_) {}
+      window.go.__v36perms = true;
+    }
+
+    setTimeout(applyNavPermissionsV36, 100);
+  }
+
+  async function detectPermissionColumns(rows) {
+    if (v36PermissionColumns) return v36PermissionColumns;
+    const sample = rows && rows[0] ? rows[0] : null;
+    if (sample) {
+      v36PermissionColumns = new Set(Object.keys(sample));
+      return v36PermissionColumns;
+    }
+    v36PermissionColumns = new Set(['user_id', ...PERMISSION_DEFS.map(p => p.key)]);
+    return v36PermissionColumns;
+  }
+
+  function missingPermissionColumns(columns) {
+    if (!columns || !columns.size) return [];
+    return PERMISSION_DEFS.map(p => p.key).filter(key => !columns.has(key));
+  }
+
+  function permissionMigrationSQL(keys) {
+    return keys.map(k => `alter table "สิทธิ์การเข้าถึง" add column if not exists ${k} boolean default false;`).join('\n');
+  }
+
+  async function saveUserPermissionsV36(userId) {
+    const payload = {};
+    PERMISSION_DEFS.forEach(def => {
+      const el = document.getElementById(`v36perm-${userId}-${def.key}`);
+      payload[def.key] = !!el?.checked;
+    });
+
+    const cols = await detectPermissionColumns();
+    const missing = missingPermissionColumns(cols);
+    const writable = {};
+    Object.entries(payload).forEach(([key, val]) => {
+      if (!cols || cols.has(key)) writable[key] = val;
+    });
+
+    try {
+      const { data: ex, error: exErr } = await db.from('สิทธิ์การเข้าถึง').select('id').eq('user_id', userId).maybeSingle();
+      if (exErr) throw exErr;
+      const res = ex
+        ? await db.from('สิทธิ์การเข้าถึง').update(writable).eq('user_id', userId)
+        : await db.from('สิทธิ์การเข้าถึง').insert({ user_id: userId, ...writable });
+      if (res.error) throw res.error;
+      if (USER?.id === userId) {
+        USER_PERMS = { ...(USER_PERMS || {}), ...payload };
+        applyNavPermissionsV36();
+      }
+      if (missing.length) {
+        notify('บันทึกสิทธิ์ที่ตารางรองรับแล้ว แต่ยังมีคอลัมน์สิทธิ์ใหม่ที่ต้องเพิ่มใน Supabase', 'warning');
+      } else {
+        notify('บันทึกสิทธิ์สำเร็จ', 'success');
+      }
+    } catch (e) {
+      console.error('[v36-perms] save:', e);
+      notify('บันทึกสิทธิ์ไม่สำเร็จ: ' + (e.message || e), 'error');
+    }
+  }
+
+  function setAllPermissionsV36(userId, checked) {
+    PERMISSION_DEFS.forEach(def => {
+      const el = document.getElementById(`v36perm-${userId}-${def.key}`);
+      if (el) el.checked = checked;
+    });
+    saveUserPermissionsV36(userId);
+  }
+
+  function renderMissingPermissionWarning(missing) {
+    if (!missing.length) return '';
+    const sql = permissionMigrationSQL(missing);
+    window.v36PermissionSQL = sql;
+    return `
+      <div style="margin-bottom:14px;padding:12px 14px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;color:#92400e;font-size:12px;line-height:1.55">
+        <b>ต้องเพิ่มคอลัมน์สิทธิ์ใน Supabase อีก ${missing.length} ช่อง</b>
+        <div style="margin-top:4px">คัดลอก SQL จาก <code>window.v36PermissionSQL</code> ไปรันใน Supabase SQL Editor เพื่อให้สิทธิ์ใหม่บันทึกได้ครบ</div>
+      </div>`;
+  }
+
+  function effectivePermissionChecked(perms, def) {
+    if (perms?.[def.key] === true) return true;
+    if (perms?.[def.key] === false) return false;
+    if (def.key === 'can_history') return perms?.can_log === true;
+    if (def.key === 'can_payable') return perms?.can_purchase === true;
+    if (def.key === 'can_delivery') return perms?.can_purchase === true || perms?.can_pos === true;
+    if (def.key === 'can_customer') return perms?.can_debt === true || perms?.can_pos === true;
+    if (def.key === 'can_quotation') return perms?.can_pos === true;
+    if (def.key === 'can_projects') return perms?.can_dash === true || perms?.can_exp === true;
+    const legacyCore = ['can_pos', 'can_inv', 'can_cash', 'can_exp', 'can_debt', 'can_att', 'can_purchase', 'can_dash', 'can_log'];
+    return legacyCore.every(key => perms?.[key] === true);
+  }
+
+  async function renderUserPermsV36(container) {
+    if (!container) container = document.querySelector('#admin-content, .admin-content, [data-tab-content="users"]');
+    if (!container) return;
+    container.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">กำลังโหลดสิทธิ์...</div>';
+
+    let users = [], perms = [];
+    try {
+      const [ur, pr] = await Promise.all([
+        db.from('ผู้ใช้งาน').select('*').order('username'),
+        db.from('สิทธิ์การเข้าถึง').select('*'),
+      ]);
+      if (ur.error) throw ur.error;
+      if (pr.error) throw pr.error;
+      users = ur.data || [];
+      perms = pr.data || [];
+    } catch (e) {
+      container.innerHTML = `<div style="padding:24px;color:#dc2626">โหลดสิทธิ์ไม่สำเร็จ: ${htmlAttr(e.message || e)}</div>`;
+      return;
+    }
+
+    const cols = await detectPermissionColumns(perms);
+    const missing = missingPermissionColumns(cols);
+    const permMap = {};
+    perms.forEach(p => { permMap[p.user_id] = p; });
+
+    container.innerHTML = `
+      ${renderMissingPermissionWarning(missing)}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
+        <div>
+          <h3 style="font-size:16px;font-weight:800;margin:0 0 3px">จัดการผู้ใช้งานและสิทธิ์</h3>
+          <div style="font-size:12px;color:#94a3b8">${users.length} บัญชี - สิทธิ์ครบตามเมนูระบบ</div>
+        </div>
+        <button class="btn btn-primary" onclick="showAddUserModal?.()"><i class="material-icons-round">person_add</i> เพิ่มผู้ใช้งาน</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${users.map(user => {
+          const isAdmin = user.role === 'admin';
+          const p = permMap[user.id] || {};
+          return `
+            <div style="border:1.5px solid ${isAdmin ? '#fca5a5' : '#e2e8f0'};border-radius:16px;overflow:hidden;background:#fff">
+              <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;background:${isAdmin ? '#fff5f5' : '#f8fafc'}">
+                <div style="width:44px;height:44px;border-radius:50%;background:${isAdmin ? '#dc2626' : '#6366f1'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900">${htmlAttr(String(user.username || '?').charAt(0).toUpperCase())}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:15px;font-weight:800;color:#334155">${htmlAttr(user.username || '-')}</div>
+                  <span style="font-size:11px;padding:2px 8px;border-radius:999px;font-weight:800;background:${isAdmin ? '#fee2e2' : '#ede9fe'};color:${isAdmin ? '#dc2626' : '#6366f1'}">${isAdmin ? 'Admin' : 'Staff'}</span>
+                  ${isAdmin ? '<span style="font-size:11px;color:#94a3b8;margin-left:8px">Admin มีสิทธิ์ทั้งหมดอัตโนมัติ</span>' : ''}
+                </div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end">
+                  ${!isAdmin ? `<button type="button" class="btn btn-ghost btn-sm" onclick="setAllPermissionsV36('${user.id}',true)">เลือกทั้งหมด</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="setAllPermissionsV36('${user.id}',false)">ล้าง</button>` : ''}
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="v9EditUserPin?.('${jsString(user.id)}','${jsString(user.username || '')}')"><i class="material-icons-round">pin</i> แก้ PIN</button>
+                  ${user.id !== USER?.id ? `<button type="button" class="btn btn-ghost btn-sm" style="color:#dc2626;border-color:#fecaca" onclick="deleteUser('${jsString(user.id)}','${jsString(user.username || '')}')"><i class="material-icons-round">delete</i></button>` : ''}
+                </div>
+              </div>
+              ${isAdmin ? '' : `
+                <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">
+                  ${PERMISSION_DEFS.map(def => {
+                    const checked = effectivePermissionChecked(p, def);
+                    const unsupported = missing.includes(def.key);
+                    return `
+                      <label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:1.5px solid ${checked ? '#ef4444' : '#e2e8f0'};background:${unsupported ? '#f8fafc' : checked ? '#fff1f2' : '#fff'};cursor:${unsupported ? 'not-allowed' : 'pointer'};opacity:${unsupported ? '.62' : '1'}">
+                        <input type="checkbox" id="v36perm-${user.id}-${def.key}" ${checked ? 'checked' : ''} ${unsupported ? 'disabled' : ''} onchange="saveUserPermissionsV36('${user.id}')" style="width:16px;height:16px;accent-color:#ef4444">
+                        <i class="material-icons-round" style="font-size:18px;color:${checked ? '#ef4444' : '#64748b'}">${def.icon}</i>
+                        <div style="min-width:0">
+                          <div style="font-size:12px;font-weight:800;color:#1e293b">${htmlAttr(def.label)}</div>
+                          <div style="font-size:10px;color:#94a3b8;margin-top:1px">${htmlAttr(def.desc)}</div>
+                        </div>
+                      </label>`;
+                  }).join('')}
+                </div>`}
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function installPermissionUICompleteness() {
+    installPermissionMapCompleteness();
+    window.renderUserPerms = renderUserPermsV36;
+    window.v36SavePermission = saveUserPermissionsV36;
+    window.saveUserPermissionsV36 = saveUserPermissionsV36;
+    window.setAllPermissionsV36 = setAllPermissionsV36;
+    window.savePermission = saveUserPermissionsV36;
+    window.v9SavePermission = saveUserPermissionsV36;
+  }
+
   function enhanceProductImageInput() {
     const form = document.getElementById('product-form');
     const imgInput = document.getElementById('prod-img');
@@ -1200,6 +1481,7 @@ console.log('[v36] Usage safety patch loaded');
     installProductValidation();
     installProductStorageBridge();
     installProductImageMigrationTool();
+    installPermissionUICompleteness();
     installDeliverySafety();
     installAdminSafety();
     console.log('[v36] Usage safety patch applied');
