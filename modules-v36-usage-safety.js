@@ -1745,20 +1745,31 @@ console.log('[v36] Usage safety patch loaded');
   }
 
   function effectivePaidForDelivery(bill, total) {
-    const deposit = money(bill?.deposit_amount);
-    if (deposit > 0) return Math.min(deposit, total);
-
     const received = money(bill?.received);
     const change = money(bill?.change);
-    const netReceived = Math.max(0, received - change);
-    if (netReceived >= total) return total;
+    const deposit = money(bill?.deposit_amount);
 
     const method = String(bill?.method || '');
     const status = String(bill?.status || '');
+    const deliveryStatus = String(bill?.delivery_status || '');
+
     const isDebt = method === txt.debt || status === txt.debt;
-    if (!isDebt && status !== txt.debt && (status === txt.success || status === txt.pendingDelivery)) {
+
+    const netReceived = Math.max(0, received - change);
+
+    if (netReceived >= total) return total;
+
+    if (!isDebt && (
+      status === txt.success ||
+      status === txt.pendingDelivery ||
+      status === txt.delivered ||
+      deliveryStatus === txt.pendingDelivery ||
+      deliveryStatus === txt.delivered
+    )) {
       return total;
     }
+
+    if (deposit > 0) return Math.min(deposit, total);
 
     return Math.min(netReceived, total);
   }
@@ -1778,6 +1789,32 @@ console.log('[v36] Usage safety patch loaded');
         const total = effectiveTotal(bill);
         const paid = effectivePaidForDelivery(bill, total);
         const remaining = Math.max(0, total - paid);
+
+        if (remaining <= 0) {
+          await settleDeliveryStockOnce(billId, items);
+
+          await must(db.from(txt.bill).update({
+            delivery_status: txt.delivered,
+            status: txt.success,
+          }).eq('id', billId), 'อัปเดตสถานะจัดส่ง');
+
+          if (typeof logActivity === 'function') {
+            await Promise.resolve(logActivity(
+              txt.delivered,
+              `บิล #${bill.bill_no || billId} จัดส่งสำเร็จและชำระครบแล้ว`,
+              billId,
+              txt.bill
+            ));
+          }
+
+          if (typeof loadProducts === 'function') await loadProducts();
+          if (typeof renderDelivery === 'function') await renderDelivery();
+          if (typeof updateHomeStats === 'function') updateHomeStats();
+
+          toast?.('จัดส่งสำเร็จ และชำระเงินครบแล้ว', 'success');
+          return;
+        }
+
         let action = remaining > 0 ? 'pay' : 'done';
 
         if (typeof Swal !== 'undefined') {
@@ -1787,7 +1824,7 @@ console.log('[v36] Usage safety patch loaded');
             html: remaining > 0
               ? `<div style="text-align:left;line-height:1.8">
                   <div>ยอดบิล: <b>฿${fmt(total)}</b></div>
-                  <div>มัดจำแล้ว: <b style="color:#16a34a">฿${fmt(paid)}</b></div>
+                  <div>ชำระแล้ว: <b style="color:#16a34a">฿${fmt(paid)}</b></div>
                   <div>ยอดคงเหลือ: <b style="color:#dc2626">฿${fmt(remaining)}</b></div>
                 </div>`
               : 'ระบบจะตัดสต็อกเฉพาะรายการที่ยังไม่เคยตัด และปิดสถานะจัดส่งให้',
@@ -1807,9 +1844,9 @@ console.log('[v36] Usage safety patch loaded');
 
         await settleDeliveryStockOnce(billId, items);
         await must(db.from(txt.bill).update({
-          delivery_status: txt.delivered,
-          status: remaining > 0 ? txt.debt : txt.success,
-        }).eq('id', billId), 'อัปเดตสถานะจัดส่ง');
+  delivery_status: txt.delivered,
+  status: remaining > 0 && action === 'debt' ? txt.debt : txt.success,
+}).eq('id', billId), 'อัปเดตสถานะจัดส่ง');
 
         if (remaining > 0 && action === 'debt' && bill.customer_id) {
           const { data: cust } = await db.from('customer').select('debt_amount').eq('id', bill.customer_id).maybeSingle();
