@@ -82,6 +82,8 @@ body{zoom:${zoom}}
 .badge h2{font-size:${fs + 3}px;font-weight:800;margin:0} .badge p{font-size:${fs - 1}px;opacity:.85;margin:1px 0 0}
 .meta{text-align:right;margin-top:5px;font-size:${fs - 1}px;color:#475569;line-height:1.8}
 .meta strong{color:#1e293b;font-weight:700}
+.pst{margin-top:4px;font-size:${fs - 3}px;color:#64748b;line-height:1.5}
+.pst b{color:#0f172a}
 .cbox{margin-bottom:10px;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden}
 .cbox-h{background:${C}08;padding:4px 12px;font-size:${fs - 1}px;font-weight:700;color:${C};border-bottom:1px solid #e2e8f0}
 .cbox-b{display:flex;padding:8px 12px;gap:14px}
@@ -137,6 +139,19 @@ function v24Pages(items, mf = 12, mp = 20) {
   pg.forEach(p => p.t = pg.length); return pg;
 }
 
+function v24PrintStatusMeta(bill) {
+  const status = bill?.status || (bill?.method ? 'สำเร็จ' : '-');
+  const printedAt = new Date().toLocaleString('th-TH', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  return `<div class="pst">สถานะบิล: <b>${status}</b><br>พิมพ์เมื่อ: ${printedAt}</div>`;
+}
+
 /* ═══ RENDER: Header — FIX4: ใช้ชื่อจาก V24_TYPES ไม่ใช่ settings ═══ */
 function v24Hdr(rc, dt, bill, pn, tp, ds) {
   const cfg = V24_TYPES[dt];
@@ -153,6 +168,7 @@ function v24Hdr(rc, dt, bill, pn, tp, ds) {
       ${ds?.show_bill_no !== false ? `เลขที่: <strong>${bill.bill_no || '-'}</strong><br>` : ''}
       ${ds?.show_datetime !== false ? `วันที่: <strong>${_v24d(bill.date)}</strong>` : ''}
       ${tp > 1 ? `<br>หน้า ${pn}/${tp}` : ''}
+      ${v24PrintStatusMeta(bill)}
     </div>
   </div></div>`;
 }

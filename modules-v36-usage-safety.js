@@ -2440,8 +2440,7 @@ console.log('[v36] Usage safety patch loaded');
           updated_by: USER?.username,
           updated_at: new Date().toISOString(),
         };
-        if (shopConf) await must(db.from('ตั้งค่าร้านค้า').update(d).eq('id', shopConf.id), 'บันทึกตั้งค่าร้าน');
-        else await must(db.from('ตั้งค่าร้านค้า').insert(d), 'บันทึกตั้งค่าร้าน');
+        await saveShopSettingsV36(shopConf, d);
         toast?.('บันทึกตั้งค่าร้านสำเร็จ', 'success');
       };
 
@@ -2803,8 +2802,7 @@ console.log('[v36] Usage safety patch loaded');
             updated_by: USER?.username,
             updated_at: new Date().toISOString(),
           };
-          if (shopConf) await must(db.from('ตั้งค่าร้านค้า').update(d).eq('id', shopConf.id), 'บันทึกตั้งค่าร้าน');
-          else await must(db.from('ตั้งค่าร้านค้า').insert(d), 'บันทึกตั้งค่าร้าน');
+          await saveShopSettingsV36(shopConf, d);
           toast?.('บันทึกตั้งค่าร้านสำเร็จ', 'success');
         };
         return;
@@ -2876,7 +2874,7 @@ console.log('[v36] Usage safety patch loaded');
           </div>
           <div class="v36-admin-menu-grid">
             ${adminMenuCardV36('desktop_windows', 'โฆษณาหน้าจอลูกค้า', 'แปะรูปโปรโมชันหรือประกาศให้แสดงบนจอลูกค้า', 'ads', '#f97316')}
-            ${adminMenuCardV36('store', 'ตั้งค่าร้านค้า', 'ชื่อร้าน ที่อยู่ เบอร์โทร เลขภาษี PromptPay และ footer ใบเสร็จ', 'shop', '#0ea5e9')}
+            ${adminMenuCardV36('store', 'ตั้งค่าร้านค้า', 'ชื่อร้าน ที่อยู่ เบอร์โทร เลขภาษี QR รับโอน และ footer ใบเสร็จ', 'shop', '#0ea5e9')}
             ${adminMenuCardV36('receipt_long', 'ตั้งค่าใบเสร็จ / เอกสาร', 'ปรับใบเสร็จ 80mm, A4, ใบเสนอราคา และใบรับเงิน', 'docs', '#dc2626')}
             ${adminMenuCardV36('manage_accounts', 'ผู้ใช้งานและสิทธิ์', 'เพิ่มผู้ใช้ แก้ PIN และกำหนดสิทธิ์การเข้าถึงเมนู', 'users', '#7c3aed')}
             ${adminMenuCardV36('category', 'หมวดหมู่สินค้า', 'เพิ่ม ลบ และจัดการหมวดหมู่สินค้า', 'cats', '#16a34a')}
@@ -3522,10 +3520,21 @@ console.log('[v36] Usage safety patch loaded');
     try { return JSON.parse(localStorage.getItem('v36_payment_qr_settings') || '{}') || {}; } catch (_) { return {}; }
   }
 
+  function boolSettingV36(value, fallback) {
+    if (value === undefined || value === null || value === '') return fallback;
+    if (typeof value === 'string') return !/^(false|0|no|off)$/i.test(value.trim());
+    return !!value;
+  }
+
   function paymentSettingsFromShopV36(shopConf) {
     const local = localQrSettingsV36();
     const bank = BANKS_V36.find(b => b[2] === (shopConf?.bank_aid || local.bank_aid) || b[0] === (shopConf?.bank_code || local.bank_code));
     return {
+      payment_qr_enabled: boolSettingV36(shopConf?.payment_qr_enabled ?? local.payment_qr_enabled, true),
+      payment_qr_show_checkout: boolSettingV36(shopConf?.payment_qr_show_checkout ?? local.payment_qr_show_checkout, true),
+      payment_qr_show_customer: boolSettingV36(shopConf?.payment_qr_show_customer ?? local.payment_qr_show_customer, true),
+      payment_qr_show_receipt: boolSettingV36(shopConf?.payment_qr_show_receipt ?? local.payment_qr_show_receipt, true),
+      payment_qr_hide_paid: boolSettingV36(shopConf?.payment_qr_hide_paid ?? local.payment_qr_hide_paid, true),
       payment_qr_mode: shopConf?.payment_qr_mode || local.payment_qr_mode || 'promptpay',
       promptpay_number: shopConf?.promptpay_number || local.promptpay_number || '',
       bank_name: shopConf?.bank_name || local.bank_name || bank?.[1] || '',
@@ -3538,12 +3547,21 @@ console.log('[v36] Usage safety patch loaded');
 
   function buildPaymentQrV36(shopConf, amount) {
     const s = paymentSettingsFromShopV36(shopConf);
+    const recipient = s.bank_account_name || shopConf?.shop_name || SHOP_CONFIG?.shop_name || 'หจก.เอสเค.วัสดุ';
     if (s.payment_qr_mode === 'bank') {
+      const supportedPayload = s.promptpay_number
+        ? buildPromptPayPayloadV36(s.promptpay_number, amount)
+        : '';
       return {
         mode: 'bank',
-        label: `สแกน QR โอนเข้าบัญชี ${s.bank_name || 'ธนาคาร'}`,
-        payload: buildBankTransferPayloadV36(s.bank_aid, s.bank_account_number, amount, s.bank_account_name),
+        label: 'สแกน QR เพื่อโอนเงิน',
+        payload: supportedPayload,
         detail: `${s.bank_name || ''} ${s.bank_account_number || ''}`.trim(),
+        bankName: s.bank_name || '',
+        accountNumber: s.bank_account_number || '',
+        accountName: recipient,
+        recipient,
+        note: supportedPayload ? 'QR นี้ใช้มาตรฐาน PromptPay ที่แอปธนาคารรองรับ' : 'กรุณาตั้งค่า PromptPay เพื่อสร้าง QR ที่ธนาคารสแกนได้',
       };
     }
     return {
@@ -3551,6 +3569,11 @@ console.log('[v36] Usage safety patch loaded');
       label: 'สแกน PromptPay เพื่อชำระเงิน',
       payload: buildPromptPayPayloadV36(s.promptpay_number, amount),
       detail: s.promptpay_number,
+      bankName: '',
+      accountNumber: s.promptpay_number || '',
+      accountName: recipient,
+      recipient,
+      note: 'PromptPay',
     };
   }
 
@@ -3563,18 +3586,36 @@ console.log('[v36] Usage safety patch loaded');
     }
   }
 
+  function bankAccountHtmlV36(qr, compact) {
+    const bank = qr?.bankName || '';
+    const account = qr?.accountNumber || qr?.detail || '';
+    const name = qr?.accountName || qr?.recipient || '';
+    if (qr?.mode !== 'bank') {
+      return `<div class="v36-transfer-qr-recipient">${htmlAttr(name)}</div><div class="v36-transfer-qr-detail">${htmlAttr(account)}</div>`;
+    }
+    return `
+      <div class="v36-bank-account-card ${compact ? 'compact' : ''}">
+        <div><span>ธนาคาร</span><strong>${htmlAttr(bank || '-')}</strong></div>
+        <div><span>เลขบัญชี</span><strong>${htmlAttr(account || '-')}</strong></div>
+        <div><span>ชื่อบัญชี</span><strong>${htmlAttr(name || '-')}</strong></div>
+      </div>`;
+  }
+
   function renderQrIntoV36(el, payload) {
     if (!el) return;
     el.innerHTML = '';
     if (!payload) {
-      el.innerHTML = '<div style="padding:18px;color:#dc2626;font-weight:800;">ยังตั้งค่า QR ไม่ครบ</div>';
+      el.innerHTML = '<div class="v36-bank-direct-only"><i class="material-icons-round">account_balance</i><strong>โอนเข้าบัญชีธนาคาร</strong><span>ใช้ข้อมูลบัญชีด้านล่าง</span></div>';
       return;
     }
-    if (window.QRCode) {
-      new QRCode(el, { text: payload, width: 190, height: 190, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
-    } else {
-      el.textContent = payload;
-    }
+    const src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=' + encodeURIComponent(String(payload));
+    el.innerHTML = `
+      <div class="v36-thai-qr-frame">
+        <div class="v36-thai-qr-top"><span class="material-icons-round">qr_code_2</span><b>THAI QR PAYMENT</b></div>
+        <div class="v36-thai-qr-pill">PromptPay</div>
+        <img src="${src}" alt="QR Code" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div style="display:none;width:190px;height:190px;align-items:center;justify-content:center;text-align:center;padding:12px;color:#dc2626;font-size:12px;font-weight:900;">โหลด QR ไม่สำเร็จ<br>ตรวจสอบอินเทอร์เน็ต</div>
+      </div>`;
   }
 
   async function renderTransferQrPanelV36(container) {
@@ -3586,22 +3627,57 @@ console.log('[v36] Usage safety patch loaded');
       try { return money(v12State?.paymentType === 'deposit' ? v12State.depositAmount : v12State.total) || money(checkoutState?.total); } catch (_) { return 0; }
     })();
     const shop = await loadShopConfV36();
-    const qr = buildPaymentQrV36(shop, amount);
+    const settings = paymentSettingsFromShopV36(shop);
     const info = target.querySelector('#sk-pay-info, #v13-method-info, #payment-qr-section');
-    if (!info) return;
-    info.style.display = '';
-    info.innerHTML = `
-      <div class="v36-transfer-qr-box">
-        <div class="v36-transfer-qr-head"><i class="material-icons-round">qr_code_2</i><div><strong>${htmlAttr(qr.label)}</strong><span>${htmlAttr(qr.detail || 'ตั้งค่าที่หน้า Admin')}</span></div></div>
-        <div class="v36-transfer-qr-canvas" id="v36-transfer-qr-canvas"></div>
-        <div class="v36-transfer-qr-amount">฿${fmt(amount)}</div>
-        <div class="v36-transfer-qr-note">หลังลูกค้าโอนแล้วกดยืนยันการขาย</div>
-      </div>`;
-    renderQrIntoV36(info.querySelector('#v36-transfer-qr-canvas'), qr.payload);
+    if (!settings.payment_qr_enabled) {
+      if (info) info.style.display = 'none';
+      return;
+    }
+    const qr = buildPaymentQrV36(shop, amount);
+    if (settings.payment_qr_show_checkout && info) {
+      info.style.display = '';
+      info.innerHTML = `
+        <div class="v36-transfer-qr-box">
+          <div class="v36-transfer-qr-head"><i class="material-icons-round">qr_code_2</i><div><strong>${htmlAttr(qr.label)}</strong><span>${htmlAttr(qr.detail || 'ตั้งค่าที่หน้า Admin')}</span></div></div>
+          <div class="v36-transfer-qr-canvas" id="v36-transfer-qr-canvas"></div>
+          ${bankAccountHtmlV36(qr)}
+          <div class="v36-transfer-qr-amount">฿${fmt(amount)}</div>
+          <div class="v36-transfer-qr-note">${htmlAttr(qr.note || 'หลังลูกค้าโอนแล้วกดยืนยันการขาย')}</div>
+        </div>`;
+      renderQrIntoV36(info.querySelector('#v36-transfer-qr-canvas'), qr.payload);
+    } else if (info) {
+      info.style.display = 'none';
+    }
     try {
-      if (typeof sendToDisplay === 'function') {
-        sendToDisplay({ type: 'qr', amount, qrPayload: qr.payload, qrLabel: qr.label });
+      if (settings.payment_qr_show_customer && typeof sendToDisplay === 'function') {
+        sendToDisplay({ type: 'qr', amount, qrPayload: qr.payload, qrLabel: qr.label, qrMode: qr.mode, qrDetail: qr.detail, qrRecipient: qr.recipient, bankName: qr.bankName, accountNumber: qr.accountNumber, accountName: qr.accountName });
       }
+    } catch (_) {}
+  }
+
+  async function sendMixedPaymentDisplayV36() {
+    try {
+      if (typeof sendToDisplay !== 'function') return;
+      const split = normalizeMixedPaymentV36();
+      const shop = await loadShopConfV36();
+      const settings = paymentSettingsFromShopV36(shop);
+      const qr = settings.payment_qr_enabled && settings.payment_qr_show_customer
+        ? buildPaymentQrV36(shop, split.transfer)
+        : {};
+      sendToDisplay({
+        type: 'mixed_payment',
+        total: mixedPayAmountV36(),
+        transfer: split.transfer,
+        cash: split.cash,
+        qrPayload: qr.payload || '',
+        qrLabel: qr.label || 'สแกน PromptPay เพื่อชำระเงิน',
+        qrMode: qr.mode || 'promptpay',
+        qrDetail: qr.detail || '',
+        qrRecipient: qr.recipient || '',
+        bankName: qr.bankName || '',
+        accountNumber: qr.accountNumber || '',
+        accountName: qr.accountName || '',
+      });
     } catch (_) {}
   }
 
@@ -3620,11 +3696,30 @@ console.log('[v36] Usage safety patch loaded');
 
   function paymentSettingsFieldsHTMLV36(shopConf) {
     const s = paymentSettingsFromShopV36(shopConf);
+    const checked = v => v ? 'checked' : '';
     return `
       <div style="margin:14px 0 10px;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff;">
         <div style="font-size:14px;font-weight:950;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:18px;color:#2563eb">qr_code_2</i> ตั้งค่า QR รับโอน</div>
+        <div class="v36-admin-form-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #dbeafe;border-radius:12px;font-size:13px;font-weight:850;color:#334155;"><input type="checkbox" id="shop-payment-qr-enabled" ${checked(s.payment_qr_enabled)}> เปิดใช้ QR รับชำระ</label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #dbeafe;border-radius:12px;font-size:13px;font-weight:850;color:#334155;"><input type="checkbox" id="shop-payment-qr-checkout" ${checked(s.payment_qr_show_checkout)}> แสดงในหน้า Checkout</label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #dbeafe;border-radius:12px;font-size:13px;font-weight:850;color:#334155;"><input type="checkbox" id="shop-payment-qr-customer" ${checked(s.payment_qr_show_customer)}> แสดงบนหน้าจอลูกค้า</label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #dbeafe;border-radius:12px;font-size:13px;font-weight:850;color:#334155;"><input type="checkbox" id="shop-payment-qr-receipt" ${checked(s.payment_qr_show_receipt)}> แสดงบนใบเสร็จ/เอกสาร</label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#ecfdf5;border:1px solid #86efac;border-radius:12px;font-size:13px;font-weight:900;color:#047857;grid-column:1/-1;"><input type="checkbox" id="shop-payment-qr-hide-paid" ${checked(s.payment_qr_hide_paid)}> บิลที่ชำระแล้วไม่ต้องแสดง QR บนเอกสาร</label>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:8px 0 14px;">
+          <label style="display:flex;align-items:center;gap:12px;padding:14px;background:${s.payment_qr_mode !== 'bank' ? '#eff6ff' : '#fff'};border:2px solid ${s.payment_qr_mode !== 'bank' ? '#60a5fa' : '#dbe3ec'};border-radius:14px;cursor:pointer;">
+            <input type="radio" name="shop-payment-mode" value="promptpay" ${s.payment_qr_mode !== 'bank' ? 'checked' : ''}>
+            <i class="material-icons-round" style="color:#2563eb">phone_iphone</i>
+            <div><div style="font-size:14px;font-weight:950;color:#172033;">PromptPay</div><div style="font-size:11px;font-weight:800;color:#94a3b8;">ใช้เบอร์ / เลขผู้เสียภาษี</div></div>
+          </label>
+          <label style="display:flex;align-items:center;gap:12px;padding:14px;background:${s.payment_qr_mode === 'bank' ? '#ecfdf5' : '#fff'};border:2px solid ${s.payment_qr_mode === 'bank' ? '#34d399' : '#dbe3ec'};border-radius:14px;cursor:pointer;">
+            <input type="radio" name="shop-payment-mode" value="bank" ${s.payment_qr_mode === 'bank' ? 'checked' : ''}>
+            <i class="material-icons-round" style="color:#dc2626">account_balance</i>
+            <div><div style="font-size:14px;font-weight:950;color:#172033;">โอนเข้าบัญชีธนาคาร</div><div style="font-size:11px;font-weight:800;color:#94a3b8;">ใช้ QR PromptPay ที่ธนาคารรองรับ</div></div>
+          </label>
+        </div>
         <div class="v36-admin-form-grid">
-          <div class="form-group"><label class="form-label">Payment Mode</label><select class="form-input" id="shop-payment-mode"><option value="promptpay" ${s.payment_qr_mode !== 'bank' ? 'selected' : ''}>PromptPay</option><option value="bank" ${s.payment_qr_mode === 'bank' ? 'selected' : ''}>Direct Bank</option></select></div>
           <div class="form-group"><label class="form-label">PromptPay</label><input type="text" class="form-input" id="shop-promptpay" value="${htmlAttr(s.promptpay_number || '')}" placeholder="เบอร์/เลขผู้เสียภาษี"></div>
         </div>
         <div class="v36-admin-form-grid">
@@ -3634,18 +3729,23 @@ console.log('[v36] Usage safety patch loaded');
           <div class="form-group"><label class="form-label">Account Number</label><input type="text" class="form-input" id="shop-bank-account" value="${htmlAttr(s.bank_account_number || '')}" placeholder="เลขบัญชี"></div>
           <div class="form-group"><label class="form-label">Account Name</label><input type="text" class="form-input" id="shop-bank-account-name" value="${htmlAttr(s.bank_account_name || '')}" placeholder="SK MATERIAL LTD"></div>
         </div>
-        <div style="font-size:12px;color:#64748b;line-height:1.6;">Direct Bank ใช้ EMVCo Tag 29 ตาม Thai QR Payment Standard และยังล็อกยอดเงินตามบิลได้</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.6;">โหมดบัญชีธนาคารจะแสดงชื่อธนาคาร/เลขบัญชีให้ลูกค้าเห็นชัดเจน และใช้ QR PromptPay สำหรับสแกนจ่าย เพราะแอปธนาคารไทยหลายตัวไม่รองรับ QR เลขบัญชีตรง</div>
       </div>`;
   }
 
   function collectPaymentSettingsV36() {
-    const mode = document.getElementById('shop-payment-mode')?.value || 'promptpay';
+    const mode = document.querySelector('input[name="shop-payment-mode"]:checked')?.value || document.getElementById('shop-payment-mode')?.value || 'promptpay';
     const bankAid = document.getElementById('shop-bank-aid')?.value || '';
     const bankOpt = document.getElementById('shop-bank-aid')?.selectedOptions?.[0];
     const bankCode = document.getElementById('shop-bank-code')?.value || bankOpt?.dataset?.code || '';
     const bankName = document.getElementById('shop-bank-name')?.value || bankOpt?.dataset?.name || '';
     const account = (document.getElementById('shop-bank-account')?.value || '').replace(/\D/g, '');
     const data = {
+      payment_qr_enabled: !!document.getElementById('shop-payment-qr-enabled')?.checked,
+      payment_qr_show_checkout: !!document.getElementById('shop-payment-qr-checkout')?.checked,
+      payment_qr_show_customer: !!document.getElementById('shop-payment-qr-customer')?.checked,
+      payment_qr_show_receipt: !!document.getElementById('shop-payment-qr-receipt')?.checked,
+      payment_qr_hide_paid: !!document.getElementById('shop-payment-qr-hide-paid')?.checked,
       payment_qr_mode: mode,
       promptpay_number: document.getElementById('shop-promptpay')?.value || '',
       bank_name: bankName,
@@ -3661,6 +3761,28 @@ console.log('[v36] Usage safety patch loaded');
     }
     try { localStorage.setItem('v36_payment_qr_settings', JSON.stringify(data)); } catch (_) {}
     return data;
+  }
+
+  async function saveShopSettingsV36(shopConf, data) {
+    try {
+      if (shopConf) return await must(db.from('ตั้งค่าร้านค้า').update(data).eq('id', shopConf.id), 'บันทึกตั้งค่าร้าน');
+      return await must(db.from('ตั้งค่าร้านค้า').insert(data), 'บันทึกตั้งค่าร้าน');
+    } catch (err) {
+      const base = { ...data };
+      delete base.payment_qr_enabled;
+      delete base.payment_qr_show_checkout;
+      delete base.payment_qr_show_customer;
+      delete base.payment_qr_show_receipt;
+      delete base.payment_qr_hide_paid;
+      delete base.payment_qr_mode;
+      delete base.bank_name;
+      delete base.bank_code;
+      delete base.bank_aid;
+      delete base.bank_account_number;
+      delete base.bank_account_name;
+      if (shopConf) return await must(db.from('ตั้งค่าร้านค้า').update(base).eq('id', shopConf.id), 'บันทึกตั้งค่าร้าน');
+      return await must(db.from('ตั้งค่าร้านค้า').insert(base), 'บันทึกตั้งค่าร้าน');
+    }
   }
 
   function mixedPayAmountV36() {
@@ -3711,6 +3833,7 @@ console.log('[v36] Usage safety patch loaded');
       v12State.mixedPayment = { cash, transfer: Math.max(0, total - cash) };
       if (keepFocus) {
         refreshMixedPaymentFieldsV36();
+        sendMixedPaymentDisplayV36();
         return;
       }
       const body = document.getElementById('v12-step-body');
@@ -3725,6 +3848,7 @@ console.log('[v36] Usage safety patch loaded');
       v12State.mixedPayment = { transfer, cash: Math.max(0, total - transfer) };
       if (keepFocus) {
         refreshMixedPaymentFieldsV36();
+        sendMixedPaymentDisplayV36();
         return;
       }
       const body = document.getElementById('v12-step-body');
@@ -3834,6 +3958,7 @@ console.log('[v36] Usage safety patch loaded');
     }
     try {
       if (typeof sendToDisplay === 'function') {
+        sendMixedPaymentDisplayV36();
         sendToDisplay({
           type: 'cash_update',
           total: due,
@@ -3901,6 +4026,7 @@ console.log('[v36] Usage safety patch loaded');
     if (selected && info) {
       info.style.display = '';
       info.innerHTML = mixedPaymentInfoHTMLV36();
+      sendMixedPaymentDisplayV36();
     }
   }
 
@@ -3913,6 +4039,7 @@ console.log('[v36] Usage safety patch loaded');
       window.v12S4 = function (container) {
         const out = originalV12S4.apply(this, arguments);
         applyMixedPaymentUIV36(container || document.getElementById('v12-step-body'));
+        renderTransferQrPanelV36(container || document.getElementById('v12-step-body'));
         enhanceCheckoutStepV36(container || document.getElementById('v12-step-body'));
         return out;
       };
@@ -3925,6 +4052,7 @@ console.log('[v36] Usage safety patch loaded');
       if (method === 'credit') normalizeMixedPaymentV36();
       if (typeof originalSetMethod === 'function') originalSetMethod(method);
       setTimeout(() => applyMixedPaymentUIV36(document.getElementById('v12-step-body')), 0);
+      if (method === 'transfer') setTimeout(() => renderTransferQrPanelV36(document.getElementById('v12-step-body')), 0);
     };
 
     if (typeof window._skSetMethod === 'function' && !window._skSetMethod.__v36mixed) {
@@ -3933,6 +4061,7 @@ console.log('[v36] Usage safety patch loaded');
         if (method === 'credit') normalizeMixedPaymentV36();
         const out = orig.apply(this, arguments);
         setTimeout(() => applyMixedPaymentUIV36(document.getElementById('v12-step-body')), 0);
+        if (method === 'transfer') setTimeout(() => renderTransferQrPanelV36(document.getElementById('v12-step-body')), 0);
         return out;
       };
       window._skSetMethod.__v36mixed = true;
@@ -4171,6 +4300,349 @@ console.log('[v36] Usage safety patch loaded');
       wrapped.__v36sound = true;
       window.toast = wrapped;
       try { toast = wrapped; } catch (_) {}
+    }
+  }
+
+  function installPaymentQrOverridesV36() {
+    if (window.__v36PaymentQrOverrides) return;
+    window.__v36PaymentQrOverrides = true;
+    document.head.insertAdjacentHTML('beforeend', `
+      <style id="v36-payment-qr-style">
+        .v36-transfer-qr-box{max-width:560px;margin:12px auto 0;background:#fff;border:1.5px solid #bfdbfe;border-radius:18px;padding:18px;text-align:center;box-shadow:0 14px 34px rgba(37,99,235,.12)}
+        .v36-transfer-qr-head{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;color:#1d4ed8}
+        .v36-transfer-qr-head i{font-size:34px;color:#2563eb}
+        .v36-transfer-qr-head strong{display:block;font-size:15px;font-weight:950}.v36-transfer-qr-head span{display:block;font-size:12px;color:#64748b;font-weight:800;margin-top:2px}
+        .v36-transfer-qr-canvas{width:252px;min-height:312px;margin:0 auto;background:#fff;border:1px solid #bfdbfe;border-radius:16px;padding:0;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 10px 28px rgba(37,99,235,.10)}
+        .v36-transfer-qr-canvas img{width:190px;height:190px;display:block;background:#fff}
+        .v36-thai-qr-frame{width:100%;background:#fff;text-align:center;padding-bottom:12px}.v36-thai-qr-top{height:58px;background:#144b73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:950;font-size:15px}.v36-thai-qr-top .material-icons-round{font-size:24px}.v36-thai-qr-pill{display:inline-block;margin:10px 0 8px;padding:2px 12px;border:1px solid #172033;color:#172033;font-size:12px;font-weight:950;line-height:1.2}.v36-bank-direct-only{width:100%;min-height:210px;background:#eff6ff;color:#1d4ed8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-weight:950}.v36-bank-direct-only i{font-size:42px;color:#2563eb}.v36-bank-direct-only span{font-size:12px;color:#64748b}
+        .v36-transfer-qr-recipient{margin-top:8px;font-size:13px;font-weight:950;color:#172033}.v36-transfer-qr-detail{font-size:12px;font-weight:800;color:#64748b;margin-top:2px}
+        .v36-bank-account-card{margin:10px auto 0;width:min(100%,380px);border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;overflow:hidden;text-align:left}.v36-bank-account-card div{display:flex;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid #dbeafe;font-size:12px}.v36-bank-account-card div:last-child{border-bottom:0}.v36-bank-account-card span{color:#64748b;font-weight:850}.v36-bank-account-card strong{color:#172033;font-weight:950;text-align:right}
+        .v36-transfer-qr-amount{font-size:30px;font-weight:950;color:#2563eb;margin-top:12px}.v36-transfer-qr-note{font-size:12px;color:#64748b;font-weight:800}
+      </style>`);
+
+    const wrapMethod = name => {
+      const fn = window[name];
+      if (typeof fn !== 'function' || fn.__v36qr) return;
+      window[name] = function (method) {
+        const out = fn.apply(this, arguments);
+        if (method === 'transfer') setTimeout(() => renderTransferQrPanelV36(document.getElementById('v12-step-body') || document.getElementById('checkout-content')), 0);
+        return out;
+      };
+      window[name].__v36qr = true;
+      try { if (name === 'v13SetMethod') v13SetMethod = window[name]; } catch (_) {}
+      try { if (name === 'v12SetMethod') v12SetMethod = window[name]; } catch (_) {}
+      try { if (name === 'selectPaymentMethod') selectPaymentMethod = window[name]; } catch (_) {}
+    };
+    wrapMethod('v13SetMethod');
+    wrapMethod('v12SetMethod');
+    wrapMethod('selectPaymentMethod');
+  }
+
+  function paidBillForQrV36(bill) {
+    const status = String(bill?.status || '');
+    if (/ค้าง|รอ|pending|debt/i.test(status)) return false;
+    return status === txt.success || /สำเร็จ|ชำระแล้ว|paid/i.test(status);
+  }
+
+  async function shouldSuppressPrintQrV36(bill) {
+    const shop = await loadShopConfV36();
+    const s = paymentSettingsFromShopV36(shop);
+    return !s.payment_qr_enabled || !s.payment_qr_show_receipt || (s.payment_qr_hide_paid && paidBillForQrV36(bill));
+  }
+
+  async function withPrintQrPolicyV36(bill, fn) {
+    const suppress = await shouldSuppressPrintQrV36(bill);
+    const prev = window.__v36SuppressPrintQr;
+    window.__v36SuppressPrintQr = suppress;
+    try {
+      return await fn(suppress);
+    } finally {
+      window.__v36SuppressPrintQr = prev;
+    }
+  }
+
+  function stripQrConfigV36(rc) {
+    return {
+      ...(rc || {}),
+      promptpay_number: '',
+      show_promptpay_qr: false,
+      _v21_no_qr: true,
+      _custom_qr_url: '',
+      _inject_custom_qr: false,
+    };
+  }
+
+  function installPrintQrPolicyV36() {
+    if (window.__v36PrintQrPolicy) return;
+    window.__v36PrintQrPolicy = true;
+
+    const originalV21Qr = window.v21BuildQRHtml;
+    if (typeof originalV21Qr === 'function' && !originalV21Qr.__v36paid) {
+      window.v21BuildQRHtml = function (docSettings, rc, amount, size) {
+        if (window.__v36SuppressPrintQr) return '';
+        const s = paymentSettingsFromShopV36(rc);
+        if (!s.payment_qr_enabled || !s.payment_qr_show_receipt) return '';
+        try {
+          const printAmount = (() => {
+            try {
+              return v12State?.method === 'credit' && v12State?.mixedPayment ? normalizeMixedPaymentV36().transfer : amount;
+            } catch (_) {
+              return amount;
+            }
+          })();
+          const qr = buildPaymentQrV36(rc, printAmount || 0);
+          const dim = size === 'a4' ? 90 : 82;
+          const src = qr.payload ? 'https://api.qrserver.com/v1/create-qr-code/?size=' + (dim * 3) + 'x' + (dim * 3) + '&margin=8&data=' + encodeURIComponent(qr.payload) : '';
+          const tone = '#dc2626';
+          const title = qr.mode === 'bank' ? 'โอนเข้าบัญชี' : 'PromptPay';
+          const accountBlock = qr.mode === 'bank'
+            ? `<div style="margin-top:5px;font-size:8px;line-height:1.35;color:#111827;font-weight:700">ธนาคาร: ${qr.bankName || '-'}<br>เลขบัญชี: ${qr.accountNumber || '-'}<br>ชื่อบัญชี: ${qr.accountName || qr.recipient || '-'}</div>`
+            : `<div style="font-size:8px;color:#111827;font-weight:700;margin-top:2px">${qr.recipient || ''}</div><div style="font-size:8px;color:#64748b;margin-top:1px">${qr.detail || ''}</div>`;
+          const qrBody = src
+            ? `<div style="width:${dim + 28}px;background:#fff;border:1px solid #fecaca;border-radius:4px;overflow:hidden;margin:0 auto"><div style="height:18px;background:${tone};color:#fff;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center">THAI QR PAYMENT</div><div style="font-size:7px;font-weight:800;border:1px solid #172033;display:inline-block;padding:1px 5px;margin:4px 0 3px">PromptPay</div><img src="${src}" style="width:${dim}px;height:${dim}px;display:block;margin:0 auto 5px" onerror="this.style.display='none'"></div>`
+            : `<div style="width:${dim + 28}px;height:${dim}px;border:1px solid #fecaca;border-radius:4px;background:#fff7f7;color:#991b1b;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9px;font-weight:800;margin:0 auto">โอนเข้าบัญชี<br>ธนาคาร</div>`;
+          return `<div style="text-align:center"><div style="background:${tone};padding:3px 10px;border-radius:4px;display:inline-block;margin-bottom:4px"><span style="color:#fff;font-size:9px;font-weight:700">${title}</span></div>${qrBody}${accountBlock}</div>`;
+        } catch (_) {
+          return originalV21Qr.apply(this, arguments);
+        }
+      };
+      window.v21BuildQRHtml.__v36paid = true;
+      try { v21BuildQRHtml = window.v21BuildQRHtml; } catch (_) {}
+    }
+
+    const wrapBillPrint = name => {
+      const fn = window[name];
+      if (typeof fn !== 'function' || fn.__v36paidqr) return;
+      window[name] = async function (bill) {
+        return withPrintQrPolicyV36(bill, () => fn.apply(this, arguments));
+      };
+      window[name].__v36paidqr = true;
+      try { if (name === 'printReceipt') printReceipt = window[name]; } catch (_) {}
+      try { if (name === 'printA4') printA4 = window[name]; } catch (_) {}
+      try { if (name === 'printReceiptA4v2') printReceiptA4v2 = window[name]; } catch (_) {}
+      try { if (name === 'v24PrintDocument') v24PrintDocument = window[name]; } catch (_) {}
+    };
+
+    wrapBillPrint('printReceipt');
+    wrapBillPrint('printA4');
+    wrapBillPrint('printReceiptA4v2');
+    wrapBillPrint('v24PrintDocument');
+
+    const print80 = window.print80mmv2;
+    if (typeof print80 === 'function' && !print80.__v36paidqr) {
+      window.print80mmv2 = async function (bill, items, rc) {
+        return withPrintQrPolicyV36(bill, suppress => print80.call(this, bill, items, suppress ? stripQrConfigV36(rc) : rc));
+      };
+      window.print80mmv2.__v36paidqr = true;
+      try { print80mmv2 = window.print80mmv2; } catch (_) {}
+    }
+  }
+
+  function receiptMethodTextV36(bill) {
+    return String(bill?.method || bill?.payment_method || '-');
+  }
+
+  function receiptStatusTextV36(bill) {
+    const raw = String(bill?.status || '');
+    const delivery = String(bill?.delivery_status || '');
+    const method = receiptMethodTextV36(bill);
+    const paid = paidBillForQrV36(bill) || /ชำระแล้ว|โอน|เงินสด|พร้อมเพย์|เงินโอน\+เงินสด/.test(method);
+    const cod = raw === 'ชำระหน้างาน' || /ชำระหน้างาน|เก็บปลายทาง|cod/i.test(method);
+    if (/ค้าง|debt/i.test(raw)) return 'ค้างชำระ';
+    if (delivery === txt.pendingDelivery && cod) return 'รอจัดส่ง + ชำระหน้างาน';
+    if (delivery === txt.pendingDelivery && paid) return 'รอจัดส่ง + ชำระแล้ว';
+    if (delivery === txt.delivered && paid) return 'จัดส่งสำเร็จ + ชำระแล้ว';
+    if (/รอ|pending/i.test(raw)) return 'รอตรวจสอบ';
+    if (paid) return 'ชำระแล้ว';
+    return raw || '-';
+  }
+
+  function receiptThaiWordsV36(total) {
+    try {
+      if (typeof v24NumberToThaiWords === 'function') return v24NumberToThaiWords(total);
+    } catch (_) {}
+    return '';
+  }
+
+  function receiptPrintDateV36(value) {
+    try {
+      return new Date(value || Date.now()).toLocaleString('th-TH', {
+        year: 'numeric', month: 'short', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function receiptQrBlockV36(qr, amount) {
+    if (!qr || !qr.payload) return '';
+    const src = 'https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=8&data=' + encodeURIComponent(qr.payload);
+    const sub = qr.mode === 'bank'
+      ? `${qr.bankName || ''} ${qr.accountNumber || ''}`.trim()
+      : qr.detail || '';
+    return `
+      <div class="pay-qr">
+        <div class="qr-head"><span class="material-icons-round">qr_code_2</span><b>THAI QR<br>PAYMENT</b></div>
+        <div class="qr-pill">PromptPay</div>
+        <img src="${src}" alt="PromptPay QR">
+        <div class="qr-name">${htmlAttr(qr.recipient || qr.accountName || '')}</div>
+        <div class="qr-sub">${htmlAttr(sub)}</div>
+      </div>`;
+  }
+
+  async function printReceiptA4TemplateV36(bill, items, docType) {
+    const rc = await loadShopConfV36() || {};
+    const total = money(bill?.total || (items || []).reduce((s, it) => s + money(it.total), 0));
+    const discount = money(bill?.discount);
+    const subtotal = (items || []).reduce((s, it) => s + money(it.total), 0) || total + discount;
+    const printedAt = new Date();
+    const status = receiptStatusTextV36(bill);
+    const method = receiptMethodTextV36(bill);
+    const suppressQr = await shouldSuppressPrintQrV36(bill);
+    const qrAmount = (() => {
+      try {
+        if (/เงินโอน\+เงินสด/.test(method) && v12State?.mixedPayment) return normalizeMixedPaymentV36().transfer;
+      } catch (_) {}
+      return total;
+    })();
+    const qr = suppressQr ? null : buildPaymentQrV36(rc, qrAmount);
+    const title = docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน / ใบกำกับภาษี');
+    const titleEn = docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT / TAX INVOICE');
+    const rows = (items || []).map((it, idx) => `
+      <tr>
+        <td class="c num">${idx + 1}</td>
+        <td class="desc">${htmlAttr(it.name || '')}</td>
+        <td class="c">${fmt(money(it.qty || 1)).replace(/\.00$/, '')}</td>
+        <td class="c">${htmlAttr(it.unit || 'ชิ้น')}</td>
+        <td class="r">${fmt(money(it.price || 0))}</td>
+        <td class="r strong">${fmt(money(it.total || 0))}</td>
+      </tr>`).join('');
+    const customerPhone = bill?.customer_phone || bill?.delivery_phone || '';
+    const customerAddress = bill?.customer_address || bill?.delivery_address || '';
+    const words = receiptThaiWordsV36(total);
+    const footer = rc.receipt_footer || 'ขอบคุณที่ใช้บริการ';
+    const win = window.open('', '_blank', 'width=960,height=1050');
+    if (!win) { toastV36('กรุณาอนุญาต popup', 'error'); return; }
+    win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>${htmlAttr(title)} #${htmlAttr(bill?.bill_no || '')}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<style>
+@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{margin:0;background:#f8fafc;font-family:'Sarabun',sans-serif;color:#0f172a;font-size:12px;letter-spacing:.02px}.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:15mm 17mm 8mm;display:flex;flex-direction:column;position:relative;box-shadow:0 0 0 1px #e5e7eb}
+.top{display:flex;justify-content:space-between;align-items:flex-start}.shop h1{margin:0;color:#e11d22;font-size:24px;line-height:1;font-weight:900;letter-spacing:.1px}.shop .en{font-size:10px;color:#0f172a;font-weight:900;letter-spacing:.25px;margin-top:1px}.shop .addr{margin-top:4px;color:#64748b;line-height:1.35;font-size:10px}.doc{text-align:right}.doc-badge{display:inline-block;background:#e11d22;color:#fff;border:2px solid #e11d22;border-radius:8px;padding:9px 22px;text-align:center;min-width:192px;box-shadow:0 10px 24px rgba(225,29,34,.16)}.doc-badge b{display:block;font-size:16px;line-height:1.1}.doc-badge span{display:block;font-size:9px;opacity:.95}.meta{margin-top:9px;color:#64748b;line-height:1.65;font-size:10px}.meta b{color:#0f172a}.rule{height:4px;background:#e11d22;border-radius:999px;margin:22px 0 10px}
+.cust{border:1px solid #e2e8f0;border-radius:7px;overflow:hidden;background:#fff}.cust-h{background:#fff5f5;color:#e11d22;font-size:11px;font-weight:900;padding:5px 10px;border-bottom:1px solid #fee2e2}.cust-b{display:grid;grid-template-columns:1fr 1fr;padding:10px 12px;gap:16px}.cust-b>div+div{border-left:1px solid #e2e8f0;padding-left:18px}.cust-name{font-size:15px;font-weight:900;margin-bottom:2px}.muted{color:#94a3b8}.phone{color:#e11d48;font-weight:900}.info-row{display:grid;grid-template-columns:110px 1fr;gap:10px;line-height:1.75}.info-row b{text-align:right}
+table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px}thead th{background:#e11d22;color:#fff;padding:8px 7px;font-size:11px;font-weight:900}thead th:first-child{border-radius:5px 0 0 0}thead th:last-child{border-radius:0 5px 0 0}tbody td{padding:7px;border-bottom:1px solid #e9eef5;font-size:11px}tbody tr:nth-child(even){background:#f8fafc}.num{color:#64748b}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.desc{font-weight:900}
+.mid{display:grid;grid-template-columns:1.2fr 170px 235px;gap:16px;align-items:start;margin-top:12px}.words{font-size:11px;color:#94a3b8}.words b{display:block;color:#e11d22;font-size:12px;font-weight:900}.note{margin-top:12px;font-size:11px;color:#334155;line-height:1.45}.note b{display:block;color:#0f172a}
+.summary{margin-left:auto;width:100%}.sum-row{display:flex;justify-content:space-between;gap:22px;color:#64748b;font-size:12px;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:5px}.sum-row b{color:#0f172a}.grand{background:#e11d22;color:#fff;border-radius:7px;padding:12px 18px;text-align:center;box-shadow:0 10px 22px rgba(225,29,34,.14)}.grand span{display:block;font-size:10px;opacity:.95}.grand b{font-size:27px;line-height:1.08}
+.pay-slot{min-height:280px;display:flex;align-items:flex-start;justify-content:center;padding-top:112px}.pay-qr{text-align:center;width:170px}.qr-head{height:33px;background:#144b73;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-size:9px;font-weight:900;line-height:1.05;border-radius:2px 2px 0 0}.qr-head .material-icons-round{font-size:19px}.qr-pill{display:inline-block;border:1px solid #172033;color:#172033;font-size:7px;font-weight:900;padding:1px 8px;margin:5px 0 4px}.pay-qr img{width:132px;height:132px;display:block;margin:0 auto}.qr-name{font-size:9px;font-weight:900;color:#172033;margin-top:4px}.qr-sub{font-size:7px;color:#64748b}
+.paid-note{margin-top:135px;text-align:center;color:#0f172a;font-size:18px;font-weight:900;border:0;background:transparent;padding:16px 28px}.paid-note small{display:block;color:#94a3b8;font-size:11px;font-weight:800;margin-top:3px}
+.bottom-line{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:20px}.sigs{display:flex;justify-content:space-around}.sig{text-align:center;min-width:150px}.sig-line{height:28px;border-bottom:1.5px solid #64748b;margin-bottom:4px}.sig b{font-size:12px}.sig small{display:block;color:#94a3b8;font-size:9px}.foot{text-align:center;color:#cbd5e1;font-size:10px;margin-top:18px;border-top:1px solid #eef2f7;padding-top:7px}.pg{position:absolute;right:15mm;bottom:8mm;font-size:10px;color:#0f172a;font-weight:800}
+@media print{body{background:#fff}.page{margin:0;box-shadow:none}}
+</style></head><body><div class="page">
+  <div class="top"><div class="shop"><h1>${htmlAttr(rc.shop_name || 'หจก. เอส เค วัสดุ')}</h1><div class="en">${htmlAttr(rc.shop_name_en || 'S K MATERIAL LIMITED PARTNERSHIP')}</div><div class="addr">ที่อยู่ ${htmlAttr(rc.address || '')}<br>โทร: ${htmlAttr(rc.phone || '')}</div></div>
+  <div class="doc"><div class="doc-badge"><b>${htmlAttr(title)}</b><span>${htmlAttr(titleEn)}</span></div><div class="meta">เลขที่: <b>${htmlAttr(bill?.bill_no || '-')}</b><br>วันที่: <b>${receiptPrintDateV36(bill?.date)}</b><br>สถานะ: <b>${htmlAttr(status)}</b><br>พิมพ์เมื่อ: ${receiptPrintDateV36(printedAt)}</div></div></div>
+  <div class="rule"></div>
+  <section class="cust"><div class="cust-h">ข้อมูลลูกค้า / CUSTOMER</div><div class="cust-b"><div><div class="cust-name">${htmlAttr(bill?.customer_name || 'ลูกค้าทั่วไป')}</div><div class="muted">${htmlAttr(customerAddress || '-')}</div>${customerPhone ? `<div class="phone">☎ ${htmlAttr(customerPhone)}</div>` : ''}</div><div><div class="info-row"><span class="muted">พนักงานขาย:</span><b>${htmlAttr(bill?.staff_name || userName())}</b></div><div class="info-row"><span class="muted">วิธีชำระเงิน:</span><b>${htmlAttr(method)}</b></div></div></div></section>
+  <table><thead><tr><th style="width:38px">#</th><th>รายละเอียด / DESCRIPTION</th><th style="width:70px">จำนวน</th><th style="width:70px">หน่วย</th><th style="width:90px">ราคา/หน่วย</th><th style="width:95px">จำนวนเงิน</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="mid"><div><div class="words">จำนวนเงิน (ตัวอักษร)<b>${htmlAttr(words)}</b></div><div class="note"><b>📝 หมายเหตุ</b>สินค้าโปรโมชันมากมายสอบถามได้เลย</div></div><div></div><div class="summary"><div class="sum-row"><span>รวมเงิน (Subtotal)</span><b>${fmt(subtotal)}</b></div>${discount ? `<div class="sum-row"><span>ส่วนลด</span><b>-${fmt(discount)}</b></div>` : ''}<div class="grand"><span>จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL</span><b>฿${fmt(total)}</b></div></div></div>
+  <div class="pay-slot">${qr ? receiptQrBlockV36(qr, qrAmount) : `<div class="paid-note">ชำระแล้ว<small>ขอบคุณที่ใช้บริการ</small></div>`}</div>
+  <div class="bottom-line"><div class="sigs"><div class="sig"><div class="sig-line"></div><b>ผู้รับของ / Received By</b><small>วันที่ / Date ........../........../..........</small></div><div class="sig"><div class="sig-line"></div><b>ผู้อนุมัติ / Authorized</b><small>วันที่ / Date ........../........../..........</small></div></div><div class="foot">${htmlAttr(footer)}</div></div><div class="pg">1/1</div>
+</div><script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close()},1500)},700)}<\/script></body></html>`);
+    win.document.close();
+  }
+
+  function installReceiptTemplateV36() {
+    if (window.__v36ReceiptTemplate) return;
+    window.__v36ReceiptTemplate = true;
+    const printByBillId = async (billId, docType = 'receipt') => {
+      const { data: bill } = await db.from('บิลขาย').select('*').eq('id', billId).maybeSingle();
+      const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
+      if (!bill) { toastV36('ไม่พบบิล', 'error'); return; }
+      return printReceiptA4TemplateV36(bill, items || [], docType);
+    };
+    window.v24PrintDocument = async function (bill, items, docType = 'receipt') {
+      return printReceiptA4TemplateV36(bill, items || [], docType);
+    };
+    window.v24ShowDocSelector = async function (billId) {
+      const { data: bill } = await db.from('บิลขาย').select('*').eq('id', billId).maybeSingle();
+      const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
+      if (!bill) { toastV36('ไม่พบบิล', 'error'); return; }
+      const hasDel = bill.delivery_mode === 'deliver' || bill.delivery_mode === 'partial';
+      const isDep = money(bill.deposit_amount) > 0 || bill.status === txt.debt;
+      const opts = [
+        { key: 'receipt', lbl: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', sub: 'Receipt / Tax Invoice', show: true },
+        { key: 'payment', lbl: 'ใบรับเงิน', sub: 'Payment Receipt', show: isDep },
+        { key: 'delivery', lbl: 'ใบส่งของ', sub: 'Delivery Note', show: hasDel },
+      ].filter(o => o.show);
+      let docType = 'receipt';
+      if (opts.length > 1 && window.Swal) {
+        const { value, isConfirmed } = await Swal.fire({
+          title: 'เลือกเอกสาร A4',
+          width: 460,
+          showCancelButton: true,
+          confirmButtonText: 'พิมพ์',
+          cancelButtonText: 'ยกเลิก',
+          confirmButtonColor: '#dc2626',
+          html: `<div style="display:flex;flex-direction:column;gap:10px;text-align:left">${opts.map((o, i) => `
+            <label style="display:flex;gap:12px;align-items:center;border:2px solid ${i ? '#e5e7eb' : '#dc2626'};border-radius:12px;padding:12px;cursor:pointer">
+              <input type="radio" name="v36-doc-type" value="${o.key}" ${i ? '' : 'checked'} style="accent-color:#dc2626;width:18px;height:18px">
+              <div><b>${o.lbl}</b><div style="font-size:12px;color:#94a3b8">${o.sub}</div></div>
+            </label>`).join('')}</div>`,
+          preConfirm: () => document.querySelector('input[name="v36-doc-type"]:checked')?.value || 'receipt',
+        });
+        if (!isConfirmed) return;
+        docType = value || 'receipt';
+      }
+      return printReceiptA4TemplateV36(bill, items || [], docType);
+    };
+    window.v12PrintReceiptA4 = billId => printByBillId(billId, 'receipt');
+    window.v12PrintDeposit = billId => printByBillId(billId, 'payment');
+    window.v12PrintDeliveryNote = billId => printByBillId(billId, 'delivery');
+    window.v5PrintFromHistory = async function (billId) {
+      if (window.Swal) {
+        const { value, isConfirmed } = await Swal.fire({
+          title: `พิมพ์ใบเสร็จ`,
+          input: 'radio',
+          inputOptions: { '80mm': '80mm', 'A4': 'A4' },
+          inputValue: 'A4',
+          showCancelButton: true,
+          confirmButtonText: 'พิมพ์',
+          cancelButtonText: 'ยกเลิก',
+          confirmButtonColor: '#dc2626',
+        });
+        if (!isConfirmed) return;
+        if (value === '80mm' && typeof window.v12PrintReceipt80mm === 'function') return window.v12PrintReceipt80mm(billId);
+      }
+      return window.v24ShowDocSelector(billId);
+    };
+    window.printA4 = (bill, items) => window.v24PrintDocument(bill, items || [], 'receipt');
+    window.printReceiptA4v2 = async (bill, items) => window.v24PrintDocument(bill, items || [], 'receipt');
+    try { v24PrintDocument = window.v24PrintDocument; } catch (_) {}
+    try { v24ShowDocSelector = window.v24ShowDocSelector; } catch (_) {}
+    try { v12PrintReceiptA4 = window.v12PrintReceiptA4; } catch (_) {}
+    try { v12PrintDeposit = window.v12PrintDeposit; } catch (_) {}
+    try { v12PrintDeliveryNote = window.v12PrintDeliveryNote; } catch (_) {}
+    try { v5PrintFromHistory = window.v5PrintFromHistory; } catch (_) {}
+    try { printA4 = window.printA4; } catch (_) {}
+    try { printReceiptA4v2 = window.printReceiptA4v2; } catch (_) {}
+
+    const origS6 = window.v12S6;
+    if (typeof origS6 === 'function' && !origS6.__v36receipt) {
+      window.v12S6 = function (container) {
+        const out = origS6.apply(this, arguments);
+        setTimeout(() => {
+          const b = (() => { try { return v12State?.savedBill; } catch (_) { return null; } })();
+          if (!container || !b?.id) return;
+          const a4 = container.querySelector('[onclick*="v12PrintReceiptA4"], [onclick*="v24ShowDocSelector"]');
+          if (a4) {
+            a4.onclick = () => window.v24ShowDocSelector(b.id);
+            a4.removeAttribute('onclick');
+          }
+        }, 120);
+        return out;
+      };
+      window.v12S6.__v36receipt = true;
+      try { v12S6 = window.v12S6; } catch (_) {}
     }
   }
 
@@ -4607,6 +5079,9 @@ console.log('[v36] Usage safety patch loaded');
     installMixedPaymentV36();
     installKeyboardFocusGuardV36();
     installSaveSuccessSoundV36();
+    installPaymentQrOverridesV36();
+    installPrintQrPolicyV36();
+    installReceiptTemplateV36();
     installCashPopupStabilityV36();
     installNormalCashDisplayBridgeV36();
     installLimitedPosProductGrid(true);

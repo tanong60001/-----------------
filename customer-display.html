@@ -126,13 +126,14 @@
     @keyframes payIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
     .pay-lbl{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:var(--r-full);font-size:17px;font-weight:700;margin-bottom:28px}
     .pay-lbl.cash-lbl{background:var(--red-50);color:var(--red-700)}
-    .pay-lbl.transfer-lbl{background:#F5F3FF;color:var(--purple)}
+    body{letter-spacing:.18px}
+    .pay-lbl.transfer-lbl{background:#EFF6FF;color:#2563EB}
     .pay-lbl.credit-lbl{background:#EFF6FF;color:#2563EB}
     .pay-lbl.debt-lbl{background:#FFFBEB;color:var(--amber)}
     .pay-lbl i{font-size:20px}
     .pay-box{border-radius:var(--r-xl);padding:48px 40px;color:var(--white);margin-bottom:28px;position:relative;overflow:hidden}
     .pay-box.cash-bg{background:linear-gradient(135deg,var(--red-600),var(--red-700));box-shadow:0 12px 40px rgba(220,38,38,.35)}
-    .pay-box.transfer-bg{background:linear-gradient(135deg,var(--purple),#6D28D9);box-shadow:0 12px 40px rgba(124,58,237,.35)}
+    .pay-box.transfer-bg{background:linear-gradient(135deg,#2563EB,#1D4ED8);box-shadow:0 12px 40px rgba(37,99,235,.35)}
     .pay-box.credit-bg{background:linear-gradient(135deg,#2563EB,#1D4ED8);box-shadow:0 12px 40px rgba(37,99,235,.35)}
     .pay-box.debt-bg{background:linear-gradient(135deg,var(--amber),#B45309);box-shadow:0 12px 40px rgba(217,119,6,.35)}
     .pay-box::before{content:'';position:absolute;top:-40%;right:-20%;width:360px;height:360px;background:rgba(255,255,255,.06);border-radius:50%}
@@ -145,14 +146,18 @@
     .debt-info h4 i{font-size:26px}
     .debt-info p{font-size:16px;color:#92400E;line-height:1.7}
     .qr-wrap{margin-top:28px}
-    .qr-frame{display:inline-block;background:var(--white);border:3px solid var(--purple);border-radius:var(--r-lg);padding:20px;box-shadow:0 6px 24px rgba(124,58,237,.2)}
+    .qr-frame{display:inline-block;background:var(--white);border:3px solid #2563EB;border-radius:var(--r-lg);padding:20px;box-shadow:0 6px 24px rgba(37,99,235,.2)}
     .qr-frame img,#qr-container canvas,#qr-container table{display:block;width:260px;height:260px;border-radius:10px}
     .qr-hint{margin-top:12px;font-size:16px;color:var(--g400);font-weight:500}
+    .mix-wrap{display:grid;grid-template-columns:360px 1fr;gap:26px;align-items:center;margin-top:26px}
+    .mix-panel{background:#fff;border:2px solid #DBEAFE;border-radius:22px;padding:22px;text-align:left;box-shadow:0 12px 35px rgba(37,99,235,.10)}
+    .mix-row{display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid #E5E7EB;font-size:18px;font-weight:800;color:#334155}
+    .mix-row:last-child{border-bottom:0}.mix-row strong{font-family:var(--num);font-size:28px;color:#172033;letter-spacing:0}.mix-row.blue strong{color:#2563EB}.mix-row.red strong{color:#DC2626}.mix-row.green strong{color:#059669}
 
     /* ═══ CASH ═══ */
     .sc-cash{background:var(--g50);flex-direction:row}
     .cash-l{width:55%;background:var(--white);display:flex;flex-direction:column;justify-content:center;padding:48px 56px;border-right:2px solid var(--g200)}
-    .cash-r{flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 40px}
+    .cash-r{flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px;padding:38px 44px}
     .cblk{margin-bottom:36px}
     .cblk:last-child{margin-bottom:0;padding-top:32px;border-top:2px solid var(--g100)}
     .cblk-lbl{font-size:14px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
@@ -162,12 +167,19 @@
     .ch-denoms{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
     .ch-pill{display:inline-flex;align-items:center;gap:4px;border-radius:var(--r-full);padding:7px 16px;font-family:var(--num);font-size:16px;font-weight:700;color:var(--white);opacity:0;transform:scale(.7);animation:dpop .3s cubic-bezier(.34,1.56,.64,1) forwards}
     @keyframes dpop{to{opacity:1;transform:scale(1)}}
-    .cash-card{background:var(--white);border-radius:var(--r-lg);padding:32px;border:1px solid var(--g200)}
+    .cash-card{width:100%;background:var(--white);border-radius:var(--r-lg);padding:30px 32px;border:1px solid var(--g200)}
     .cash-card-h{font-size:15px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px;display:flex;align-items:center;gap:8px}
     .cash-card-h i{font-size:20px;color:var(--red-400)}
     .sr{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--g100);font-size:18px;color:var(--g600)}
     .sr:last-child{border-bottom:none}
     .sr .sv{font-family:var(--num);font-weight:800;font-size:22px;color:var(--g900)}
+    .cash-ad-panel{display:none;width:100%;aspect-ratio:3/1;border:1px solid var(--g200);border-radius:18px;background:var(--white);box-shadow:0 16px 38px rgba(17,24,39,.09);overflow:hidden;position:relative;flex-shrink:0}
+    .cash-ad-panel.show{display:block}
+    .cash-ad-media{width:100%;height:100%;background:var(--g100)}
+    .cash-ad-media img{width:100%;height:100%;object-fit:cover;display:block}
+    .cash-ad-caption{position:absolute;left:0;right:0;bottom:0;padding:20px 24px;background:linear-gradient(0deg,rgba(17,24,39,.68),rgba(17,24,39,0));color:#fff;pointer-events:none}
+    .cash-ad-title{font-size:26px;font-weight:900;line-height:1.16;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 16px rgba(0,0,0,.22)}
+    .cash-ad-sub{font-size:14px;font-weight:700;color:rgba(255,255,255,.86);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
     /* ═══ THANKS ═══ */
     body.thanks-mode .content{top:66px;bottom:0;z-index:20}
@@ -195,7 +207,7 @@
       .items-wrap{padding:14px 20px}.tot-amt{font-size:48px}.tot-lbl{font-size:15px}
       .pay-val{font-size:56px}.pay-box{padding:36px 28px}.pay-sub{font-size:15px}
       .pay-method-chip{font-size:17px;padding:13px 26px}.pay-method-chip i{font-size:24px}
-      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:28px 32px}.cash-r{padding:24px 32px}.cblk-val{font-size:48px}
+      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:28px 32px}.cash-r{padding:24px 32px;gap:18px}.cblk-val{font-size:48px}.cash-ad-title{font-size:22px}
       .thx-h{font-size:44px}.thx-p{font-size:20px}.thx-ring{width:120px;height:120px}.thx-ring i{font-size:64px}
       .step-bar{height:56px}.sb-label{font-size:12px}.sb-num{width:30px;height:30px;font-size:12px}
       .idle-layout{gap:14px;width:94vw}.ad-panel.show{width:94vw;height:clamp(260px,38vh,420px)}.ad-title{font-size:24px}
@@ -207,7 +219,7 @@
       .items-wrap{padding:10px 14px}.tot-amt{font-size:36px}.tot-lbl{font-size:13px}
       .pay-val{font-size:44px}.pay-box{padding:28px 20px}.pay-sub{font-size:13px}
       .pay-method-chip{font-size:14px;padding:11px 20px}.pay-method-chip i{font-size:20px}
-      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:20px 20px}.cash-r{padding:18px 20px}.cblk-val{font-size:36px}.cblk-lbl{font-size:12px}
+      .sc-cash{flex-direction:column}.cash-l{width:100%;border-right:none;border-bottom:2px solid var(--g200);padding:20px 20px}.cash-r{padding:18px 20px;gap:14px}.cblk-val{font-size:36px}.cblk-lbl{font-size:12px}.cash-card{padding:22px}.cash-ad-caption{padding:14px 16px}.cash-ad-title{font-size:18px}.cash-ad-sub{font-size:12px}
       .thx-h{font-size:34px}.thx-p{font-size:17px}.thx-ring{width:90px;height:90px}.thx-ring i{font-size:52px}
       .idle-ring{width:88px;height:88px;margin-bottom:14px}.idle-ring i{font-size:48px}.idle-h{font-size:30px}.idle-p{font-size:15px;margin-bottom:12px}
       .idle-layout{gap:12px}.ad-panel.show{width:92vw;height:clamp(170px,30vh,260px)}.ad-caption{padding:16px 18px}.ad-title{font-size:18px}
@@ -307,6 +319,13 @@
           <div class="sr"><span>ยอดรวม</span><span class="sv" style="color:var(--red-600)" id="cs-total">฿0</span></div>
           <div class="sr" id="cs-change-row"><span>เงินทอน</span><span class="sv" style="color:var(--emerald)" id="cs-change">฿0</span></div>
         </div>
+        <aside class="cash-ad-panel" id="cash-ad-panel">
+          <div class="cash-ad-media"><img id="cash-ad-image" alt=""></div>
+          <div class="cash-ad-caption" id="cash-ad-caption">
+            <div class="cash-ad-title" id="cash-ad-title"></div>
+            <div class="cash-ad-sub" id="cash-ad-subtitle"></div>
+          </div>
+        </aside>
       </div>
     </div>
 
@@ -339,14 +358,15 @@
     const DENOM_COLORS = {1000:'#8B5E3C',500:'#6B3FA0',100:'#C8102E',50:'#0066CC',20:'#1A7A3C',10:'#B8860B',5:'#B8860B',2:'#B8860B',1:'#B8860B'};
     const DENOM_LABELS = {1000:'1,000',500:'500',100:'100',50:'50',20:'20',10:'10',5:'5',2:'2',1:'1'};
     const fmt = n => Number(n||0).toLocaleString('th-TH');
-    const METHOD_MAP = {cash:'เงินสด',transfer:'โอน/พร้อมเพย์',credit:'บัตรเครดิต',debt:'ค้างชำระ',project:'จ่ายให้โครงการ'};
-    const METHOD_ICONS = {cash:'payments',transfer:'qr_code',credit:'credit_card',debt:'pending_actions',project:'business_center'};
-    const METHOD_BG = {cash:'cash-bg',transfer:'transfer-bg',credit:'credit-bg',debt:'debt-bg',project:'debt-bg'};
-    const LBL_CLS = {cash:'cash-lbl',transfer:'transfer-lbl',credit:'credit-lbl',debt:'debt-lbl',project:'debt-lbl'};
+    const METHOD_MAP = {cash:'เงินสด',transfer:'โอน/พร้อมเพย์',credit:'เงินสด+โอน',debt:'ค้างชำระ',project:'จ่ายให้โครงการ'};
+    const METHOD_ICONS = {cash:'payments',transfer:'qr_code',credit:'sync_alt',debt:'pending_actions',project:'business_center'};
+    const METHOD_BG = {cash:'cash-bg',transfer:'transfer-bg',credit:'transfer-bg',debt:'debt-bg',project:'debt-bg'};
+    const LBL_CLS = {cash:'cash-lbl',transfer:'transfer-lbl',credit:'transfer-lbl',debt:'debt-lbl',project:'debt-lbl'};
     let adSettings = { enabled:false, images:[] };
     let adIndex = 0;
     let adTimer = null;
     let adRenderSeq = 0;
+    let latestTransferQr = null;
 
     function customerAdDb() {
       return new Promise((resolve, reject) => {
@@ -406,9 +426,12 @@
     async function renderAdPanel() {
       const panel = document.getElementById('ad-panel');
       const img = document.getElementById('ad-image');
+      const cashPanel = document.getElementById('cash-ad-panel');
+      const cashImg = document.getElementById('cash-ad-image');
       if (!panel || !img) return;
       const enabled = adSettings.enabled !== false && adSettings.images?.length;
       panel.classList.toggle('show', !!enabled);
+      cashPanel?.classList.toggle('show', !!enabled);
       clearInterval(adTimer);
       if (!enabled) return;
       adIndex = adIndex % adSettings.images.length;
@@ -417,11 +440,17 @@
       const src = await resolveAdImageSrc(current);
       if (seq !== adRenderSeq || !src) return;
       img.src = src;
+      if (cashImg) cashImg.src = src;
       const title = adSettings.title || '';
       const subtitle = adSettings.subtitle || '';
       document.getElementById('ad-title').textContent = title;
       document.getElementById('ad-subtitle').textContent = subtitle;
+      const cashTitle = document.getElementById('cash-ad-title');
+      const cashSubtitle = document.getElementById('cash-ad-subtitle');
+      if (cashTitle) cashTitle.textContent = title;
+      if (cashSubtitle) cashSubtitle.textContent = subtitle;
       document.querySelector('.ad-caption')?.style.setProperty('display', (title || subtitle) ? '' : 'none');
+      document.getElementById('cash-ad-caption')?.style.setProperty('display', (title || subtitle) ? '' : 'none');
       adTimer = setInterval(() => {
         adIndex = (adIndex + 1) % adSettings.images.length;
         renderAdPanel();
@@ -477,8 +506,13 @@
       document.getElementById('qr-section').style.display='none';
       document.getElementById('debt-section').style.display='none';
       if(method==='transfer'){
+        const payload = extra?.qrPayload || latestTransferQr?.payload || '';
         document.getElementById('qr-section').style.display='block';
-        if(extra?.qrPayload)renderQRDisplay(extra.qrPayload,extra.qrLabel);
+        renderQRDisplay(payload,extra?.qrLabel||latestTransferQr?.label,extra?.qrMode||latestTransferQr?.mode,extra?.qrDetail||latestTransferQr?.detail,extra?.qrRecipient||latestTransferQr?.recipient,{
+          bankName:extra?.bankName||latestTransferQr?.bankName,
+          accountNumber:extra?.accountNumber||latestTransferQr?.accountNumber,
+          accountName:extra?.accountName||latestTransferQr?.accountName
+        });
       } else if(method==='debt'){
         document.getElementById('debt-section').style.display='block';
         document.getElementById('debt-text').innerHTML=`ระบบจะบันทึกยอด <strong>฿${fmt(total)}</strong> เป็นหนี้ค้างชำระของ <strong>${currentCustomer.name||'ลูกค้า'}</strong>`;
@@ -486,11 +520,45 @@
       showScreen('payment');setStep(3);
     }
 
-    function renderQRDisplay(payload,label) {
+    function renderQRDisplay(payload,label,mode,detail,recipient,bankInfo) {
       const c=document.getElementById('qr-container');c.innerHTML='';
-      if(window.QRCode){new QRCode(c,{text:payload,width:200,height:200,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M})}
-      else{c.innerHTML=`<img src="${payload}" style="width:200px;height:200px" alt="QR">`}
-      document.getElementById('qr-label').textContent=label||'สแกน QR Code เพื่อชำระเงิน';
+      if(payload){
+        const src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data='+encodeURIComponent(String(payload||''));
+        c.innerHTML=`<div style="width:310px;background:#fff;border:3px solid #2563EB;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,.18);display:inline-block"><div style="height:64px;background:#144B73;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:20px;font-weight:950"><i class="material-icons-round" style="font-size:34px">qr_code_2</i> THAI QR PAYMENT</div><div style="padding:12px 18px 18px"><div style="display:inline-block;border:1px solid #172033;padding:2px 14px;font-size:14px;font-weight:950;color:#172033;margin-bottom:10px">PromptPay</div><img src="${src}" style="width:250px;height:250px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`;
+      }else{
+        c.innerHTML=`<div style="width:310px;min-height:230px;background:#EFF6FF;border:3px solid #2563EB;border-radius:18px;box-shadow:0 18px 45px rgba(37,99,235,.16);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1D4ED8;font-weight:950"><i class="material-icons-round" style="font-size:60px;color:#2563EB;margin-bottom:10px">account_balance</i><div style="font-size:24px">โอนเข้าบัญชี</div><div style="font-size:14px;color:#64748b;margin-top:4px">กรุณาโอนตามข้อมูลด้านล่าง</div></div>`;
+      }
+      const prefix=mode==='bank'?'โอนเข้าบัญชีธนาคาร':'PromptPay';
+      const bankLines=mode==='bank'?`<div style="margin:14px auto 0;max-width:430px;background:#fff7f7;border:1px solid #fecaca;border-radius:14px;overflow:hidden;text-align:left">
+        <div style="display:flex;justify-content:space-between;gap:14px;padding:10px 14px;border-bottom:1px solid #fee2e2"><span style="color:#64748b">ธนาคาร</span><strong style="color:#172033">${bankInfo?.bankName||'-'}</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:14px;padding:10px 14px;border-bottom:1px solid #fee2e2"><span style="color:#64748b">เลขบัญชี</span><strong style="color:#172033">${bankInfo?.accountNumber||detail||'-'}</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:14px;padding:10px 14px"><span style="color:#64748b">ชื่อบัญชี</span><strong style="color:#172033">${bankInfo?.accountName||recipient||'-'}</strong></div>
+      </div>`:'';
+      document.getElementById('qr-label').innerHTML=`${label||prefix}${recipient&&mode!=='bank'?`<br><strong style="color:#172033">${recipient}</strong>`:''}${detail&&mode!=='bank'?`<br><span style="font-size:14px;color:#94a3b8">${detail}</span>`:''}${bankLines}`;
+    }
+
+    function showMixedPayment(data){
+      document.getElementById('pay-amount').textContent=`฿${fmt(data.total)}`;
+      document.getElementById('pay-box').className='pay-box transfer-bg';
+      document.getElementById('method-chip').innerHTML=`<i class="material-icons-round">sync_alt</i><span>เงินสด+โอน</span>`;
+      const lbl=document.getElementById('pay-status-label');
+      lbl.className='pay-lbl transfer-lbl';
+      lbl.innerHTML='<i class="material-icons-round">sync</i> กำลังดำเนินการชำระเงิน';
+      document.getElementById('debt-section').style.display='none';
+      document.getElementById('qr-section').style.display='block';
+      const c=document.getElementById('qr-container');
+      const payload=data.qrPayload||'';
+      const src=payload?'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data='+encodeURIComponent(String(payload)):'';
+      c.innerHTML=`<div class="mix-wrap">
+        <div>${payload?`<div style="width:310px;background:#fff;border:3px solid #2563EB;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,.18);display:inline-block"><div style="height:58px;background:#144B73;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:18px;font-weight:950"><i class="material-icons-round" style="font-size:30px">qr_code_2</i> THAI QR PAYMENT</div><div style="padding:10px 18px 16px"><div style="display:inline-block;border:1px solid #172033;padding:2px 12px;font-size:13px;font-weight:950;color:#172033;margin-bottom:8px">PromptPay</div><img src="${src}" style="width:220px;height:220px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`:''}</div>
+        <div class="mix-panel">
+          <div class="mix-row blue"><span>ยอดโอน</span><strong>฿${fmt(data.transfer)}</strong></div>
+          <div class="mix-row red"><span>ยอดเงินสด</span><strong>฿${fmt(data.cash)}</strong></div>
+          <div class="mix-row"><span>ยอดรวม</span><strong>฿${fmt(data.total)}</strong></div>
+        </div>
+      </div>`;
+      document.getElementById('qr-label').innerHTML=`<strong style="color:#172033">${data.qrRecipient||data.accountName||'PromptPay'}</strong>${data.qrDetail?`<br><span style="font-size:14px;color:#94a3b8">${data.qrDetail}</span>`:''}`;
+      showScreen('payment');setStep(3);
     }
 
     function showCash(total,received,change,method,denomGiven) {
@@ -572,23 +640,35 @@
         }
 
         case 'payment_method': {
-          showPaymentMethod(data.method,data.total,{qrPayload:data.qrPayload,qrLabel:data.qrLabel});
+          if(data.qrPayload || data.qrMode==='bank') latestTransferQr={payload:data.qrPayload,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName};
+          showPaymentMethod(data.method,data.total,{qrPayload:data.qrPayload,qrLabel:data.qrLabel,qrMode:data.qrMode,qrDetail:data.qrDetail,qrRecipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName});
           break;
         }
 
         case 'qr': {
-          showPaymentMethod('transfer',data.amount,{qrPayload:data.qrPayload||data.qrUrl,qrLabel:data.qrLabel});
+          latestTransferQr={payload:data.qrPayload||data.qrUrl,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName};
+          showPaymentMethod('transfer',data.amount,{qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
+          break;
+        }
+
+        case 'mixed_payment': {
+          latestTransferQr={payload:data.qrPayload,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName,transfer:data.transfer,cash:data.cash,total:data.total};
+          showMixedPayment(data);
           break;
         }
 
         case 'checkout': {
           const {step,total,method,received,change}=data;
-          if(step===2){ showPaymentMethod(method,total,{}) }
+          if(step===2){ showPaymentMethod(method,total,method==='transfer'&&latestTransferQr?{qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName}:{}) }
           else if(step>=3){ showCash(total,received||0,change||0,method,data.changeDenominations) }
           break;
         }
 
         case 'cash_update': {
+          if(data.method==='เงินโอน+เงินสด'&&latestTransferQr){
+            showMixedPayment({total:latestTransferQr.total||((data.total||0)+(latestTransferQr.transfer||0)),transfer:latestTransferQr.transfer||0,cash:data.total||latestTransferQr.cash||0,qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
+            break;
+          }
           showCash(data.total,data.received,data.change||0,data.method||'cash',data.changeDenominations);
           break;
         }

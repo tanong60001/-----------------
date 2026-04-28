@@ -936,6 +936,8 @@ function print80mmv2(bill, items, rc) {
     `<tr><td class="name">${i.name}</td><td class="qty">${i.qty}${i.unit||''}</td><td class="amt">฿${formatNum(i.total)}</td></tr>`
   ).join('');
   const pp = rc.promptpay_number ? `<div class="qr-wrap"><img src="https://promptpay.io/${rc.promptpay_number.replace(/[^0-9]/g,'')}.png" class="qr-img"><div class="qr-label">สแกนโอนเงิน</div></div>` : '';
+  const printedAt = new Date().toLocaleString('th-TH');
+  const billStatus = bill.status || (bill.method ? 'สำเร็จ' : '-');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -975,6 +977,7 @@ ${rc.receipt_header?`<div style="text-align:center;font-size:10px;color:#555;mar
     <div class="row-info">พนักงาน <strong>${bill.staff_name||'-'}</strong></div></div>
   <div class="bill-no">#${bill.bill_no}</div>
 </div>
+<div style="font-size:9px;color:#777;line-height:1.45;margin-bottom:4px;">สถานะบิล: <strong style="color:#111">${billStatus}</strong> · พิมพ์เมื่อ ${printedAt}</div>
 <hr class="divider-solid">
 <table><thead><tr><th>รายการ</th><th style="text-align:center">จำนวน</th><th style="text-align:right">ราคา</th></tr></thead>
 <tbody>${rows}</tbody></table>
