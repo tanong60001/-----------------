@@ -170,7 +170,10 @@
     .sr .sv{font-family:var(--num);font-weight:800;font-size:22px;color:var(--g900)}
 
     /* ═══ THANKS ═══ */
-    .sc-thanks{background:linear-gradient(135deg,var(--red-600) 0%,var(--red-700) 50%,#7F1D1D 100%);color:var(--white);align-items:center;justify-content:center;flex-direction:column;position:relative;overflow:hidden}
+    body.thanks-mode .content{top:66px;bottom:0;z-index:20}
+    body.thanks-mode .prog,body.thanks-mode .step-bar,body.thanks-mode .cust-banner{display:none!important}
+    .sc-thanks{background:linear-gradient(135deg,var(--red-600) 0%,var(--red-700) 50%,#7F1D1D 100%);color:var(--white);align-items:center;justify-content:center;flex-direction:column;position:relative;overflow:hidden;min-height:100%}
+    body.thanks-mode .sc-thanks.active{position:fixed;top:66px;left:0;right:0;bottom:0;z-index:30;display:flex!important;opacity:1!important;visibility:visible!important;transform:none!important}
     .thx-shape{position:absolute;border-radius:50%;background:rgba(255,255,255,.04)}
     .thx-shape:nth-child(1){width:700px;height:700px;top:-240px;right:-200px}
     .thx-shape:nth-child(2){width:500px;height:500px;bottom:-160px;left:-120px}
@@ -426,6 +429,7 @@
     }
 
     function showScreen(id) {
+      document.body.classList.toggle('thanks-mode', id === 'thanks');
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       const el=document.getElementById('screen-'+id);
       if(el)el.classList.add('active');
