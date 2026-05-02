@@ -1057,28 +1057,31 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
       background: #fff; 
       color: #000;
       width: 100mm;
+      /* ป้องกัน margin อัตโนมัติจากเบราว์เซอร์ */
+      margin: 0;
+      padding: 0;
     }
     
     .page-row { 
       width: 100mm; 
       height: 25mm; 
       display: grid; 
-      grid-template-columns: 31mm 31mm 31mm; 
-      justify-content: space-evenly; 
-      align-items: center;
+      grid-template-columns: 31.5mm 31.5mm 31.5mm; 
+      justify-content: center; 
+      align-content: center;
+      gap: 1.5mm;
       page-break-after: always; 
       overflow: hidden;
     }
     
     .sticker { 
       width: 100%; 
-      height: 25mm; 
+      height: 23mm; /* ลดความสูงลงเพื่อไม่ให้ชิดขอบบนล่างเกินไป */
       display: flex; 
       flex-direction: column; 
-      justify-content: space-between; 
+      justify-content: center; /* จัดให้อยู่ตรงกลาง เพื่อกันตกขอบ */
       align-items: center; 
-      /* 🔴 จุดสำคัญ: เพิ่ม Safe Margin 1.5mm รอบด้าน กันสติ๊กเกอร์ตกขอบเวลาเครื่องปริ้นดึงกระดาษเบี้ยว */
-      padding: 1.5mm 1.5mm; 
+      padding: 0 1mm; 
       overflow: hidden;
     }
     
@@ -1090,43 +1093,42 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
       text-overflow: ellipsis; 
       width: 100%; 
       text-align: center;
-      line-height: 1;
-      margin-bottom: 0; 
+      line-height: 1.1;
+      margin-bottom: 1.5mm; 
     }
     
     .barcode-container {
-      flex: 1;
       display: flex;
       justify-content: center;
       align-items: center;
       width: 100%; 
+      height: 11mm; /* คุมความสูงบาร์โค้ดแบบคงที่ */
       overflow: hidden;
+      margin-bottom: 1mm;
     }
     
     .barcode-svg { 
       width: 100%; 
       height: 100%;
-      max-height: 16mm; /* คุมความสูงไม่ให้ดันข้อความทะลุขอบ 1.5mm ที่เราตั้งไว้ */
       object-fit: contain;
     }
     
     .footer {
       display: flex;
       justify-content: space-between; 
-      align-items: flex-end;
+      align-items: center;
       width: 100%;
       line-height: 1;
-      margin-top: 0; 
     }
     
     .shop-name {
-      font-size: 7px;
+      font-size: 7.5px;
       font-weight: 600;
       color: #111;
     }
     
     .price { 
-      font-size: 11.5px; 
+      font-size: 11px; 
       font-weight: 800; 
     }
   </style>
@@ -1164,12 +1166,12 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
          JsBarcode(el, el.getAttribute('data-val'), {
             format: "CODE128",
             displayValue: true, 
-            fontSize: 12, 
+            fontSize: 13, 
             fontOptions: "bold",
             margin: 0,
-            textMargin: 1,
-            height: 40, /* ลดลงนิดนึงให้พอดีกับขอบที่เพิ่มขึ้น */
-            width: 1.6  /* ความกว้างแท่งหนากำลังดี สแกนติดง่ายและไม่ล้น */
+            textMargin: 2,
+            height: 32, /* ลดลงเพื่อให้พอดีกับพื้นที่ตรงกลาง */
+            width: 1.4  /* ปรับความกว้างให้สแกนง่าย */
          });
       });
       setTimeout(() => {
