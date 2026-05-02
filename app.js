@@ -317,43 +317,37 @@ function go(page) {
 // ══════════════════════════════════════════════════════════════════
 // 6. HOME PAGE
 // ══════════════════════════════════════════════════════════════════
+function getLocalDayRange(date = new Date()) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function parseBillReturnInfo(info) {
+  if (!info) return {};
+  if (typeof info === 'object') return info;
+  try { return JSON.parse(info); } catch (_) { return {}; }
+}
+
+function getEffectiveBillTotal(bill) {
+  const info = parseBillReturnInfo(bill?.return_info);
+  const total = Number(info.new_total ?? bill?.total ?? 0);
+  return Number.isFinite(total) ? total : 0;
+}
+
 async function updateHomeStats() {
   document.getElementById('home-username').textContent = USER?.username || 'User';
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDayRange();
   try {
-    const { data: bills } = await db.from('บิลขาย').select('total, discount, id, status, return_info').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').in('status', ['สำเร็จ', 'คืนบางส่วน']);
-    const totalSales = bills?.reduce((sum, b) => sum + (b.total || 0), 0) || 0;
+    const { data: bills } = await db.from('บิลขาย').select('total, discount, id, status, return_info').gte('date', today.startIso).lte('date', today.endIso).in('status', ['สำเร็จ', 'คืนบางส่วน']);
+    const totalSales = bills?.reduce((sum, b) => sum + getEffectiveBillTotal(b), 0) || 0;
     const ordersCount = bills?.length || 0;
-    const todayBillIds = bills?.map(b => b.id) || [];
-    let profit = 0;
-
-    if (todayBillIds.length > 0) {
-      const { data: items } = await db.from('รายการในบิล').select('total, cost, qty, bill_id, name').in('bill_id', todayBillIds);
-
-      // Calculate Gross Profit from original items
-      let grossProfit = (items || []).reduce((sum, i) => sum + ((i.total || 0) - ((i.cost || 0) * (i.qty || 1))), 0);
-
-      // Deduct Profit lost from Returns
-      let lostProfitFromReturns = 0;
-      (bills || []).forEach(b => {
-        if (b.status === 'คืนบางส่วน' && b.return_info?.return_items) {
-          b.return_info.return_items.forEach(retItem => {
-            const retQty = retItem.qty || 0;
-            const retTotal = retItem.total || (retItem.price * retQty) || 0;
-            // Use cost from return_info if available (v11), else lookup from bill items
-            const retCost = retItem.cost || retItem.cost === 0 ? retItem.cost :
-              ((items || []).find(i => i.bill_id === b.id && i.name === retItem.name)?.cost || 0);
-            lostProfitFromReturns += (retTotal - (retCost * retQty));
-          });
-        }
-      });
-      profit = grossProfit - lostProfitFromReturns;
-    }
 
     const cashBalance = await getCashBalance();
     document.getElementById('home-sales').textContent = `฿${formatNum(totalSales)}`;
     document.getElementById('home-orders').textContent = formatNum(ordersCount);
-    document.getElementById('home-profit').textContent = `฿${formatNum(profit)}`;
     document.getElementById('home-cash').textContent = `฿${formatNum(cashBalance)}`;
     document.getElementById('global-cash-balance').textContent = `฿${formatNum(cashBalance)}`;
     updateAlerts();
@@ -2226,6 +2220,7 @@ async function renderAdmin() {
           ${(cats || []).map(c => `<div style="display:flex;align-items:center;gap:6px;background:var(--bg-base);border-radius:var(--radius-full);padding:6px 12px;font-size:13px;">
             <span style="width:10px;height:10px;border-radius:50%;background:${c.color};display:inline-block;"></span>
             ${c.name}
+            <button onclick="editCat('${c.id}')" title="แก้ไขหมวดหมู่" style="background:none;border:none;cursor:pointer;color:var(--primary);padding:0;display:inline-flex;align-items:center;"><i class="material-icons-round" style="font-size:14px;">edit</i></button>
             <button onclick="deleteCat('${c.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:0;"><i class="material-icons-round" style="font-size:14px;">close</i></button>
           </div>`).join('')}
         </div>
@@ -2280,6 +2275,61 @@ async function deleteCat(id) {
   await db.from('categories').delete().eq('id', id);
   toast('ลบหมวดหมู่สำเร็จ', 'success');
   await loadCategories(); renderAdmin();
+}
+
+async function editCat(id) {
+  const { data: cat, error } = await db.from('categories').select('*').eq('id', id).single();
+  if (error || !cat) {
+    toast('โหลดข้อมูลหมวดหมู่ไม่สำเร็จ', 'error');
+    return;
+  }
+
+  const safeName = String(cat.name || '').replace(/"/g, '&quot;');
+  openModal('แก้ไขหมวดหมู่', `
+    <form id="cat-edit-form">
+      <div class="form-group">
+        <label class="form-label">ชื่อหมวดหมู่</label>
+        <input type="text" class="form-input" id="cat-edit-name" value="${safeName}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">สีหมวดหมู่</label>
+        <input type="color" class="form-input" id="cat-edit-color" value="${cat.color || '#DC2626'}" style="height:46px;padding:4px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">
+        <i class="material-icons-round">save</i> บันทึกการแก้ไข
+      </button>
+    </form>`);
+
+  document.getElementById('cat-edit-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const oldName = String(cat.name || '').trim();
+    const name = document.getElementById('cat-edit-name').value.trim();
+    const color = document.getElementById('cat-edit-color').value;
+    if (!name) return;
+
+    const { error: updateError } = await db.from('categories').update({ name, color }).eq('id', id);
+    if (updateError) {
+      toast('แก้ไขหมวดหมู่ไม่สำเร็จ: ' + updateError.message, 'error');
+      return;
+    }
+
+    if (oldName && oldName !== name) {
+      const { error: productError } = await db.from('สินค้า').update({ category: name }).eq('category', oldName);
+      if (productError) {
+        toast('แก้ไขหมวดแล้ว แต่ย้ายสินค้าในหมวดเดิมไม่สำเร็จ', 'warning');
+      }
+    }
+
+    toast('แก้ไขหมวดหมู่สำเร็จ', 'success');
+    closeModal();
+    await loadCategories();
+    await loadProducts();
+    if (document.getElementById('v36-admin-section-body') && typeof window.v36AdminOpenSection === 'function') {
+      await window.v36AdminOpenSection('cats');
+    } else {
+      renderAdmin();
+    }
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2463,6 +2513,11 @@ document.getElementById('pos-search')?.addEventListener('keypress', function (e)
   if (e.key === 'Enter') {
     const barcode = this.value.trim();
     if (!barcode) return;
+    if (typeof window.v40AddBarcodeToCartOnce === 'function') {
+      window.v40AddBarcodeToCartOnce(barcode);
+      this.value = '';
+      return;
+    }
 
     // ค้นหาสินค้าจากบาร์โค้ด
     const foundProduct = products.find(p => p.barcode === barcode);
@@ -2484,4 +2539,3 @@ document.getElementById('pos-search')?.addEventListener('keypress', function (e)
   }
 });
 console.log('[SK POS v2.0] ✅ Application loaded — 100% Complete');
-

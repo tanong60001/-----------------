@@ -51,6 +51,16 @@ const _v24d = d => {
   return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
          dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
 };
+const _v24m = n => {
+  const v = Number(n || 0);
+  return Number.isFinite(v) ? v : 0;
+};
+const _v24e = v => String(v ?? '').replace(/[&<>"']/g, ch => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[ch]));
+const _v24js = v => String(v ?? '')
+  .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /* ═══ DOC TYPES — ALL RED/WHITE ═══ */
 const V24_TYPES = {
   receipt: { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE', sk: 'receipt_a4', sig: ['ผู้รับของ / Received By', 'ผู้อนุมัติ / Authorized'] },
@@ -383,37 +393,191 @@ window.v24PrintQuotation = async function (quotId) {
 /* ═══════════════════════════════════════════════
    BILLING NOTE — เฉพาะหน้าลูกหนี้
 ═══════════════════════════════════════════════ */
-window.v24PrintBillingNote = async function (custId, custName) {
-  if (typeof window.v9AutoUpdateBillStatus === 'function') {
-    await window.v9AutoUpdateBillStatus(custId);
-  }
-  const { data: bills } = await db.from('บิลขาย').select('*').eq('customer_id', custId).in('status', ['ค้างชำระ', 'จ่ายแล้วบางส่วน']).order('date', { ascending: true });
+function v24ParseInfo(info) {
+  if (!info) return {};
+  if (typeof info === 'object') return info;
+  try { return JSON.parse(info); } catch (_) { return {}; }
+}
 
-  if (!bills?.length) {
+function v24BillTotalAfterReturn(bill) {
+  const info = v24ParseInfo(bill?.return_info);
+  const total = Number(info.new_total ?? bill?.total ?? 0);
+  return Number.isFinite(total) ? total : 0;
+}
+
+async function v24BuildDebtBreakdown(custId, opts = {}) {
+  const updateBills = opts.updateBills !== false;
+  if (!custId) return { map: new Map(), rows: [], totalDebt: 0, originalTotal: 0, paidTotal: 0, customer: null };
+
+  const [{ data: pays }, { data: bills }, { data: customer }] = await Promise.all([
+    db.from('ชำระหนี้').select('amount').eq('customer_id', custId),
+    db.from('บิลขาย')
+    .select('*')
+    .eq('customer_id', custId)
+    .in('status', ['ค้างชำระ', 'ชำระหน้างาน', 'จ่ายแล้วบางส่วน', 'คืนบางส่วน'])
+    .neq('status', 'ยกเลิก')
+    .order('date', { ascending: true }),
+    db.from('customer').select('name,address,phone,debt_amount').eq('id', custId).maybeSingle(),
+  ]);
+
+  let paidPool = (pays || []).reduce((s, p) => s + _v24m(p.amount), 0);
+  const result = new Map();
+  const allRows = [];
+
+  for (const bill of (bills || [])) {
+    const total = v24BillTotalAfterReturn(bill);
+    if (total <= 0) continue;
+    const billPaid = Math.max(0, Math.min(total, _v24m(bill.deposit_amount)));
+    const fifoPaid = Math.max(0, Math.min(paidPool, Math.max(0, total - billPaid)));
+    paidPool = Math.max(0, paidPool - fifoPaid);
+    const paid = Math.max(0, Math.min(total, billPaid + fifoPaid));
+    const remaining = Math.max(0, total - paid);
+    const info = v24ParseInfo(bill.return_info);
+    const row = {
+      id: bill.id,
+      bill,
+      bill_no: bill.bill_no,
+      date: bill.date,
+      total,
+      paid,
+      billPaid,
+      fifoPaid,
+      adjustmentPaid: 0,
+      remaining,
+      returnTotal: _v24m(info.return_total),
+      originalTotal: _v24m(info.original_total || bill.total || total),
+      effectiveTotal: total,
+    };
+    allRows.push(row);
+  }
+
+  let totalDebt = allRows.reduce((s, r) => s + r.remaining, 0);
+  const customerDebt = _v24m(customer?.debt_amount);
+  if (customerDebt > 0 && totalDebt > customerDebt) {
+    let extraPaid = totalDebt - customerDebt;
+    for (const row of allRows) {
+      if (extraPaid <= 0) break;
+      const cut = Math.min(row.remaining, extraPaid);
+      row.adjustmentPaid += cut;
+      row.paid += cut;
+      row.remaining = Math.max(0, row.remaining - cut);
+      extraPaid = Math.max(0, extraPaid - cut);
+    }
+  }
+
+  for (const row of allRows) {
+    const info = v24ParseInfo(row.bill.return_info);
+    info.paid_amount = row.paid;
+    info.remaining_amount = row.remaining;
+    info.bill_paid_amount = row.billPaid;
+    info.fifo_paid_amount = row.fifoPaid;
+    info.balance_adjustment_amount = row.adjustmentPaid;
+    const status = row.remaining <= 0 ? 'สำเร็จ' : row.paid > 0 ? 'จ่ายแล้วบางส่วน' : 'ค้างชำระ';
+    result.set(String(row.id), { paid: row.paid, remaining: row.remaining, total: row.total, row });
+    if (updateBills && (row.bill.status !== status || _v24m(v24ParseInfo(row.bill.return_info).paid_amount) !== row.paid || _v24m(v24ParseInfo(row.bill.return_info).remaining_amount) !== row.remaining)) {
+      await db.from('บิลขาย').update({ status, return_info: info }).eq('id', row.id);
+    }
+  }
+
+  const rows = allRows.filter(r => r.remaining > 0);
+  totalDebt = rows.reduce((s, r) => s + r.remaining, 0);
+  return {
+    map: result,
+    rows,
+    totalDebt,
+    originalTotal: rows.reduce((s, r) => s + r.total, 0),
+    paidTotal: rows.reduce((s, r) => s + r.paid, 0),
+    customer: customer || null,
+  };
+}
+
+window.v24BuildDebtBreakdown = v24BuildDebtBreakdown;
+
+window.v24ApplyDebtPaymentsFIFO = async function (custId) {
+  return (await v24BuildDebtBreakdown(custId)).map;
+};
+
+window.v9AutoUpdateBillStatus = window.v24ApplyDebtPaymentsFIFO;
+
+window.v24PrintBillingNote = async function (custId, custName) {
+  const printWin = typeof window.v37OpenA4PrintWindow === 'function'
+    ? window.v37OpenA4PrintWindow()
+    : null;
+  const printDoc = async (billDoc, docItems) => {
+    if (typeof window.v37PrintA4Detailed === 'function') {
+      await window.v37PrintA4Detailed(billDoc, docItems, 'billing', printWin);
+    } else {
+      if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
+      await v24PrintDocument(billDoc, docItems, 'billing');
+    }
+  };
+  const printCustomerBalanceOnly = async () => {
+    const { data: c } = await db.from('customer').select('name,address,phone,debt_amount').eq('id', custId).maybeSingle();
+    const balance = Number(c?.debt_amount || 0);
+    if (!Number.isFinite(balance) || balance <= 0) return false;
+    const docItems = [{
+      name: 'ยอดค้างชำระตามบัญชีลูกค้า',
+      qty: 1,
+      unit: 'รายการ',
+      price: balance,
+      total: balance
+    }];
+    await printDoc({
+      bill_no: `BN-${Date.now().toString().slice(-8)}`,
+      date: new Date().toISOString(),
+      customer_name: custName || c?.name || '-',
+      customer_address: c?.address || '',
+      customer_phone: c?.phone || '',
+      total: balance,
+      billing_original_total: balance,
+      billing_paid_total: 0,
+      discount: 0,
+      method: 'ค้างชำระ',
+      staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : '-'
+    }, docItems);
+    return true;
+  };
+
+  try {
+  const breakdown = await v24BuildDebtBreakdown(custId);
+
+  if (!breakdown.rows.length) {
+    if (await printCustomerBalanceOnly()) return;
+    if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
     typeof toast === 'function' && toast('ไม่มีบิลค้างชำระ', 'info');
     return;
   }
 
-  const items = bills.map(b => {
-    let retInfo = b.return_info || {};
-    if (typeof retInfo === 'string') {
-      try { retInfo = JSON.parse(retInfo); } catch(e) { retInfo = {}; }
-    }
-    const paid = parseFloat(retInfo.paid_amount || 0);
-    const original = parseFloat(b.total || 0);
-    const remaining = original - paid;
+  let billingOriginalTotal = 0;
+  let billingPaidTotal = 0;
+  const items = breakdown.rows.map(row => {
+    const paid = row.paid;
+    const original = row.total;
+    const remaining = row.remaining;
+    billingOriginalTotal += original;
+    billingPaidTotal += paid;
     const fn = typeof formatNum === 'function' ? formatNum : v => v;
+    const returnText = row.returnTotal > 0 ? ` / คืนสินค้า ฿${fn(row.returnTotal)}` : '';
+    const paidText = paid > 0 ? ` / ชำระแล้ว ฿${fn(paid)}` : '';
     
     return {
-      name: `บิล #${b.bill_no} — ${_v24d(b.date)}${paid > 0 ? ` (ยอดเต็ม ฿${fn(original)} ชำระแล้ว ฿${fn(paid)})` : ''}`,
+      name: `บิล #${row.bill_no} — ${_v24d(row.date)} (ยอดบิล ฿${fn(original)}${returnText}${paidText} / คงเหลือ ฿${fn(remaining)})`,
       qty: 1,
       unit: 'บิล',
       price: remaining,
       total: remaining
     };
-  });
+  }).filter(item => item.total > 0);
 
   const total = items.reduce((s, b) => s + b.total, 0);
+  const originalTotal = billingOriginalTotal;
+  const paidTotal = billingPaidTotal;
+  if (!items.length || total <= 0) {
+    if (await printCustomerBalanceOnly()) return;
+    if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
+    typeof toast === 'function' && toast('ไม่มีบิลค้างชำระ', 'info');
+    return;
+  }
 
   let addr = '', phone = '';
   try {
@@ -424,17 +588,26 @@ window.v24PrintBillingNote = async function (custId, custName) {
     }
   } catch (_) { }
 
-  await v24PrintDocument({
+  const billDoc = {
     bill_no: `BN-${Date.now().toString().slice(-8)}`,
     date: new Date().toISOString(),
     customer_name: custName,
     customer_address: addr,
     customer_phone: phone,
     total,
+    billing_original_total: originalTotal,
+    billing_paid_total: paidTotal,
     discount: 0,
     method: 'ค้างชำระ',
     staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : '-'
-  }, items, 'billing');
+  };
+
+  await printDoc(billDoc, items);
+  } catch (err) {
+    if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
+    console.error('[v24] print billing note failed', err);
+    typeof toast === 'function' && toast('เปิดใบวางบิลไม่สำเร็จ', 'error');
+  }
 };
 
 /* ═══════════════════════════════════════════════
@@ -452,8 +625,18 @@ window.renderDebts = async function () {
   </div>`;
   
   const { data } = await db.from('customer').select('*').gt('debt_amount', 0).order('debt_amount', { ascending: false });
-  const total = (data || []).reduce((s, c) => s + c.debt_amount, 0);
+  const customers = data || [];
+  const breakdownPairs = await Promise.all(customers.map(async c => {
+    try { return [String(c.id), await v24BuildDebtBreakdown(c.id)]; }
+    catch (err) { console.warn('[v24] debt breakdown failed', c.id, err); return [String(c.id), null]; }
+  }));
+  const breakdownByCustomer = new Map(breakdownPairs);
   const fn = typeof formatNum === 'function' ? formatNum : v => v;
+  const displayDebtOf = c => {
+    const bd = breakdownByCustomer.get(String(c.id));
+    return bd?.totalDebt > 0 ? bd.totalDebt : _v24m(c.debt_amount);
+  };
+  const total = customers.reduce((s, c) => s + displayDebtOf(c), 0);
 
   const style = `
   <style>
@@ -475,6 +658,12 @@ window.renderDebts = async function () {
     .debt-cust-name { font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 14px; }
     .debt-avatar { width: 42px; height: 42px; border-radius: 12px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; flex-shrink: 0; }
     .debt-amt { font-weight: 800; color: #dc2626; font-size: 16px; background: #fef2f2; padding: 4px 10px; border-radius: 8px; display: inline-block; }
+    .debt-bills { min-width: 260px; display: flex; flex-direction: column; gap: 6px; }
+    .debt-bill-chip { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; padding: 7px 9px; font-size: 12px; line-height: 1.35; }
+    .debt-bill-chip strong { color: #0f172a; font-size: 12.5px; }
+    .debt-bill-chip .meta { color: #64748b; margin-left: 4px; }
+    .debt-bill-chip .money { color: #dc2626; font-weight: 800; float: right; margin-left: 10px; }
+    .debt-bill-chip .sub { color: #64748b; margin-top: 2px; }
     .debt-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .btn-pay { background: #dc2626; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s; font-family: inherit; font-size: 13px; }
     .btn-pay:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(220,38,38,0.25); }
@@ -484,33 +673,42 @@ window.renderDebts = async function () {
     @media (max-width: 768px) { .debt-hero { flex-direction: column; align-items: flex-start; } .debt-stat-boxes { width: 100%; } .debt-stat-box { flex: 1; min-width: 140px; } }
   </style>`;
 
-  const tableRows = (data || []).map((c, i) => {
-    const n = c.name.replace(/'/g, "&apos;");
-    const initial = c.name.charAt(0).toUpperCase();
+  const tableRows = customers.map((c, i) => {
+    const n = _v24js(c.name);
+    const initial = _v24e(c.name.charAt(0).toUpperCase());
+    const bd = breakdownByCustomer.get(String(c.id));
+    const billDetails = bd?.rows?.length
+      ? bd.rows.map(row => {
+          const returnText = row.returnTotal > 0 ? ` / คืน ฿${fn(row.returnTotal)}` : '';
+          const paidText = row.paid > 0 ? `ชำระแล้ว ฿${fn(row.paid)} / ` : '';
+          return `<div class="debt-bill-chip">
+            <div><strong>#${_v24e(row.bill_no || '-')}</strong><span class="meta">${_v24e(_v24d(row.date))}</span><span class="money">฿${fn(row.remaining)}</span></div>
+            <div class="sub">ยอดบิล ฿${fn(row.total)}${returnText} / ${paidText}คงเหลือ ฿${fn(row.remaining)}</div>
+          </div>`;
+        }).join('')
+      : `<div class="debt-bill-chip"><div><strong>ยอดค้างตามบัญชีลูกค้า</strong><span class="money">฿${fn(c.debt_amount)}</span></div><div class="sub">ไม่พบเลขบิลค้าง ระบบจะแสดงเป็นยอดรวมไว้ก่อน</div></div>`;
     return `<tr>
       <td>
         <div class="debt-cust-name">
           <div class="debt-avatar">${initial}</div>
           <div>
-            <div style="font-size:15px;line-height:1.2;">${c.name}</div>
-            <div style="font-size:12px;color:#64748b;font-weight:400;margin-top:4px;">ID: ${c.id.slice(0,8)}</div>
+            <div style="font-size:15px;line-height:1.2;">${_v24e(c.name)}</div>
+            <div style="font-size:12px;color:#64748b;font-weight:400;margin-top:4px;">ID: ${_v24e(String(c.id).slice(0,8))}</div>
           </div>
         </div>
       </td>
       <td>
         <div style="color:#475569;display:flex;align-items:center;gap:6px;font-size:14px;">
-          <i class="material-icons-round" style="font-size:16px;color:#94a3b8">phone</i> ${c.phone || '-'}
+          <i class="material-icons-round" style="font-size:16px;color:#94a3b8">phone</i> ${_v24e(c.phone || '-')}
         </div>
       </td>
+      <td><div class="debt-bills">${billDetails}</div></td>
       <td style="text-align:right;color:#64748b;font-size:14px;">฿${fn(c.credit_limit)}</td>
-      <td style="text-align:right;"><span class="debt-amt">฿${fn(c.debt_amount)}</span></td>
+      <td style="text-align:right;"><span class="debt-amt">฿${fn(displayDebtOf(c))}</span></td>
       <td>
         <div class="debt-actions">
           <button class="btn-pay" onclick="recordDebtPayment('${c.id}','${n}')">
             <i class="material-icons-round" style="font-size:18px;">payments</i> รับชำระ
-          </button>
-          <button class="btn-icon-soft" onclick="v24ViewDebtBills('${c.id}','${n}')" title="ดูบิลค้างชำระ" style="color:#7c3aed;border-color:rgba(124,58,237,.2)">
-            <i class="material-icons-round" style="font-size:18px;">receipt</i>
           </button>
           <button class="btn-icon-soft danger" onclick="v24PrintBillingNote('${c.id}','${n}')" title="พิมพ์ใบวางบิล">
             <i class="material-icons-round" style="font-size:18px;">receipt_long</i>
@@ -543,12 +741,13 @@ window.renderDebts = async function () {
     </div>
 
     <div class="debt-table-card">
-      ${data && data.length > 0 ? `
+      ${customers.length > 0 ? `
       <table class="debt-table">
         <thead>
           <tr>
             <th>ข้อมูลลูกค้า</th>
             <th>ติดต่อ</th>
+            <th>บิลที่ยังค้างอยู่</th>
             <th style="text-align:right;">วงเงินเครดิต</th>
             <th style="text-align:right;">ยอดหนี้คงค้าง</th>
             <th style="text-align:right;">จัดการ</th>
@@ -573,32 +772,37 @@ window.renderDebts = async function () {
 ═══════════════════════════════════════════════ */
 window.v24ViewDebtBills = async function(custId, custName) {
   const fn = typeof formatNum === 'function' ? formatNum : v => v;
-  const { data: bills } = await db.from('บิลขาย').select('*')
-    .eq('customer_id', custId).in('status', ['ค้างชำระ','คืนบางส่วน','จ่ายแล้วบางส่วน'])
-    .order('date', { ascending: true });
-  if (!bills?.length) { typeof toast === 'function' && toast('ไม่มีบิลค้างชำระ', 'info'); return; }
-  const totalDebt = bills.reduce((s,b) => {
-    const effTotal = b.return_info?.new_total ?? b.total;
-    return s + Math.max(0, effTotal - (b.deposit_amount||0));
-  }, 0);
-  const rows = bills.map(b => {
-    const hasReturn = b.return_info?.return_total > 0;
-    const origTotal = b.return_info?.original_total || b.total;
-    const effTotal = b.return_info?.new_total ?? b.total;
-    const dep = b.deposit_amount || 0;
-    const remaining = Math.max(0, effTotal - dep);
+  const breakdown = await v24BuildDebtBreakdown(custId);
+  const rowsData = breakdown.rows;
+  if (!rowsData.length) {
+    const balance = _v24m(breakdown.customer?.debt_amount);
+    if (balance <= 0) { typeof toast === 'function' && toast('ไม่มีบิลค้างชำระ', 'info'); return; }
+    rowsData.push({
+      id: '',
+      bill_no: 'ไม่พบเลขบิล',
+      date: new Date().toISOString(),
+      total: balance,
+      paid: 0,
+      remaining: balance,
+      returnTotal: 0,
+      originalTotal: balance,
+    });
+  }
+  const totalDebt = rowsData.reduce((s, b) => s + b.remaining, 0);
+  const rows = rowsData.map(b => {
+    const hasReturn = b.returnTotal > 0;
     const dateStr = b.date ? new Date(b.date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '-';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:#f8fafc;margin-bottom:6px;border:1px solid #e2e8f0;">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">#${b.bill_no} <span style="font-size:11px;color:#64748b;font-weight:400;">${dateStr}</span></div>
-        ${hasReturn ? `<div style="font-size:11px;color:#7c3aed;margin-top:2px;">เดิม ฿${fn(origTotal)} → คืน ฿${fn(b.return_info.return_total)} → ยอดใหม่ ฿${fn(effTotal)}</div>` : ''}
-        ${dep > 0 ? `<div style="font-size:11px;color:#d97706;margin-top:1px;">มัดจำ ฿${fn(dep)}</div>` : ''}
+        <div style="font-weight:600;font-size:13px;">#${_v24e(b.bill_no)} <span style="font-size:11px;color:#64748b;font-weight:400;">${_v24e(dateStr)}</span></div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">ยอดบิล ฿${fn(b.total)}${hasReturn ? ` / คืน ฿${fn(b.returnTotal)} / ยอดหลังคืน ฿${fn(b.effectiveTotal || b.total)}` : ''}</div>
+        ${b.paid > 0 ? `<div style="font-size:11px;color:#059669;margin-top:1px;">ชำระแล้ว ฿${fn(b.paid)}${b.fifoPaid > 0 || b.adjustmentPaid > 0 ? ' (ตัดจากบิลเก่าสุดก่อน)' : ''}</div>` : ''}
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:12px;">
-        <div style="font-weight:700;color:#dc2626;font-size:14px;">฿${fn(remaining)}</div>
+        <div style="font-weight:700;color:#dc2626;font-size:14px;">฿${fn(b.remaining)}</div>
         <div style="display:flex;gap:4px;margin-top:4px;">
-          <button onclick="closeModal();setTimeout(()=>v20BMCPayDebt('${b.id}'),200)" style="border:1px solid #d1fae5;background:#fff;color:#059669;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;">รับชำระ</button>
-          ${!['คืนสินค้า','ยกเลิก'].includes(b.status) ? `<button onclick="closeModal();setTimeout(()=>typeof v10ShowReturnModal==='function'?v10ShowReturnModal('${b.id}'):v12ReturnBill('${b.id}'),200)" style="border:1px solid #fde68a;background:#fff;color:#d97706;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;">คืนของ</button>` : ''}
+          <button onclick="closeModal();setTimeout(()=>recordDebtPayment('${custId}','${_v24js(custName)}'),200)" style="border:1px solid #d1fae5;background:#fff;color:#059669;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;">รับชำระ</button>
+          ${b.id ? `<button onclick="closeModal();setTimeout(()=>typeof v10ShowReturnModal==='function'?v10ShowReturnModal('${b.id}'):v12ReturnBill('${b.id}'),200)" style="border:1px solid #fde68a;background:#fff;color:#d97706;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;">คืนของ</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -606,13 +810,14 @@ window.v24ViewDebtBills = async function(custId, custName) {
   if (typeof openModal === 'function') {
     openModal(`บิลค้างชำระ: ${custName}`, `
       <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;color:#64748b;">${bills.length} บิล</span>
+        <span style="font-size:13px;color:#64748b;">${rowsData.length} บิล</span>
         <span style="font-size:16px;font-weight:800;color:#dc2626;">รวม ฿${fn(totalDebt)}</span>
       </div>
       <div style="max-height:400px;overflow-y:auto;">${rows}</div>
     `);
   }
 };
+window.viewDebtHistory = window.v24ViewDebtBills;
 
 /* ═══════════════════════════════════════════════
    FIX3: BMC — โชว์ 40 ใบล่าสุด + ค้นหาได้ตลอด

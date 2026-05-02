@@ -4,7 +4,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#dc2626">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SK POS">
   <title>SK POS — ระบบจัดการร้านค้าอัจฉริยะ</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/app-icon.svg">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -222,7 +230,7 @@
             </div>
 
             <!-- Stats Grid -->
-            <div class="stats-grid">
+            <div class="stats-grid home-stats-grid">
               <div class="stat-card stat-sales">
                 <div class="stat-icon"><i class="material-icons-round">trending_up</i></div>
                 <div class="stat-content">
@@ -235,13 +243,6 @@
                 <div class="stat-content">
                   <span class="stat-value" id="home-orders">0</span>
                   <span class="stat-label">รายการขาย</span>
-                </div>
-              </div>
-              <div class="stat-card stat-profit">
-                <div class="stat-icon"><i class="material-icons-round">payments</i></div>
-                <div class="stat-content">
-                  <span class="stat-value" id="home-profit">฿0</span>
-                  <span class="stat-label">กำไรวันนี้</span>
                 </div>
               </div>
               <div class="stat-card stat-cash">
@@ -746,13 +747,13 @@
   <script src="app.js?v=2"></script>
   <script src="modules.js"></script>
   <script src="modules-v2.js?v=2"></script>
-  <script src="dashboard-v3.js"></script>
+  <script src="dashboard-v3.js?v=2"></script>
   <script src="modules-v2-patch.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="modules-v3.js"></script>
   <script src="modules-v4-8.js"></script>
-  <script src="modules-v9.js"></script>
-  <script src="modules-v10.js?v=2"></script>
+  <script src="modules-v9.js?v=3"></script>
+  <script src="modules-v10.js?v=3"></script>
   <script src="modules-v11.js"></script>
   <script src="modules-v12.js?v=7"></script>
   <script src="modules-v13.js"></script>
@@ -766,7 +767,7 @@
   <script src="modules-v21.js"></script>
   <script src="modules-v22.js"></script>
   <script src="modules-v23.js"></script>
-  <script src="modules-v24-print.js?v=3"></script>
+  <script src="modules-v24-print.js?v=7"></script>
   <script src="modules-v24-display.js"></script>
   <script src="modules-v25-quotation.js"></script>
   <script src="modules-v26-hr.js"></script>
@@ -774,15 +775,22 @@
   <script src="modules-v28.js?v=3"></script>
   <script src="modules-v29-inbox.js"></script>
   <script src="modules-v23-projectui.js"></script>
-  <script src="modules-v30-fastsale.js"></script>
-  <script src="modules-v31-payrollui.js"></script>
+  <script src="modules-v30-fastsale.js?v=2"></script>
+  <script src="modules-v31-payrollui.js?v=3"></script>
   <script src="modules-v32-cashui.js"></script>
   <script src="modules-v34-ui.js?v=4"></script>
   <script src="modules-v33-fixes.js"></script>
   <script src="modules-v35-grand-ui.js"></script>
-  <script src="modules-v36-usage-safety.js?v=47"></script>
-  <script src="modules-v37-daily-cash-print.js?v=1"></script>
-  <script src="scanner.js"></script>
+  <script src="modules-v36-usage-safety.js?v=55"></script>
+  <script src="modules-v37-daily-cash-print.js?v=13"></script>
+  <script src="modules-v38-category-dashboard.js?v=6"></script>
+  <script src="modules-v39-sales-polish.js?v=2"></script>
+  <script src="modules-v40-mobile-ui.js?v=2"></script>
+  <script src="scanner.js?v=2"></script>
+  <script src="modules-v41-payroll-hotfix.js?v=4"></script>
+  <script src="modules-v42-product-actions.js?v=3"></script>
+  <script src="modules-v43-checkout-polish.js?v=3"></script>
+  <script src="modules-v45-polished-popups.js?v=3"></script>
 </body>
 
 </html>

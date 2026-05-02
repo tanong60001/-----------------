@@ -300,13 +300,13 @@ function _v30PatchSale(attempt) {
         </div>
         <div style="font-size:12px;color:#666;margin-bottom:8px;">รูปแบบพิมพ์ใบเสร็จ</div>
         <div style="display:flex;gap:10px;justify-content:center;">
-          <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='80mm'"
+          <button onclick="window._v9PrintFmt='80mm';Swal.getConfirmButton().click()"
             style="padding:12px 18px;border-radius:10px;border:2px solid #DC2626;
               background:#fff5f5;cursor:pointer;font-size:13px;font-weight:700;color:#DC2626;min-width:90px;">
             <div style="font-size:22px;margin-bottom:4px;">🧾</div>
             80mm<br><span style="font-size:10px;font-weight:400;color:#666;">เครื่องพิมพ์</span>
           </button>
-          <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='A4'"
+          <button onclick="window._v9PrintFmt='A4';window._v9PrintA4Win=window.v37OpenA4PrintWindow?window.v37OpenA4PrintWindow():null;Swal.getConfirmButton().click()"
             style="padding:12px 18px;border-radius:10px;border:2px solid #2563eb;
               background:#eff6ff;cursor:pointer;font-size:13px;font-weight:700;color:#2563eb;min-width:90px;">
             <div style="font-size:22px;margin-bottom:4px;">📄</div>
@@ -336,9 +336,14 @@ function _v30PatchSale(attempt) {
       // ── STEP 11: Print using in-memory billItems (no DB re-fetch) ────────────────
       const fmt = window._v9PrintFmt;
       if (fmt && typeof printReceipt === 'function') {
-        printReceipt(bill, billItems, fmt);
+        if (fmt === 'A4' && typeof window.v37PrintA4Detailed === 'function') {
+          window.v37PrintA4Detailed(bill, billItems, 'receipt', window._v9PrintA4Win || null);
+        } else {
+          printReceipt(bill, billItems, fmt);
+        }
       }
       window._v9PrintFmt = null;
+      window._v9PrintA4Win = null;
 
       // Ensure post-save ops finish in background (already running, just suppress unhandled rejection)
       postSavePromise.catch(function (e) { console.warn('[v30Sale] postSave:', e); });

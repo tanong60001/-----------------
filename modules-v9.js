@@ -4320,7 +4320,6 @@ const _v9AdminTabs = [
   { key: 'users', label: 'สิทธิ์ผู้ใช้', icon: 'manage_accounts' },
   { key: 'emp', label: 'พนักงาน', icon: 'badge' },
   { key: 'cats', label: 'หมวดหมู่', icon: 'category' },
-  { key: 'units', label: 'หน่วยนับ', icon: 'straighten' },
   { key: 'recipe', label: 'สูตรสินค้า', icon: 'science' },
   { key: 'supplier', label: 'ซัพพลายเออร์', icon: 'local_shipping' },
   { key: 'produce', label: 'ผลิตสินค้า', icon: 'precision_manufacturing' },
@@ -4572,7 +4571,11 @@ async function v9AdminRecipe(container) {
   const finishedProds = prods.filter(p =>
     !p.is_raw && p.product_type !== 'both'
   );
-  const rawProds = prods.filter(p => p.is_raw || p.product_type === 'both');
+  const rawProds = prods.filter(p => {
+    const type = String(p.product_type || '').toLowerCase();
+    const category = String(p.category || '').toLowerCase();
+    return p.is_raw || type === 'both' || type === 'raw' || /วัตถุดิบ|raw|material/.test(type) || /วัตถุดิบ|raw|material/.test(category);
+  });
   const finOpts = finishedProds.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
   const rawOpts = rawProds.map(p => `<option value="${p.id}">${p.name} (${p.unit || 'ชิ้น'})</option>`).join('');
 
@@ -5787,7 +5790,6 @@ window.renderUserPerms = async function (container) {
 // หน้า Manage — tabs
 const _v9ManageTabs = [
   { key: 'cats', label: 'หมวดหมู่', icon: 'category', desc: 'จัดการหมวดหมู่สินค้า', color: '#6366f1', bg: '#eef2ff' },
-  { key: 'units', label: 'หน่วยนับ', icon: 'straighten', desc: 'กำหนด conv rate', color: '#0891b2', bg: '#ecfeff' },
   { key: 'recipe', label: 'สูตรสินค้า', icon: 'science', desc: 'BOM วัตถุดิบต่อสินค้า', color: '#059669', bg: '#f0fdf4' },
   { key: 'supplier', label: 'ซัพพลายเออร์', icon: 'local_shipping', desc: 'จัดการผู้จำหน่าย', color: '#d97706', bg: '#fffbeb' },
   { key: 'produce', label: 'ผลิตสินค้า', icon: 'precision_manufacturing', desc: 'สั่งผลิตตามสูตร', color: '#dc2626', bg: '#fef2f2' },
@@ -8154,7 +8156,11 @@ window.v9RecipeAddMat = function (targetProdId) {
   );
   if (!container) return;
   const idx = window._v9RecipeMatIdx++;
-  const prods = v9GetProducts().filter(p => p.is_raw || p.product_type === 'both');
+  const prods = v9GetProducts().filter(p => {
+    const type = String(p.product_type || '').toLowerCase();
+    const category = String(p.category || '').toLowerCase();
+    return p.is_raw || type === 'both' || type === 'raw' || /วัตถุดิบ|raw|material/.test(type) || /วัตถุดิบ|raw|material/.test(category);
+  });
   const prodOpts = prods.map(p => `<option value="${p.id}">${p.name} (${p.unit || 'ชิ้น'})</option>`).join('');
 
   container.insertAdjacentHTML('beforeend', `
@@ -10351,13 +10357,8 @@ setTimeout(() => {
   if (Array.isArray(_v9ManageTabs)) {
     const pIdx = _v9ManageTabs.findIndex(t => t.key === 'produce');
     if (pIdx !== -1) _v9ManageTabs.splice(pIdx, 1);
-    // ตรวจ units ยังอยู่ไหม ถ้าไม่มีให้เพิ่มกลับ
-    if (!_v9ManageTabs.find(t => t.key === 'units')) {
-      const recipeIdx = _v9ManageTabs.findIndex(t => t.key === 'recipe');
-      const unitTab = { key: 'units', label: 'หน่วยนับ', icon: 'straighten', desc: 'กำหนดหน่วยขาย conv rate', color: '#0891b2', bg: '#ecfeff' };
-      if (recipeIdx !== -1) _v9ManageTabs.splice(recipeIdx, 0, unitTab);
-      else _v9ManageTabs.push(unitTab);
-    }
+    const uIdx = _v9ManageTabs.findIndex(t => t.key === 'units');
+    if (uIdx !== -1) _v9ManageTabs.splice(uIdx, 1);
   }
 }, 200);
 
@@ -12495,7 +12496,11 @@ window.v9RecipeEditFull = async function (prodId) {
   } catch (e) { v9HideOverlay(); toast('โหลดไม่ได้: ' + e.message, 'error'); return; }
   v9HideOverlay();
 
-  const rawProds = allProds.filter(p => p.is_raw || p.product_type === 'both');
+  const rawProds = allProds.filter(p => {
+    const type = String(p.product_type || '').toLowerCase();
+    const category = String(p.category || '').toLowerCase();
+    return p.is_raw || type === 'both' || type === 'raw' || /วัตถุดิบ|raw|material/.test(type) || /วัตถุดิบ|raw|material/.test(category);
+  });
   const prodMap = {};
   allProds.forEach(p => { prodMap[p.id] = p; });
 
@@ -12570,7 +12575,11 @@ window.v9RecipeEditFull = async function (prodId) {
     didOpen: () => {
       // เก็บ fn ให้ onclick ใช้ได้
       window._v9ReRowFn = (idx) => {
-        const rawProds = v9GetProducts().filter(p => p.is_raw || p.product_type === 'both');
+        const rawProds = v9GetProducts().filter(p => {
+          const type = String(p.product_type || '').toLowerCase();
+          const category = String(p.category || '').toLowerCase();
+          return p.is_raw || type === 'both' || type === 'raw' || /วัตถุดิบ|raw|material/.test(type) || /วัตถุดิบ|raw|material/.test(category);
+        });
         return `<div id="v9re-row-${idx}" style="display:grid;grid-template-columns:1fr 90px 80px 30px;gap:6px;margin-bottom:6px;align-items:center;">
           <select id="v9re-mat-${idx}" class="swal2-input" style="margin:0;font-size:12px;height:34px;">
             ${rawProds.map(p => `<option value="${p.id}">${p.name} (${p.unit || ''})</option>`).join('')}
@@ -19091,4 +19100,3 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     console.warn('Failed to auto-update bill statuses:', err);
   }
 };
-

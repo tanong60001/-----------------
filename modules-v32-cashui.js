@@ -81,7 +81,7 @@
          Cash page (v32pg) — หน้าลิ้นชักเงินสด
       ══════════════════════════════════════════════════ */
       /* page wrapper */
-      '.v32pg{max-width:860px;margin:0 auto;padding:0 4px 32px;display:flex;flex-direction:column;gap:20px;}',
+      '.v32pg{max-width:1180px;margin:0 auto;padding:0 4px 32px;display:flex;flex-direction:column;gap:20px;}',
 
       /* hero card */
       '.v32hc{background:linear-gradient(135deg,#3e2723 0%,#6d4c41 60%,#4e342e 100%);',
@@ -109,8 +109,9 @@
       '}',
 
       /* action buttons */
-      '.v32acts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}',
-      '@media(max-width:560px){.v32acts{grid-template-columns:repeat(2,1fr);}}',
+      '.v32acts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;}',
+      '@media(max-width:980px){.v32acts{grid-template-columns:repeat(3,minmax(0,1fr));}}',
+      '@media(max-width:560px){.v32acts{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}}',
       '.v32act{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;',
       'border-radius:18px;border:none;cursor:pointer;transition:all .2s;font-family:"Prompt",sans-serif;font-weight:700;font-size:13px;}',
       '.v32act i{font-size:28px;}',

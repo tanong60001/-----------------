@@ -1,103 +1,35 @@
-// scanner.js - ระบบสแกนบาร์โค้ดด้วยกล้องมือถือ
+// scanner.js - POS camera barcode/QR scanner with duplicate-scan protection.
 let html5QrcodeScanner = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  const scanBtn = document.getElementById('pos-scan-btn');
-  const scannerModal = document.getElementById('scanner-modal');
-  const closeBtn = document.getElementById('scanner-close-btn');
-  const searchInput = document.getElementById('pos-search');
+(function () {
+  'use strict';
 
-  if (!scanBtn || !scannerModal || !searchInput) return;
+  const SCAN_COOLDOWN_MS = 1600;
+  let scannerStarting = false;
+  let scannerClosing = false;
+  let scanLocked = false;
+  let lastAcceptedCode = '';
+  let lastAcceptedAt = 0;
 
-  // เมื่อกดปุ่มสแกน
-  scanBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openScanner();
-  });
+  const cleanCode = value => String(value || '').trim();
 
-  // เมื่อกดปุ่มปิด X — รองรับทั้งหน้า POS และหน้าแก้ไขสินค้า
-  closeBtn.addEventListener('click', () => {
-    closeScanner();
-    if (typeof v9StopScanner === 'function') v9StopScanner();
-  });
-
-  function openScanner() {
-    scannerModal.classList.remove('hidden');
-
-    // ตั้งค่ากล้อง
-    html5QrcodeScanner = new Html5Qrcode("reader");
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 150 }, // ขนาดกรอบสแกน
-      aspectRatio: 1.0
-    };
-
-    // เปิดกล้องหลัง (environment)
-    html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
-      .catch(err => {
-        console.error("Error starting scanner", err);
-        typeof toast === 'function' && toast('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง', 'error');
-        closeScanner();
-      });
+  function canAcceptCode(code) {
+    const now = Date.now();
+    if (!code) return false;
+    if (scanLocked) return false;
+    if (code === lastAcceptedCode && now - lastAcceptedAt < SCAN_COOLDOWN_MS) return false;
+    scanLocked = true;
+    lastAcceptedCode = code;
+    lastAcceptedAt = now;
+    return true;
   }
 
-  function closeScanner() {
-    scannerModal.classList.add('hidden');
-    if (html5QrcodeScanner) {
-      html5QrcodeScanner.stop().then(() => {
-        html5QrcodeScanner.clear();
-      }).catch(err => console.error("Error stopping scanner", err));
-    }
+  function unlockScannerSoon() {
+    window.setTimeout(() => {
+      scanLocked = false;
+    }, SCAN_COOLDOWN_MS);
   }
 
-  function onScanSuccess(decodedText, decodedResult) {
-    console.log(`Scan result: ${decodedText}`);
-
-    // 1. ส่งเสียงแจ้งเตือน (ถ้ามีฟังก์ชัน playBeep)
-    if (typeof playBeep === 'function') playBeep();
-
-    // 2. ปิดหน้าต่างสแกนเนอร์ (ถ้าต้องการให้สแกนทีละชิ้นแล้วปิดเลย)
-    // closeScanner(); 
-
-    // 3. ตรวจสอบว่ามีข้อมูลสินค้าและฟังก์ชันเพิ่มลงตะกร้าพร้อมใช้งานหรือไม่
-    if (typeof products !== 'undefined' && typeof addToCart === 'function') {
-
-      // ค้นหาสินค้าในตัวแปร products โดยใช้รหัสบาร์โค้ดที่สแกนได้
-      const foundProduct = products.find(p => p.barcode === decodedText);
-
-      if (foundProduct) {
-        // ถ้าเจอสินค้าที่มีบาร์โค้ดตรงกัน ให้เพิ่มลงตะกร้าทันที
-        addToCart(foundProduct.id);
-
-        // แจ้งเตือนว่าเพิ่มสำเร็จ
-        if (typeof toast === 'function') {
-          toast(`เพิ่ม ${foundProduct.name} เรียบร้อยแล้ว`, 'success');
-        }
-
-        // ล้างช่องค้นหาให้ว่างเพื่อเตรียมรับค่าถัดไป
-        if (searchInput) {
-          searchInput.value = '';
-          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      } else {
-        // ถ้าไม่เจอสินค้าในระบบ ให้แจ้งเตือนและเอาเลขไปใส่ในช่องค้นหาแทน
-        if (searchInput) {
-          searchInput.value = decodedText;
-          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        if (typeof toast === 'function') {
-          toast('ไม่พบรหัสสินค้านี้ในระบบ', 'warning');
-        }
-      }
-    }
-  }
-
-  function onScanFailure(error) {
-    // ปล่อยว่างไว้ เพราะมันจะแจ้งเตือนตลอดเวลาที่กล้องยังหาบาร์โค้ดไม่เจอ
-  }
-
-  // ฟังก์ชันสร้างเสียง ติ๊ด! สั้นๆ
   function playBeep() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -106,20 +38,154 @@ document.addEventListener('DOMContentLoaded', () => {
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime); // โทนเสียง
-      gain.gain.setValueAtTime(0.1, ctx.currentTime); // ความดัง
+      osc.frequency.setValueAtTime(850, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
       osc.start();
-      osc.stop(ctx.currentTime + 0.1); // ความยาวเสียง 0.1 วิ
-    } catch (e) { }
+      osc.stop(ctx.currentTime + 0.09);
+    } catch (_) {}
   }
-});
-// ทำให้ช่องค้นหา Focus ตลอดเวลาในหน้า POS
-document.addEventListener('keydown', (e) => {
-  const searchInput = document.getElementById('pos-search');
-  const activeElement = document.activeElement.tagName;
 
-  // ตรวจสอบว่าอยู่ในหน้า POS และไม่ได้กำลังพิมพ์ในช่อง Input, Textarea (ที่อยู่) หรือ Select
+  window.v40AddBarcodeToCartOnce = function (rawCode, opts = {}) {
+    const code = cleanCode(rawCode);
+    const searchInput = document.getElementById('pos-search');
+    if (!canAcceptCode(code)) return false;
+
+    try {
+      const list = Array.isArray(window.products)
+        ? window.products
+        : (typeof products !== 'undefined' && Array.isArray(products) ? products : []);
+      const foundProduct = list.find(p => cleanCode(p.barcode) === code);
+
+      if (!foundProduct) {
+        if (searchInput) {
+          searchInput.value = code;
+          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (!opts.silent && typeof toast === 'function') toast('ไม่พบรหัสสินค้านี้ในระบบ', 'warning');
+        return false;
+      }
+
+      if (Number(foundProduct.stock || 0) <= 0) {
+        if (!opts.silent && typeof toast === 'function') toast('สินค้าหมดสต็อก', 'error');
+        return false;
+      }
+
+      if (typeof addToCart === 'function') {
+        addToCart(foundProduct.id);
+        playBeep();
+        if (!opts.silent && typeof toast === 'function') toast(`เพิ่ม ${foundProduct.name} แล้ว`, 'success');
+      }
+
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return true;
+    } finally {
+      unlockScannerSoon();
+    }
+  };
+
+  async function stopScanner() {
+    const scannerModal = document.getElementById('scanner-modal');
+    if (scannerModal) scannerModal.classList.add('hidden');
+    if (!html5QrcodeScanner || scannerClosing) return;
+
+    scannerClosing = true;
+    try {
+      await html5QrcodeScanner.stop();
+      await html5QrcodeScanner.clear();
+    } catch (err) {
+      console.warn('[scanner] stop warning:', err);
+    } finally {
+      html5QrcodeScanner = null;
+      scannerClosing = false;
+      scannerStarting = false;
+    }
+  }
+
+  async function openScanner() {
+    const scannerModal = document.getElementById('scanner-modal');
+    const reader = document.getElementById('reader');
+    if (!scannerModal || !reader || scannerStarting || html5QrcodeScanner) return;
+
+    if (typeof Html5Qrcode === 'undefined') {
+      if (typeof toast === 'function') toast('ยังโหลดระบบสแกนไม่สำเร็จ กรุณารีเฟรชหน้า', 'error');
+      return;
+    }
+
+    scannerStarting = true;
+    scanLocked = false;
+    reader.innerHTML = '';
+    scannerModal.classList.remove('hidden');
+
+    try {
+      html5QrcodeScanner = new Html5Qrcode('reader');
+      await html5QrcodeScanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 8,
+          qrbox: { width: 260, height: 180 },
+          aspectRatio: 1.0,
+        },
+        async decodedText => {
+          const code = cleanCode(decodedText);
+          const accepted = window.v40AddBarcodeToCartOnce(code);
+          if (accepted || scanLocked) await stopScanner();
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error('[scanner] start failed:', err);
+      if (typeof toast === 'function') toast('เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องแล้วลองใหม่', 'error');
+      await stopScanner();
+    } finally {
+      scannerStarting = false;
+    }
+  }
+
+  function install() {
+    const scanBtn = document.getElementById('pos-scan-btn');
+    const closeBtn = document.getElementById('scanner-close-btn');
+    const modal = document.getElementById('scanner-modal');
+
+    if (scanBtn && !scanBtn.__v40ScannerClick) {
+      scanBtn.__v40ScannerClick = true;
+      scanBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openScanner();
+      });
+    }
+
+    if (closeBtn && !closeBtn.__v40ScannerClose) {
+      closeBtn.__v40ScannerClose = true;
+      closeBtn.addEventListener('click', () => {
+        stopScanner();
+        if (typeof v9StopScanner === 'function') v9StopScanner();
+      });
+    }
+
+    if (modal && !modal.__v40ScannerBackdrop) {
+      modal.__v40ScannerBackdrop = true;
+      modal.addEventListener('click', e => {
+        if (e.target === modal) stopScanner();
+      });
+    }
+  }
+
+  window.v40OpenScanner = openScanner;
+  window.v40StopScanner = stopScanner;
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
+  else install();
+})();
+
+document.addEventListener('keydown', e => {
+  const searchInput = document.getElementById('pos-search');
+  const activeElement = document.activeElement?.tagName;
   if (
+    typeof currentPage !== 'undefined' &&
     currentPage === 'pos' &&
     searchInput &&
     activeElement !== 'INPUT' &&

@@ -9,6 +9,62 @@
 
   var _pf = function (n) { return typeof formatNum === 'function' ? formatNum(n) : Number(n || 0).toLocaleString('th-TH'); };
   var _pd = function (d) { return d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+  var p31Num = function (v) {
+    var n = Number(v || 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+  var p31DateKey = function (value) {
+    if (!value) return '';
+    var raw = String(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    var d = new Date(value);
+    if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  };
+  var p31MonthRange = function (date) {
+    var start = new Date(date.getFullYear(), date.getMonth(), 1);
+    var end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    var ms = p31DateKey(start);
+    var me = p31DateKey(end);
+    return { ms: ms, me: me, startAt: ms + 'T00:00:00', endAt: me + 'T23:59:59' };
+  };
+  var p31InMonth = function (rowDate, ms, me) {
+    var k = p31DateKey(rowDate);
+    return k >= ms && k <= me;
+  };
+  var p31ActiveEmployee = function (e) {
+    return !e.status || e.status === 'ทำงาน';
+  };
+  var p31IsMonthly = function (emp) {
+    return String(emp.pay_type || '').trim() === 'รายเดือน';
+  };
+  var p31IsWorkday = function (row) {
+    var st = String(row && row.status || '').trim();
+    return st !== 'ขาด' && st !== 'ลา';
+  };
+  var p31EmpName = function (emp) {
+    return [emp && emp.name, emp && emp.lastname].filter(Boolean).join(' ').trim();
+  };
+  var p31MoneyInput = function (id) {
+    return p31Num(document.getElementById(id) && document.getElementById(id).value);
+  };
+  var p31MergeRows = function () {
+    var seen = {};
+    var out = [];
+    Array.prototype.slice.call(arguments).forEach(function (list) {
+      (list || []).forEach(function (row) {
+        var key = row.id || [row.employee_id, row.month, row.paid_date, row.net_paid].join('|');
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(row);
+      });
+    });
+    return out;
+  };
+  var p31PayLimit = function (s) {
+    return Math.max(0, p31Num(s && s.earn) - p31Num(s && s.sumPaidNet) - p31Num(s && s.sumPaidWithdraw));
+  };
 
   /* ══════════════════════════════════════════════════════════════
      CSS
@@ -235,8 +291,9 @@
     if (!sec) return;
 
     var now = new Date();
-    var ms  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    var me  = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    var range = p31MonthRange(now);
+    var ms = range.ms;
+    var me = range.me;
     var ml  = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
     sec.innerHTML = '<div class="p31-wrap"><div style="text-align:center;padding:48px;color:#94A3B8;">' +
@@ -246,29 +303,36 @@
     Promise.all([
       loadEmployees(),
       db.from('เช็คชื่อ').select('*').gte('date', ms).lte('date', me),
-      db.from('เบิกเงิน').select('*').eq('status', 'อนุมัติ').gte('date', ms + 'T00:00:00'),
+      db.from('เช็คชื่อ').select('*').order('date', { ascending: false }).limit(1000),
+      db.from('เบิกเงิน').select('*').eq('status', 'อนุมัติ').gte('date', range.startAt).lte('date', range.endAt),
       db.from('จ่ายเงินเดือน').select('*').eq('month', ms).order('paid_date', { ascending: true }),
+      db.from('จ่ายเงินเดือน').select('*').gte('paid_date', range.startAt).lte('paid_date', range.endAt).order('paid_date', { ascending: true }),
     ]).then(function (results) {
-      var emps    = (results[0] || []).filter(function (e) { return e.status === 'ทำงาน'; });
-      var att     = results[1].data || [];
-      var adv     = results[2].data || [];
-      var paid    = results[3].data || [];
+      var emps    = (results[0] || []).filter(p31ActiveEmployee);
+      var att     = p31MergeRows(results[1].data || [], results[2].data || []).filter(function (a) { return p31InMonth(a.date, ms, me); });
+      var adv     = (results[3].data || []).filter(function (a) { return p31InMonth(a.date, ms, me); });
+      var paid    = p31MergeRows(results[4].data || [], results[5].data || []).filter(function (p) {
+        return p.month === ms || p31InMonth(p.paid_date || p.month, ms, me);
+      });
       var emojis  = ['👨‍💼','👩‍💼','🧑‍🔧','👨‍🔬','👩‍🍳','👨‍🎤','👩‍🎨','👨‍🚀','👨‍🚒','👮','🕵️','🤵'];
+      window._p31PayrollDebug = { monthStart: ms, monthEnd: me, employees: emps.length, attendanceRows: att.length, advances: adv.length, paidRows: paid.length };
 
       window._v26Pay = emps.map(function (emp) {
-        var ma   = att.filter(function (a) { return a.employee_id === emp.id; });
-        var wd   = ma.filter(function (a) { return a.status !== 'ขาด' && a.status !== 'ลา'; }).length;
-        var td   = ma.reduce(function (s, a) { return s + (a.deduction || 0); }, 0);
-        var earn = emp.pay_type === 'รายเดือน' ? (emp.salary || 0) - td : (wd * (emp.daily_wage || 0)) - td;
-        var myA  = adv.filter(function (a) { return a.employee_id === emp.id; });
-        var taGross      = myA.reduce(function (s, a) { return s + a.amount; }, 0);
-        var pastPays     = paid.filter(function (p) { return p.employee_id === emp.id; });
-        var sumPaidNet   = pastPays.reduce(function (s, p) { return s + (p.net_paid || 0); }, 0);
-        var sumPaidWithdraw  = pastPays.reduce(function (s, p) { return s + (p.deduct_withdraw || 0); }, 0);
-        var sumTotalDeduct   = pastPays.reduce(function (s, p) { return s + (p.deduct_absent || 0) + (p.deduct_ss || 0) + (p.deduct_other || 0); }, 0);
-        var net   = Math.max(0, earn - sumPaidNet - sumPaidWithdraw - sumTotalDeduct);
+        var empId = String(emp.id);
+        var ma   = att.filter(function (a) { return String(a.employee_id) === empId; });
+        var wd   = ma.filter(p31IsWorkday).length;
+        var td   = ma.reduce(function (s, a) { return s + p31Num(a.deduction); }, 0);
+        var earn = p31IsMonthly(emp) ? p31Num(emp.salary) - td : (wd * p31Num(emp.daily_wage)) - td;
+        var myA  = adv.filter(function (a) { return String(a.employee_id) === empId; });
+        var taGross      = myA.reduce(function (s, a) { return s + p31Num(a.amount); }, 0);
+        var pastPays     = paid.filter(function (p) { return String(p.employee_id) === empId; });
+        var sumPaidNet   = pastPays.reduce(function (s, p) { return s + p31Num(p.net_paid); }, 0);
+        var sumPaidWithdraw  = pastPays.reduce(function (s, p) { return s + p31Num(p.deduct_withdraw); }, 0);
+        var sumTotalDeduct   = 0;
+        var taLeft = Math.max(0, taGross - sumPaidWithdraw);
+        var net   = Math.max(0, earn - sumPaidNet - sumPaidWithdraw);
         var emoji = emojis[emp.id.charCodeAt(0) % emojis.length];
-        return { emp: emp, wd: wd, td: td, earn: earn, taGross: taGross, net: net,
+        return { emp: emp, wd: wd, td: td, earn: earn, ta: taLeft, taGross: taGross, myA: myA, net: net,
           pastPays: pastPays, sumPaidNet: sumPaidNet, sumPaidWithdraw: sumPaidWithdraw,
           sumTotalDeduct: sumTotalDeduct, paidCount: pastPays.length, emoji: emoji };
       });
@@ -323,45 +387,36 @@
           '</div>' +
         '</div>';
 
-      /* ── CARDS ── */
-      var cardsHTML = window._v26Pay.map(function (s) {
-        var isPaid = s.paidCount > 0;
-        return '<div onclick="v26ShowPayDetail(\'' + s.emp.id + '\')" class="p31-card ' + (isPaid ? 'is-paid' : 'is-pending') + '">' +
-          '<div class="p31-card-shine"></div>' +
-          '<div class="p31-card-hd">' +
-            '<div class="p31-ava">' + s.emoji + '</div>' +
-            '<div class="p31-emp-info">' +
-              '<div class="p31-emp-name">' + s.emp.name + ' ' + (s.emp.lastname || '') + '</div>' +
-              '<div class="p31-emp-pos">' + (s.emp.position || 'พนักงาน') + '</div>' +
+      var pickerHTML =
+        '<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:18px;padding:22px;box-shadow:0 10px 28px rgba(15,23,42,.06);">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px;">' +
+            '<div>' +
+              '<h3 style="margin:0;color:#0f172a;font-size:20px;font-weight:900;">เลือกพนักงานเพื่อออกใบจ่าย</h3>' +
+              '<div style="color:#64748b;font-size:13px;margin-top:4px;">เลือกชื่อจากดรอปดาว แล้วระบบจะแสดงรายละเอียดเงินเดือนในป็อปอัพ</div>' +
             '</div>' +
-            (isPaid
-              ? '<div class="p31-paid-badge"><i class="material-icons-round">check_circle</i>จ่ายแล้ว</div>'
-              : '<div class="p31-pending-badge"><i class="material-icons-round">schedule</i>รอจ่าย</div>') +
+            '<button class="p31-confirm-btn" style="width:auto;margin:0;padding:12px 20px;" onclick="p31OpenEmployeePicker()">' +
+              '<i class="material-icons-round">person_search</i>เลือกพนักงาน' +
+            '</button>' +
           '</div>' +
-          '<div class="p31-card-stats">' +
-            '<div class="p31-cs-box">' +
-              '<div class="p31-cs-lbl">สะสมเดือนนี้</div>' +
-              '<div class="p31-cs-val">฿' + _pf(s.earn) + '</div>' +
-            '</div>' +
-            '<div class="p31-cs-box">' +
-              '<div class="p31-cs-lbl">เบิกล่วงหน้า</div>' +
-              '<div class="p31-cs-val warn">฿' + _pf(s.taGross) + '</div>' +
-            '</div>' +
+          '<div style="display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:10px;align-items:center;">' +
+            '<select id="p31-emp-select" class="form-input" style="height:46px;border:1.5px solid #dbe3ef;border-radius:12px;padding:0 14px;font:inherit;font-weight:700;color:#0f172a;background:#fff;">' +
+              '<option value="">-- เลือกพนักงาน --</option>' +
+              window._v26Pay.map(function (s) {
+                return '<option value="' + s.emp.id + '">' + p31EmpName(s.emp) + ' | ' + s.wd + ' วัน | ฿' + _pf(s.net) + '</option>';
+              }).join('') +
+            '</select>' +
+            '<button class="p31-back" style="background:#0f172a;border-color:#0f172a;color:#fff;" onclick="p31OpenSelectedPaySlip()">' +
+              '<i class="material-icons-round">receipt_long</i>แสดงใบจ่าย' +
+            '</button>' +
           '</div>' +
-          '<div class="p31-card-ft">' +
-            '<div class="p31-ft-lbl">คงเหลือสุทธิ</div>' +
-            '<div class="p31-ft-val">฿' + _pf(s.net) + '</div>' +
-            '<i class="material-icons-round p31-ft-arr">chevron_right</i>' +
-          '</div>' +
+          '<div style="margin-top:14px;color:#94a3b8;font-size:12px;">ข้อมูลที่โหลดได้: เช็คชื่อ ' + att.length + ' รายการ / เงินเบิก ' + adv.length + ' รายการ</div>' +
         '</div>';
-      }).join('');
 
       sec.innerHTML =
         '<div class="p31-wrap">' +
           bannerHTML +
-          '<div id="v26-pay-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;">' +
-            cardsHTML +
-          '</div>' +
+          pickerHTML +
+          '<div id="v26-pay-grid" style="display:none;"></div>' +
           '<div id="v26-pay-detail-wrap" style="display:none;margin-top:4px;"></div>' +
         '</div>';
     }).catch(function (e) {
@@ -370,6 +425,189 @@
         '<i class="material-icons-round" style="font-size:40px;display:block;margin-bottom:10px;">error_outline</i>' +
         'โหลดไม่สำเร็จ: ' + e.message + '</div>';
     });
+  };
+
+  window.p31OpenSelectedPaySlip = function () {
+    var eid = document.getElementById('p31-emp-select') && document.getElementById('p31-emp-select').value;
+    if (!eid) { if (typeof toast === 'function') toast('กรุณาเลือกพนักงาน', 'warning'); return; }
+    window.p31ShowPaySlipPopup(eid);
+  };
+
+  window.p31OpenEmployeePicker = function () {
+    var rows = window._v26Pay || [];
+    if (!rows.length) { if (typeof toast === 'function') toast('ยังไม่มีข้อมูลพนักงาน', 'warning'); return; }
+    if (typeof Swal === 'undefined') return;
+    Swal.fire({
+      title: 'เลือกพนักงาน',
+      html: '<select id="p31-swal-emp" class="swal2-select" style="width:80%">' +
+        '<option value="">-- เลือกพนักงาน --</option>' +
+        rows.map(function (s) {
+          return '<option value="' + s.emp.id + '">' + p31EmpName(s.emp) + ' | ทำงาน ' + s.wd + ' วัน | คงเหลือ ฿' + _pf(s.net) + '</option>';
+        }).join('') +
+      '</select>',
+      showCancelButton: true,
+      confirmButtonText: 'แสดงใบจ่าย',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626',
+      preConfirm: function () {
+        var eid = document.getElementById('p31-swal-emp').value;
+        if (!eid) {
+          Swal.showValidationMessage('กรุณาเลือกพนักงาน');
+          return false;
+        }
+        return eid;
+      }
+    }).then(function (r) {
+      if (r.isConfirmed && r.value) window.p31ShowPaySlipPopup(r.value);
+    });
+  };
+
+  window.p31ValidatePaySlip = function (eid) {
+    var s = (window._v26Pay || []).find(function (x) { return String(x.emp.id) === String(eid); });
+    if (!s) return false;
+    var recv = p31MoneyInput('v26r-' + eid);
+    var debt = p31MoneyInput('v26d-' + eid);
+    var ss = p31MoneyInput('v26s-' + eid);
+    var oth = p31MoneyInput('v26o-' + eid);
+    var total = recv + debt + ss + oth;
+    var limit = p31PayLimit(s);
+    var maxDebt = p31Num(s.ta);
+    var msg = document.getElementById('v26vm-' + eid);
+    var btn = document.getElementById('v26pb-' + eid);
+    var sum = document.getElementById('v26-sum-d-' + eid);
+    if (sum) sum.textContent = '฿' + _pf(debt + ss + oth);
+    var ok = true;
+    var text = 'ยอดรวมที่กรอก ฿' + _pf(total) + ' / เพดานจ่าย ฿' + _pf(limit);
+    if (debt > maxDebt) { ok = false; text = 'หักหนี้เกินยอดเบิกค้าง ฿' + _pf(maxDebt); }
+    else if (total > limit) { ok = false; text = 'ยอดรวมเกินเพดานจ่าย ฿' + _pf(limit); }
+    else if (recv < 0 || debt < 0 || ss < 0 || oth < 0) { ok = false; text = 'ห้ามกรอกค่าติดลบ'; }
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.background = ok ? '#dcfce7' : '#fee2e2';
+      msg.style.color = ok ? '#166534' : '#991b1b';
+      msg.textContent = text;
+    }
+    if (btn) btn.disabled = !ok;
+    return ok;
+  };
+
+  window.p31ShowPaySlipPopup = function (eid) {
+    var s = (window._v26Pay || []).find(function (x) { return String(x.emp.id) === String(eid); });
+    if (!s) return;
+    if (typeof Swal === 'undefined') { window.v26ShowPayDetail(eid); return; }
+    var emp = s.emp;
+    var limit = p31PayLimit(s);
+    var debtLeft = p31Num(s.ta);
+    var html =
+      '<div style="text-align:left">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">' +
+          '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px"><b>วันทำงาน</b><br><span style="font-size:22px;font-weight:900">' + s.wd + ' วัน</span></div>' +
+          '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px"><b>ค่าแรงสะสม</b><br><span style="font-size:22px;font-weight:900">฿' + _pf(s.earn) + '</span></div>' +
+          '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:10px"><b>เบิกค้าง</b><br><span style="font-size:22px;font-weight:900;color:#d97706">฿' + _pf(debtLeft) + '</span></div>' +
+          '<div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:12px;padding:10px"><b>จ่ายได้คงเหลือ</b><br><span style="font-size:22px;font-weight:900;color:#059669">฿' + _pf(limit) + '</span></div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+          '<label>ยอดจ่ายสุทธิ<input class="swal2-input" style="width:100%;margin:6px 0 0" type="number" id="v26r-' + eid + '" value="' + limit + '" min="0" oninput="p31ValidatePaySlip(\'' + eid + '\')"></label>' +
+          '<label>หักหนี้เบิก<input class="swal2-input" style="width:100%;margin:6px 0 0" type="number" id="v26d-' + eid + '" value="0" min="0" max="' + debtLeft + '" oninput="p31ValidatePaySlip(\'' + eid + '\')"></label>' +
+          '<label>หักประกันสังคม<input class="swal2-input" style="width:100%;margin:6px 0 0" type="number" id="v26s-' + eid + '" value="0" min="0" oninput="p31ValidatePaySlip(\'' + eid + '\')"></label>' +
+          '<label>หักอื่น ๆ<input class="swal2-input" style="width:100%;margin:6px 0 0" type="number" id="v26o-' + eid + '" value="0" min="0" oninput="p31ValidatePaySlip(\'' + eid + '\')"></label>' +
+          '<label style="grid-column:1/-1">หมายเหตุหักอื่น ๆ<input class="swal2-input" style="width:100%;margin:6px 0 0" type="text" id="v26on-' + eid + '"></label>' +
+          '<label>วิธีจ่าย<select class="swal2-select" style="width:100%;margin:6px 0 0" id="v26m-' + eid + '"><option value="เงินสด">เงินสด</option><option value="โอนเงิน">โอนเงิน</option></select></label>' +
+          '<label>หมายเหตุ<input class="swal2-input" style="width:100%;margin:6px 0 0" type="text" id="v26pn-' + eid + '"></label>' +
+        '</div>' +
+        '<div class="p31-deduct-sum" style="margin-top:12px"><div class="dl">รวมหักครั้งนี้</div><div class="dv" id="v26-sum-d-' + eid + '">฿0</div></div>' +
+        '<div class="p31-vmsg" id="v26vm-' + eid + '"></div>' +
+        '<button class="p31-confirm-btn" id="v26pb-' + eid + '" onclick="v26DoPay(\'' + eid + '\')"><i class="material-icons-round">payments</i>ยืนยันจ่ายเงินเดือน</button>' +
+      '</div>';
+    Swal.fire({
+      title: 'ใบจ่ายเงินเดือน: ' + p31EmpName(emp),
+      html: html,
+      width: 780,
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: function () { window.p31ValidatePaySlip(eid); }
+    });
+  };
+
+  window.v26DoPay = async function (eid) {
+    var s = (window._v26Pay || []).find(function (x) { return String(x.emp.id) === String(eid); });
+    if (!s || !window.p31ValidatePaySlip(eid)) return;
+    var recv = p31MoneyInput('v26r-' + eid);
+    var debt = p31MoneyInput('v26d-' + eid);
+    var ss = p31MoneyInput('v26s-' + eid);
+    var oth = p31MoneyInput('v26o-' + eid);
+    var method = (document.getElementById('v26m-' + eid) && document.getElementById('v26m-' + eid).value) || 'เงินสด';
+    var note = (document.getElementById('v26pn-' + eid) && document.getElementById('v26pn-' + eid).value) || '';
+    var oNote = (document.getElementById('v26on-' + eid) && document.getElementById('v26on-' + eid).value) || '';
+    var ok = await Swal.fire({
+      title: 'ยืนยันจ่ายเงินเดือน',
+      html: '<p><strong>' + p31EmpName(s.emp) + '</strong></p><p>รับจริง: ฿' + _pf(recv) + '</p>' +
+        (debt ? '<p>หักหนี้: ฿' + _pf(debt) + '</p>' : '') +
+        (ss ? '<p>หักประกันสังคม: ฿' + _pf(ss) + '</p>' : '') +
+        (oth ? '<p>หักอื่น ๆ: ฿' + _pf(oth) + '</p>' : ''),
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยัน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626'
+    });
+    if (!ok.isConfirmed) return;
+    if (method === 'เงินสด' && recv > 0 && typeof assertCashEnough === 'function') {
+      try { await assertCashEnough(recv, 'จ่ายเงินเดือน'); }
+      catch (e) { Swal.fire({ icon: 'error', title: 'เงินสดไม่พอ', text: e.message }); return; }
+    }
+    var now = new Date();
+    var ms = p31MonthRange(now).ms;
+    var noteBits = [];
+    if (note) noteBits.push(note);
+    noteBits.push('จ่ายทาง ' + method);
+    if (ss) noteBits.push('หักประกันสังคม ฿' + ss);
+    if (oth) noteBits.push('หักอื่น ๆ ฿' + oth + (oNote ? ' (' + oNote + ')' : ''));
+    var ins = {
+      employee_id: eid,
+      month: ms,
+      working_days: p31Num(s.wd),
+      base_salary: Math.max(0, p31Num(s.earn)),
+      deduct_withdraw: debt,
+      deduct_absent: p31Num(s.td),
+      bonus: 0,
+      net_paid: recv,
+      paid_date: now.toISOString(),
+      staff_name: (window.USER && USER.username) || '',
+      note: noteBits.join(' | ')
+    };
+    var res = await db.from('จ่ายเงินเดือน').insert(ins).select().single();
+    if (res.error) { Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.error.message }); return; }
+    if (method === 'เงินสด' && recv > 0) {
+      try {
+        var sessRes = await db.from('cash_session').select('id').eq('status', 'open').limit(1).maybeSingle();
+        if (sessRes.data && typeof recordCashTx === 'function') {
+          await recordCashTx({ sessionId: sessRes.data.id, type: 'จ่ายเงินเดือน', direction: 'out', amount: recv, netAmount: recv, refId: res.data && res.data.id, refTable: 'จ่ายเงินเดือน', note: p31EmpName(s.emp) });
+        }
+      } catch (e) { console.warn('[p31] cash transaction:', e); }
+    }
+    if (debt > 0) {
+      try {
+        var advs = await db.from('เบิกเงิน').select('*').eq('employee_id', eid).eq('status', 'อนุมัติ').order('date');
+        var rem = debt;
+        for (var i = 0; i < (advs.data || []).length; i++) {
+          var a = advs.data[i];
+          if (rem <= 0) break;
+          if (p31Num(a.amount) <= rem) {
+            await db.from('เบิกเงิน').update({ status: 'ชำระแล้ว' }).eq('id', a.id);
+            rem -= p31Num(a.amount);
+          } else {
+            await db.from('เบิกเงิน').update({ amount: p31Num(a.amount) - rem }).eq('id', a.id);
+            rem = 0;
+          }
+        }
+      } catch (e) { console.warn('[p31] advance update:', e); }
+    }
+    if (typeof logActivity === 'function') {
+      try { logActivity('จ่ายเงินเดือน', p31EmpName(s.emp) + ' ฿' + _pf(recv)); } catch (_) {}
+    }
+    await Swal.fire({ icon: 'success', title: 'บันทึกเงินเดือนแล้ว', timer: 1300, showConfirmButton: false });
+    window.renderPayrollV26();
   };
 
   /* ══════════════════════════════════════════════════════════════

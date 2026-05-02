@@ -43,10 +43,9 @@
       
       /* Cards */
       .dash-v3-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px; margin-bottom: 28px; }
-      .dash-v3-card { background: #ffffff; border-radius: 24px; padding: 26px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 10px 30px rgba(0,0,0,0.04); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); position: relative; overflow: hidden; }
-      .dash-v3-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 40px rgba(0,0,0,0.08); border-color: var(--card-accent, #cbd5e1); z-index: 10; }
-      .dash-v3-card::before { content: ''; position: absolute; top:0; left:0; width:5px; height:100%; background: var(--card-accent, transparent); transition: width 0.3s; opacity: 1; border-radius: 24px 0 0 24px; }
-      .dash-v3-card:hover::before { width: 8px; }
+      .dash-v3-card { background: var(--card-soft-bg, #ffffff); border-radius: 22px; padding: 26px; border: 1px solid color-mix(in srgb, var(--card-accent, #cbd5e1) 18%, #e2e8f0); box-shadow: 0 12px 32px rgba(15,23,42,0.06); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); position: relative; overflow: hidden; }
+      .dash-v3-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 42px rgba(15,23,42,0.1); border-color: color-mix(in srgb, var(--card-accent, #cbd5e1) 34%, #e2e8f0); z-index: 10; }
+      .dash-v3-card::before { display: none; }
       
       /* Animations for contents */
       .anim-child { animation: dashFadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -74,6 +73,51 @@
       
       .dash-v3-net-box { background: linear-gradient(135deg, var(--card-bg-sub, #f8fafc), color-mix(in srgb, var(--card-bg-sub, #f8fafc) 90%, #000)); border-radius: 16px; padding: 24px; display: flex; justify-content: space-between; align-items: center; margin-top: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.04); position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--card-bg-sub, #e2e8f0) 80%, #000); }
       .dash-v3-net-box::after { content: ''; position: absolute; top: 0; right: 0; width: 150px; height: 150px; background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%); border-radius: 50%; transform: translate(30%, -30%); }
+      .dash-v3-main-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+      .dash-v3-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+      .dash-v3-card-head { padding: 18px 20px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+      .dash-v3-card-body { padding: 20px; }
+      @media (min-width: 1200px) {
+        .dash-v3-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      }
+      @media (max-width: 1180px) {
+        .dash-v3-container { padding: 18px; }
+        .dash-v3-main-grid { grid-template-columns: 1fr; }
+        .dash-v3-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 768px) {
+        .dash-v3-container { padding: 0; max-width: 100%; }
+        .dash-v3-header { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
+        .dash-v3-title-wrap { gap: 10px; min-width: 0; }
+        .dash-v3-icon-box { width: 44px; height: 44px; border-radius: 10px; animation: none; flex: 0 0 44px; }
+        .dash-v3-title-wrap h2 { font-size: 20px !important; line-height: 1.2 !important; letter-spacing: 0 !important; }
+        #dash-v3-date-label { font-size: 12px !important; line-height: 1.35 !important; }
+        .dash-v3-filter-group { width: 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; border-radius: 10px; }
+        .dash-v3-filter-group > div { display: none !important; }
+        .dash-v3-btn-per { min-width: 0; padding: 10px 6px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
+        .dash-v3-kpi-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+        .dash-v3-card { border-radius: 10px; padding: 14px !important; transform: none !important; box-shadow: 0 8px 22px rgba(15,23,42,.05); }
+        .dash-v3-card:hover { transform: none !important; }
+        .dash-v3-tabs { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 14px; }
+        .dash-v3-tab { justify-content: center; padding: 12px; border-radius: 10px; font-size: 13px; }
+        .dash-v3-main-grid { grid-template-columns: 1fr; gap: 12px; }
+        .dash-v3-side { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .dash-v3-card-head { padding: 14px; align-items: flex-start; flex-direction: column; }
+        .dash-v3-card-head .dash-v3-badge { margin-left: 0 !important; }
+        .dash-v3-card-body, #dash-v3-pl-body, #dash-v3-cf-body, #dash-v3-top-products { padding: 14px !important; }
+        .dash-v3-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border-radius: 8px; }
+        .pl-line-item { font-size: 13px; line-height: 1.35; }
+        .pl-line-val { font-size: 14px; white-space: nowrap; }
+        .pl-group-header { margin: 14px 0 8px 4px; font-size: 11px; }
+        .dash-v3-net-box { padding: 16px; border-radius: 10px; display: grid; grid-template-columns: 1fr; gap: 8px; text-align: left; }
+        .dash-v3-net-box > div:last-child { font-size: 26px !important; }
+        #dash-v3-chart-area { height: 150px !important; gap: 4px !important; overflow-x: auto; }
+        #dash-v3-chart-labels { overflow-x: auto; }
+      }
+      @media (max-width: 390px) {
+        .dash-v3-filter-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        #dash-v3-refresh { grid-column: span 2; }
+      }
     `;
     document.head.appendChild(style);
   };
@@ -91,6 +135,28 @@
     if (!isoString) return false;
     const d = new Date(isoString); // converts UTC to local automatically
     return getLocalDateString(d) === targetDateStr;
+  };
+
+  const parseReturnInfo = (info) => {
+    if (!info) return {};
+    if (typeof info === 'object') return info;
+    try { return JSON.parse(info); } catch (_) { return {}; }
+  };
+
+  const effectiveBillTotal = (bill) => {
+    const info = parseReturnInfo(bill?.return_info);
+    const total = Number(info.new_total ?? bill?.total ?? 0);
+    return Number.isFinite(total) ? total : 0;
+  };
+
+  const isStockPurchaseExpense = (expense) => {
+    const text = [
+      expense?.category,
+      expense?.description,
+      expense?.note,
+      expense?.type
+    ].filter(Boolean).join(' ').toLowerCase();
+    return /stock|purchase|po|inventory|สต็อก|สต๊อก|เข้าคลัง|ซื้อสินค้า|รับสินค้า|ซื้อสต็อก|ซื้อรอบ|สินค้าเข้าคลัง/.test(text);
   };
 
   const generateSkeletons = (count, height = '60px') => {
@@ -140,39 +206,39 @@
           <div class="dash-v3-tab" data-tab="cf"><i class="material-icons-round" style="font-size: 20px;">account_balance_wallet</i> กระแสเงินสด (Cash Flow)</div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start;">
+        <div class="dash-v3-main-grid">
           
           <!-- Left Column: Details -->
           <div class="anim-child delay-1">
             <div id="dash-v3-pl-panel" class="dash-v3-card" style="padding: 0;">
-              <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.01);">
+              <div class="dash-v3-card-head" style="background: rgba(0,0,0,0.01);">
                 <span style="font-size:16px; font-weight:700; color: var(--text-primary);">📊 รายละเอียดกำไร-ขาดทุน</span>
                 <span class="dash-v3-badge" style="background:#eff6ff; color:#1d4ed8; margin-left:12px;">วัดผลกำไรจริง</span>
               </div>
-              <div style="padding: 24px;" id="dash-v3-pl-body">
+              <div class="dash-v3-card-body" id="dash-v3-pl-body">
                 ${generateSkeletons(5)}
               </div>
             </div>
 
             <div id="dash-v3-cf-panel" class="dash-v3-card" style="padding: 0; display: none;">
-              <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.01);">
+              <div class="dash-v3-card-head" style="background: rgba(0,0,0,0.01);">
                 <span style="font-size:16px; font-weight:700; color: var(--text-primary);">💸 รายละเอียดกระแสเงินสด</span>
                 <span class="dash-v3-badge" style="background:#f0fdf4; color:#15803d; margin-left:12px;">เงินหมุนเวียนในระบบ</span>
               </div>
-              <div style="padding: 24px;" id="dash-v3-cf-body">
+              <div class="dash-v3-card-body" id="dash-v3-cf-body">
                 ${generateSkeletons(5)}
               </div>
             </div>
           </div>
 
           <!-- Right Column: Chart & Top Products -->
-          <div style="display: flex; flex-direction: column; gap: 24px;" class="anim-child delay-2">
+          <div class="dash-v3-side anim-child delay-2">
             
             <div class="dash-v3-card" style="padding: 0;">
-              <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+              <div class="dash-v3-card-head">
                 <span style="font-size:15px; font-weight:700;"><i class="material-icons-round" style="font-size:18px; color:var(--text-secondary); vertical-align:-3px; margin-right:4px;">bar_chart</i> ภาพรวมรายวัน</span>
               </div>
-              <div style="padding: 20px;">
+              <div class="dash-v3-card-body">
                 <div id="dash-v3-chart-area" style="height: 180px; display: flex; align-items: flex-end; gap: 6px; padding-bottom: 10px;">
                    ${generateSkeletons(1, '100%')}
                 </div>
@@ -185,10 +251,10 @@
             </div>
 
             <div class="dash-v3-card" style="padding: 0;">
-              <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-light);">
+              <div class="dash-v3-card-head">
                 <span style="font-size:15px; font-weight:700;"><i class="material-icons-round" style="font-size:18px; color:#f59e0b; vertical-align:-3px; margin-right:4px;">emoji_events</i> สินค้าทำยอดสูงสุด</span>
               </div>
-              <div style="padding: 20px;" id="dash-v3-top-products">
+              <div class="dash-v3-card-body" id="dash-v3-top-products">
                  ${generateSkeletons(5, '40px')}
               </div>
             </div>
@@ -263,15 +329,15 @@
 
       // Parallel Queries
       const [bR, pR, eR, salR, advR, debtPaymentR, payrollR, projExpR, projMsR] = await Promise.all([
-        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(billLimit),
-        db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
-        db.from('รายจ่าย').select('amount, category, date').gte('date', startStr + 'T00:00:00').order('date', { ascending: false }).limit(otherLimit),
-        db.from('เช็คชื่อ').select('employee_id, status, date, deduction').gte('date', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('ชำระหนี้').select('amount, method, date').gte('date', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('รายจ่ายโครงการ').select('amount, paid_at').not('paid_at','is',null).gte('paid_at', startStr + 'T00:00:00').limit(otherLimit),
-        db.from('งวดงาน').select('amount, billed_at').eq('status', 'billed').gte('billed_at', startStr + 'T00:00:00').limit(otherLimit)
+        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(billLimit),
+        db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
+        db.from('รายจ่าย').select('amount, category, description, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
+        db.from('เช็คชื่อ').select('employee_id, status, date, deduction').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('ชำระหนี้').select('amount, method, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').lte('paid_date', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('รายจ่ายโครงการ').select('amount, paid_at').not('paid_at','is',null).gte('paid_at', startStr + 'T00:00:00').lte('paid_at', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('งวดงาน').select('amount, billed_at').eq('status', 'billed').gte('billed_at', startStr + 'T00:00:00').lte('billed_at', endStr + 'T23:59:59').limit(otherLimit)
       ]);
 
       // Filter paid bills only (ignore ค้างชำระ, ยกเลิก)
@@ -280,8 +346,8 @@
       // For double-checking Method:
       const actualPaidBills = paidBills.filter(b => b.method !== 'ค้างชำระ' && b.method !== 'เครดิต');
 
-      // (NEW) Valid bills for COGS: Include credit/ค้างชำระ, but exclude 'ยกเลิก'
-      const validBillsForCOGS = allBills.filter(b => b.status !== 'ยกเลิก');
+      // Cash-basis COGS follows bills that are counted as received revenue in this period.
+      const validBillsForCOGS = actualPaidBills;
       const allValidBillIds = validBillsForCOGS.map(b => b.id);
       
       // Fetch Bill Items for COGS based on ALL valid bills (to deduct stock cost immediately)
@@ -296,6 +362,7 @@
       // ** FILTER OUT UNPAID PURCHASES ** 
       const purchases = (pR.data || []).filter(p => p.method !== 'ค้างชำระ' && p.method !== 'เครดิต' && p.status !== 'ยกเลิก');
       const expenses = eR.data || [];
+      const expensesForPL = expenses.filter(e => !isStockPurchaseExpense(e));
 
       // Calculate active Daily Wages from 'เช็คชื่อ'
       let salaries = [];
@@ -326,7 +393,7 @@
       // ─── ACCOUNTING LOGIC (CASH BASIS) ───────────────────────────
 
       // 1. REVENUE
-      const sumPaidBills = actualPaidBills.reduce((s, b) => s + parseFloat(b.total || 0), 0);
+      const sumPaidBills = actualPaidBills.reduce((s, b) => s + effectiveBillTotal(b), 0);
       const sumDebtPayments = debtPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
       const actualRevenue = sumPaidBills + sumDebtPayments + sumProjMilestones;
 
@@ -336,8 +403,9 @@
       let returnedCogs = 0;
       const returnedItemsMap = {}; // Tracker for Top Products
       actualPaidBills.forEach(b => {
-        if (b.status === 'คืนบางส่วน' && b.return_info && b.return_info.return_items) {
-          b.return_info.return_items.forEach(ret => {
+        const returnInfo = parseReturnInfo(b.return_info);
+        if (b.status === 'คืนบางส่วน' && returnInfo?.return_items) {
+          returnInfo.return_items.forEach(ret => {
             let rCost = parseFloat(ret.cost);
             let rPrice = parseFloat(ret.price || ret.sell_price || 0);
             if (isNaN(rCost) || isNaN(rPrice)) {
@@ -356,10 +424,10 @@
           });
         }
       });
-      const actualCOGS = rawCogs - returnedCogs;
+      const actualCOGS = Math.max(0, rawCogs - returnedCogs);
 
       // 3. OPEX
-      const sumExpenses = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0) + sumProjExpenses;
+      const sumExpenses = expensesForPL.reduce((s, e) => s + parseFloat(e.amount || 0), 0) + sumProjExpenses;
       const sumSalariesAccrued = salaries.reduce((s, e) => s + parseFloat(e.net_paid || 0), 0); // จากเช็คชื่อรายวัน (P&L)
       const sumAdvances = advances.reduce((s, a) => s + parseFloat(a.amount || 0), 0);
 
@@ -398,7 +466,7 @@
 
       if (kpiContainer) {
         kpiContainer.innerHTML = kpis.map((k, i) => `
-          <div class="dash-v3-card anim-child delay-${i+1}" style="--card-accent: ${k.color}; padding: 20px;">
+          <div class="dash-v3-card anim-child delay-${i+1}" style="--card-accent: ${k.color}; --card-soft-bg: color-mix(in srgb, ${k.color} 8%, #ffffff); padding: 20px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
               <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">${k.label}</span>
               <div style="width: 32px; height: 32px; border-radius: 10px; background: color-mix(in srgb, ${k.color} 15%, transparent); display:flex; align-items:center; justify-content:center; color:${k.color}">
@@ -539,7 +607,7 @@
         const dStr = getLocalDateString(d); // YYYY-MM-DD local
         
         // Sales for this day
-        const daySales = actualPaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + parseFloat(b.total||0), 0);
+        const daySales = actualPaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + effectiveBillTotal(b), 0);
         const dayDebtIn = debtPayments.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.amount||0), 0);
         const dayProjMs = projMilestones.filter(m => isSameLocalDay(m.billed_at, dStr)).reduce((s, m) => s + parseFloat(m.amount||0), 0);
         const dayCashIn = daySales + dayDebtIn + dayProjMs;

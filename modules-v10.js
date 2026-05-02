@@ -969,6 +969,7 @@ window.loadHistoryData = async function() {
 };
 
 function v10InjectReturnButtons() {
+  return;
   const tbody = document.getElementById('history-tbody');
   if (!tbody) { console.log('[v10] history-tbody not found'); return; }
   console.log('[v10] Injecting return buttons into', tbody.children.length, 'rows');
