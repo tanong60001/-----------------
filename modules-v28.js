@@ -1167,12 +1167,12 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
          JsBarcode(el, el.getAttribute('data-val'), {
             format: "CODE128",
             displayValue: true, 
-            fontSize: 12, 
+            fontSize: 10, 
             fontOptions: "bold",
             margin: 0,
             textMargin: 1,
-            height: 35, 
-            width: 1.4  
+            height: 30, 
+            width: 1.1  
          });
       });
       setTimeout(() => {
