@@ -293,15 +293,123 @@
     injectCommissionCard();
   }
 
+  function localDayBounds(day) {
+    const d = day || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+    return {
+      day: d,
+      start: new Date(`${d}T00:00:00+07:00`).toISOString(),
+      end: new Date(`${d}T23:59:59.999+07:00`).toISOString(),
+    };
+  }
+
+  function rowTime(value) {
+    return value ? (typeof formatDateTime === 'function' ? formatDateTime(value) : esc(value)) : '-';
+  }
+
+  function logBadge(type) {
+    const text = String(type || '');
+    if (/สต็อก|stock|สินค้า|แก้ไข|เพิ่มสินค้า|ลบสินค้า/i.test(text)) return ['#0f766e', '#ecfdf5', 'inventory_2'];
+    if (/ขาย|บิล|รับชำระ/i.test(text)) return ['#dc2626', '#fef2f2', 'receipt_long'];
+    if (/โครงการ/i.test(text)) return ['#4f46e5', '#eef2ff', 'business_center'];
+    return ['#2563eb', '#eff6ff', 'manage_search'];
+  }
+
+  async function loadActivityRows(day) {
+    const bounds = localDayBounds(day);
+    const [logRes, stockRes] = await Promise.allSettled([
+      db.from('log_กิจกรรม').select('*').gte('time', bounds.start).lte('time', bounds.end).order('time', { ascending: false }),
+      db.from('stock_movement').select('*').gte('created_at', bounds.start).lte('created_at', bounds.end).order('created_at', { ascending: false }).limit(500),
+    ]);
+    const logs = logRes.status === 'fulfilled' && !logRes.value.error ? (logRes.value.data || []) : [];
+    const stocks = stockRes.status === 'fulfilled' && !stockRes.value.error ? (stockRes.value.data || []) : [];
+    if (logRes.status === 'fulfilled' && logRes.value.error) console.warn('[v50] activity log table:', logRes.value.error);
+    if (stockRes.status === 'fulfilled' && stockRes.value.error) console.warn('[v50] stock movement log:', stockRes.value.error);
+
+    const rows = [
+      ...logs.map(l => ({
+        time: l.time,
+        user: l.username || 'system',
+        type: l.type || '-',
+        details: l.details || '-',
+      })),
+      ...stocks.map(s => {
+        const before = s.stock_before ?? '-';
+        const after = s.stock_after ?? '-';
+        const qty = s.qty != null ? ` | จำนวน ${fmt(s.qty)}` : '';
+        const dir = s.direction === 'in' ? 'เข้า' : (s.direction === 'out' ? 'ออก' : (s.direction || '-'));
+        return {
+          time: s.created_at || s.time || s.date,
+          user: s.staff_name || 'system',
+          type: `สต็อก: ${s.type || dir}`,
+          details: `${s.product_name || '-'} | ${before} → ${after}${qty}${s.note ? ` | ${s.note}` : ''}`,
+        };
+      }),
+    ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+    return { rows, day: bounds.day, stockError: stockRes.status === 'fulfilled' ? stockRes.value.error : stockRes.reason, logError: logRes.status === 'fulfilled' ? logRes.value.error : logRes.reason };
+  }
+
+  function renderActivityRows(rows) {
+    if (!rows.length) return '<tr><td colspan="4" style="text-align:center;padding:34px;color:#94a3b8;font-weight:800">ไม่พบประวัติกิจกรรมในวันที่เลือก</td></tr>';
+    return rows.map(row => {
+      const [color, bg, icon] = logBadge(row.type);
+      return `<tr>
+        <td style="white-space:nowrap">${rowTime(row.time)}</td>
+        <td><strong>${esc(row.user || 'system')}</strong></td>
+        <td><span class="badge" style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};border:1px solid ${color}33"><i class="material-icons-round" style="font-size:14px">${icon}</i>${esc(row.type || '-')}</span></td>
+        <td>${esc(row.details || '-')}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function installActivityHistory() {
+    window.renderActivityLog = async function (dateValue) {
+      const section = document.getElementById('page-log');
+      if (!section) return;
+      const selected = dateValue || document.getElementById('v36-log-date')?.value || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+      section.innerHTML = `<div class="inv-container"><div class="inv-toolbar"><h3 style="font-size:16px;font-weight:700">ประวัติกิจกรรม</h3><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="date" class="form-input" id="v36-log-date" value="${esc(selected)}" onchange="renderActivityLog(this.value)" style="width:160px"><button class="btn btn-outline" onclick="renderActivityLog()"><i class="material-icons-round">refresh</i> รีเฟรช</button></div></div><div class="table-wrapper"><table class="data-table"><tbody><tr><td style="padding:30px;text-align:center;color:#94a3b8">กำลังโหลด...</td></tr></tbody></table></div></div>`;
+      try {
+        const { rows, day, stockError, logError } = await loadActivityRows(selected);
+        const warn = stockError || logError
+          ? `<div style="margin:0 0 12px;padding:10px 12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:10px;font-size:12px;font-weight:800">บางตารางโหลดไม่ครบ: ${esc((stockError || logError)?.message || stockError || logError)}</div>`
+          : '';
+        section.innerHTML = `
+          <div class="inv-container">
+            <div class="inv-toolbar">
+              <h3 style="font-size:16px;font-weight:700">ประวัติกิจกรรม (${day})</h3>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <input type="date" class="form-input" id="v36-log-date" value="${esc(day)}" onchange="renderActivityLog(this.value)" style="width:160px">
+                <button class="btn btn-outline" onclick="renderActivityLog()"><i class="material-icons-round">refresh</i> รีเฟรช</button>
+              </div>
+            </div>
+            <div style="color:#94a3b8;font-size:13px;margin:-6px 0 14px;font-weight:800">แสดง ${fmt(rows.length)} รายการ รวม log ระบบและประวัติสต็อก</div>
+            ${warn}
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead><tr><th>วันเวลา</th><th>ผู้ใช้งาน</th><th>ประเภท</th><th>รายละเอียด</th></tr></thead>
+                <tbody>${renderActivityRows(rows)}</tbody>
+              </table>
+            </div>
+          </div>`;
+      } catch (e) {
+        console.error('[v50] activity history:', e);
+        section.innerHTML = `<div class="inv-container"><div style="padding:30px;color:#dc2626">โหลดประวัติกิจกรรมไม่สำเร็จ: ${esc(e.message || e)}</div></div>`;
+      }
+    };
+    try { renderActivityLog = window.renderActivityLog; } catch (_) {}
+    window.renderActivityLog.__v50Combined = true;
+  }
+
   function boot() {
     injectStyle();
     installProjectPrintGuards();
     installPrintClickGuard();
     installAdminCommissionSection();
+    installActivityHistory();
     [300, 900, 1800, 3500, 7000, 12000].forEach(delay => setTimeout(() => {
       injectStyle();
       installProjectPrintGuards();
       installAdminCommissionSection();
+      installActivityHistory();
     }, delay));
     if (!window.__v50FinalInterval) {
       window.__v50FinalInterval = setInterval(() => {

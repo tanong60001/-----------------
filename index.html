@@ -796,6 +796,17 @@
   <script src="modules-v48-final-staff-sales.js?v=1"></script>
   <script src="modules-v49-admin-commission-audit.js?v=1"></script>
   <script src="modules-v50-final-pos-admin-project.js?v=4"></script>
+
+  <!-- Service Worker: Product Image Cache (ลด bandwidth 90%+) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(reg => console.log('[SW] ✅ Registered:', reg.scope))
+          .catch(err => console.warn('[SW] Registration failed:', err));
+      });
+    }
+  </script>
 </body>
 
 </html>

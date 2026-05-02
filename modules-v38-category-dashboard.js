@@ -16,7 +16,7 @@ console.log('[v38] Category dashboard loaded');
     category: ALL_CATEGORY,
     stock: 'all',
     search: '',
-    limit: 60,
+    limit: 20,
     limitKey: '',
     salesCache: null,
     salesCacheAt: 0,
@@ -314,13 +314,13 @@ console.log('[v38] Category dashboard loaded');
 
   function setCategoryFilter(key) {
     state.category = key || ALL_CATEGORY;
-    state.limit = 60;
+    state.limit = 20;
     renderInventory();
   }
 
   function setStockFilter(key) {
     state.stock = key || 'all';
-    state.limit = 60;
+    state.limit = 20;
     renderInventory();
   }
 
@@ -332,7 +332,7 @@ console.log('[v38] Category dashboard loaded');
   window.v38SetInvCategory = setCategoryFilter;
   window.v38SetInvStock = setStockFilter;
   window.v38ShowMoreInventory = function () {
-    state.limit = (state.limit || 60) + 60;
+    state.limit = (state.limit || 20) + 20;
     renderInventory();
   };
   window.v38SyncCategoriesFromProducts = async function () {
@@ -344,6 +344,104 @@ console.log('[v38] Category dashboard loaded');
     clearCategoryStatsCache();
     return renderInventory();
   };
+
+  // ══════════════════════════════════════════════════════════════
+  // EDIT CATEGORY — แก้ไขหมวดหมู่เดิม
+  // ══════════════════════════════════════════════════════════════
+  window.v38EditCategory = async function (catId) {
+    if (!catId || typeof Swal === 'undefined') return;
+    let cat = null;
+    try {
+      const { data, error } = await db.from(TABLE.category).select('*').eq('id', catId).maybeSingle();
+      if (error) throw error;
+      cat = data;
+    } catch (e) {
+      if (typeof toast === 'function') toast('โหลดข้อมูลหมวดหมู่ไม่สำเร็จ: ' + e.message, 'error');
+      return;
+    }
+    if (!cat) {
+      if (typeof toast === 'function') toast('ไม่พบหมวดหมู่นี้', 'warning');
+      return;
+    }
+
+    const oldName = String(cat.name || '').trim();
+    const result = await Swal.fire({
+      title: 'แก้ไขหมวดหมู่',
+      width: 480,
+      html: `
+        <div style="text-align:left;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">ชื่อหมวดหมู่ *</label>
+            <input id="v38-edit-cat-name" class="swal2-input" value="${esc(cat.name || '')}" placeholder="ชื่อหมวดหมู่" style="margin:0;width:100%;box-sizing:border-box">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">สี</label>
+              <input id="v38-edit-cat-color" type="color" value="${esc(cat.color || '#2563eb')}" style="width:100%;height:42px;border:1px solid #e2e8f0;border-radius:8px;padding:4px;cursor:pointer">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">ไอคอน</label>
+              <input id="v38-edit-cat-icon" class="swal2-input" value="${esc(cat.icon || 'inventory_2')}" placeholder="เช่น build, plumbing" style="margin:0;width:100%;box-sizing:border-box">
+            </div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">หมายเหตุ</label>
+            <input id="v38-edit-cat-note" class="swal2-input" value="${esc(cat.note || '')}" placeholder="(ถ้ามี)" style="margin:0;width:100%;box-sizing:border-box">
+          </div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: '<i class="material-icons-round" style="font-size:16px;vertical-align:middle;margin-right:4px">save</i> บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const name = document.getElementById('v38-edit-cat-name')?.value?.trim();
+        if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อหมวดหมู่'); return false; }
+        return {
+          name,
+          color: document.getElementById('v38-edit-cat-color')?.value || '#2563eb',
+          icon: document.getElementById('v38-edit-cat-icon')?.value?.trim() || 'inventory_2',
+          note: document.getElementById('v38-edit-cat-note')?.value?.trim() || null,
+        };
+      },
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+    const updated = result.value;
+
+    try {
+      // 1. อัปเดตหมวดหมู่ในตาราง categories
+      const { error } = await db.from(TABLE.category).update(updated).eq('id', catId);
+      if (error) throw error;
+
+      // 2. ถ้าชื่อเปลี่ยน → อัปเดตสินค้าทุกตัวที่ใช้ชื่อเดิม
+      if (oldName && updated.name !== oldName) {
+        const { error: prodErr } = await db
+          .from(TABLE.product)
+          .update({ category: updated.name, updated_at: new Date().toISOString() })
+          .eq('category', oldName);
+        if (prodErr) console.warn('[v38] update product categories:', prodErr);
+        // อัปเดต local products array
+        try {
+          const prods = typeof products !== 'undefined' ? products : window.products;
+          if (Array.isArray(prods)) {
+            prods.forEach(p => { if (p.category === oldName) p.category = updated.name; });
+          }
+        } catch (_) {}
+      }
+
+      // 3. รีโหลด
+      try { if (typeof loadCategories === 'function') await loadCategories(); } catch (_) {}
+      clearCategoryStatsCache();
+      if (typeof toast === 'function') toast(`แก้ไขหมวดหมู่ "${updated.name}" สำเร็จ`, 'success');
+      renderInventory();
+    } catch (e) {
+      if (typeof toast === 'function') toast('แก้ไขหมวดหมู่ไม่สำเร็จ: ' + e.message, 'error');
+    }
+  };
+
+  // Alias ให้ editCat ใช้ได้จากหน้า admin ด้วย
+  window.editCat = async function (id) { return window.v38EditCategory(id); };
+  try { editCat = window.editCat; } catch (_) {}
 
   function looksBrokenThai(text) {
     const s = String(text || '');
@@ -611,19 +709,31 @@ console.log('[v38] Category dashboard loaded');
   function categoryCard(row) {
     const active = state.category === row.key;
     const warn = row.out > 0 ? `${fmt(row.out)} หมด` : row.low > 0 ? `${fmt(row.low)} ใกล้หมด` : 'สต็อกปกติ';
-    return `<button type="button" onclick="v38SetInvCategory('${js(row.key)}')" class="v38-cat-card ${active ? 'active' : ''}" style="--cat:${esc(row.color)}">
-      <div class="v38-cat-top">
-        <span class="v38-cat-dot"></span>
-        <strong>${esc(row.name)}</strong>
+    // หา catId จาก categories array
+    const catRow = (Array.isArray(typeof categories !== 'undefined' ? categories : window.categories)
+      ? (typeof categories !== 'undefined' ? categories : window.categories)
+      : []).find(c => categoryKeyFromName(c.name) === row.key);
+    const catId = catRow?.id || '';
+    return `<div class="v38-cat-card ${active ? 'active' : ''}" style="--cat:${esc(row.color)}">
+      <div class="v38-cat-card-actions">
+        ${catId ? `<button type="button" class="v38-cat-edit" onclick="event.stopPropagation();v38EditCategory('${js(catId)}')" title="แก้ไขหมวดหมู่">
+          <i class="material-icons-round">edit</i>
+        </button>` : ''}
       </div>
-      <div class="v38-cat-grid">
-        <div><b>${fmt(row.count)}</b><span>สินค้า</span></div>
-        <div><b>฿${fmt(row.stockValue)}</b><span>มูลค่าสต็อก</span></div>
-        <div><b>฿${fmt(row.sales)}</b><span>ยอดขาย</span></div>
-        <div><b>฿${fmt(row.gross)}</b><span>กำไรขั้นต้น</span></div>
-      </div>
-      <div class="v38-cat-warn ${row.out > 0 ? 'danger' : row.low > 0 ? 'warn' : ''}">${esc(warn)}</div>
-    </button>`;
+      <button type="button" class="v38-cat-card-body" onclick="v38SetInvCategory('${js(row.key)}')">
+        <div class="v38-cat-top">
+          <span class="v38-cat-dot"></span>
+          <strong>${esc(row.name)}</strong>
+        </div>
+        <div class="v38-cat-grid">
+          <div><b>${fmt(row.count)}</b><span>สินค้า</span></div>
+          <div><b>฿${fmt(row.stockValue)}</b><span>มูลค่าสต็อก</span></div>
+          <div><b>฿${fmt(row.sales)}</b><span>ยอดขาย</span></div>
+          <div><b>฿${fmt(row.gross)}</b><span>กำไรขั้นต้น</span></div>
+        </div>
+        <div class="v38-cat-warn ${row.out > 0 ? 'danger' : row.low > 0 ? 'warn' : ''}">${esc(warn)}</div>
+      </button>
+    </div>`;
   }
 
   function categoryChip(row) {
@@ -670,7 +780,13 @@ console.log('[v38] Category dashboard loaded');
       .v38-cat-panel-head strong{font-size:15px;color:#0f172a}
       .v38-cat-panel-head span{font-size:12px;color:#64748b}
       .v38-cat-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;overflow:visible;padding:2px}
-      .v38-cat-card{text-align:left;background:linear-gradient(135deg,color-mix(in srgb,var(--cat) 12%,#fff) 0%,color-mix(in srgb,var(--cat) 5%,#fff) 100%);border:1.5px solid color-mix(in srgb,var(--cat) 24%,#e2e8f0);border-radius:10px;padding:13px;cursor:pointer;min-height:206px;display:flex;flex-direction:column}
+      .v38-cat-card{text-align:left;background:linear-gradient(135deg,color-mix(in srgb,var(--cat) 12%,#fff) 0%,color-mix(in srgb,var(--cat) 5%,#fff) 100%);border:1.5px solid color-mix(in srgb,var(--cat) 24%,#e2e8f0);border-radius:10px;padding:0;cursor:default;min-height:206px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+      .v38-cat-card-body{all:unset;display:flex;flex-direction:column;flex:1;padding:13px;cursor:pointer;width:100%;box-sizing:border-box}
+      .v38-cat-card-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .15s;z-index:2}
+      .v38-cat-card:hover .v38-cat-card-actions{opacity:1}
+      .v38-cat-edit{width:28px;height:28px;border-radius:7px;border:1px solid color-mix(in srgb,var(--cat) 30%,#e2e8f0);background:rgba(255,255,255,.92);color:var(--cat);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;backdrop-filter:blur(4px)}
+      .v38-cat-edit:hover{background:var(--cat);color:#fff;transform:scale(1.08)}
+      .v38-cat-edit i{font-size:15px}
       .v38-cat-card.active{border-color:var(--cat);box-shadow:0 0 0 3px color-mix(in srgb,var(--cat) 16%,transparent)}
       .v38-cat-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-width:0}
       .v38-cat-top strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -743,9 +859,9 @@ console.log('[v38] Category dashboard loaded');
     const limitKey = `${state.category}|${state.stock}|${state.search}`;
     if (state.limitKey !== limitKey) {
       state.limitKey = limitKey;
-      state.limit = 60;
+      state.limit = 20;
     }
-    const shown = filtered.slice(0, state.limit || 60);
+    const shown = filtered.slice(0, state.limit || 20);
 
     const allLabel = state.category === ALL_CATEGORY ? 'ทุกหมวดหมู่' : categoryNameFromKey(state.category);
 
@@ -801,14 +917,14 @@ console.log('[v38] Category dashboard loaded');
             <tbody>${shown.length ? shown.map(productRow).join('') : '<tr><td colspan="8"><div class="v38-empty">ไม่พบสินค้าตามตัวกรองนี้</div></td></tr>'}</tbody>
           </table>
         </div>
-        ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v38ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(60, filtered.length - shown.length))} รายการ</button></div>` : ''}
+        ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v38ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(20, filtered.length - shown.length))} รายการ</button></div>` : ''}
       </div>
     </div>`;
 
     const search = document.getElementById('v38-inv-search');
     search?.addEventListener('input', () => {
       state.search = search.value || '';
-      state.limit = 60;
+      state.limit = 20;
       clearTimeout(window.__v38InvSearchTimer);
       window.__v38InvSearchTimer = setTimeout(() => renderInventory(), 180);
     });

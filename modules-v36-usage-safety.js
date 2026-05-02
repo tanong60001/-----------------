@@ -56,13 +56,13 @@ console.log('[v36] Usage safety patch loaded');
   function activeCart() {
     try {
       if (Array.isArray(cart)) return cart;
-    } catch (_) {}
+    } catch (_) { }
     return Array.isArray(window.cart) ? window.cart : [];
   }
 
   function setCartEmpty() {
-    try { cart = []; } catch (_) {}
-    try { window.cart = []; } catch (_) {}
+    try { cart = []; } catch (_) { }
+    try { window.cart = []; } catch (_) { }
   }
 
   function paymentMethodName(method) {
@@ -82,12 +82,12 @@ console.log('[v36] Usage safety patch loaded');
   function toastV36(message, type) {
     try {
       if (typeof toast === 'function') toast(message, type);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function hideOverlayNowV36() {
-    try { if (typeof v9HideOverlay === 'function') v9HideOverlay(); } catch (_) {}
-    try { document.getElementById('v9-overlay')?.remove(); } catch (_) {}
+    try { if (typeof v9HideOverlay === 'function') v9HideOverlay(); } catch (_) { }
+    try { document.getElementById('v9-overlay')?.remove(); } catch (_) { }
   }
 
   function jsString(value) {
@@ -98,18 +98,18 @@ console.log('[v36] Usage safety patch loaded');
     try { if (typeof loadProducts === 'function') await loadProducts(); } catch (e) { console.warn('[v36] loadProducts:', e); }
     try {
       if (typeof products !== 'undefined') window._v9ProductsCache = products;
-    } catch (_) {}
-    try { if (typeof renderCart === 'function') renderCart(); } catch (_) {}
-    try { window.v36BestSellerCache = null; } catch (_) {}
-    try { if (typeof renderProductGrid === 'function') renderProductGrid(); } catch (_) {}
-    try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) {}
-    try { if (typeof loadCashBalance === 'function') await loadCashBalance(); } catch (_) {}
+    } catch (_) { }
+    try { if (typeof renderCart === 'function') renderCart(); } catch (_) { }
+    try { window.v36BestSellerCache = null; } catch (_) { }
+    try { if (typeof renderProductGrid === 'function') renderProductGrid(); } catch (_) { }
+    try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) { }
+    try { if (typeof loadCashBalance === 'function') await loadCashBalance(); } catch (_) { }
     try {
       if (typeof renderCashDrawer === 'function') {
         const onCash = !document.getElementById('page-cash')?.classList.contains('hidden');
         if (onCash) await renderCashDrawer();
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async function assertCashReady(method) {
@@ -272,7 +272,7 @@ console.log('[v36] Usage safety patch loaded');
             checkoutState.customer.address = custPre.address || '';
             checkoutState.customer.phone = custPre.phone || '';
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       const billRes = await must(db.from(txt.bill).insert({
@@ -357,17 +357,17 @@ console.log('[v36] Usage safety patch loaded');
 
       const result = typeof Swal !== 'undefined'
         ? await Swal.fire({
-            icon: 'success',
-            title: `บิล #${bill.bill_no || ''} สำเร็จ`,
-            html: `<div style="font-size:15px">ยอดขาย <b>฿${fmt(bill.total)}</b></div>`,
-            showDenyButton: true,
-            showCancelButton: true,
-            confirmButtonText: 'พิมพ์ 80mm',
-            denyButtonText: 'พิมพ์ A4',
-            cancelButtonText: 'ไม่พิมพ์',
-            confirmButtonColor: '#dc2626',
-            denyButtonColor: '#2563eb',
-          })
+          icon: 'success',
+          title: `บิล #${bill.bill_no || ''} สำเร็จ`,
+          html: `<div style="font-size:15px">ยอดขาย <b>฿${fmt(bill.total)}</b></div>`,
+          showDenyButton: true,
+          showCancelButton: true,
+          confirmButtonText: 'พิมพ์ 80mm',
+          denyButtonText: 'พิมพ์ A4',
+          cancelButtonText: 'ไม่พิมพ์',
+          confirmButtonColor: '#dc2626',
+          denyButtonColor: '#2563eb',
+        })
         : {};
 
       const printFmt = result.isConfirmed ? '80mm' : (result.isDenied ? 'A4' : null);
@@ -382,7 +382,7 @@ console.log('[v36] Usage safety patch loaded');
             status: 'รอตรวจสอบ',
             note: 'บันทึกไม่ครบ: ' + (e.message || e),
           }).eq('id', bill.id);
-        } catch (_) {}
+        } catch (_) { }
       }
       if (typeof toast === 'function') toast('บันทึกขายไม่สำเร็จ: ' + (e.message || e), 'error');
       else alert('บันทึกขายไม่สำเร็จ: ' + (e.message || e));
@@ -622,7 +622,7 @@ console.log('[v36] Usage safety patch loaded');
             takeTotal += money(mode.take);
             deliverTotal += money(mode.deliver);
           });
-        } catch (_) {}
+        } catch (_) { }
         title.insertAdjacentHTML('afterend', `
           <div class="v36-partial-summary">
             <div><span>รับเองวันนี้</span><strong>${fmt(takeTotal)}</strong></div>
@@ -896,7 +896,7 @@ console.log('[v36] Usage safety patch loaded');
         }, 20);
         return out;
       };
-      try { startCheckout = window.startCheckout; } catch (_) {}
+      try { startCheckout = window.startCheckout; } catch (_) { }
       window.startCheckout.__v36redesign = true;
     }
 
@@ -909,7 +909,7 @@ console.log('[v36] Usage safety patch loaded');
         enhanceCheckoutStepV36(content);
         return out;
       };
-      try { renderCheckoutStep = window.renderCheckoutStep; } catch (_) {}
+      try { renderCheckoutStep = window.renderCheckoutStep; } catch (_) { }
       window.renderCheckoutStep.__v36redesign = true;
     }
 
@@ -920,7 +920,7 @@ console.log('[v36] Usage safety patch loaded');
         enhanceCheckoutStepV36(container || document.getElementById('checkout-content'));
         return out;
       };
-      try { renderStep3 = window.renderStep3; } catch (_) {}
+      try { renderStep3 = window.renderStep3; } catch (_) { }
       window.renderStep3.__v36redesign = true;
     }
 
@@ -931,7 +931,7 @@ console.log('[v36] Usage safety patch loaded');
         enhanceCheckoutStepV36(container || document.getElementById('checkout-content'));
         return out;
       };
-      try { renderStep4 = window.renderStep4; } catch (_) {}
+      try { renderStep4 = window.renderStep4; } catch (_) { }
       window.renderStep4.__v36redesign = true;
     }
 
@@ -952,12 +952,12 @@ console.log('[v36] Usage safety patch loaded');
             }
             return;
           }
-        } catch (_) {}
+        } catch (_) { }
         const out = originalV12RenderBody.apply(this, arguments);
         enhanceCheckoutStepV36(document.getElementById('v12-step-body'));
         return out;
       };
-      try { v12RenderStepBody = window.v12RenderStepBody; } catch (_) {}
+      try { v12RenderStepBody = window.v12RenderStepBody; } catch (_) { }
       window.v12RenderStepBody.__v36redesign = true;
     }
 
@@ -968,7 +968,7 @@ console.log('[v36] Usage safety patch loaded');
         enhanceCheckoutStepV36(container || document.getElementById('v12-step-body'));
         return out;
       };
-      try { v12S2 = window.v12S2; } catch (_) {}
+      try { v12S2 = window.v12S2; } catch (_) { }
       window.v12S2.__v36redesign = true;
     }
 
@@ -985,7 +985,7 @@ console.log('[v36] Usage safety patch loaded');
         }
         return out;
       };
-      try { v12SetItemMode = window.v12SetItemMode; } catch (_) {}
+      try { v12SetItemMode = window.v12SetItemMode; } catch (_) { }
       window.v12SetItemMode.__v36redesign = true;
     }
   }
@@ -1013,7 +1013,7 @@ console.log('[v36] Usage safety patch loaded');
         restored = true;
         if (typeof originalShowOverlay === 'function') {
           window.v9ShowOverlay = originalShowOverlay;
-          try { v9ShowOverlay = originalShowOverlay; } catch (_) {}
+          try { v9ShowOverlay = originalShowOverlay; } catch (_) { }
         }
       };
 
@@ -1025,7 +1025,7 @@ console.log('[v36] Usage safety patch loaded');
           }
           return originalShowOverlay.apply(this, arguments);
         };
-        try { v9ShowOverlay = window.v9ShowOverlay; } catch (_) {}
+        try { v9ShowOverlay = window.v9ShowOverlay; } catch (_) { }
       }
 
       let finished = false;
@@ -1274,7 +1274,24 @@ console.log('[v36] Usage safety patch loaded');
   async function removeOldProductImage(oldUrl) {
     const path = productImagePathFromUrl(oldUrl);
     if (!path || !db?.storage) return;
-    try { await db.storage.from('product-images').remove([path]); } catch (_) {}
+    try { await db.storage.from('product-images').remove([path]); } catch (_) { }
+    // แจ้ง Service Worker ให้ลบ cache รูปเก่า
+    invalidateImageCache(oldUrl);
+  }
+
+  function invalidateImageCache(url) {
+    if (!url || !navigator.serviceWorker?.controller) return;
+    try {
+      navigator.serviceWorker.controller.postMessage({ type: 'INVALIDATE_IMAGE', url });
+    } catch (_) { }
+  }
+
+  function clearAllImageCache() {
+    if (!navigator.serviceWorker?.controller) return;
+    try {
+      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_IMAGE_CACHE' });
+      toastV36('ล้าง cache รูปภาพเรียบร้อย จะโหลดรูปใหม่จาก server', 'success');
+    } catch (_) { }
   }
 
   async function uploadProductImageBlob(blob, nameHint) {
@@ -1632,13 +1649,13 @@ console.log('[v36] Usage safety patch loaded');
 
     if (typeof window.hasPermission !== 'function' || !window.hasPermission.__v36perms) {
       window.hasPermission = canAccessPageV36;
-      try { hasPermission = canAccessPageV36; } catch (_) {}
+      try { hasPermission = canAccessPageV36; } catch (_) { }
       window.hasPermission.__v36perms = true;
     }
 
     if (typeof window.applyNavPermissions !== 'function' || !window.applyNavPermissions.__v36perms) {
       window.applyNavPermissions = applyNavPermissionsV36;
-      try { applyNavPermissions = applyNavPermissionsV36; } catch (_) {}
+      try { applyNavPermissions = applyNavPermissionsV36; } catch (_) { }
       window.applyNavPermissions.__v36perms = true;
     }
 
@@ -1653,7 +1670,7 @@ console.log('[v36] Usage safety patch loaded');
         if ((page === 'payable' || page === 'ap' || page === 'vendor') && USER_PERMS?.can_purchase === true) USER_PERMS.can_payable = true;
         return originalGo.call(this, page);
       };
-      try { go = window.go; } catch (_) {}
+      try { go = window.go; } catch (_) { }
       window.go.__v36perms = true;
     }
 
@@ -1804,9 +1821,9 @@ console.log('[v36] Usage safety patch loaded');
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
         ${users.map(user => {
-          const isAdmin = user.role === 'admin';
-          const p = permMap[user.id] || {};
-          return `
+      const isAdmin = user.role === 'admin';
+      const p = permMap[user.id] || {};
+      return `
             <div style="border:1.5px solid ${isAdmin ? '#fca5a5' : '#e2e8f0'};border-radius:16px;overflow:hidden;background:#fff">
               <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;background:${isAdmin ? '#fff5f5' : '#f8fafc'}">
                 <div style="width:44px;height:44px;border-radius:50%;background:${isAdmin ? '#dc2626' : '#6366f1'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900">${htmlAttr(String(user.username || '?').charAt(0).toUpperCase())}</div>
@@ -1825,9 +1842,9 @@ console.log('[v36] Usage safety patch loaded');
               ${isAdmin ? '' : `
                 <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">
                   ${PERMISSION_DEFS.map(def => {
-                    const checked = effectivePermissionChecked(p, def);
-                    const unsupported = missing.includes(def.key);
-                    return `
+        const checked = effectivePermissionChecked(p, def);
+        const unsupported = missing.includes(def.key);
+        return `
                       <label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:1.5px solid ${checked ? '#ef4444' : '#e2e8f0'};background:${unsupported ? '#f8fafc' : checked ? '#fff1f2' : '#fff'};cursor:${unsupported ? 'not-allowed' : 'pointer'};opacity:${unsupported ? '.62' : '1'}">
                         <input type="checkbox" id="v36perm-${user.id}-${def.key}" ${checked ? 'checked' : ''} ${unsupported ? 'disabled' : ''} onchange="saveUserPermissionsV36('${user.id}')" style="width:16px;height:16px;accent-color:#ef4444">
                         <i class="material-icons-round" style="font-size:18px;color:${checked ? '#ef4444' : '#64748b'}">${def.icon}</i>
@@ -1836,10 +1853,10 @@ console.log('[v36] Usage safety patch loaded');
                           <div style="font-size:10px;color:#94a3b8;margin-top:1px">${htmlAttr(def.desc)}</div>
                         </div>
                       </label>`;
-                  }).join('')}
+      }).join('')}
                 </div>`}
             </div>`;
-        }).join('')}
+    }).join('')}
       </div>`;
   }
 
@@ -1874,7 +1891,7 @@ console.log('[v36] Usage safety patch loaded');
       if (name === 'deleteProduct') deleteProduct = window[name];
       if (name === 'deleteCat') deleteCat = window[name];
       if (name === 'cancelBill') cancelBill = window[name];
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function installDeletePermissionGuardV36() {
@@ -2256,9 +2273,9 @@ console.log('[v36] Usage safety patch loaded');
           toast?.(action === 'debt' ? 'จัดส่งสำเร็จ และบันทึกยอดคงเหลือเป็นหนี้แล้ว' : 'จัดส่งสำเร็จ', 'success');
         }
         setTimeout(() => {
-          try { if (typeof renderDelivery === 'function') renderDelivery(); } catch (_) {}
-          try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) {}
-          try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) {}
+          try { if (typeof renderDelivery === 'function') renderDelivery(); } catch (_) { }
+          try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) { }
+          try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) { }
         }, 0);
       } catch (e) {
         if (typeof Swal !== 'undefined') Swal.close();
@@ -2308,7 +2325,7 @@ console.log('[v36] Usage safety patch loaded');
     if (typeof originalDeleteUser === 'function' && !originalDeleteUser.__v36safe) {
       window.deleteUser = async function (id, name) {
         let currentUserId = null;
-        try { currentUserId = USER?.id || null; } catch (_) {}
+        try { currentUserId = USER?.id || null; } catch (_) { }
         if (String(id) === String(currentUserId)) {
           return toast?.('ไม่สามารถลบผู้ใช้ที่กำลังล็อกอินอยู่', 'warning');
         }
@@ -3160,15 +3177,15 @@ console.log('[v36] Usage safety patch loaded');
     if (window.renderInventory?.__v36invTools) return;
     window.v36InvFilter = window.v36InvFilter || 'all';
     window.v36InvSearch = window.v36InvSearch || '';
-    window.v36InvLimit = window.v36InvLimit || 60;
+    window.v36InvLimit = window.v36InvLimit || 20;
     window.v36InvKey = '';
     window.v36SetInvFilter = function (filter) {
       window.v36InvFilter = filter || 'all';
-      window.v36InvLimit = 60;
+      window.v36InvLimit = 20;
       window.renderInventory?.();
     };
     window.v36ShowMoreInventory = function () {
-      window.v36InvLimit = (window.v36InvLimit || 60) + 60;
+      window.v36InvLimit = (window.v36InvLimit || 20) + 20;
       window.renderInventory?.();
     };
 
@@ -3190,9 +3207,9 @@ console.log('[v36] Usage safety patch loaded');
       const invKey = `${search}|${filter}`;
       if (window.v36InvKey !== invKey) {
         window.v36InvKey = invKey;
-        window.v36InvLimit = 60;
+        window.v36InvLimit = 20;
       }
-      const shown = filtered.slice(0, window.v36InvLimit || 60);
+      const shown = filtered.slice(0, window.v36InvLimit || 20);
 
       section.innerHTML = `
       <div style="max-width:1200px;margin:0 auto;padding-bottom:30px">
@@ -3243,7 +3260,7 @@ console.log('[v36] Usage safety patch loaded');
               <tbody>${shown.length ? shown.map(productRowHtmlV36).join('') : `<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8">ไม่พบสินค้า</td></tr>`}</tbody>
             </table>
           </div>
-          ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v36ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(60, filtered.length - shown.length))} รายการ</button></div>` : ''}
+          ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v36ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(20, filtered.length - shown.length))} รายการ</button></div>` : ''}
         </div>
       </div>`;
 
@@ -3461,15 +3478,15 @@ console.log('[v36] Usage safety patch loaded');
         const productList = Array.isArray(typeof products !== 'undefined' ? products : window.products) ? (typeof products !== 'undefined' ? products : window.products) : [];
         const ranked = productList.length
           ? productList.map(p => ({
-              type: 'product',
-              id: String(p.id || ''),
-              name: normalizeBestSellerNameV36(p.name),
-              score: Number(byId[p.id] || byName[normalizeBestSellerNameV36(p.name)] || 0),
-            })).filter(x => x.score > 0).sort((a, b) => b.score - a.score)
+            type: 'product',
+            id: String(p.id || ''),
+            name: normalizeBestSellerNameV36(p.name),
+            score: Number(byId[p.id] || byName[normalizeBestSellerNameV36(p.name)] || 0),
+          })).filter(x => x.score > 0).sort((a, b) => b.score - a.score)
           : (Object.keys(byId).length
-              ? Object.entries(byId).map(([key, score]) => ({ type: 'id', key, score }))
-              : Object.entries(byName).map(([key, score]) => ({ type: 'name', key, score }))
-            ).sort((a, b) => b.score - a.score);
+            ? Object.entries(byId).map(([key, score]) => ({ type: 'id', key, score }))
+            : Object.entries(byName).map(([key, score]) => ({ type: 'name', key, score }))
+          ).sort((a, b) => b.score - a.score);
         const topCount = Math.min(8, ranked.length);
         const topIds = new Set();
         const topNames = new Set();
@@ -3496,13 +3513,13 @@ console.log('[v36] Usage safety patch loaded');
 
   function installLimitedPosProductGrid(force) {
     if (window.renderProductGrid?.__v36limited && !force) {
-      try { renderProductGrid = window.renderProductGrid; } catch (_) {}
+      try { renderProductGrid = window.renderProductGrid; } catch (_) { }
       return;
     }
-    window.v36PosLimit = window.v36PosLimit || 60;
+    window.v36PosLimit = window.v36PosLimit || 16;
     window.v36PosKey = '';
     window.v36ShowMoreProducts = function () {
-      window.v36PosLimit = (window.v36PosLimit || 60) + 60;
+      window.v36PosLimit = (window.v36PosLimit || 16) + 16;
       window.renderProductGrid?.();
     };
     window.renderProductGrid = function () {
@@ -3514,7 +3531,7 @@ console.log('[v36] Usage safety patch loaded');
       const key = `${searchTerm}|${cat}|${viewMode}`;
       if (window.v36PosKey !== key) {
         window.v36PosKey = key;
-        window.v36PosLimit = 60;
+        window.v36PosLimit = 16;
       }
       const all = (typeof products !== 'undefined' ? products : []).filter(p => {
         const matchSearch = productSmartMatchV36(p, searchTerm);
@@ -3530,7 +3547,7 @@ console.log('[v36] Usage safety patch loaded');
       if (!window.v36BestSellerCache && !window.v36BestSellerLoading) {
         loadBestSellerCacheV36().then(() => window.renderProductGrid?.());
       }
-      const shown = all.slice(0, window.v36PosLimit || 60);
+      const shown = all.slice(0, window.v36PosLimit || 16);
       const countEl = document.getElementById('products-count');
       if (countEl) countEl.textContent = `แสดง ${shown.length} จาก ${all.length} รายการ (ทั้งหมด ${products.length})`;
       const renderCard = p => {
@@ -3555,11 +3572,11 @@ console.log('[v36] Usage safety patch loaded');
       container.style.gridTemplateColumns = viewMode === 'grid' && window.innerWidth >= 1280 ? 'repeat(8,minmax(0,1fr))' : '';
       container.innerHTML = shown.map(renderCard).join('') + (shown.length < all.length ? `
         <button type="button" onclick="v36ShowMoreProducts()" style="grid-column:1/-1;margin:8px auto 0;padding:10px 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
-          <i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${Math.min(60, all.length - shown.length)} รายการ
+          <i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${Math.min(16, all.length - shown.length)} รายการ
         </button>` : '');
     };
     window.renderProductGrid.__v36limited = true;
-    try { renderProductGrid = window.renderProductGrid; } catch (_) {}
+    try { renderProductGrid = window.renderProductGrid; } catch (_) { }
   }
 
   function installInstantPosCartV36() {
@@ -3572,11 +3589,11 @@ console.log('[v36] Usage safety patch loaded');
     let unitAwarePreloadPromise = null;
 
     const activeCart = () => {
-      try { if (Array.isArray(cart)) return cart; } catch (_) {}
+      try { if (Array.isArray(cart)) return cart; } catch (_) { }
       return Array.isArray(window.cart) ? window.cart : [];
     };
     const activeProducts = () => {
-      try { if (Array.isArray(products)) return products; } catch (_) {}
+      try { if (Array.isArray(products)) return products; } catch (_) { }
       return Array.isArray(window.products) ? window.products : [];
     };
     const productKey = productId => String(productId || '');
@@ -3646,9 +3663,9 @@ console.log('[v36] Usage safety patch loaded');
       });
     };
     const afterCartChange = productId => {
-      try { renderCart?.(); } catch (_) {}
+      try { renderCart?.(); } catch (_) { }
       updateBadge(productId);
-      try { sendToDisplay?.({ type: 'cart', cart: activeCart(), total: getCartTotal?.() || 0 }); } catch (_) {}
+      try { sendToDisplay?.({ type: 'cart', cart: activeCart(), total: getCartTotal?.() || 0 }); } catch (_) { }
     };
 
     const hasUnitAwareSale = async product => {
@@ -3734,9 +3751,9 @@ console.log('[v36] Usage safety patch loaded');
 
     window.addToCart.__v36instant = true;
     window.v36PreloadUnitAwareProducts = preloadUnitAwareProducts;
-    try { addToCart = window.addToCart; } catch (_) {}
-    try { updateCartQty = window.updateCartQty; } catch (_) {}
-    try { removeFromCart = window.removeFromCart; } catch (_) {}
+    try { addToCart = window.addToCart; } catch (_) { }
+    try { updateCartQty = window.updateCartQty; } catch (_) { }
+    try { removeFromCart = window.removeFromCart; } catch (_) { }
     if (typeof window.loadProducts === 'function' && !window.loadProducts.__v36unitPreload) {
       const originalLoadProductsV36 = window.loadProducts;
       window.loadProducts = async function () {
@@ -3745,7 +3762,7 @@ console.log('[v36] Usage safety patch loaded');
         return result;
       };
       window.loadProducts.__v36unitPreload = true;
-      try { loadProducts = window.loadProducts; } catch (_) {}
+      try { loadProducts = window.loadProducts; } catch (_) { }
     }
     setTimeout(() => preloadUnitAwareProducts(), 0);
     setTimeout(() => preloadUnitAwareProducts(true), 800);
@@ -3970,7 +3987,7 @@ console.log('[v36] Usage safety patch loaded');
       if (settings.payment_qr_show_customer && typeof sendToDisplay === 'function') {
         sendToDisplay({ type: 'qr', amount, qrPayload: qr.payload, qrLabel: qr.label, qrMode: qr.mode, qrDetail: qr.detail, qrRecipient: qr.recipient, bankName: qr.bankName, accountNumber: qr.accountNumber, accountName: qr.accountName });
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async function sendMixedPaymentDisplayV36() {
@@ -3996,7 +4013,7 @@ console.log('[v36] Usage safety patch loaded');
         accountNumber: qr.accountNumber || '',
         accountName: qr.accountName || '',
       });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function bankOptionsV36(selectedAid) {
@@ -4077,7 +4094,7 @@ console.log('[v36] Usage safety patch loaded');
         throw new Error('กรุณาเลือกธนาคารและกรอกเลขบัญชีให้ถูกต้อง');
       }
     }
-    try { localStorage.setItem('v36_payment_qr_settings', JSON.stringify(data)); } catch (_) {}
+    try { localStorage.setItem('v36_payment_qr_settings', JSON.stringify(data)); } catch (_) { }
     return data;
   }
 
@@ -4141,7 +4158,7 @@ console.log('[v36] Usage safety patch loaded');
       if (transferInput && document.activeElement !== transferInput) transferInput.value = split.transfer;
       const totalEl = box.querySelector('[data-v36-mixed-total]');
       if (totalEl) totalEl.textContent = `฿${fmt(split.cash + split.transfer)}`;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   window.v36SetMixedCash = function (value, keepFocus) {
@@ -4156,7 +4173,7 @@ console.log('[v36] Usage safety patch loaded');
       }
       const body = document.getElementById('v12-step-body');
       if (body && typeof window.v12S4 === 'function') window.v12S4(body);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   window.v36SetMixedTransfer = function (value, keepFocus) {
@@ -4171,7 +4188,7 @@ console.log('[v36] Usage safety patch loaded');
       }
       const body = document.getElementById('v12-step-body');
       if (body && typeof window.v12S4 === 'function') window.v12S4(body);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   window.v36SetMixedPreset = function (cash) {
@@ -4250,23 +4267,23 @@ console.log('[v36] Usage safety patch loaded');
       <div class="v36-mixed-denom-title"><i class="material-icons-round">payments</i> ธนบัตรที่รับ</div>
       <div class="v36-mixed-denom-grid">
         ${bills.map(d => {
-          const count = money(v12State.receivedDenominations?.[d.value]);
-          return `<button type="button" class="v36-mixed-denom" style="--bill-bg:${d.bg || '#f8fafc'}" onclick="v36MixedCashAdd(${d.value},1)" oncontextmenu="event.preventDefault();v36MixedCashAdd(${d.value},-1)">
+      const count = money(v12State.receivedDenominations?.[d.value]);
+      return `<button type="button" class="v36-mixed-denom" style="--bill-bg:${d.bg || '#f8fafc'}" onclick="v36MixedCashAdd(${d.value},1)" oncontextmenu="event.preventDefault();v36MixedCashAdd(${d.value},-1)">
             <span class="count ${count ? 'show' : ''}">${count}</span>
             <strong>฿${htmlAttr(d.label)}</strong>
             <small>${count ? 'x' + count : 'แตะเพิ่ม'}</small>
           </button>`;
-        }).join('')}
+    }).join('')}
       </div>
       <div class="v36-mixed-denom-title"><i class="material-icons-round">toll</i> เหรียญที่รับ</div>
       <div class="v36-mixed-coin-grid">
         ${coins.map(d => {
-          const count = money(v12State.receivedDenominations?.[d.value]);
-          return `<button type="button" class="v36-mixed-denom coin" style="--bill-bg:${d.bg || '#f8fafc'}" onclick="v36MixedCashAdd(${d.value},1)" oncontextmenu="event.preventDefault();v36MixedCashAdd(${d.value},-1)">
+      const count = money(v12State.receivedDenominations?.[d.value]);
+      return `<button type="button" class="v36-mixed-denom coin" style="--bill-bg:${d.bg || '#f8fafc'}" onclick="v36MixedCashAdd(${d.value},1)" oncontextmenu="event.preventDefault();v36MixedCashAdd(${d.value},-1)">
             <span class="count ${count ? 'show' : ''}">${count}</span>
             <strong>฿${htmlAttr(d.label)}</strong>
           </button>`;
-        }).join('')}
+    }).join('')}
       </div>`;
     const next = document.getElementById('v12-next-btn');
     if (next) {
@@ -4286,7 +4303,7 @@ console.log('[v36] Usage safety patch loaded');
           changeDenominations: enough && typeof calcChangeDenominations === 'function' ? calcChangeDenominations(change) : {},
         });
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   function mixedPaymentInfoHTMLV36() {
@@ -4361,7 +4378,7 @@ console.log('[v36] Usage safety patch loaded');
         enhanceCheckoutStepV36(container || document.getElementById('v12-step-body'));
         return out;
       };
-      try { v12S4 = window.v12S4; } catch (_) {}
+      try { v12S4 = window.v12S4; } catch (_) { }
       window.v12S4.__v36mixed = true;
     }
 
@@ -4406,7 +4423,7 @@ console.log('[v36] Usage safety patch loaded');
               const { data } = await db.from('cash_session').select('*')
                 .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
               session = data || null;
-            } catch (_) {}
+            } catch (_) { }
             if (!session) {
               toastV36('กรุณาเปิดรอบลิ้นชักก่อนรับเงินสดร่วมกับเงินโอน', 'warning');
               return;
@@ -4471,11 +4488,11 @@ console.log('[v36] Usage safety patch loaded');
           }
         }
         if (savedBillId && savedBillId !== prevBillId) {
-          try { window.v36PlaySaveSuccess?.(); } catch (_) {}
+          try { window.v36PlaySaveSuccess?.(); } catch (_) { }
         }
         return out;
       };
-      try { v12CompletePayment = window.v12CompletePayment; } catch (_) {}
+      try { v12CompletePayment = window.v12CompletePayment; } catch (_) { }
       window.v12CompletePayment.__v36mixed = true;
       window.v13CompletePayment = window.v12CompletePayment;
       window.v15CompletePayment = window.v12CompletePayment;
@@ -4497,7 +4514,7 @@ console.log('[v36] Usage safety patch loaded');
             if (!v12State.changeDenominations) v12State.changeDenominations = {};
             v12State.__v36MixedCashCounting = false;
             v12State.step = typeof v12GetMaxStep === 'function' ? v12GetMaxStep() : v12State.step;
-            try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) {}
+            try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) { }
             await window.v12CompletePayment();
             return;
           }
@@ -4510,7 +4527,7 @@ console.log('[v36] Usage safety patch loaded');
               const { data } = await db.from('cash_session').select('*')
                 .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
               session = data || null;
-            } catch (_) {}
+            } catch (_) { }
             if (!session) {
               toastV36('กรุณาเปิดรอบลิ้นชักก่อนรับเงินสดร่วมกับเงินโอน', 'warning');
               return;
@@ -4528,7 +4545,7 @@ console.log('[v36] Usage safety patch loaded');
             v12State.change = money(counted.change);
             v12State.__v36MixedCashCounting = false;
             v12State.step = typeof v12GetMaxStep === 'function' ? v12GetMaxStep() : 6;
-            try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) {}
+            try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) { }
             try {
               if (typeof sendToDisplay === 'function') {
                 sendToDisplay({
@@ -4540,7 +4557,7 @@ console.log('[v36] Usage safety patch loaded');
                   changeDenominations: counted.changeDenominations || {},
                 });
               }
-            } catch (_) {}
+            } catch (_) { }
             if (typeof _v23ui === 'function') _v23ui();
             else if (typeof v12UpdateUI === 'function') v12UpdateUI();
             await window.v12CompletePayment();
@@ -4561,7 +4578,7 @@ console.log('[v36] Usage safety patch loaded');
             ? calcChangeDenominations(v12State.change)
             : {};
           v12State.step = typeof v12GetMaxStep === 'function' ? v12GetMaxStep() : 6;
-          try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) {}
+          try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) { }
           if (typeof _v23ui === 'function') _v23ui();
           else if (typeof v12UpdateUI === 'function') v12UpdateUI();
           window.v12CompletePayment();
@@ -4569,7 +4586,7 @@ console.log('[v36] Usage safety patch loaded');
         }
         return originalNext.apply(this, arguments);
       };
-      try { v12NextStep = window.v12NextStep; } catch (_) {}
+      try { v12NextStep = window.v12NextStep; } catch (_) { }
       window.v12NextStep.__v36mixed = true;
     }
   }
@@ -4600,8 +4617,8 @@ console.log('[v36] Usage safety patch loaded');
         const audio = new Audio(src);
         audio.volume = 0.85;
         const p = audio.play();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      } catch (_) {}
+        if (p && typeof p.catch === 'function') p.catch(() => { });
+      } catch (_) { }
     };
     const originalToast = window.toast || (typeof toast === 'function' ? toast : null);
     if (typeof originalToast === 'function' && !originalToast.__v36sound) {
@@ -4612,12 +4629,12 @@ console.log('[v36] Usage safety patch loaded');
           if ((type || 'success') === 'success' && (/สำเร็จ|บันทึก|ยืนยัน|สร้าง|เพิ่ม/.test(text))) {
             window.v36PlaySaveSuccess();
           }
-        } catch (_) {}
+        } catch (_) { }
         return out;
       };
       wrapped.__v36sound = true;
       window.toast = wrapped;
-      try { toast = wrapped; } catch (_) {}
+      try { toast = wrapped; } catch (_) { }
     }
   }
 
@@ -4647,9 +4664,9 @@ console.log('[v36] Usage safety patch loaded');
         return out;
       };
       window[name].__v36qr = true;
-      try { if (name === 'v13SetMethod') v13SetMethod = window[name]; } catch (_) {}
-      try { if (name === 'v12SetMethod') v12SetMethod = window[name]; } catch (_) {}
-      try { if (name === 'selectPaymentMethod') selectPaymentMethod = window[name]; } catch (_) {}
+      try { if (name === 'v13SetMethod') v13SetMethod = window[name]; } catch (_) { }
+      try { if (name === 'v12SetMethod') v12SetMethod = window[name]; } catch (_) { }
+      try { if (name === 'selectPaymentMethod') selectPaymentMethod = window[name]; } catch (_) { }
     };
     wrapMethod('v13SetMethod');
     wrapMethod('v12SetMethod');
@@ -4725,7 +4742,7 @@ console.log('[v36] Usage safety patch loaded');
         }
       };
       window.v21BuildQRHtml.__v36paid = true;
-      try { v21BuildQRHtml = window.v21BuildQRHtml; } catch (_) {}
+      try { v21BuildQRHtml = window.v21BuildQRHtml; } catch (_) { }
     }
 
     const wrapBillPrint = name => {
@@ -4735,10 +4752,10 @@ console.log('[v36] Usage safety patch loaded');
         return withPrintQrPolicyV36(bill, () => fn.apply(this, arguments));
       };
       window[name].__v36paidqr = true;
-      try { if (name === 'printReceipt') printReceipt = window[name]; } catch (_) {}
-      try { if (name === 'printA4') printA4 = window[name]; } catch (_) {}
-      try { if (name === 'printReceiptA4v2') printReceiptA4v2 = window[name]; } catch (_) {}
-      try { if (name === 'v24PrintDocument') v24PrintDocument = window[name]; } catch (_) {}
+      try { if (name === 'printReceipt') printReceipt = window[name]; } catch (_) { }
+      try { if (name === 'printA4') printA4 = window[name]; } catch (_) { }
+      try { if (name === 'printReceiptA4v2') printReceiptA4v2 = window[name]; } catch (_) { }
+      try { if (name === 'v24PrintDocument') v24PrintDocument = window[name]; } catch (_) { }
     };
 
     wrapBillPrint('printReceipt');
@@ -4752,7 +4769,7 @@ console.log('[v36] Usage safety patch loaded');
         return withPrintQrPolicyV36(bill, suppress => print80.call(this, bill, items, suppress ? stripQrConfigV36(rc) : rc));
       };
       window.print80mmv2.__v36paidqr = true;
-      try { print80mmv2 = window.print80mmv2; } catch (_) {}
+      try { print80mmv2 = window.print80mmv2; } catch (_) { }
     }
   }
 
@@ -4778,7 +4795,7 @@ console.log('[v36] Usage safety patch loaded');
   function receiptThaiWordsV36(total) {
     try {
       if (typeof v24NumberToThaiWords === 'function') return v24NumberToThaiWords(total);
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -4824,7 +4841,7 @@ console.log('[v36] Usage safety patch loaded');
     const qrAmount = (() => {
       try {
         if (/เงินโอน\+เงินสด/.test(method) && v12State?.mixedPayment) return normalizeMixedPaymentV36().transfer;
-      } catch (_) {}
+      } catch (_) { }
       return total;
     })();
     const qr = (suppressQr || crowded) ? null : buildPaymentQrV36(rc, qrAmount);
@@ -4946,14 +4963,14 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
     };
     window.printA4 = (bill, items) => window.v24PrintDocument(bill, items || [], 'receipt');
     window.printReceiptA4v2 = async (bill, items) => window.v24PrintDocument(bill, items || [], 'receipt');
-    try { v24PrintDocument = window.v24PrintDocument; } catch (_) {}
-    try { v24ShowDocSelector = window.v24ShowDocSelector; } catch (_) {}
-    try { v12PrintReceiptA4 = window.v12PrintReceiptA4; } catch (_) {}
-    try { v12PrintDeposit = window.v12PrintDeposit; } catch (_) {}
-    try { v12PrintDeliveryNote = window.v12PrintDeliveryNote; } catch (_) {}
-    try { v5PrintFromHistory = window.v5PrintFromHistory; } catch (_) {}
-    try { printA4 = window.printA4; } catch (_) {}
-    try { printReceiptA4v2 = window.printReceiptA4v2; } catch (_) {}
+    try { v24PrintDocument = window.v24PrintDocument; } catch (_) { }
+    try { v24ShowDocSelector = window.v24ShowDocSelector; } catch (_) { }
+    try { v12PrintReceiptA4 = window.v12PrintReceiptA4; } catch (_) { }
+    try { v12PrintDeposit = window.v12PrintDeposit; } catch (_) { }
+    try { v12PrintDeliveryNote = window.v12PrintDeliveryNote; } catch (_) { }
+    try { v5PrintFromHistory = window.v5PrintFromHistory; } catch (_) { }
+    try { printA4 = window.printA4; } catch (_) { }
+    try { printReceiptA4v2 = window.printReceiptA4v2; } catch (_) { }
 
     const origS6 = window.v12S6;
     if (typeof origS6 === 'function' && !origS6.__v36receipt) {
@@ -4971,7 +4988,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
         return out;
       };
       window.v12S6.__v36receipt = true;
-      try { v12S6 = window.v12S6; } catch (_) {}
+      try { v12S6 = window.v12S6; } catch (_) { }
     }
   }
 
@@ -5007,11 +5024,11 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
           <div class="v36-saving-title">${htmlAttr(text || 'กำลังบันทึกบิล...')}</div>
           <div class="v36-saving-sub">${htmlAttr(subtext || 'กรุณารอสักครู่')}</div>
         </div>`;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function hideSavingOverlayV36() {
-    try { document.getElementById('v36-saving-overlay')?.remove(); } catch (_) {}
+    try { document.getElementById('v36-saving-overlay')?.remove(); } catch (_) { }
   }
 
   function installNormalCashDisplayBridgeV36() {
@@ -5058,7 +5075,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
             change: Math.max(0, lastCashReceived - total),
             method: 'cash',
           });
-        } catch (_) {}
+        } catch (_) { }
         return;
       }
       if (!isChangeStep) return;
@@ -5073,7 +5090,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
           method: 'cash',
           changeDenominations,
         });
-      } catch (_) {}
+      } catch (_) { }
     };
 
     const schedule = () => {
@@ -5098,7 +5115,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
           v12State.change = Math.max(0, received - pay);
           if (!v12State.changeDenominations) v12State.changeDenominations = {};
           v12State.step = typeof v12GetMaxStep === 'function' ? v12GetMaxStep() : 6;
-          try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) {}
+          try { if (typeof _v23SnapshotCart === 'function') _v23SnapshotCart(); } catch (_) { }
           try {
             if (typeof sendToDisplay === 'function') {
               sendToDisplay({
@@ -5110,7 +5127,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
                 changeDenominations: v12State.changeDenominations || {},
               });
             }
-          } catch (_) {}
+          } catch (_) { }
           await window.v12CompletePayment();
         } catch (e) {
           console.warn('[v36] cash popup autosave:', e);
@@ -5136,12 +5153,12 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
             if (typeof sendToDisplay === 'function') {
               sendToDisplay({ type: 'cash_update', total: payAmount(), received: 0, change: 0, method: 'cash' });
             }
-          } catch (_) {}
+          } catch (_) { }
         }, 0);
         return out;
       };
       window.v12S5.__v36displayBridge = true;
-      try { v12S5 = window.v12S5; } catch (_) {}
+      try { v12S5 = window.v12S5; } catch (_) { }
     }
   }
 
@@ -5192,24 +5209,24 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
               <table class="data-table">
                 <thead><tr><th>วันเวลา</th><th>ผู้ใช้งาน</th><th>ประเภท</th><th>รายละเอียด</th></tr></thead>
                 <tbody>${rows.length ? rows.map(l => {
-                  const cat = activityCategoryV36(l.type, l.details);
-                  return `
+          const cat = activityCategoryV36(l.type, l.details);
+          return `
                     <tr>
                       <td style="white-space:nowrap;">${typeof formatDateTime === 'function' ? formatDateTime(l.time) : htmlAttr(l.time || '-')}</td>
                       <td><strong>${htmlAttr(l.username || 'system')}</strong></td>
                       <td><span class="badge" style="background:${cat.bg};color:${cat.color};border:1px solid ${cat.color}33;">${htmlAttr(l.type || '-')}</span></td>
                       <td>${htmlAttr(l.details || '-')}</td>
                     </tr>`;
-                }).join('') : '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-tertiary);">ไม่พบประวัติกิจกรรมในวันที่เลือก</td></tr>'}</tbody>
+        }).join('') : '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-tertiary);">ไม่พบประวัติกิจกรรมในวันที่เลือก</td></tr>'}</tbody>
               </table>
             </div>
           </div>`;
       } catch (e) {
         console.error('[v36] activity log:', e);
         section.innerHTML = `<div class="inv-container"><div style="padding:30px;color:#dc2626;">โหลดประวัติกิจกรรมไม่สำเร็จ: ${htmlAttr(e.message || String(e))}</div></div>`;
-    }
-  };
-    try { renderActivityLog = window.renderActivityLog; } catch (_) {}
+      }
+    };
+    try { renderActivityLog = window.renderActivityLog; } catch (_) { }
     window.renderActivityLog.__v36daily = true;
   }
 
@@ -5260,7 +5277,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
     let drawer = {};
     try {
       if (typeof window.v32LoadDrawer === 'function') drawer = await window.v32LoadDrawer();
-    } catch (_) {}
+    } catch (_) { }
     return new Promise(resolve => {
       const old = document.getElementById('v36-mixed-cash-popup');
       if (old) old.remove();
@@ -5287,7 +5304,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
               changeDenominations: Object.assign({}, st.chg),
             });
           }
-        } catch (_) {}
+        } catch (_) { }
       };
 
       const close = result => {
@@ -5385,6 +5402,139 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
     });
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // BANDWIDTH OPTIMIZATION MODULE
+  // ══════════════════════════════════════════════════════════════════
+  // ลด bandwidth จาก ~15 GB/เดือน → ~300 MB/เดือน
+  // 1. IntersectionObserver lazy loading (โหลดเฉพาะรูปที่เห็น)
+  // 2. Service Worker cache invalidation hooks
+  // 3. Bandwidth monitor (admin)
+  // ══════════════════════════════════════════════════════════════════
+
+  let _v36ImageObserver = null;
+  let _v36BandwidthBytes = 0;
+
+  function getOrCreateImageObserver() {
+    if (_v36ImageObserver) return _v36ImageObserver;
+    if (typeof IntersectionObserver === 'undefined') return null;
+
+    _v36ImageObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const img = entry.target;
+        const realSrc = img.dataset.src;
+        if (!realSrc) return;
+
+        // โหลดรูปจริง
+        img.src = realSrc;
+        img.removeAttribute('data-src');
+        img.style.opacity = '1';
+        _v36ImageObserver.unobserve(img);
+
+        // นับ bandwidth (ประมาณ)
+        img.addEventListener('load', () => {
+          _v36BandwidthBytes += 50 * 1024; // ~50KB ต่อรูป
+        }, { once: true });
+      });
+    }, {
+      rootMargin: '200px 0px', // โหลดล่วงหน้า 200px ก่อนเข้า viewport
+      threshold: 0.01
+    });
+
+    return _v36ImageObserver;
+  }
+
+  function observeProductImages(container) {
+    const observer = getOrCreateImageObserver();
+    if (!observer) return;
+    const imgs = (container || document).querySelectorAll('img[data-src]');
+    imgs.forEach(img => observer.observe(img));
+  }
+
+  function installBandwidthOptimization() {
+    if (window.__v36BandwidthOptInstalled) return;
+    window.__v36BandwidthOptInstalled = true;
+
+    // ── 1. Patch renderProductGrid: ใช้ data-src แทน src ────────
+    const origRenderGrid = window.renderProductGrid;
+    if (typeof origRenderGrid === 'function' && !origRenderGrid.__v36bw) {
+      window.renderProductGrid = function () {
+        const result = origRenderGrid.apply(this, arguments);
+
+        // หลัง render เสร็จ — แปลง img src → data-src + observe
+        requestAnimationFrame(() => {
+          const container = document.getElementById('pos-product-grid');
+          if (!container) return;
+          const imgs = container.querySelectorAll('img[src*="product-images"]');
+          const observer = getOrCreateImageObserver();
+          if (!observer) return;
+
+          imgs.forEach(img => {
+            // ถ้ายังไม่ได้ observe และยังไม่โหลด
+            if (img.dataset.src || img.dataset.v36observed) return;
+
+            // เก็บ src จริงไว้ใน data-src
+            const realSrc = img.src;
+            if (!realSrc || !realSrc.includes('product-images')) return;
+
+            img.dataset.src = realSrc;
+            img.dataset.v36observed = '1';
+            // ใส่ transparent placeholder 1x1
+            img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22/%3E';
+            img.style.opacity = '0.4';
+            img.style.transition = 'opacity 0.3s ease';
+            observer.observe(img);
+          });
+        });
+
+        return result;
+      };
+      window.renderProductGrid.__v36bw = true;
+      window.renderProductGrid.__v36limited = origRenderGrid.__v36limited;
+      try { renderProductGrid = window.renderProductGrid; } catch (_) { }
+    }
+
+    // ── 2. Patch renderInventory: lazy load inventory images ────
+    const origRenderInv = window.renderInventory;
+    if (typeof origRenderInv === 'function' && !origRenderInv.__v36bw) {
+      window.renderInventory = async function () {
+        const result = await origRenderInv.apply(this, arguments);
+        requestAnimationFrame(() => {
+          const tbody = document.getElementById('inv-tbody');
+          if (!tbody) return;
+          const imgs = tbody.querySelectorAll('img[src*="product-images"]');
+          const observer = getOrCreateImageObserver();
+          if (!observer) return;
+
+          imgs.forEach(img => {
+            if (img.dataset.src || img.dataset.v36observed) return;
+            const realSrc = img.src;
+            if (!realSrc || !realSrc.includes('product-images')) return;
+            img.dataset.src = realSrc;
+            img.dataset.v36observed = '1';
+            img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22/%3E';
+            img.style.opacity = '0.4';
+            img.style.transition = 'opacity 0.3s ease';
+            observer.observe(img);
+          });
+        });
+        return result;
+      };
+      window.renderInventory.__v36bw = true;
+      try { renderInventory = window.renderInventory; } catch (_) { }
+    }
+
+    // ── 3. Export cache helpers to window ────────────────────────
+    window.v36ClearImageCache = clearAllImageCache;
+    window.v36InvalidateImageCache = invalidateImageCache;
+    window.v36GetBandwidthUsed = () => {
+      const mb = (_v36BandwidthBytes / (1024 * 1024)).toFixed(1);
+      return { bytes: _v36BandwidthBytes, mb: mb + ' MB', description: `Session ใช้ bandwidth ไปประมาณ ${mb} MB` };
+    };
+
+    console.log('[v36-bw] ✅ Bandwidth optimization installed (IntersectionObserver + SW cache)');
+  }
+
   function installAll() {
     installSaleSafety();
     installCashSafety();
@@ -5416,6 +5566,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead 
     installNormalCashDisplayBridgeV36();
     installLimitedPosProductGrid(true);
     installInstantPosCartV36();
+    installBandwidthOptimization();
     console.log('[v36] Usage safety patch applied');
   }
 
