@@ -1042,7 +1042,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@600;700;800&display=swap');
     
     @page { 
-      size: 100mm 25mm; 
+      size: 100mm 30mm; /* ปรับความสูงเป็น 30mm ตามขนาดจริงจากไม้บรรทัด */
       margin: 0; 
     }
     
@@ -1062,8 +1062,9 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     .page-row { 
       position: relative;
       width: 100mm; 
-      height: 25mm; 
+      height: 30mm; /* ปรับเป็น 30mm */
       page-break-after: always; 
+      break-after: page; /* บังคับขึ้นหน้าใหม่เสมอ */
       overflow: hidden;
       background: #fff;
     }
@@ -1072,7 +1073,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
       position: absolute;
       top: 0;
       width: 32mm; 
-      height: 25mm; 
+      height: 30mm; 
       overflow: hidden;
     }
     
@@ -1083,7 +1084,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     
     .name { 
       position: absolute;
-      top: 1.5mm;
+      top: 2mm; /* ขยับลงมานิดนึงให้อยู่กึ่งกลางขึ้น */
       left: 1mm;
       width: 30mm;
       font-size: 8.5px; 
@@ -1097,10 +1098,10 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     
     .barcode-container {
       position: absolute;
-      top: 5mm;
+      top: 7mm; /* ขยับบาร์โค้ดลงมาตามสัดส่วน */
       left: 1mm;
       width: 30mm; 
-      height: 12mm; 
+      height: 14mm; 
       display: flex;
       justify-content: center;
       align-items: center;
@@ -1114,7 +1115,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     
     .footer {
       position: absolute;
-      top: 18.5mm; /* ยึดจากด้านบนแทนด้านล่าง กันตกขอบล่างถ้าสติ๊กเกอร์สั้นกว่า 25mm */
+      top: 23.5mm; /* ยึดจากด้านบน กันตกขอบล่าง */
       left: 1.5mm;
       width: 29mm;
       display: flex;
