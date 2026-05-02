@@ -16,6 +16,8 @@ console.log('[v38] Category dashboard loaded');
     category: ALL_CATEGORY,
     stock: 'all',
     search: '',
+    limit: 60,
+    limitKey: '',
     salesCache: null,
     salesCacheAt: 0,
   };
@@ -312,11 +314,13 @@ console.log('[v38] Category dashboard loaded');
 
   function setCategoryFilter(key) {
     state.category = key || ALL_CATEGORY;
+    state.limit = 60;
     renderInventory();
   }
 
   function setStockFilter(key) {
     state.stock = key || 'all';
+    state.limit = 60;
     renderInventory();
   }
 
@@ -327,6 +331,10 @@ console.log('[v38] Category dashboard loaded');
 
   window.v38SetInvCategory = setCategoryFilter;
   window.v38SetInvStock = setStockFilter;
+  window.v38ShowMoreInventory = function () {
+    state.limit = (state.limit || 60) + 60;
+    renderInventory();
+  };
   window.v38SyncCategoriesFromProducts = async function () {
     await syncCategoriesFromProducts(true);
     clearCategoryStatsCache();
@@ -732,6 +740,12 @@ console.log('[v38] Category dashboard loaded');
       const matchSearch = !q || productSearchText(product).includes(q);
       return matchCategory && matchStock && matchSearch;
     }).sort((a, b) => categoryName(a).localeCompare(categoryName(b), 'th') || String(a.name || '').localeCompare(String(b.name || ''), 'th'));
+    const limitKey = `${state.category}|${state.stock}|${state.search}`;
+    if (state.limitKey !== limitKey) {
+      state.limitKey = limitKey;
+      state.limit = 60;
+    }
+    const shown = filtered.slice(0, state.limit || 60);
 
     const allLabel = state.category === ALL_CATEGORY ? 'ทุกหมวดหมู่' : categoryNameFromKey(state.category);
 
@@ -773,7 +787,7 @@ console.log('[v38] Category dashboard loaded');
             <i class="material-icons-round">search</i>
             <input id="v38-inv-search" type="text" placeholder="ค้นหาชื่อสินค้า / บาร์โค้ด / หมายเหตุ / หน่วย" value="${esc(state.search)}">
           </div>
-          <div style="font-size:12px;color:#64748b;font-weight:850">แสดง ${fmt(filtered.length)} จาก ${fmt(total)} รายการ · ${esc(allLabel)}</div>
+          <div style="font-size:12px;color:#64748b;font-weight:850">แสดง ${fmt(shown.length)} จาก ${fmt(filtered.length)} รายการ · ${esc(allLabel)}</div>
         </div>
         <div class="v38-chips">
           <button type="button" onclick="v38SetInvCategory('${ALL_CATEGORY}')" class="v38-chip ${state.category === ALL_CATEGORY ? 'active' : ''}">ทั้งหมด <b>${fmt(total)}</b></button>
@@ -784,15 +798,17 @@ console.log('[v38] Category dashboard loaded');
             <thead><tr>
               <th>รูป</th><th>สินค้า</th><th>บาร์โค้ด</th><th>หมวด</th><th class="right">ราคาขาย</th><th class="right">ต้นทุน</th><th class="center">สต็อก</th><th class="right">จัดการ</th>
             </tr></thead>
-            <tbody>${filtered.length ? filtered.map(productRow).join('') : '<tr><td colspan="8"><div class="v38-empty">ไม่พบสินค้าตามตัวกรองนี้</div></td></tr>'}</tbody>
+            <tbody>${shown.length ? shown.map(productRow).join('') : '<tr><td colspan="8"><div class="v38-empty">ไม่พบสินค้าตามตัวกรองนี้</div></td></tr>'}</tbody>
           </table>
         </div>
+        ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v38ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(60, filtered.length - shown.length))} รายการ</button></div>` : ''}
       </div>
     </div>`;
 
     const search = document.getElementById('v38-inv-search');
     search?.addEventListener('input', () => {
       state.search = search.value || '';
+      state.limit = 60;
       clearTimeout(window.__v38InvSearchTimer);
       window.__v38InvSearchTimer = setTimeout(() => renderInventory(), 180);
     });

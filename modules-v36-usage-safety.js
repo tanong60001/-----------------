@@ -143,8 +143,13 @@ console.log('[v36] Usage safety patch loaded');
     const movements = [];
     const now = new Date().toISOString();
     const stockUpdateMap = new Map();
-    const queueStockUpdate = (productId, stockAfter) => {
-      stockUpdateMap.set(productId, { stock: stockAfter, updated_at: now });
+    const queueStockUpdate = (productId, stockBefore, stockAfter) => {
+      const old = stockUpdateMap.get(productId);
+      stockUpdateMap.set(productId, {
+        stockBefore: old ? old.stockBefore : stockBefore,
+        stockAfter,
+        updated_at: now,
+      });
     };
 
     for (const item of cartSnapshot) {
@@ -189,7 +194,7 @@ console.log('[v36] Usage safety patch loaded');
           }
           const matAfter = Number((matBefore - needed).toFixed(6));
           mat.stock = matAfter;
-          queueStockUpdate(recipe.material_id, matAfter);
+          queueStockUpdate(recipe.material_id, matBefore, matAfter);
           movements.push({
             product_id: recipe.material_id,
             product_name: mat.name || recipe.material_id,
@@ -214,7 +219,7 @@ console.log('[v36] Usage safety patch loaded');
 
       const after = Number((before - baseQty).toFixed(6));
       fresh.stock = after;
-      queueStockUpdate(item.id, after);
+      queueStockUpdate(item.id, before, after);
       movements.push({
         product_id: item.id,
         product_name: item.name || fresh.name,
@@ -231,7 +236,12 @@ console.log('[v36] Usage safety patch loaded');
     }
 
     const stockUpdates = Array.from(stockUpdateMap.entries()).map(([productId, data]) =>
-      db.from(txt.product).update(data).eq('id', productId)
+      db.from(txt.product)
+        .update({ stock: data.stockAfter, updated_at: data.updated_at })
+        .eq('id', productId)
+        .eq('stock', data.stockBefore)
+        .select('id,stock')
+        .maybeSingle()
     );
 
     return { billItems, movements, stockUpdates };
@@ -286,6 +296,9 @@ console.log('[v36] Usage safety patch loaded');
       if (movements.length) await must(db.from('stock_movement').insert(movements), 'บันทึกประวัติสต็อก');
 
       const stockResults = await Promise.all(stockUpdates);
+      if (stockResults.some(res => !res?.error && !res?.data)) {
+        throw new Error('สต็อกถูกเปลี่ยนจากเครื่องอื่น กรุณาโหลดสินค้าใหม่แล้วลองขายอีกครั้ง');
+      }
       stockResults.forEach((res, i) => {
         if (res?.error) throw new Error('ตัดสต็อกไม่สำเร็จรายการที่ ' + (i + 1) + ': ' + res.error.message);
       });
@@ -3147,8 +3160,15 @@ console.log('[v36] Usage safety patch loaded');
     if (window.renderInventory?.__v36invTools) return;
     window.v36InvFilter = window.v36InvFilter || 'all';
     window.v36InvSearch = window.v36InvSearch || '';
+    window.v36InvLimit = window.v36InvLimit || 60;
+    window.v36InvKey = '';
     window.v36SetInvFilter = function (filter) {
       window.v36InvFilter = filter || 'all';
+      window.v36InvLimit = 60;
+      window.renderInventory?.();
+    };
+    window.v36ShowMoreInventory = function () {
+      window.v36InvLimit = (window.v36InvLimit || 60) + 60;
       window.renderInventory?.();
     };
 
@@ -3167,6 +3187,12 @@ console.log('[v36] Usage safety patch loaded');
         const matchFilter = filter === 'low' ? lowList.some(x => x.id === p.id) : filter === 'out' ? outList.some(x => x.id === p.id) : true;
         return matchSearch && matchFilter;
       });
+      const invKey = `${search}|${filter}`;
+      if (window.v36InvKey !== invKey) {
+        window.v36InvKey = invKey;
+        window.v36InvLimit = 60;
+      }
+      const shown = filtered.slice(0, window.v36InvLimit || 60);
 
       section.innerHTML = `
       <div style="max-width:1200px;margin:0 auto;padding-bottom:30px">
@@ -3200,7 +3226,7 @@ console.log('[v36] Usage safety patch loaded');
               <i class="material-icons-round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:20px">search</i>
               <input type="text" id="v36-inv-search" placeholder="ค้นหาสินค้า / บาร์โค้ด / หมวดหมู่..." value="${htmlAttr(search)}" style="width:100%;padding:10px 12px 10px 40px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none">
             </div>
-            <div style="font-size:12px;color:#64748b;font-weight:700">แสดง ${fmt(filtered.length)} จาก ${fmt(total)} รายการ</div>
+            <div style="font-size:12px;color:#64748b;font-weight:700">แสดง ${fmt(shown.length)} จาก ${fmt(filtered.length)} รายการ (ทั้งหมด ${fmt(total)})</div>
           </div>
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;white-space:nowrap">
@@ -3214,9 +3240,10 @@ console.log('[v36] Usage safety patch loaded');
                 <th style="padding:14px 20px;color:#64748b;font-weight:600;font-size:12px;text-transform:uppercase;text-align:center;border-bottom:2px solid #f1f5f9">สต็อก</th>
                 <th style="padding:14px 20px;color:#64748b;font-weight:600;font-size:12px;text-transform:uppercase;text-align:right;border-bottom:2px solid #f1f5f9">จัดการ</th>
               </tr></thead>
-              <tbody>${filtered.length ? filtered.map(productRowHtmlV36).join('') : `<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8">ไม่พบสินค้า</td></tr>`}</tbody>
+              <tbody>${shown.length ? shown.map(productRowHtmlV36).join('') : `<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8">ไม่พบสินค้า</td></tr>`}</tbody>
             </table>
           </div>
+          ${shown.length < filtered.length ? `<div style="padding:16px 20px;border-top:1px solid #e2e8f0;background:#fff;text-align:center"><button type="button" onclick="v36ShowMoreInventory()" style="height:42px;padding:0 18px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i class="material-icons-round">expand_more</i> แสดงเพิ่มอีก ${fmt(Math.min(60, filtered.length - shown.length))} รายการ</button></div>` : ''}
         </div>
       </div>`;
 
