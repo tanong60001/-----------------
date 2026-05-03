@@ -20,7 +20,7 @@
   };
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const staff = () => {
-    try { if (typeof USER !== 'undefined' && USER?.username) return USER.username; } catch (_) {}
+    try { if (typeof USER !== 'undefined' && USER?.username) return USER.username; } catch (_) { }
     return localStorage.getItem('sk_pos_username') || 'system';
   };
 

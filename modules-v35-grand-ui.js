@@ -270,6 +270,8 @@
         padding: 20px;
         cursor: pointer;
         transition: .18s ease;
+        background: color-mix(in srgb, var(--bar) 5%, #ffffff) !important;
+        border: 1px solid color-mix(in srgb, var(--bar) 15%, transparent) !important;
       }
       .v35-project-card:hover {
         transform: translateY(-4px) rotate(-.2deg);
@@ -280,8 +282,8 @@
         position: absolute;
         left: 0;
         top: 0;
-        right: 0;
-        height: 7px;
+        bottom: 0;
+        width: 6px;
         background: var(--bar);
       }
       .v35-project-card::after {

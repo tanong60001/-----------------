@@ -6012,11 +6012,11 @@ async function v9ManageCats(container) {
       : cats.map(c => {
         const prods = v9GetProducts().filter(p => p.category === c.name);
         return `
-              <div style="background:var(--bg-surface,#fff);border:1px solid var(--border-light);
+              <div style="background:color-mix(in srgb, ${c.color || '#DC2626'} 8%, #ffffff);border:1px solid color-mix(in srgb, ${c.color || '#DC2626'} 20%, transparent);
                 border-radius:14px;padding:14px 16px;position:relative;
-                border-left:4px solid ${c.color || '#DC2626'};transition:box-shadow .15s;"
-                onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'"
-                onmouseleave="this.style.boxShadow=''">
+                border-left:4px solid ${c.color || '#DC2626'};transition:all .18s;"
+                onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)';this.style.transform='translateY(-2px)'"
+                onmouseleave="this.style.boxShadow='';this.style.transform='none'">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                   <div style="width:36px;height:36px;border-radius:10px;
                     background:${c.color || '#DC2626'}20;

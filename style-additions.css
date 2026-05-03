@@ -723,7 +723,7 @@ select.form-input {
     justify-content: center !important;
     width: 100% !important;
   }
-  .toolbar-actions { 
+  .toolbar-actions, .v38-head-actions { 
     display: none !important; /* Hidden by default on mobile */
     flex-direction: column !important; 
     width: 100% !important; 
@@ -734,10 +734,10 @@ select.form-input {
     border: 1px solid var(--border-light);
     box-shadow: var(--shadow-sm);
   }
-  .toolbar-actions.show-actions {
+  .toolbar-actions.show-actions, .v38-head-actions.show-actions {
     display: flex !important;
   }
-  .toolbar-actions .btn { 
+  .toolbar-actions .btn, .v38-head-actions .v38-btn { 
     width: 100% !important; 
     justify-content: flex-start !important; 
   }

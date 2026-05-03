@@ -1042,7 +1042,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@600;700;800&display=swap');
     
     @page { 
-      size: 100mm 30mm; /* ปรับความสูงเป็น 30mm ตามขนาดจริงจากไม้บรรทัด */
+      size: 100mm 25mm; /* 3-column roll size */
       margin: 0; 
     }
     
@@ -1062,9 +1062,9 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
     .page-row { 
       position: relative;
       width: 100mm; 
-      height: 30mm; /* ปรับเป็น 30mm */
+      height: 25mm; 
       page-break-after: always; 
-      break-after: page; /* บังคับขึ้นหน้าใหม่เสมอ */
+      break-after: page; 
       overflow: hidden;
       background: #fff;
     }
@@ -1073,66 +1073,78 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
       position: absolute;
       top: 0;
       width: 32mm; 
-      height: 30mm; 
+      height: 25mm; 
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
     }
     
-    /* ระยะซ้ายของแต่ละดวง (ดวงละ 32mm + ช่องว่าง 2mm) */
+    /* ระยะซ้ายของแต่ละดวงใน 1 แถว */
     .sticker-0 { left: 0mm; }
     .sticker-1 { left: 34mm; }
     .sticker-2 { left: 68mm; }
     
-    .name { 
-      position: absolute;
-      top: 2mm; /* ขยับลงมานิดนึงให้อยู่กึ่งกลางขึ้น */
-      left: 1mm;
-      width: 30mm;
-      font-size: 8.5px; 
-      font-weight: 700; 
-      white-space: nowrap; 
-      overflow: hidden; 
-      text-overflow: ellipsis; 
+    /* เซฟโซนบีบเข้ามาทั้ง 4 ด้าน */
+    .safe-zone {
+      width: 26mm; /* บีบซ้ายขวาด้านละ 3mm */
+      height: 21mm; /* บีบบนล่างด้านละ 2mm */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+
+    .prod-name {
+      font-size: 6px;
+      font-weight: 700;
+      line-height: 1.1;
+      color: #000;
+      width: 100%;
       text-align: center;
-      line-height: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-all;
     }
     
-    .barcode-container {
-      position: absolute;
-      top: 7mm; /* ขยับบาร์โค้ดลงมาตามสัดส่วน */
-      left: 1mm;
-      width: 30mm; 
-      height: 14mm; 
+    .prod-price {
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1;
+      color: #000;
+      margin: 1mm 0;
+      text-align: center;
+      width: 100%;
+      letter-spacing: -0.5px;
+    }
+
+    .bottom-section {
+      width: 100%;
       display: flex;
       justify-content: center;
       align-items: center;
     }
-    
+
     .barcode-svg { 
-      width: 100%; 
-      height: 100%;
+      max-width: 100%; 
+      max-height: 100%;
       object-fit: contain;
     }
-    
-    .footer {
-      position: absolute;
-      top: 23.5mm; /* ยึดจากด้านบน กันตกขอบล่าง */
-      left: 1.5mm;
-      width: 29mm;
-      display: flex;
-      justify-content: space-between; 
-      align-items: center;
-      line-height: 1;
-    }
-    
+
     .shop-name {
-      font-size: 7px;
+      font-size: 5px;
       font-weight: 600;
-      color: #111;
-    }
-    
-    .price { 
-      font-size: 11px; 
-      font-weight: 800; 
+      color: #000;
+      width: 100%;
+      text-align: center;
+      margin-top: 1mm;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
@@ -1145,13 +1157,13 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
       if (printed < count) {
         html += `
         <div class="sticker sticker-${c}">
-          <div class="name">${name || ''}</div>
-          <div class="barcode-container">
-             <svg class="barcode-svg" data-val="${barcode}"></svg>
-          </div>
-          <div class="footer">
-             <div class="shop-name">SK Materials</div>
-             <div class="price">${Number(price || 0).toLocaleString()}.-</div>
+          <div class="safe-zone">
+            <div class="prod-name">${name || ''}</div>
+            <div class="prod-price">฿${Number(price || 0).toLocaleString()}</div>
+            <div class="bottom-section">
+               <svg class="barcode-svg" data-val="${barcode}"></svg>
+            </div>
+            <div class="shop-name">หจก. เอสเค วัสดุ</div>
           </div>
         </div>`;
         printed++;
@@ -1171,7 +1183,7 @@ window.v24PrintBarcodeSticker = function(barcode, name, price, count) {
             fontOptions: "bold",
             margin: 0,
             textMargin: 1,
-            height: 30, 
+            height: 14, 
             width: 1.1  
          });
       });

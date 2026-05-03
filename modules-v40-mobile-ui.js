@@ -343,17 +343,6 @@
           text-align: center !important;
         }
 
-        .pos-cart {
-          width: min(92vw, 420px) !important;
-          max-width: 92vw !important;
-          right: 4vw !important;
-          left: auto !important;
-          top: 72px !important;
-          bottom: calc(12px + env(safe-area-inset-bottom)) !important;
-          height: auto !important;
-          border-radius: 14px !important;
-          box-shadow: 0 24px 70px rgba(15, 23, 42, .22) !important;
-        }
 
         .cart-header,
         .cart-summary,

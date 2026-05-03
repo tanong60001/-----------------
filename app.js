@@ -2480,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Guarantees any table rendered dynamically by JS works perfectly on mobile without touching original functions
   setInterval(() => {
     if (window.innerWidth > 768) return;
-    document.querySelectorAll('.data-table').forEach(table => {
+    document.querySelectorAll('.data-table, .v38-table, .payable-table').forEach(table => {
       const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
       if (headers.length === 0) return;
       table.querySelectorAll('tbody tr').forEach(row => {
@@ -2493,8 +2493,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Handle floating toolbar actions (Inventory buttons ONLY)
-    document.querySelectorAll('#page-inv .inv-toolbar').forEach(toolbar => {
-      const actions = toolbar.querySelector('.toolbar-actions');
+    document.querySelectorAll('#page-inv .inv-toolbar, #page-inv .v38-head').forEach(toolbar => {
+      const actions = toolbar.querySelector('.toolbar-actions, .v38-head-actions');
       if (actions && !toolbar.querySelector('.mobile-action-toggle') && actions.children.length > 0) {
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'btn btn-outline mobile-action-toggle hidden-desktop';
