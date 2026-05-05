@@ -332,7 +332,7 @@
         db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(billLimit),
         db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
         db.from('รายจ่าย').select('amount, category, description, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
-        db.from('เช็คชื่อ').select('employee_id, status, date, deduction').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
+        db.from('เช็คชื่อ').select('employee_id, status, date, deduction, note').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
         db.from('เบิกเงิน').select('amount, status, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
         db.from('ชำระหนี้').select('amount, method, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
         db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startStr + 'T00:00:00').lte('paid_date', endStr + 'T23:59:59').limit(otherLimit),
@@ -377,9 +377,11 @@
            let baseAmt = 0;
            let wage = empWages[a.employee_id] || 0;
            if (a.status === 'มา' || a.status === 'มาสาย') baseAmt = wage;
-           else if (a.status === 'ลาครึ่งวัน') baseAmt = wage / 2;
+           else if (a.status === 'ลาครึ่งวัน' || a.status === 'ครึ่งวัน' || a.status === 'มาครึ่งวัน') baseAmt = wage / 2;
            baseAmt -= parseFloat(a.deduction || 0);
-           return { paid_date: a.date, net_paid: Math.max(0, baseAmt) };
+           const note = String(a.note || '');
+           const isProjectLabor = note.includes('[สถานที่ทำงาน:โครงการ:');
+           return { paid_date: a.date, net_paid: Math.max(0, baseAmt), work_type: isProjectLabor ? 'project' : 'store' };
         });
       }
 
@@ -427,8 +429,11 @@
       const actualCOGS = Math.max(0, rawCogs - returnedCogs);
 
       // 3. OPEX
-      const sumExpenses = expensesForPL.reduce((s, e) => s + parseFloat(e.amount || 0), 0) + sumProjExpenses;
+      const sumStoreExpenses = expensesForPL.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+      const sumExpenses = sumStoreExpenses + sumProjExpenses;
       const sumSalariesAccrued = salaries.reduce((s, e) => s + parseFloat(e.net_paid || 0), 0); // จากเช็คชื่อรายวัน (P&L)
+      const sumStoreSalariesAccrued = salaries.filter(e => e.work_type !== 'project').reduce((s, e) => s + parseFloat(e.net_paid || 0), 0);
+      const sumProjectSalariesAccrued = salaries.filter(e => e.work_type === 'project').reduce((s, e) => s + parseFloat(e.net_paid || 0), 0);
       const sumAdvances = advances.reduce((s, a) => s + parseFloat(a.amount || 0), 0);
 
       const payrollPaid = payrollR.data || [];
@@ -526,16 +531,36 @@
           
           <div class="pl-group-header">หัก ค่าใช้จ่ายการดำเนินงาน (OPEX)</div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">รายจ่ายรวม (ร้าน + โครงการ)</div>
-            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumExpenses))}</div>
+            <div>
+              <div class="pl-line-item">รายจ่ายหน้าร้าน</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">รายจ่ายทั่วไปของร้าน ไม่รวมรายจ่ายโครงการ</div>
+            </div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumStoreExpenses))}</div>
+          </div>
+          <div class="dash-v3-row">
+            <div>
+              <div class="pl-line-item">รายจ่ายโครงการ</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">วัสดุ/ค่าใช้จ่ายที่ลงในระบบโครงการ</div>
+            </div>
+            <div class="pl-line-val" style="color:#8b5cf6;">-฿${formatNum(Math.round(sumProjExpenses))}</div>
           </div>
           <div class="dash-v3-row">
             <div class="pl-line-item">เบิกเงินล่วงหน้าพนักงาน</div>
             <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumAdvances))}</div>
           </div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">เงินเดือน/ค่าแรงพนักงาน (ค้างจ่าย/รับจริง)</div>
-            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumSalariesAccrued))}</div>
+            <div>
+              <div class="pl-line-item">ค่าแรงหน้าร้านจากเช็คชื่อ</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">คนที่เลือกอยู่หน้าร้านหลังเช็คชื่อ</div>
+            </div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumStoreSalariesAccrued))}</div>
+          </div>
+          <div class="dash-v3-row">
+            <div>
+              <div class="pl-line-item">ค่าแรงโครงการจากเช็คชื่อ</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">คนที่เลือกไปโครงการหลังเช็คชื่อ</div>
+            </div>
+            <div class="pl-line-val" style="color:#8b5cf6;">-฿${formatNum(Math.round(sumProjectSalariesAccrued))}</div>
           </div>
 
           <div class="dash-v3-net-box" style="--card-bg-sub: ${netProfit >= 0 ? '#10b981' : '#ef4444'}">
@@ -567,8 +592,18 @@
             <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumPurchases))}</div>
           </div>
           <div class="dash-v3-row">
-            <div class="pl-line-item">เบิกเงินล่วงหน้า / จ่ายค่าจ้างร้าน / จิปาถะ</div>
-            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumExpenses + sumAdvances))}</div>
+            <div>
+              <div class="pl-line-item">รายจ่ายหน้าร้าน + เบิกเงินล่วงหน้า</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">จิปาถะ/ค่าใช้จ่ายร้าน แยกจากรายจ่ายโครงการ</div>
+            </div>
+            <div class="pl-line-val" style="color:#ef4444;">-฿${formatNum(Math.round(sumStoreExpenses + sumAdvances))}</div>
+          </div>
+          <div class="dash-v3-row">
+            <div>
+              <div class="pl-line-item">รายจ่ายโครงการที่จ่ายแล้ว</div>
+              <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">อ้างอิงจากรายการโครงการที่มีวันที่จ่าย</div>
+            </div>
+            <div class="pl-line-val" style="color:#8b5cf6;">-฿${formatNum(Math.round(sumProjExpenses))}</div>
           </div>
           <div class="dash-v3-row">
             <div class="pl-line-item">จ่ายเงินเดือนพนักงาน (ผ่านระบบจ่ายเงินเดือน)</div>

@@ -1,0 +1,204 @@
+=== DUPLICATE FUNCTIONS ===
+closeModal is defined in: app.js, modules-v9.js
+calcChangeDenominations is defined in: app.js, modules-v12.js
+sendToDisplay is defined in: app.js, modules-v3.js
+initApp is defined in: app.js, modules-v9.js
+go is defined in: app.js, modules-v10.js, modules-v12.js, modules-v14.js, modules-v15.js, modules-v16.js, modules-v36-usage-safety.js, modules-v9.js
+updateHomeStats is defined in: app.js, modules-v11.js
+loadProducts is defined in: app.js, modules-v25-quotation.js, modules-v36-usage-safety.js, modules-v9.js
+renderProductGrid is defined in: app.js, modules-v36-usage-safety.js, modules-v9.js
+addToCart is defined in: app.js, modules-v36-usage-safety.js, modules-v9.js
+updateCartQty is defined in: app.js, modules-v36-usage-safety.js, modules-v9.js
+removeFromCart is defined in: app.js, modules-v36-usage-safety.js, modules-v9.js
+renderCart is defined in: app.js, modules-v33-fixes.js, modules-v9.js
+startCheckout is defined in: app.js, modules-v12.js, modules-v20.js, modules-v23.js, modules-v3.js, modules-v36-usage-safety.js, modules-v43-checkout-polish.js
+closeCheckout is defined in: app.js, modules-v12.js, modules-v19.js, modules-v20.js, modules-v23.js, modules-v24-display.js
+nextCheckoutStep is defined in: app.js, modules-v2-patch.js, modules-v33-fixes.js
+renderCheckoutStep is defined in: app.js, modules-v36-usage-safety.js
+selectCustomerType is defined in: app.js, modules-v9.js
+createNewCustomer is defined in: app.js, modules-v9.js
+selectPaymentMethod is defined in: app.js, modules-v3.js
+renderStep3 is defined in: app.js, modules-v36-usage-safety.js
+renderStep4 is defined in: app.js, modules-v36-usage-safety.js
+completePayment is defined in: app.js, modules-v2-patch.js, modules-v2.js, modules-v33-fixes.js, modules-v36-usage-safety.js
+renderInventory is defined in: app.js, modules-v2.js, modules-v34-ui.js, modules-v36-usage-safety.js, modules-v9.js
+showAddProductModal is defined in: app.js, modules-v36-usage-safety.js, modules-v9.js
+editProduct is defined in: app.js, modules-v9.js
+saveProduct is defined in: app.js, modules-v36-usage-safety.js, modules-v49-admin-commission-audit.js
+adjustStock is defined in: app.js, modules-v49-admin-commission-audit.js
+deleteProduct is defined in: app.js, modules-v36-usage-safety.js, modules-v49-admin-commission-audit.js
+generateBarcode is defined in: app.js, modules-v4-8.js
+loadCashBalance is defined in: app.js, modules-v37-daily-cash-print.js
+renderCashDrawer is defined in: app.js, modules-v32-cashui.js, modules-v37-daily-cash-print.js, modules-v4-8.js, modules-v9.js
+openCashSession is defined in: app.js, modules-v32-cashui.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js, modules-v4-8.js
+cashMovement is defined in: app.js, modules-v36-usage-safety.js
+renderHistory is defined in: app.js, modules-v12.js, modules-v20.js, modules-v24-print.js, modules-v39-sales-polish.js, modules-v4-8.js
+loadHistoryData is defined in: app.js, modules-v10.js
+cancelBill is defined in: app.js, modules-v10.js, modules-v20.js
+showAddExpenseModal is defined in: app.js, modules-v2.js, modules-v26-hr.js, modules-v28.js, modules-v4-8.js, modules-v45-polished-popups.js
+renderDebts is defined in: app.js, modules-v10.js, modules-v2.js, modules-v24-print.js
+renderPurchases is defined in: app.js, modules-v2.js, modules-v34-ui.js, modules-v9.js
+showAddPurchaseModal is defined in: app.js, modules-v2.js, modules-v4-8.js, modules-v9.js
+renderAttendance is defined in: app.js, modules-v2.js, modules-v26-hr.js, modules-v3.js, modules-v35-grand-ui.js, modules-v4-8.js, modules-v48-final-staff-sales.js
+checkIn is defined in: app.js, modules-v9.js
+renderActivityLog is defined in: app.js, modules-v36-usage-safety.js, modules-v50-final-pos-admin-project.js
+renderPayables is defined in: app.js, modules-v10.js, modules-v9.js
+payPayable is defined in: app.js, modules-v33-fixes.js
+renderQuotations is defined in: app.js, modules-v2-patch.js, modules-v34-ui.js, modules-v9.js
+showAddQuotationModal is defined in: app.js, modules-v2.js
+convertQuotation is defined in: app.js, modules-v9.js
+renderDashboard is defined in: app.js, modules-v9.js
+renderAdmin is defined in: app.js, modules-v10.js, modules-v3.js, modules-v36-usage-safety.js, modules-v49-admin-commission-audit.js, modules-v9.js
+deleteUser is defined in: app.js, modules-v36-usage-safety.js
+deleteCat is defined in: app.js, modules-v36-usage-safety.js
+editCat is defined in: app.js, modules-v38-category-dashboard.js
+v10GetDocSettings is defined in: modules-v10.js, modules-v21.js
+v9RenderAdminTab is defined in: modules-v10.js, modules-v9.js
+renderAdminTabs is defined in: modules-v10.js, modules-v49-admin-commission-audit.js, modules-v9.js
+v10RenderDocSettingsInto is defined in: modules-v10.js, modules-v21.js
+v10BuildToggles is defined in: modules-v10.js, modules-v11.js
+v10PreviewA4 is defined in: modules-v10.js, modules-v11.js
+v10PreviewQuotation is defined in: modules-v10.js, modules-v11.js
+v9PrintQuotation is defined in: modules-v10.js, modules-v25-quotation.js, modules-v9.js
+v10ConfirmReturn is defined in: modules-v10.js, modules-v11.js, modules-v36-usage-safety.js
+printReceiptA4v2 is defined in: modules-v10.js, modules-v11.js, modules-v2.js, modules-v21.js, modules-v4-8.js
+patchGo is defined in: modules-v10.js, modules-v12.js, modules-v14.js, modules-v15.js
+tryPatch is defined in: modules-v10.js, modules-v18.js, modules-v19.js, modules-v20.js, modules-v23.js, modules-v24-display.js
+printQuotation is defined in: modules-v11.js, modules-v2-patch.js
+v12UpdateStepBar is defined in: modules-v12.js, modules-v13.js, modules-v15.js, modules-v16.js
+v12RenderStepBody is defined in: modules-v12.js, modules-v36-usage-safety.js
+v12NextStep is defined in: modules-v12.js, modules-v13.js, modules-v14.js, modules-v15.js, modules-v16.js, modules-v18.js, modules-v23.js, modules-v36-usage-safety.js
+v12PrevStep is defined in: modules-v12.js, modules-v13.js, modules-v15.js, modules-v16.js, modules-v18.js, modules-v23.js
+v12UpdateUI is defined in: modules-v12.js, modules-v13.js
+v12S1 is defined in: modules-v12.js, modules-v13.js, modules-v14.js
+v12S2 is defined in: modules-v12.js, modules-v36-usage-safety.js
+v12SetItemMode is defined in: modules-v12.js, modules-v36-usage-safety.js
+v12S4 is defined in: modules-v12.js, modules-v13.js, modules-v14.js, modules-v16.js, modules-v23.js, modules-v36-usage-safety.js, modules-v47-pos-project-polish.js
+v12SetMethod is defined in: modules-v12.js, modules-v14.js, modules-v15.js
+v12S5 is defined in: modules-v12.js, modules-v13.js, modules-v14.js, modules-v27.js, modules-v28.js, modules-v36-usage-safety.js
+v12S6 is defined in: modules-v12.js, modules-v13.js, modules-v15.js, modules-v16.js, modules-v17.js, modules-v24-print.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js
+v12CompletePayment is defined in: modules-v12.js, modules-v14.js, modules-v16.js, modules-v17.js, modules-v18.js, modules-v20.js, modules-v23.js, modules-v36-usage-safety.js, modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js
+v12PrintReceipt80mm is defined in: modules-v12.js, modules-v19.js, modules-v24-print.js
+v12PrintDeliveryNote is defined in: modules-v12.js, modules-v33-fixes.js
+renderDelivery is defined in: modules-v12.js, modules-v34-ui.js
+v12DQPrintNote is defined in: modules-v12.js, modules-v25-quotation.js, modules-v33-fixes.js
+v12DQMarkDone is defined in: modules-v12.js, modules-v14.js, modules-v33-fixes.js, modules-v36-usage-safety.js
+v12BMCSetTab is defined in: modules-v12.js, modules-v20.js
+v12BMCLoad is defined in: modules-v12.js, modules-v13.js, modules-v14.js, modules-v19.js, modules-v20.js, modules-v24-print.js
+v12BMCBadge is defined in: modules-v12.js, modules-v22.js
+v12BMCMethodBadge is defined in: modules-v12.js, modules-v22.js
+v12BMCExport is defined in: modules-v12.js, modules-v20.js
+v12ReturnBill is defined in: modules-v12.js, modules-v20.js
+v13SelectCustType is defined in: modules-v13.js, modules-v14.js
+renderProjects is defined in: modules-v14.js, modules-v35-grand-ui.js
+v14LoadProjects is defined in: modules-v14.js, modules-v22.js
+v14OpenProject is defined in: modules-v14.js, modules-v17.js, modules-v22.js, modules-v23-projectui.js
+v14AddExpense is defined in: modules-v14.js, modules-v22.js, modules-v44-project-expense-cash.js
+v14CompleteProject is defined in: modules-v14.js, modules-v22.js
+goProjects is defined in: modules-v15.js, modules-v16.js
+run is defined in: modules-v15.js, modules-v16.js
+injectCSS is defined in: modules-v16.js, modules-v23-projectui.js, modules-v31-payrollui.js, modules-v35-grand-ui.js
+_skSetMethod is defined in: modules-v16.js, modules-v18.js, modules-v36-usage-safety.js
+renderDashboardV3 is defined in: modules-v17.js, modules-v18.js, modules-v20.js
+from is defined in: modules-v17.js, modules-v18.js
+gte is defined in: modules-v17.js, modules-v19.js, modules-v20.js
+lte is defined in: modules-v19.js, modules-v20.js
+patchCloseCheckout is defined in: modules-v19.js, modules-v23.js
+printReceipt is defined in: modules-v2-patch.js, modules-v2.js, modules-v24-print.js, modules-v37-daily-cash-print.js, modules-v50-final-pos-admin-project.js, modules-v9.js
+openDenomWizard is defined in: modules-v2.js, modules-v27.js, modules-v28.js
+selectPurchaseProduct is defined in: modules-v2.js, modules-v4-8.js
+addPurchaseItem is defined in: modules-v2.js, modules-v4-8.js
+recordDebtPayment is defined in: modules-v2.js, modules-v28.js, modules-v33-fixes.js, modules-v45-polished-popups.js, modules-v9.js
+print80mmv2 is defined in: modules-v2.js, modules-v21.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js, modules-v4-8.js
+openAdvanceWizard is defined in: modules-v2.js, modules-v26-hr.js, modules-v4-8.js, modules-v9.js
+cashMovementWithDenom is defined in: modules-v2.js, modules-v9.js
+closeCashSessionWithCount is defined in: modules-v2.js, modules-v4-8.js
+v20BMCPayDebt is defined in: modules-v20.js, modules-v28.js, modules-v33-fixes.js
+v21BuildQRHtml is defined in: modules-v21.js, modules-v36-usage-safety.js
+v24PrintDocument is defined in: modules-v24-print.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js, modules-v47-pos-project-polish.js
+v24ShowDocSelector is defined in: modules-v24-print.js, modules-v36-usage-safety.js
+v9ShowQuotModal is defined in: modules-v25-quotation.js, modules-v9.js
+v9ConvertQuotation is defined in: modules-v25-quotation.js, modules-v9.js
+v26SaveAll is defined in: modules-v26-hr.js, modules-v33-fixes.js
+renderPayrollV26 is defined in: modules-v26-hr.js, modules-v27.js, modules-v31-payrollui.js, modules-v33-fixes.js, modules-v41-payroll-hotfix.js
+v26HidePayDetail is defined in: modules-v26-hr.js, modules-v31-payrollui.js, modules-v33-fixes.js
+v26ShowPayDetail is defined in: modules-v26-hr.js, modules-v27.js, modules-v31-payrollui.js, modules-v33-fixes.js
+v26DoPay is defined in: modules-v26-hr.js, modules-v31-payrollui.js, modules-v33-fixes.js
+v26StartCashWizard is defined in: modules-v26-hr.js, modules-v27.js, modules-v28.js
+fmt is defined in: modules-v27.js, modules-v28.js, modules-v38-category-dashboard.js
+loadDrawer is defined in: modules-v27.js, modules-v28.js
+billCard is defined in: modules-v27.js, modules-v28.js
+coinCard is defined in: modules-v27.js, modules-v28.js
+bindCards is defined in: modules-v27.js, modules-v28.js
+onclick is defined in: modules-v27.js, modules-v28.js, modules-v32-cashui.js, modules-v35-grand-ui.js
+oncontextmenu is defined in: modules-v27.js, modules-v28.js
+rT is defined in: modules-v27.js, modules-v28.js
+cT is defined in: modules-v27.js, modules-v28.js
+render is defined in: modules-v27.js, modules-v28.js, modules-v32-cashui.js
+handle is defined in: modules-v27.js, modules-v28.js, modules-v36-usage-safety.js
+done is defined in: modules-v27.js, modules-v28.js
+genWiz is defined in: modules-v27.js, modules-v28.js
+gT is defined in: modules-v27.js, modules-v28.js, modules-v32-cashui.js
+v28ExpenseWiz is defined in: modules-v28.js, modules-v36-usage-safety.js
+saveDebt is defined in: modules-v28.js, modules-v33-fixes.js
+onload is defined in: modules-v28.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js, modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js, modules-v50-final-pos-admin-project.js, modules-v9.js
+saveReceiptSettings is defined in: modules-v3.js, modules-v4-8.js
+openBillCheckout is defined in: modules-v3.js, modules-v4-8.js
+bcShowMember is defined in: modules-v3.js, modules-v9.js
+bcMethod is defined in: modules-v3.js, modules-v4-8.js, modules-v9.js
+bcConfirm is defined in: modules-v3.js, modules-v33-fixes.js, modules-v4-8.js, modules-v9.js
+switchAttTab is defined in: modules-v3.js, modules-v4-8.js
+v9Sale is defined in: modules-v30-fastsale.js, modules-v9.js
+v9PayCreditor is defined in: modules-v33-fixes.js, modules-v9.js
+wrapped is defined in: modules-v33-fixes.js, modules-v36-usage-safety.js, modules-v38-category-dashboard.js
+recordCashTx is defined in: modules-v33-fixes.js, modules-v36-usage-safety.js, modules-v37-daily-cash-print.js, modules-v9.js
+effectiveTotal is defined in: modules-v33-fixes.js, modules-v36-usage-safety.js
+parseReturnInfo is defined in: modules-v33-fixes.js, modules-v38-category-dashboard.js
+fetchBillAndItems is defined in: modules-v33-fixes.js, modules-v36-usage-safety.js
+v9RenderManage is defined in: modules-v34-ui.js, modules-v35-grand-ui.js, modules-v9.js
+v9SwitchManageTab is defined in: modules-v35-grand-ui.js, modules-v9.js
+userName is defined in: modules-v36-usage-safety.js, modules-v49-admin-commission-audit.js
+must is defined in: modules-v36-usage-safety.js, modules-v37-daily-cash-print.js
+v9ShowOverlay is defined in: modules-v36-usage-safety.js, modules-v9.js
+uploadImageToSupabase is defined in: modules-v36-usage-safety.js, modules-v9.js
+v9SaveProduct is defined in: modules-v36-usage-safety.js, modules-v9.js
+v36AdminOpenSection is defined in: modules-v36-usage-safety.js, modules-v50-final-pos-admin-project.js
+v9RecipeAddMat is defined in: modules-v36-usage-safety.js, modules-v45-polished-popups.js, modules-v9.js
+v9RecipeEditFull is defined in: modules-v36-usage-safety.js, modules-v9.js
+v36SetInvFilter is defined in: modules-v36-usage-safety.js, modules-v47-pos-project-polish.js
+v36ShowMoreInventory is defined in: modules-v36-usage-safety.js, modules-v47-pos-project-polish.js
+showImportProductsCsvModal is defined in: modules-v36-usage-safety.js, modules-v38-category-dashboard.js
+v5PrintFromHistory is defined in: modules-v36-usage-safety.js, modules-v4-8.js, modules-v9.js
+installAll is defined in: modules-v36-usage-safety.js, modules-v37-daily-cash-print.js
+money is defined in: modules-v38-category-dashboard.js, modules-v41-payroll-hotfix.js
+install is defined in: modules-v39-sales-polish.js, modules-v45-polished-popups.js
+v4CompletePayment is defined in: modules-v4-8.js, modules-v9.js
+v4InjectPanel is defined in: modules-v4-8.js, modules-v9.js
+panelCard is defined in: modules-v4-8.js, modules-v9.js
+v4GetCurrentDenoms is defined in: modules-v4-8.js, modules-v9.js
+v5LoadCheckin is defined in: modules-v4-8.js, modules-v9.js
+v5LoadAdvance is defined in: modules-v4-8.js, modules-v9.js
+v5NewAdvance is defined in: modules-v4-8.js, modules-v9.js
+v5SubmitAdvance is defined in: modules-v4-8.js, modules-v9.js
+v5LoadPayroll is defined in: modules-v4-8.js, modules-v9.js
+getShopConfig is defined in: modules-v4-8.js, modules-v9.js
+v7ShowLoading is defined in: modules-v4-8.js, modules-v9.js
+v7HideLoading is defined in: modules-v4-8.js, modules-v9.js
+savePurchaseOrder is defined in: modules-v4-8.js, modules-v9.js
+v7ConfirmAdvance is defined in: modules-v4-8.js, modules-v9.js
+v7ConfirmPayroll is defined in: modules-v4-8.js, modules-v9.js
+injectStyle is defined in: modules-v41-payroll-hotfix.js, modules-v42-product-actions.js, modules-v44-project-expense-cash.js, modules-v45-polished-popups.js, modules-v46-multidevice-scanner-payroll.js, modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js, modules-v50-final-pos-admin-project.js
+v41SavePayroll is defined in: modules-v41-payroll-hotfix.js, modules-v46-multidevice-scanner-payroll.js
+v9ShowUnitModal is defined in: modules-v42-product-actions.js, modules-v9.js
+v9RecipeCalcCost is defined in: modules-v45-polished-popups.js, modules-v9.js
+v9RecipeSave is defined in: modules-v45-polished-popups.js, modules-v9.js
+v9RecipeShowCreate is defined in: modules-v45-polished-popups.js, modules-v9.js
+boot is defined in: modules-v46-multidevice-scanner-payroll.js, modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js, modules-v50-final-pos-admin-project.js
+isProjectBill is defined in: modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js, modules-v50-final-pos-admin-project.js
+markSavedProjectBill is defined in: modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js
+loadBillAndItems is defined in: modules-v47-pos-project-polish.js, modules-v48-final-staff-sales.js
+normalizeTiers is defined in: modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js
+defaultTiers is defined in: modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js
+commissionFor is defined in: modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js
+renderStaffSalesDashboard is defined in: modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js
+v48OpenCommissionSettings is defined in: modules-v48-final-staff-sales.js, modules-v49-admin-commission-audit.js
