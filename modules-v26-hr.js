@@ -541,7 +541,7 @@ sec.innerHTML = `
       <div class="v26-grid">${active.map(e => v26Card(e)).join('')}</div>
       <div class="v26-save-wrap">
         <button class="v26-save-btn" id="v26-save-btn" onclick="v26SaveAll()">
-          <i class="material-icons-round">save</i> บันทึกทั้งหมด
+          <i class="material-icons-round">navigate_next</i> ถัดไป
         </button>
       </div>
     </div>`;
@@ -615,38 +615,10 @@ function v26UpdStats() {
 }
 
 window.v26SaveAll = async function () {
-  const btn = document.getElementById('v26-save-btn');
-  if (btn) { btn.classList.add('saving'); btn.innerHTML = '<i class="material-icons-round">sync</i> กำลังบันทึก...'; }
-  const today = new Date().toISOString().split('T')[0];
-  const now = new Date();
-  let ok = 0, skip = 0;
-  try {
-    for (const [eid, d] of Object.entries(v26Att)) {
-      if (!d.st) { skip++; continue; }
-      const { data: emp } = await db.from('พนักงาน').select('daily_wage,salary,pay_type').eq('id', eid).maybeSingle();
-
-      let ded = 0;
-      if (emp?.pay_type === 'รายเดือน') {
-        const dailyEq = (emp.salary || 0) / 30;
-        if (d.st === 'ขาด') ded = dailyEq * 1;
-        else if (d.st === 'มาครึ่งวัน') ded = dailyEq * 0.5;
-        else if (d.st === 'มาสาย') ded = dailyEq * 0.05;
-      } else {
-        const dWage = emp?.daily_wage || 0;
-        if (d.st === 'มาครึ่งวัน') ded = dWage * 0.5;
-        else if (d.st === 'มาสาย') ded = dWage * 0.05;
-      }
-      ded = Math.round(ded);
-
-      const rec = { employee_id: eid, date: today, status: d.st, deduction: ded, note: d.note || '', staff_name: USER?.username, time_in: d.tin || (d.st !== 'ขาด' ? now.toTimeString().slice(0, 5) : null) };
-      if (d.aid) { await db.from('เช็คชื่อ').update(rec).eq('id', d.aid); }
-      else { const { data: n } = await db.from('เช็คชื่อ').insert(rec).select().single(); if (n) v26Att[eid].aid = n.id; }
-      ok++;
-    }
-    toast(`บันทึกสำเร็จ ${ok} คน${skip > 0 ? ` (ข้าม ${skip})` : ''}`, 'success');
-    logActivity('เช็คชื่อพนักงาน', `บันทึก ${ok} คน`);
-  } catch (e) { console.error(e); toast('Error: ' + e.message, 'error'); }
-  if (btn) { btn.classList.remove('saving'); btn.innerHTML = '<i class="material-icons-round">save</i> บันทึกทั้งหมด'; }
+  if (typeof window.v51AttendanceNext === 'function') {
+    return window.v51AttendanceNext();
+  }
+  toast('ระบบเลือกสถานที่ทำงานยังไม่โหลด กรุณารีเฟรชหน้าเว็บ', 'error');
 };
 
 // ══════════════════════════════════════

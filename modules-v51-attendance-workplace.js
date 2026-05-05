@@ -276,9 +276,12 @@
     window.__v51Projects = activeProjects;
 
     if (!rows.length) {
+      const ok = confirm('ไม่มีพนักงานที่มาทำงานจริง (มีเฉพาะ ลา/ขาด) ต้องการบันทึกสถานะตอนนี้หรือไม่?');
+      if (!ok) return;
+
       try {
         const savedCount = await saveAllFinal();
-        toast?.(`บันทึกเช็คชื่อ ${savedCount} คน${skippedCount ? ` (ยังไม่ลง ${skippedCount})` : ''} (ไม่มีพนักงานปฏิบัติงานจริง)`, 'success');
+        toast?.(`บันทึกเช็คชื่อ ${savedCount} คน${skippedCount ? ` (ยังไม่ลง ${skippedCount})` : ''}`, 'success');
         window.renderAttendance?.();
       } catch (e) {
         toast?.('บันทึกไม่สำเร็จ: ' + e.message, 'error');
@@ -382,7 +385,7 @@
     return result;
   };
 
-  window.v26SaveAll = async function () {
+  window.v51AttendanceNext = async function () {
     injectStyle();
     const btn = document.getElementById('v26-save-btn');
     if (btn) { btn.classList.add('saving'); btn.innerHTML = '<i class="material-icons-round">sync</i> กำลังเตรียมข้อมูล...'; }
@@ -401,19 +404,24 @@
     }
   };
 
+  window.v26SaveAll = window.v51AttendanceNext;
   try { renderAttendance = window.renderAttendance; } catch (_) { }
-  try { v26SaveAll = window.v26SaveAll; } catch (_) { }
+  try { v26SaveAll = window.v51AttendanceNext; } catch (_) { }
 
-  function v51BindNextButton() {
+  function v51ForceBindAttendanceButton() {
     const btn = document.getElementById('v26-save-btn');
-    if (!btn || btn.dataset.v51Bound) return;
+    if (!btn) return;
 
+    // เปลี่ยนหน้าตาปุ่มเสมอเพื่อความชัวร์
     btn.innerHTML = '<i class="material-icons-round">navigate_next</i> ถัดไป';
     btn.title = 'เตรียมข้อมูล แล้วเลือกสถานที่ทำงาน';
     btn.removeAttribute('onclick');
     btn.onclick = null;
-    btn.dataset.v51Bound = 'true';
 
+    if (btn.dataset.v51Bound === '1') return;
+    btn.dataset.v51Bound = '1';
+
+    // ใช้ cloneNode ล้าง event listener เก่า และใช้ capture phase เพื่อความแรง
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
 
@@ -421,8 +429,8 @@
       e.preventDefault();
       e.stopPropagation();
       window.v26SaveAll();
-    });
+    }, true);
   }
 
-  setInterval(v51BindNextButton, 700);
+  setInterval(v51ForceBindAttendanceButton, 500);
 })();
