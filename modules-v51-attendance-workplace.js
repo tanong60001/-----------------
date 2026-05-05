@@ -162,7 +162,7 @@
     return { prepared, skipped };
   }
 
-  async function saveAllFinal(workingRows) {
+  async function saveAllFinal() {
     const prepared = window.__v51PreparedRows || [];
     const projects = window.__v51Projects || [];
     let savedCount = 0;
@@ -172,11 +172,11 @@
       let project = null;
 
       if (isWorkingStatus(item.status)) {
-        const attId = item.attendance.id;
-        const activeBtn = document.querySelector(`[data-v51-seg="${cssEsc(attId)}"] button.on`);
+        const tempId = item.attendance.id;
+        const activeBtn = document.querySelector(`[data-v51-seg="${cssEsc(tempId)}"] button.on`);
         if (activeBtn) type = activeBtn.dataset.type || 'store';
 
-        const projectId = document.querySelector(`[data-project-for="${cssEsc(attId)}"]`)?.value || '';
+        const projectId = document.querySelector(`[data-project-for="${cssEsc(tempId)}"]`)?.value || '';
         project = projects.find(p => p.id === projectId);
 
         if (type === 'project' && !project) {
@@ -193,7 +193,7 @@
       if (finalAttId) {
         const { data, error } = await db.from(ATT_TABLE).update(item.rec).eq('id', finalAttId).select().single();
         if (error) throw error;
-        item.attendance = data || { ...item.attendance, ...item.rec };
+        item.attendance = data;
       } else {
         const { data, error } = await db.from(ATT_TABLE).insert(item.rec).select().single();
         if (error) throw error;
@@ -201,17 +201,15 @@
         item.attendance = data;
       }
 
-      savedCount++;
+      // ลบต้นทุนโครงการเดิมออกก่อนเสมอเพื่อป้องกันยอดซ้ำ
+      await removeProjectLabor(finalAttId);
 
-      if (isWorkingStatus(item.status)) {
-        if (type === 'project') {
-          await addProjectLabor(item, project);
-        } else {
-          if (item.oldId) await removeProjectLabor(item.oldId);
-        }
-      } else {
-        if (item.oldId) await removeProjectLabor(item.oldId);
+      // ถ้าทำงานจริงและเลือกโครงการ ให้เพิ่มต้นทุนใหม่
+      if (isWorkingStatus(item.status) && type === 'project') {
+        await addProjectLabor(item, project);
       }
+
+      savedCount++;
     }
 
     return savedCount;
@@ -239,7 +237,6 @@
     const amount = money(item.cost);
     if (!item.attendance?.id || !project?.id || amount <= 0) return;
 
-    await removeProjectLabor(item.attendance.id);
     const desc = `ค่าแรง ${item.emp.name || ''} ${item.emp.lastname || ''}`.trim();
     const notes = `${ATT_REF_PREFIX}${item.attendance.id} | ${item.status} | ${todayStr()}`;
     const { error } = await db.from(PROJECT_EXPENSE_TABLE).insert({
@@ -280,7 +277,7 @@
 
     if (!rows.length) {
       try {
-        const savedCount = await saveAllFinal([]);
+        const savedCount = await saveAllFinal();
         toast?.(`บันทึกเช็คชื่อ ${savedCount} คน${skippedCount ? ` (ยังไม่ลง ${skippedCount})` : ''} (ไม่มีพนักงานปฏิบัติงานจริง)`, 'success');
         window.renderAttendance?.();
       } catch (e) {
@@ -358,7 +355,7 @@
     const btn = document.getElementById('v51-save-workplace');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="material-icons-round">sync</i>กำลังบันทึก...'; }
     try {
-      const savedCount = await saveAllFinal(window.__v51WorkplaceRows || []);
+      const savedCount = await saveAllFinal();
       const skippedCount = window.__v51SkippedCount || 0;
 
       logActivity?.('เช็คชื่อพนักงานและจัดสถานที่', `บันทึก ${savedCount} คน`);
@@ -379,7 +376,7 @@
       const btn = document.getElementById('v26-save-btn');
       if (btn) {
         btn.innerHTML = '<i class="material-icons-round">navigate_next</i> ถัดไป';
-        btn.title = 'บันทึกเช็คชื่อ แล้วเลือกสถานที่ทำงาน';
+        btn.title = 'เตรียมข้อมูล แล้วเลือกสถานที่ทำงาน';
       }
     }, 30);
     return result;
@@ -406,4 +403,26 @@
 
   try { renderAttendance = window.renderAttendance; } catch (_) { }
   try { v26SaveAll = window.v26SaveAll; } catch (_) { }
+
+  function v51BindNextButton() {
+    const btn = document.getElementById('v26-save-btn');
+    if (!btn || btn.dataset.v51Bound) return;
+
+    btn.innerHTML = '<i class="material-icons-round">navigate_next</i> ถัดไป';
+    btn.title = 'เตรียมข้อมูล แล้วเลือกสถานที่ทำงาน';
+    btn.removeAttribute('onclick');
+    btn.onclick = null;
+    btn.dataset.v51Bound = 'true';
+
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    newBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.v26SaveAll();
+    });
+  }
+
+  setInterval(v51BindNextButton, 700);
 })();
