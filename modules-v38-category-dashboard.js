@@ -875,6 +875,7 @@ console.log('[v38] Category dashboard loaded');
           <button class="v38-btn" onclick="showImportProductsCsvModal?.()"><i class="material-icons-round">upload_file</i>นำเข้า CSV</button>
           <button class="v38-btn" onclick="exportInventory?.()"><i class="material-icons-round">download</i>CSV</button>
           <button class="v38-btn" onclick="v38SyncCategoriesFromProducts()"><i class="material-icons-round">category</i>ซ่อมหมวดหมู่</button>
+          ${((typeof USER !== 'undefined' && USER?.role === 'admin') || (typeof window !== 'undefined' && typeof window.v9CanPromotion === 'function' && window.v9CanPromotion())) ? `<button class="v38-btn" onclick="v9OpenPromoModal()"><i class="material-icons-round">local_offer</i>โปรโมชั่น</button>` : ''}
           <button class="v38-btn" onclick="v38RefreshCategoryStats()"><i class="material-icons-round">refresh</i>รีเฟรชยอดขาย</button>
           <button class="v38-btn primary" onclick="showAddProductModal()"><i class="material-icons-round">add</i>เพิ่มสินค้า</button>
         </div>

@@ -5760,7 +5760,8 @@ window.initApp = async function () {
 window.v9SavePermission = async function (userId) {
   const allPermKeys = [
     'can_pos', 'can_inv', 'can_cash', 'can_exp', 'can_debt',
-    'can_att', 'can_purchase', 'can_dash', 'can_log', 'can_manage'
+    'can_att', 'can_purchase', 'can_dash', 'can_log', 'can_manage',
+    'can_adjust_stock', 'can_promotion'
   ];
   const perms = {};
   allPermKeys.forEach(pk => {
@@ -5782,6 +5783,12 @@ window.renderUserPerms = async function (container) {
   // เพิ่ม can_manage เข้า _v9PermKeys ถ้ายังไม่มี
   if (!_v9PermKeys.find(p => p.key === 'can_manage')) {
     _v9PermKeys.push({ key: 'can_manage', label: '⚙️ จัดการสินค้า', desc: 'หน่วยนับ สูตร ซัพพลายเออร์ ผลิต' });
+  }
+  if (!_v9PermKeys.find(p => p.key === 'can_adjust_stock')) {
+    _v9PermKeys.push({ key: 'can_adjust_stock', label: '📦 ปรับสต็อก', desc: 'เพิ่ม/ลด/แก้ไขจำนวนสต็อก' });
+  }
+  if (!_v9PermKeys.find(p => p.key === 'can_promotion')) {
+    _v9PermKeys.push({ key: 'can_promotion', label: '🏷️ โปรโมชั่น', desc: 'ตั้งค่าสินค้าโปรโมชั่น' });
   }
   await _v9OrigRenderUserPerms2?.apply(this, arguments);
 };
@@ -8665,14 +8672,15 @@ function v9OpenWideModal(title, html) {
   const box = document.querySelector('.modal-box');
   if (box) {
     box._origWidth = box.style.width;
-    box.style.width = 'min(960px, 97vw)';
-    box.style.maxHeight = '94vh';
+    box.style.width = 'min(1440px, 98vw)';
+    box.style.maxHeight = '96vh';
+    box.classList.add('v9p24-wide-modal');
   }
   if (typeof openModal === 'function') openModal(title, html);
   // patch closeModal ให้ restore width
   const origClose = window.closeModal;
   window.closeModal = function () {
-    if (box) { box.style.width = box._origWidth || ''; box.style.maxHeight = ''; }
+    if (box) { box.style.width = box._origWidth || ''; box.style.maxHeight = ''; box.classList.remove('v9p24-wide-modal'); }
     origClose?.();
     window.closeModal = origClose;
   };
@@ -8778,6 +8786,57 @@ window.v9Pur24HTML = function () {
 .v9p24-notice{padding:9px 12px;border-radius:8px;font-size:12px;display:flex;align-items:flex-start;gap:7px;margin-bottom:12px}
 .v9p24-ok{background:#f0fdf4;color:#15803d}
 .v9p24-info{background:#eff6ff;color:#1d4ed8;border:0.5px dashed #93c5fd}
+.modal-box.v9p24-wide-modal{border:0!important;border-radius:22px!important;overflow:hidden!important;background:#f8fafc!important;box-shadow:0 30px 90px rgba(15,23,42,.28)!important}
+.modal-box.v9p24-wide-modal .modal-header{height:74px;padding:0 28px!important;background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 48%,#14b8a6 100%)!important;border:0!important;color:#fff!important}
+.modal-box.v9p24-wide-modal .modal-header h3{color:#fff!important;font-size:20px!important;font-weight:900!important;letter-spacing:0!important;display:flex!important;align-items:center!important;gap:10px!important}
+.modal-box.v9p24-wide-modal .modal-header h3:before{content:'local_shipping';font-family:'Material Icons Round';width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center;font-size:22px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.modal-box.v9p24-wide-modal .modal-close{color:#fff!important;background:rgba(255,255,255,.16)!important;border:1px solid rgba(255,255,255,.22)!important;border-radius:12px!important}
+.modal-box.v9p24-wide-modal .modal-close:hover{background:rgba(255,255,255,.24)!important;transform:translateY(-1px)}
+.modal-box.v9p24-wide-modal .modal-body{padding:0!important;background:#f8fafc!important}
+.v9p24-layout{grid-template-columns:420px 1fr;height:calc(96vh - 74px);margin:0;background:#f8fafc}
+.v9p24-sb{background:linear-gradient(180deg,#f8fbff 0%,#eef6ff 48%,#fff7ed 100%);border-right:1px solid #dbeafe;box-shadow:8px 0 24px rgba(30,64,175,.06)}
+.v9p24-sb-top{padding:20px;border-bottom:1px solid #dbeafe;background:rgba(255,255,255,.62);backdrop-filter:blur(12px)}
+.v9p24-sb-top>div:first-child{font-size:13px!important;color:#1e3a8a!important;letter-spacing:0!important}
+.v9p24-sb-search input{height:52px;border:1px solid #c7d2fe;border-radius:14px;padding-left:46px;font-size:15px;background:#fff;box-shadow:0 12px 28px rgba(37,99,235,.08)}
+.v9p24-sb-search input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.12),0 14px 30px rgba(37,99,235,.12)}
+.v9p24-sb-search-ico{left:16px;font-size:22px;color:#64748b}
+.v9p24-sb-list{padding:12px 10px;scrollbar-color:#93c5fd transparent}
+.v9p24-prod-row{border:1px solid transparent;border-radius:14px;margin-bottom:8px;padding:12px 14px;background:rgba(255,255,255,.72);box-shadow:0 8px 20px rgba(15,23,42,.04)}
+.v9p24-prod-row:hover{background:#fff;border-color:#bfdbfe;transform:translateY(-1px);box-shadow:0 14px 28px rgba(37,99,235,.11)}
+.v9p24-prod-row.sel{background:linear-gradient(135deg,#eef2ff,#ecfeff);border:1px solid #60a5fa;box-shadow:0 14px 34px rgba(37,99,235,.18)}
+.v9p24-prod-row:not(.sel){border-left:1px solid transparent}
+.v9p24-prod-ico{width:44px;height:44px;border-radius:13px}
+.v9p24-prod-name{font-size:15px;line-height:1.35;color:#0f172a}
+.v9p24-prod-meta{font-size:12px;color:#64748b;margin-top:4px}
+.v9p24-prod-stock{font-size:16px;line-height:1.2;min-width:54px}
+.v9p24-badge{padding:3px 9px;font-size:11px}
+.v9p24-new-btn{margin:0 10px 10px;padding:14px 16px;border:1px dashed #fca5a5;border-radius:14px;background:#fff;color:#dc2626;font-size:15px;box-shadow:0 10px 22px rgba(220,38,38,.08)}
+.v9p24-new-btn:hover{background:#fff1f2;transform:translateY(-1px)}
+.v9p24-sb-po{padding:18px 20px 20px;background:#fff;border-top:1px solid #dbeafe;box-shadow:0 -10px 28px rgba(15,23,42,.05)}
+.v9p24-sb-po>div:first-child{font-size:12px!important;color:#64748b!important;letter-spacing:0!important;text-transform:none!important}
+.v9p24-lbl{font-size:13px;color:#334155;margin-bottom:7px}
+.v9p24-fi{height:50px;border:1px solid #dbe3ef;border-radius:13px;padding:0 15px;background:#fff;font-size:15px;box-shadow:0 8px 18px rgba(15,23,42,.035)}
+.v9p24-fi:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.1)}
+.v9p24-mbtn{height:56px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe3ef;border-radius:13px;background:#fff;font-size:14px;font-weight:800}
+.v9p24-mbtn.on{border:2px solid #ef4444;background:linear-gradient(135deg,#fff1f2,#fff7ed);color:#dc2626;box-shadow:0 10px 22px rgba(239,68,68,.13)}
+.v9p24-main{background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)}
+.v9p24-main-content{padding:28px 30px}
+.v9p24-main-content>div[style*="text-align:center"]{max-width:520px;margin:12vh auto 0!important;padding:46px 24px!important;border:1px dashed #cbd5e1;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 20px 50px rgba(15,23,42,.06)}
+.v9p24-main-content>div[style*="text-align:center"] i{width:76px;height:76px;margin:0 auto 16px!important;border-radius:22px;background:linear-gradient(135deg,#dbeafe,#ccfbf1);color:#2563eb!important;opacity:1!important;display:flex!important;align-items:center;justify-content:center;font-size:42px!important}
+.v9p24-main-content>div[style*="text-align:center"] div:first-of-type{font-size:18px!important;color:#334155!important}
+.v9p24-main-content>div[style*="text-align:center"] div:last-child{display:none}
+.v9p24-section{padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.055);margin-bottom:16px}
+.v9p24-sec-lbl{font-size:12px;color:#2563eb;letter-spacing:0;text-transform:none;margin-bottom:12px}
+.v9p24-g2,.v9p24-g3{gap:12px}
+.v9p24-calc{background:linear-gradient(135deg,#ecfdf5,#eff6ff);border:1px solid #bbf7d0;border-radius:16px;padding:15px 18px}
+.v9p24-calc-main{font-size:16px}
+.v9p24-tog,.v9p24-type-btn,.v9p24-chip,.v9p24-unit-tbl,.v9p24-item-row{border:1px solid #e2e8f0;border-radius:14px;background:#fff}
+.v9p24-type-btn.on,.v9p24-chip.on{border:2px solid #2563eb;background:#eff6ff;color:#1d4ed8}
+.v9p24-main-footer{padding:20px 30px;background:rgba(255,255,255,.92);border-top:1px solid #e2e8f0;box-shadow:0 -16px 44px rgba(15,23,42,.08);backdrop-filter:blur(14px)}
+#v9p24-save-btn{height:70px;border:0!important;border-radius:16px!important;background:linear-gradient(135deg,#ef4444,#f97316)!important;box-shadow:0 18px 34px rgba(239,68,68,.28)!important;font-size:17px!important;font-weight:900!important}
+#v9p24-save-btn:hover{filter:brightness(1.03);transform:translateY(-1px);box-shadow:0 22px 42px rgba(239,68,68,.34)!important}
+#v9p24-added-list{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:12px;box-shadow:0 12px 28px rgba(15,23,42,.06)}
+@media(max-width:900px){.modal-box.v9p24-wide-modal{border-radius:0!important}.v9p24-layout{grid-template-columns:1fr;height:auto;max-height:none;overflow:auto}.v9p24-sb{max-height:48vh;border-right:0;border-bottom:1px solid #dbeafe}.v9p24-main-content{min-height:48vh;padding:18px}.v9p24-main-footer{position:sticky;bottom:0;padding:14px}.v9p24-g2,.v9p24-g3{grid-template-columns:1fr}.v9p24-main-content>div[style*="text-align:center"]{margin:24px auto!important}}
 </style>
 
 <div class="v9p24-layout">
@@ -19100,3 +19159,2092 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     console.warn('Failed to auto-update bill statuses:', err);
   }
 };
+
+// Purchase receive polish: simple creation/import UI + live cost/profit summary
+(function () {
+  const money = (n) => formatNum(Math.round((Number(n) || 0) * 100) / 100);
+  const pct = (n) => Number.isFinite(n) ? Math.round(n) : 0;
+
+  function injectStyle() {
+    if (document.getElementById('v9p24-profit-polish-style')) return;
+    const s = document.createElement('style');
+    s.id = 'v9p24-profit-polish-style';
+    s.textContent = `
+      .v9p24-section{position:relative;overflow:hidden}
+      .v9p24-section:before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,#2563eb,#14b8a6,#f97316);opacity:.82}
+      .v9p24-type-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+      .v9p24-type-btn{min-height:108px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:18px!important;font-size:15px!important;font-weight:800!important}
+      .v9p24-type-btn .v9p24-type-ico{width:42px;height:42px;border-radius:14px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;margin:0 0 8px!important;font-size:0!important}
+      .v9p24-type-btn .v9p24-type-ico:before{font-family:'Material Icons Round';font-size:24px}
+      .v9p24-type-btn:nth-child(1) .v9p24-type-ico:before{content:'shopping_cart'}
+      .v9p24-type-btn:nth-child(2) .v9p24-type-ico:before{content:'science'}
+      .v9p24-type-btn:nth-child(3) .v9p24-type-ico:before{content:'sync_alt'}
+      .v9p24-type-btn.on{background:linear-gradient(135deg,#eff6ff,#ecfeff)!important;box-shadow:0 14px 34px rgba(37,99,235,.14)}
+      .v9p24-smart-calc{display:grid;grid-template-columns:1.15fr repeat(3,1fr);gap:12px;margin-top:12px}
+      .v9p24-smart-card{border:1px solid #dbeafe;border-radius:16px;background:#fff;padding:14px 16px;box-shadow:0 12px 26px rgba(15,23,42,.055);min-width:0}
+      .v9p24-smart-card.primary{background:linear-gradient(135deg,#1d4ed8,#0891b2);border-color:transparent;color:#fff}
+      .v9p24-smart-k{font-size:12px;font-weight:800;color:#64748b;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+      .v9p24-smart-card.primary .v9p24-smart-k{color:rgba(255,255,255,.78)}
+      .v9p24-smart-v{font-size:22px;font-weight:950;color:#0f172a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9p24-smart-card.primary .v9p24-smart-v{color:#fff}
+      .v9p24-smart-s{font-size:12px;color:#64748b;margin-top:5px;line-height:1.45}
+      .v9p24-smart-card.primary .v9p24-smart-s{color:rgba(255,255,255,.76)}
+      .v9p24-profit-best{margin-top:12px;border:1px solid #bbf7d0;background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border-radius:16px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+      .v9p24-profit-best.loss{border-color:#fecaca;background:linear-gradient(135deg,#fff1f2,#fff7ed)}
+      .v9p24-profit-title{font-size:13px;font-weight:900;color:#166534;display:flex;align-items:center;gap:7px}
+      .v9p24-profit-best.loss .v9p24-profit-title{color:#b91c1c}
+      .v9p24-profit-num{font-size:20px;font-weight:950;color:#15803d;text-align:right}
+      .v9p24-profit-best.loss .v9p24-profit-num{color:#dc2626}
+      .v9p24-unit-tbl{border:0!important;background:transparent!important;overflow:visible!important}
+      .v9p24-ut-head{display:none!important}
+      .v9p24-sell-row{display:grid;grid-template-columns:1.2fr .9fr .9fr 150px 34px;gap:10px;align-items:end;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 10px 24px rgba(15,23,42,.045)}
+      .v9p24-sell-row .v9p24-fi{height:46px!important;font-size:14px!important}
+      .v9p24-row-label{font-size:11px;font-weight:900;color:#64748b;margin-bottom:6px}
+      .v9p24-profit-pill{height:46px;border-radius:13px;background:#f8fafc;border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:0 12px;font-size:12px;color:#64748b}
+      .v9p24-profit-pill.pos{background:#ecfdf5;border-color:#86efac;color:#15803d}
+      .v9p24-profit-pill.neg{background:#fff1f2;border-color:#fecaca;color:#dc2626}
+      .v9p24-profit-pill strong{font-size:15px;color:inherit}
+      .v9p24-add-item-btn{width:100%!important;height:58px!important;border:0!important;border-radius:16px!important;background:linear-gradient(135deg,#0f766e,#22c55e)!important;color:#fff!important;font-weight:950!important;box-shadow:0 16px 32px rgba(16,185,129,.22)!important}
+      .v9p24-add-item-btn:hover{filter:brightness(1.03);transform:translateY(-1px)}
+      @media(max-width:900px){.v9p24-smart-calc{grid-template-columns:1fr 1fr}.v9p24-sell-row{grid-template-columns:1fr}.v9p24-profit-pill{align-items:flex-start}.v9p24-type-row{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(s);
+  }
+
+  function calc(prefix) {
+    const qty = Number(document.getElementById(`v9p24-${prefix}-qty`)?.value || 0);
+    const cost = Number(document.getElementById(`v9p24-${prefix}-cost`)?.value || 0);
+    const kgPer = Number(document.getElementById(`v9p24-${prefix}-kgper`)?.value || 1);
+    const buyUnit = document.getElementById(`v9p24-${prefix}-buyunit`)?.value || 'หน่วยรับ';
+    const baseUnit = prefix === 'new'
+      ? (document.getElementById('v9p24-new-baseunit')?.value || 'หน่วยสต็อก')
+      : (window._v9Pur?.selectedProd?.unit || 'หน่วยสต็อก');
+    const stockQty = qty * kgPer;
+    const costBase = kgPer > 0 ? cost / kgPer : cost;
+    const total = qty * cost;
+    return { qty, cost, kgPer, buyUnit, baseUnit, stockQty, costBase, total };
+  }
+
+  function sellRows(costBase) {
+    const rows = [];
+    let idx = 0;
+    while (document.getElementById(`v9p24-sr-${idx}`)) {
+      const name = document.getElementById(`v9p24-sname-${idx}`)?.value?.trim();
+      const rate = Number(document.getElementById(`v9p24-srate-${idx}`)?.value || 0);
+      const price = Number(document.getElementById(`v9p24-sprice-${idx}`)?.value || 0);
+      if (name || rate || price) {
+        const unitCost = rate * costBase;
+        const profit = price - unitCost;
+        const margin = price > 0 ? (profit / price) * 100 : 0;
+        rows.push({ idx, name, rate, price, unitCost, profit, margin });
+      }
+      idx++;
+    }
+    return rows;
+  }
+
+  function renderSummary(prefix) {
+    const n = calc(prefix);
+    const main = document.getElementById(`v9p24-${prefix}-calc-main`);
+    const sub = document.getElementById(`v9p24-${prefix}-calc-sub`);
+    if (!main || !sub) return;
+    main.innerHTML = `
+      <div class="v9p24-smart-calc">
+        <div class="v9p24-smart-card primary">
+          <div class="v9p24-smart-k"><i class="material-icons-round" style="font-size:16px">inventory_2</i>สต็อกเพิ่ม</div>
+          <div class="v9p24-smart-v">${money(n.stockQty)} ${n.baseUnit}</div>
+          <div class="v9p24-smart-s">${money(n.qty)} ${n.buyUnit} x ${money(n.kgPer)} ${n.baseUnit}</div>
+        </div>
+        <div class="v9p24-smart-card">
+          <div class="v9p24-smart-k"><i class="material-icons-round" style="font-size:16px">payments</i>ยอดจ่าย</div>
+          <div class="v9p24-smart-v">฿${money(n.total)}</div>
+          <div class="v9p24-smart-s">ราคา ฿${money(n.cost)} / ${n.buyUnit}</div>
+        </div>
+        <div class="v9p24-smart-card">
+          <div class="v9p24-smart-k"><i class="material-icons-round" style="font-size:16px">calculate</i>ต้นทุนจริง</div>
+          <div class="v9p24-smart-v">฿${money(n.costBase)}</div>
+          <div class="v9p24-smart-s">ต่อ 1 ${n.baseUnit}</div>
+        </div>
+        <div class="v9p24-smart-card">
+          <div class="v9p24-smart-k"><i class="material-icons-round" style="font-size:16px">sell</i>พร้อมขาย</div>
+          <div class="v9p24-smart-v">${sellRows(n.costBase).filter(r => r.price > 0).length || 0}</div>
+          <div class="v9p24-smart-s">หน่วยขายที่มีราคา</div>
+        </div>
+      </div>`;
+
+    const rows = sellRows(n.costBase).filter(r => r.rate > 0 && r.price > 0);
+    const best = rows.length ? rows.reduce((a, b) => (b.profit > a.profit ? b : a), rows[0]) : null;
+    sub.innerHTML = best ? `
+      <div class="v9p24-profit-best ${best.profit < 0 ? 'loss' : ''}">
+        <div>
+          <div class="v9p24-profit-title"><i class="material-icons-round" style="font-size:18px">${best.profit < 0 ? 'warning' : 'trending_up'}</i>${best.name || 'หน่วยขาย'}</div>
+          <div class="v9p24-smart-s">ต้นทุนหน่วยนี้ ฿${money(best.unitCost)} · ราคาขาย ฿${money(best.price)}</div>
+        </div>
+        <div class="v9p24-profit-num">฿${money(best.profit)}<div style="font-size:12px;font-weight:800;">กำไร ${pct(best.margin)}%</div></div>
+      </div>`
+      : `<div class="v9p24-profit-best"><div><div class="v9p24-profit-title"><i class="material-icons-round" style="font-size:18px">auto_graph</i>กำไรจะคำนวณทันที</div><div class="v9p24-smart-s">เพิ่มหน่วยขายและราคาขาย ระบบจะสรุปกำไรให้เอง</div></div></div>`;
+  }
+
+  window.v9P24SellRowHTML = function (idx, baseUnit, costBase) {
+    const base = baseUnit || window._v9Pur?.selectedProd?.unit || 'หน่วยสต็อก';
+    const cb = parseFloat(costBase || 0);
+    const isFirst = idx === 0;
+    return `
+      <div id="v9p24-sr-${idx}" class="v9p24-sell-row">
+        <div>
+          <div class="v9p24-row-label">หน่วยขาย</div>
+          <input class="v9p24-fi" id="v9p24-sname-${idx}" placeholder="เช่น ถัง, คิว, แพ็ก" oninput="v9Pur24UpdateChips();v9Pur24RefreshSmartCalc()">
+        </div>
+        <div>
+          <div class="v9p24-row-label">1 หน่วย = กี่ ${base}</div>
+          <input class="v9p24-fi" type="number" id="v9p24-srate-${idx}" placeholder="เช่น 20" min="0.001" step="0.001" oninput="v9Pur24UpdateRowProfit(${idx},${cb});v9Pur24RefreshSmartCalc()">
+        </div>
+        <div>
+          <div class="v9p24-row-label">ราคาขาย</div>
+          <input class="v9p24-fi" type="number" id="v9p24-sprice-${idx}" placeholder="0" min="0" oninput="v9Pur24UpdateRowProfit(${idx},${cb});v9Pur24RefreshSmartCalc()">
+        </div>
+        <div id="v9p24-sprofit-${idx}" class="v9p24-profit-pill"><span>กำไร</span><strong>-</strong></div>
+        ${isFirst ? '<div></div>' : `<button type="button" onclick="document.getElementById('v9p24-sr-${idx}').remove();v9Pur24UpdateChips();v9Pur24RefreshSmartCalc()" style="height:34px;width:34px;border:none;border-radius:10px;background:#fee2e2;color:#dc2626;cursor:pointer;"><i class="material-icons-round" style="font-size:17px;">close</i></button>`}
+      </div>`;
+  };
+
+  window.v9Pur24UpdateRowProfit = function (idx) {
+    const prefix = document.getElementById('v9p24-new-cost') ? 'new' : 'ex';
+    const n = calc(prefix);
+    const rate = Number(document.getElementById(`v9p24-srate-${idx}`)?.value || 0);
+    const price = Number(document.getElementById(`v9p24-sprice-${idx}`)?.value || 0);
+    const el = document.getElementById(`v9p24-sprofit-${idx}`);
+    if (!el) return;
+    if (rate > 0 && price > 0) {
+      const unitCost = rate * n.costBase;
+      const profit = price - unitCost;
+      const margin = price > 0 ? (profit / price) * 100 : 0;
+      el.className = `v9p24-profit-pill ${profit >= 0 ? 'pos' : 'neg'}`;
+      el.innerHTML = `<span>กำไร ${pct(margin)}%</span><strong>฿${money(profit)}</strong>`;
+    } else {
+      el.className = 'v9p24-profit-pill';
+      el.innerHTML = '<span>กำไร</span><strong>-</strong>';
+    }
+  };
+
+  window.v9Pur24RefreshSmartCalc = function () {
+    if (document.getElementById('v9p24-new-calc-main')) window.v9Pur24CalcNewPreview();
+    if (document.getElementById('v9p24-ex-calc-main')) window.v9Pur24CalcPreview();
+  };
+
+  window.v9Pur24CalcNewPreview = function () {
+    const buyUnit = document.getElementById('v9p24-new-buyunit')?.value || 'หน่วยรับ';
+    const baseUnit = document.getElementById('v9p24-new-baseunit')?.value || 'หน่วยสต็อก';
+    ['v9p24-new-buyunit-lbl', 'v9p24-new-from-lbl'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = buyUnit;
+    });
+    const baseLbl = document.getElementById('v9p24-new-base-lbl');
+    if (baseLbl) baseLbl.textContent = baseUnit;
+    let idx = 0;
+    while (document.getElementById(`v9p24-sr-${idx}`)) window.v9Pur24UpdateRowProfit(idx++);
+    renderSummary('new');
+  };
+
+  window.v9Pur24CalcPreview = function () {
+    const buyUnit = document.getElementById('v9p24-ex-buyunit')?.value || 'หน่วยรับ';
+    const lbl = document.getElementById('v9p24-ex-buyunit-lbl');
+    const from = document.getElementById('v9p24-ex-from-lbl');
+    if (lbl) lbl.textContent = buyUnit;
+    if (from) from.textContent = buyUnit;
+    let idx = 0;
+    while (document.getElementById(`v9p24-sr-${idx}`)) window.v9Pur24UpdateRowProfit(idx++);
+    renderSummary('ex');
+  };
+
+  window.v9Pur24SellUnitsForm = function (baseUnit, costBase) {
+    window._v9Pur.sellUnitRowIdx = 1;
+    return `
+      <div class="v9p24-unit-chips" id="v9p24-sell-chips">
+        <div class="v9p24-chip dash" onclick="v9Pur24AddSellRow()">
+          <i class="material-icons-round" style="font-size:14px;">add</i> เพิ่มหน่วยขาย
+        </div>
+      </div>
+      <div class="v9p24-unit-tbl" id="v9p24-sell-tbl-wrap">
+        <div id="v9p24-sell-rows">${window.v9P24SellRowHTML(0, baseUnit, costBase)}</div>
+      </div>`;
+  };
+
+  const origNew = window.v9Pur24SelectNew;
+  window.v9Pur24SelectNew = function () {
+    injectStyle();
+    origNew?.apply(this, arguments);
+    setTimeout(() => {
+      document.querySelector('#v9p24-main .btn.btn-outline[onclick*="v9Pur24AddItemToList"]')?.classList.add('v9p24-add-item-btn');
+      window.v9Pur24CalcNewPreview?.();
+      document.getElementById('v9p24-new-name')?.focus();
+    }, 30);
+  };
+
+  const origExisting = window.v9Pur24SelectExisting;
+  window.v9Pur24SelectExisting = async function () {
+    injectStyle();
+    await origExisting?.apply(this, arguments);
+    setTimeout(() => {
+      document.querySelector('#v9p24-main .btn.btn-outline[onclick*="v9Pur24AddItemToList"]')?.classList.add('v9p24-add-item-btn');
+      window.v9Pur24CalcPreview?.();
+    }, 30);
+  };
+
+  const origOpen = window.v9Pur24OpenModal || window.showAddPurchaseModal;
+  if (origOpen) {
+    window.v9Pur24OpenModal = async function () {
+      injectStyle();
+      return await origOpen.apply(this, arguments);
+    };
+  }
+
+  injectStyle();
+})();
+
+// Last override: promo popup must be select-first large workspace.
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  let selectedId = null;
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const n = (v) => Number(v || 0);
+  const fmt = (v) => formatNum(Math.round(n(v) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const js = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const read = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const write = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => read(PROMO_KEY, {});
+  const history = () => read(HIST_KEY, []);
+  const productsList = () => (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+    .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+
+  function injectStyle() {
+    if (document.getElementById('v9promo-select-last-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-select-last-style';
+    st.textContent = `
+      .modal-box.v9promo-select-modal{width:min(1320px,97vw)!important;max-height:94vh!important;border-radius:24px!important;overflow:hidden!important}
+      .modal-box.v9promo-select-modal .modal-body{padding:0!important;background:#f8fafc!important}
+      .v9ps{display:grid;grid-template-columns:360px 1fr 320px;height:calc(94vh - 78px);min-height:680px;background:#f8fafc}
+      .v9ps-left,.v9ps-right{background:#fff;display:flex;flex-direction:column;min-width:0}.v9ps-left{border-right:1px solid #e2e8f0}.v9ps-right{border-left:1px solid #e2e8f0}
+      .v9ps-head{padding:18px;border-bottom:1px solid #e2e8f0}.v9ps-hero{padding:20px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#2563eb 58%,#14b8a6);color:#fff}
+      .v9ps-hero h3{font-size:21px;font-weight:950;margin:0}.v9ps-hero p{font-size:12px;color:rgba(255,255,255,.72);font-weight:800;margin:5px 0 0}
+      .v9ps-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}.v9ps-stat{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px}.v9ps-stat span{font-size:10px;font-weight:900;color:rgba(255,255,255,.72)}.v9ps-stat b{display:block;font-size:20px;font-weight:950}
+      .v9ps-search{height:48px;border:1px solid #dbe3ef;border-radius:15px;background:#fff;display:flex;align-items:center;gap:9px;padding:0 14px;margin-top:14px;color:#94a3b8}.v9ps-search input{border:0;outline:0;background:transparent;flex:1;font-size:14px;font-family:var(--font-thai,'Prompt'),sans-serif}
+      .v9ps-list,.v9ps-active{overflow:auto;padding:12px;display:grid;gap:8px}.v9ps-pick{display:flex;align-items:center;gap:12px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:12px;cursor:pointer;transition:.16s}.v9ps-pick:hover,.v9ps-pick.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 12px 28px rgba(37,99,235,.12)}
+      .v9ps-icon{width:44px;height:44px;border-radius:15px;background:linear-gradient(135deg,#fff1f2,#ffedd5);display:flex;align-items:center;justify-content:center;color:#dc2626;flex-shrink:0}.v9ps-name{font-size:14px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v9ps-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.35}.v9ps-chip{font-size:11px;font-weight:950;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:999px;padding:3px 8px;white-space:nowrap}
+      .v9ps-main{padding:22px;overflow:auto}.v9ps-card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:18px;box-shadow:0 14px 32px rgba(15,23,42,.055);margin-bottom:16px}.v9ps-title{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #e2e8f0;padding-bottom:16px;margin-bottom:16px}.v9ps-title h3{font-size:24px;font-weight:950;margin:0;color:#0f172a}.v9ps-title p{font-size:13px;color:#64748b;margin:4px 0 0}
+      .v9ps-metrics,.v9ps-preview{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.v9ps-preview{grid-template-columns:repeat(3,1fr)}.v9ps-metric,.v9ps-prev{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}.v9ps-metric span,.v9ps-prev span{font-size:11px;font-weight:950;color:#64748b}.v9ps-metric b,.v9ps-prev b{display:block;font-size:22px;font-weight:950;margin-top:4px}
+      .v9ps-editor{display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:center}.v9ps-percent{height:150px;border-radius:24px;background:linear-gradient(135deg,#fff1f2,#ffedd5);border:1px solid #fecaca;display:flex;flex-direction:column;align-items:center;justify-content:center}.v9ps-percent input{width:140px;border:0;background:transparent;text-align:center;font-size:42px;font-weight:950;color:#dc2626;outline:0}.v9ps-percent span{font-size:12px;color:#9f1239;font-weight:900}
+      .v9ps-actions{display:flex;gap:10px;margin-top:14px}.v9ps-actions .btn{height:50px;border-radius:14px;font-weight:950}.v9ps-active-row{border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:12px;cursor:pointer}.v9ps-active-row:hover{border-color:#fca5a5;background:#fff7ed}.v9ps-active-row strong{display:block;font-size:13px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v9ps-active-row span{font-size:12px;color:#64748b}
+      @media(max-width:1100px){.v9ps{grid-template-columns:320px 1fr}.v9ps-right{display:none}.v9ps-metrics,.v9ps-preview{grid-template-columns:1fr 1fr}.v9ps-editor{grid-template-columns:1fr}}`;
+    document.head.appendChild(st);
+  }
+  const calc = (p, pct) => {
+    const price = n(p?.price), cost = n(p?.cost), pc = Math.max(0, Math.min(100, n(pct)));
+    const off = price * pc / 100, net = Math.max(0, price - off), profit = net - cost, margin = net > 0 ? Math.round(profit / net * 100) : 0;
+    return { price, cost, pc, off, net, profit, margin };
+  };
+  const productById = (id) => productsList().find(p => String(p.id) === String(id));
+  const activePromos = () => productsList().map(p => ({ p, percent: n(promos()[p.id] || 0) })).filter(x => x.percent > 0);
+  function listHtml(q = '') {
+    const query = String(q).toLowerCase(), ps = promos();
+    return productsList().filter(p => !query || [p.name, p.barcode, p.category].join(' ').toLowerCase().includes(query)).map(p => {
+      const cur = n(ps[p.id] || 0);
+      return `<div class="v9ps-pick ${String(selectedId) === String(p.id) ? 'on' : ''}" onclick="v9PromoSelectProduct('${js(p.id)}')">
+        <div class="v9ps-icon"><i class="material-icons-round">sell</i></div><div style="flex:1;min-width:0"><div class="v9ps-name">${esc(p.name)}</div><div class="v9ps-meta">ขาย ฿${fmt(p.price)} · ทุน ฿${fmt(p.cost)} · สต็อก ${fmt(p.stock)} ${esc(p.unit || '')}</div></div>${cur > 0 ? `<div class="v9ps-chip">ลด ${fmt(cur)}%</div>` : ''}
+      </div>`;
+    }).join('') || '<div style="padding:24px;text-align:center;color:#94a3b8">ไม่พบสินค้า</div>';
+  }
+  function activeHtml() {
+    return activePromos().map(({ p, percent }) => {
+      const c = calc(p, percent);
+      return `<div class="v9ps-active-row" onclick="v9PromoSelectProduct('${js(p.id)}')"><strong>${esc(p.name)}</strong><span>ลด ${fmt(percent)}% · เหลือ ฿${fmt(c.net)} · ลด ฿${fmt(c.off)}</span></div>`;
+    }).join('') || '<div style="padding:24px;text-align:center;color:#94a3b8">ยังไม่มีสินค้าโปร</div>';
+  }
+  function detailHtml(id) {
+    const p = productById(id);
+    if (!p) return '<div style="height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8"><div><i class="material-icons-round" style="font-size:70px;color:#cbd5e1">touch_app</i><h3>เลือกสินค้าก่อน</h3><p>เลือกจากรายการด้านซ้ายเพื่อดูรายละเอียด</p></div></div>';
+    const percent = n(promos()[p.id] || 0), c = calc(p, percent);
+    const hist = history().filter(h => String(h.product_id) === String(p.id)).slice(0, 8);
+    return `<div class="v9ps-card"><div class="v9ps-title"><div><h3>${esc(p.name)}</h3><p>หมวด ${esc(p.category || '-')} · หน่วย ${esc(p.unit || 'ชิ้น')} · บาร์โค้ด ${esc(p.barcode || '-')}</p></div>${percent > 0 ? `<div class="v9ps-chip">กำลังลด ${fmt(percent)}%</div>` : `<div class="v9ps-chip" style="background:#f8fafc;color:#64748b;border-color:#e2e8f0">ยังไม่เปิดโปร</div>`}</div>
+      <div class="v9ps-metrics"><div class="v9ps-metric"><span>ราคาขายเดิม</span><b>฿${fmt(p.price)}</b></div><div class="v9ps-metric"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(p.cost)}</b></div><div class="v9ps-metric"><span>สต็อก</span><b>${fmt(p.stock)} ${esc(p.unit || '')}</b></div><div class="v9ps-metric"><span>มูลค่าทุน</span><b style="color:#16a34a">฿${fmt(n(p.cost) * n(p.stock))}</b></div></div></div>
+      <div class="v9ps-card"><div class="v9ps-editor"><div class="v9ps-percent"><input id="v9promo-selected-percent" type="number" min="0" max="100" step="0.01" value="${percent || ''}" placeholder="0" oninput="v9PromoPreviewSelected()"><span>เปอร์เซ็นต์ส่วนลด</span></div><div><div class="v9ps-preview"><div class="v9ps-prev"><span>ราคาหลังลด</span><b id="v9promo-preview-net">฿${fmt(c.net)}</b></div><div class="v9ps-prev"><span>ลดต่อหน่วย</span><b id="v9promo-preview-off" style="color:#dc2626">฿${fmt(c.off)}</b></div><div class="v9ps-prev"><span>กำไรหลังลด</span><b id="v9promo-preview-profit" style="color:${c.profit >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(c.profit)} · ${c.margin}%</b></div></div><div class="v9ps-actions"><button class="btn btn-primary" style="flex:1;background:linear-gradient(135deg,#dc2626,#f97316);border:0" onclick="v9PromoSaveSelected()"><i class="material-icons-round">save</i> บันทึกโปร</button><button class="btn btn-outline" onclick="v9PromoRemoveSelected()"><i class="material-icons-round">delete</i> ปิดโปร</button></div></div></div></div>
+      <div class="v9ps-card"><div style="font-size:15px;font-weight:950;margin-bottom:10px"><i class="material-icons-round" style="color:#2563eb;font-size:18px;vertical-align:middle">history</i> ประวัติโปรโมชั่น</div>${hist.length ? hist.map(h => `<div style="display:flex;justify-content:space-between;padding:10px 12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;margin-bottom:8px;font-size:12px"><span><b>${fmt(h.old_percent)}% → ${fmt(h.new_percent)}%</b><br><span style="color:#64748b">${new Date(h.at).toLocaleString('th-TH')} · ${esc(h.by || '')}</span></span><span style="color:#64748b">ขาย ฿${fmt(h.price)} · ทุน ฿${fmt(h.cost)}</span></div>`).join('') : '<div style="padding:18px;text-align:center;color:#94a3b8;background:#f8fafc;border-radius:14px">ยังไม่มีประวัติ</div>'}</div>`;
+  }
+  function refresh() {
+    const l = document.getElementById('v9promo-pick-list'); if (l) l.innerHTML = listHtml();
+    const a = document.getElementById('v9promo-active-list'); if (a) a.innerHTML = activeHtml();
+    const active = activePromos(), avg = active.length ? Math.round(active.reduce((s, x) => s + x.percent, 0) / active.length) : 0;
+    const total = document.getElementById('v9promo-stat-total'); if (total) total.textContent = productsList().length;
+    const ac = document.getElementById('v9promo-stat-active'); if (ac) ac.textContent = active.length;
+    const av = document.getElementById('v9promo-stat-avg'); if (av) av.textContent = `${avg}%`;
+  }
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' }); return; }
+    injectStyle();
+    selectedId = activePromos()[0]?.p?.id || productsList()[0]?.id || null;
+    const active = activePromos(), avg = active.length ? Math.round(active.reduce((s, x) => s + x.percent, 0) / active.length) : 0;
+    openModal?.('จัดการสินค้าโปรโมชั่น', `<div class="v9ps"><div class="v9ps-left"><div class="v9ps-head"><div class="v9ps-hero"><h3>สินค้าโปรโมชั่น</h3><p>เลือกสินค้าก่อน แล้วค่อยตั้งส่วนลด</p><div class="v9ps-stats"><div class="v9ps-stat"><span>สินค้า</span><b id="v9promo-stat-total">${productsList().length}</b></div><div class="v9ps-stat"><span>เปิดโปร</span><b id="v9promo-stat-active">${active.length}</b></div><div class="v9ps-stat"><span>ลดเฉลี่ย</span><b id="v9promo-stat-avg">${avg}%</b></div></div></div><div class="v9ps-search"><i class="material-icons-round">search</i><input placeholder="ค้นหาสินค้า..." oninput="v9PromoFilterPick(this.value)"></div></div><div class="v9ps-list" id="v9promo-pick-list">${listHtml()}</div></div><div class="v9ps-main" id="v9promo-detail">${detailHtml(selectedId)}</div><div class="v9ps-right"><div class="v9ps-head"><div style="font-size:16px;font-weight:950;color:#0f172a"><i class="material-icons-round" style="color:#dc2626;font-size:19px;vertical-align:middle">local_fire_department</i> กำลังจัดโปร</div><div style="font-size:12px;color:#64748b;margin-top:4px">คลิกเพื่อแก้ไขสินค้าโปร</div></div><div class="v9ps-active" id="v9promo-active-list">${activeHtml()}</div></div></div>`);
+    setTimeout(() => document.querySelector('.modal-box')?.classList.add('v9promo-select-modal'), 30);
+  };
+  window.v9PromoFilterPick = (q) => { const l = document.getElementById('v9promo-pick-list'); if (l) l.innerHTML = listHtml(q); };
+  window.v9PromoSelectProduct = (id) => { selectedId = id; const d = document.getElementById('v9promo-detail'); if (d) d.innerHTML = detailHtml(id); refresh(); };
+  window.v9PromoPreviewSelected = () => { const p = productById(selectedId); if (!p) return; const c = calc(p, document.getElementById('v9promo-selected-percent')?.value || 0); document.getElementById('v9promo-preview-net').textContent = `฿${fmt(c.net)}`; document.getElementById('v9promo-preview-off').textContent = `฿${fmt(c.off)}`; const pr = document.getElementById('v9promo-preview-profit'); pr.textContent = `฿${fmt(c.profit)} · ${c.margin}%`; pr.style.color = c.profit >= 0 ? '#15803d' : '#dc2626'; };
+  window.v9PromoSaveSelected = () => { const p = productById(selectedId); if (!p) return; const pct = Math.max(0, Math.min(100, n(document.getElementById('v9promo-selected-percent')?.value || 0))); const ps = promos(), old = n(ps[p.id] || 0); if (pct > 0) ps[p.id] = pct; else delete ps[p.id]; write(PROMO_KEY, ps); if (old !== pct) { const h = history(); h.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: old, new_percent: pct, price: n(p.price), cost: n(p.cost) }); write(HIST_KEY, h.slice(0, 300)); } toast?.('บันทึกโปรโมชั่นแล้ว', 'success'); document.getElementById('v9promo-detail').innerHTML = detailHtml(selectedId); refresh(); renderInventory?.(); renderProductGrid?.(); };
+  window.v9PromoRemoveSelected = () => { const p = productById(selectedId); if (!p) return; const ps = promos(), old = n(ps[p.id] || 0); delete ps[p.id]; write(PROMO_KEY, ps); if (old > 0) { const h = history(); h.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: old, new_percent: 0, price: n(p.price), cost: n(p.cost) }); write(HIST_KEY, h.slice(0, 300)); } toast?.('ปิดโปรโมชั่นแล้ว', 'success'); document.getElementById('v9promo-detail').innerHTML = detailHtml(selectedId); refresh(); renderInventory?.(); renderProductGrid?.(); };
+})();
+
+// EOF guard: keep promotions out of POS after every late override
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const fmt = (n) => formatNum(Math.round((Number(n) || 0) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => readJson(PROMO_KEY, {});
+  const histories = () => readJson(HIST_KEY, []);
+  const savePromos = (v) => writeJson(PROMO_KEY, v || {});
+  const saveHist = (v) => writeJson(HIST_KEY, (v || []).slice(0, 300));
+
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    else if (typeof toast === 'function') toast('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+  function productsList() {
+    return (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+      .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+  }
+  function injectStyle() {
+    if (document.getElementById('v9promo-eof-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-eof-style';
+    st.textContent = `
+      .v9promo-admin-shell{display:grid;gap:14px}
+      .v9promo-admin-hero{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:12px;padding:16px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8 55%,#14b8a6);color:#fff;box-shadow:0 20px 48px rgba(37,99,235,.22)}
+      .v9promo-admin-title{font-size:18px;font-weight:950;display:flex;align-items:center;gap:10px}
+      .v9promo-admin-title i{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center}
+      .v9promo-admin-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px}
+      .v9promo-admin-stat span{display:block;font-size:11px;font-weight:900;color:rgba(255,255,255,.72)}
+      .v9promo-admin-stat b{display:block;font-size:22px;font-weight:950;margin-top:3px}
+      .v9promo-admin-row{display:grid;grid-template-columns:1.15fr 1.1fr 120px 120px;gap:12px;align-items:center;border:1px solid #e2e8f0;border-radius:18px;background:#fff;padding:14px;box-shadow:0 12px 28px rgba(15,23,42,.055)}
+      .v9promo-admin-prod{display:flex;align-items:center;gap:12px;min-width:0}
+      .v9promo-admin-icon{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffedd5);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+      .v9promo-admin-name{font-size:15px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.45}
+      .v9promo-admin-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+      .v9promo-mini{border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;padding:9px;min-width:0}
+      .v9promo-mini span{display:block;font-size:10px;font-weight:900;color:#64748b}
+      .v9promo-mini b{display:block;font-size:14px;font-weight:950;color:#0f172a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-row input{height:46px;border:1px solid #fecaca;border-radius:14px;text-align:center;font-size:17px;font-weight:950;color:#dc2626;outline:none;background:#fff7ed}
+      .v9promo-history{font-size:11px;color:#64748b;line-height:1.55;max-height:54px;overflow:hidden}
+      .v9promo-history b{color:#334155}
+      @media(max-width:900px){.v9promo-admin-hero,.v9promo-admin-row{grid-template-columns:1fr}.v9promo-admin-numbers{grid-template-columns:1fr 1fr 1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+  function rowsHtml() {
+    const ps = promos();
+    const hist = histories();
+    return productsList().map(p => {
+      const cur = Number(ps[p.id] || 0);
+      const price = Number(p.price || 0);
+      const cost = Number(p.cost || 0);
+      const net = Math.max(0, price - (price * cur / 100));
+      const margin = net > 0 ? Math.round(((net - cost) / net) * 100) : 0;
+      const ph = hist.filter(h => String(h.product_id) === String(p.id)).slice(0, 3);
+      return `<div class="v9promo-admin-row" data-name="${esc((p.name || '').toLowerCase())}">
+        <div class="v9promo-admin-prod"><div class="v9promo-admin-icon"><i class="material-icons-round">local_offer</i></div><div style="min-width:0"><div class="v9promo-admin-name">${esc(p.name)}</div><div class="v9promo-admin-meta">สต็อก ${fmt(p.stock || 0)} ${esc(p.unit || '')} · มูลค่าทุน ฿${fmt((p.cost || 0) * (p.stock || 0))}</div></div></div>
+        <div class="v9promo-admin-numbers"><div class="v9promo-mini"><span>ราคาขายเดิม</span><b>฿${fmt(price)}</b></div><div class="v9promo-mini"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(cost)}</b></div><div class="v9promo-mini"><span>หลังลด / กำไร</span><b style="color:${margin >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(net)} · ${margin}%</b></div></div>
+        <input type="number" min="0" max="100" step="0.01" id="v9promo-${p.id}" value="${cur || ''}" placeholder="0%">
+        <div class="v9promo-history">${ph.length ? ph.map(h => `<div><b>${h.old_percent || 0}% → ${h.new_percent || 0}%</b> · ${new Date(h.at).toLocaleDateString('th-TH')} ${esc(h.by || '')}</div>`).join('') : '<span>ยังไม่มีประวัติโปรโมชั่น</span>'}</div>
+      </div>`;
+    }).join('');
+  }
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    injectStyle();
+    const ps = promos();
+    const active = Object.values(ps).filter(v => Number(v) > 0).length;
+    const avg = active ? Math.round(Object.values(ps).reduce((s, v) => s + Number(v || 0), 0) / active) : 0;
+    openModal?.('จัดการสินค้าโปรโมชั่น', `<div class="v9promo-admin-shell">
+      <div class="v9promo-admin-hero"><div class="v9promo-admin-title"><i class="material-icons-round">workspace_premium</i><div><div>สินค้าโปรโมชั่น</div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.72);margin-top:2px">จัดการจากหน้าคลังสินค้าเท่านั้น</div></div></div><div class="v9promo-admin-stat"><span>สินค้า</span><b>${productsList().length}</b></div><div class="v9promo-admin-stat"><span>เปิดโปร</span><b>${active}</b></div><div class="v9promo-admin-stat"><span>ลดเฉลี่ย</span><b>${avg}%</b></div></div>
+      <div class="search-box" style="width:100%"><i class="material-icons-round">search</i><input placeholder="ค้นหาสินค้า..." oninput="v9FilterPromoAdminRows(this.value)"></div>
+      <div style="max-height:58vh;overflow:auto;padding-right:4px">${rowsHtml() || '<div style="padding:32px;text-align:center;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:18px;background:#fff">ไม่มีสินค้า</div>'}</div>
+      <button class="btn btn-primary" style="height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#dc2626,#f97316);font-weight:950" onclick="v9SavePromotions()"><i class="material-icons-round">save</i> บันทึกโปรโมชั่น</button>
+    </div>`);
+  };
+  window.v9FilterPromoAdminRows = function (q) {
+    const s = String(q || '').toLowerCase();
+    document.querySelectorAll('.v9promo-admin-row').forEach(r => { r.style.display = (r.dataset.name || '').includes(s) ? 'grid' : 'none'; });
+  };
+  window.v9SavePromotions = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    const old = promos();
+    const next = {};
+    const hist = histories();
+    productsList().forEach(p => {
+      const val = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-' + p.id)?.value || 0)));
+      if (val > 0) next[p.id] = val;
+      const oldVal = Number(old[p.id] || 0);
+      if (oldVal !== val) hist.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldVal, new_percent: val, price: Number(p.price || 0), cost: Number(p.cost || 0) });
+    });
+    savePromos(next);
+    saveHist(hist);
+    toast?.('บันทึกโปรโมชั่นแล้ว', 'success');
+    closeModal?.();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+  function removePosButton() { document.getElementById('v9promo-open-btn')?.remove(); }
+  function addInvButton() {
+    const pa = document.getElementById('page-actions');
+    if (!pa || document.getElementById('v9promo-inv-btn') || !isAdmin()) return;
+    pa.insertAdjacentHTML('afterbegin', `<button class="btn btn-outline" id="v9promo-inv-btn" onclick="v9OpenPromoModal()"><i class="material-icons-round">local_offer</i> โปรโมชั่น</button>`);
+  }
+  const prevGo = window.go;
+  window.go = function (page) {
+    const r = prevGo?.apply(this, arguments);
+    setTimeout(() => { removePosButton(); if (page === 'inv') addInvButton(); }, 260);
+    return r;
+  };
+  const prevRenderInv = window.renderInventory;
+  window.renderInventory = async function () {
+    await prevRenderInv?.apply(this, arguments);
+    removePosButton();
+    addInvButton();
+    if (!isAdmin()) {
+      document.querySelectorAll('[onclick*="adjustStock"]').forEach(btn => btn.remove());
+      document.getElementById('v9promo-inv-btn')?.remove();
+    }
+  };
+  const prevAdjust = window.adjustStock;
+  window.adjustStock = async function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    return await prevAdjust?.apply(this, arguments);
+  };
+  try { adjustStock = window.adjustStock; } catch (_) {}
+  injectStyle();
+  setInterval(removePosButton, 800);
+  if (window.v9PromoWorkspaceApi) {
+    window.v9OpenPromoModal = window.v9PromoWorkspaceApi.open;
+    window.v9PromoFilterPick = window.v9PromoWorkspaceApi.filter;
+    window.v9PromoSelectProduct = window.v9PromoWorkspaceApi.select;
+    window.v9PromoPreviewSelected = window.v9PromoWorkspaceApi.preview;
+    window.v9PromoSaveSelected = window.v9PromoWorkspaceApi.save;
+    window.v9PromoRemoveSelected = window.v9PromoWorkspaceApi.remove;
+  }
+  window.v9InstallPermissionPromoGuards = function installPromoPermissionGuards() {
+    const extraKey = 'sk_pos_extra_permissions_v1';
+    const readExtra = () => { try { return JSON.parse(localStorage.getItem(extraKey) || '{}'); } catch (_) { return {}; } };
+    const perm = (k) => {
+      if (typeof USER !== 'undefined' && USER?.role === 'admin') return true;
+      if (typeof USER_PERMS !== 'undefined' && USER_PERMS?.[k] === true) return true;
+      if (typeof USER_PERMS !== 'undefined' && k !== 'can_promotion' && USER_PERMS?.can_manage === true) return true;
+      const uid = typeof USER !== 'undefined' ? USER?.id : '';
+      return !!(uid && readExtra()[uid]?.[k]);
+    };
+    window.v9CanAdjustStock = () => perm('can_adjust_stock') || perm('can_manage');
+    window.v9CanPromotion = () => perm('can_promotion') || perm('can_manage');
+    const runAsAdmin = (fn, args) => {
+      if (typeof USER === 'undefined' || !USER || USER.role === 'admin') return fn?.apply(this, args);
+      const oldRole = USER.role;
+      USER.role = 'admin';
+      try { return fn?.apply(this, args); } finally { USER.role = oldRole; }
+    };
+    const promoOpen = window.v9OpenPromoModal;
+    window.v9OpenPromoModal = function () {
+      if (!window.v9CanPromotion()) {
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์', text: 'ต้องได้รับสิทธิ์โปรโมชั่นจากแอดมิน', confirmButtonColor: '#dc2626' });
+        else if (typeof toast === 'function') toast('ไม่มีสิทธิ์โปรโมชั่น', 'error');
+        return;
+      }
+      return runAsAdmin(promoOpen, arguments);
+    };
+    ['v9PromoSaveSelected', 'v9PromoRemoveSelected'].forEach(name => {
+      const original = window[name];
+      window[name] = function () {
+        if (!window.v9CanPromotion()) return;
+        return runAsAdmin(original, arguments);
+      };
+    });
+    const oldAdjust = window.adjustStock;
+    window.adjustStock = async function () {
+      if (!window.v9CanAdjustStock()) {
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์', text: 'ต้องได้รับสิทธิ์ปรับสต็อกจากแอดมิน', confirmButtonColor: '#dc2626' });
+        else if (typeof toast === 'function') toast('ไม่มีสิทธิ์ปรับสต็อก', 'error');
+        return;
+      }
+      return await runAsAdmin(oldAdjust, arguments);
+    };
+    try { adjustStock = window.adjustStock; } catch (_) {}
+    const addPromoButton = () => {
+      const pa = document.getElementById('page-actions');
+      if (!pa || document.getElementById('v9promo-inv-btn') || !window.v9CanPromotion()) return;
+      pa.insertAdjacentHTML('afterbegin', `<button class="btn btn-outline" id="v9promo-inv-btn" onclick="v9OpenPromoModal()"><i class="material-icons-round">local_offer</i> โปรโมชั่น</button>`);
+    };
+    const oldRenderInventory = window.renderInventory;
+    window.renderInventory = async function () {
+      const canAny = window.v9CanAdjustStock() || window.v9CanPromotion();
+      let oldRole = null;
+      if (canAny && typeof USER !== 'undefined' && USER && USER.role !== 'admin') { oldRole = USER.role; USER.role = 'admin'; }
+      try { await oldRenderInventory?.apply(this, arguments); } finally { if (oldRole) USER.role = oldRole; }
+      if (!window.v9CanAdjustStock()) document.querySelectorAll('[onclick*="adjustStock"]').forEach(btn => btn.remove());
+      if (!window.v9CanPromotion()) document.getElementById('v9promo-inv-btn')?.remove();
+      addPromoButton();
+    };
+    const oldSavePermission = window.v9SavePermission;
+    window.v9SavePermission = async function (userId) {
+      const extra = readExtra();
+      extra[userId] = extra[userId] || {};
+      ['can_adjust_stock', 'can_promotion'].forEach(k => {
+        extra[userId][k] = !!document.getElementById(`v9perm-${userId}-${k}`)?.checked;
+      });
+      localStorage.setItem(extraKey, JSON.stringify(extra));
+      return await oldSavePermission?.apply(this, arguments);
+    };
+    window.savePermission = window.v9SavePermission;
+    setTimeout(addPromoButton, 300);
+  };
+  window.v9InstallPermissionPromoGuards();
+})();
+
+// Keep the latest promotion UI above as the final callable version after legacy guards run.
+(function () {
+  if (!window.v9PromoWorkspaceApi) return;
+  window.v9OpenPromoModal = window.v9PromoWorkspaceApi.open;
+  window.v9PromoFilterPick = window.v9PromoWorkspaceApi.filter;
+  window.v9PromoSelectProduct = window.v9PromoWorkspaceApi.select;
+  window.v9PromoPreviewSelected = window.v9PromoWorkspaceApi.preview;
+  window.v9PromoSaveSelected = window.v9PromoWorkspaceApi.save;
+  window.v9PromoRemoveSelected = window.v9PromoWorkspaceApi.remove;
+})();
+
+// Final promotion workspace: admin-only, select a product first, then edit details.
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  const isAdmin = () => (typeof USER !== 'undefined' && USER && USER.role === 'admin');
+  const fmt = (n) => (typeof formatNum === 'function' ? formatNum(Math.round((Number(n) || 0) * 100) / 100) : String(Math.round((Number(n) || 0) * 100) / 100));
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const js = (s) => esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => readJson(PROMO_KEY, {});
+  const histories = () => readJson(HIST_KEY, []);
+  const savePromos = (v) => writeJson(PROMO_KEY, v || {});
+  const saveHist = (v) => writeJson(HIST_KEY, (v || []).slice(0, 300));
+  const productsList = () => (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+    .filter(p => p && p.id && !['ตามบิล', 'แยกบิล'].includes(p.product_type));
+  let selectedPromoProductId = null;
+
+  function notify(msg, type = 'success') {
+    if (typeof toast === 'function') toast(msg, type);
+  }
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    else notify('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+  function calc(p, percent) {
+    const price = Number(p?.price || 0);
+    const cost = Number(p?.cost || 0);
+    const off = Math.round((price * Number(percent || 0) / 100) * 100) / 100;
+    const net = Math.max(0, price - off);
+    const profit = Math.round((net - cost) * 100) / 100;
+    const margin = net > 0 ? Math.round((profit / net) * 100) : 0;
+    return { price, cost, off, net, profit, margin };
+  }
+  function injectStyle() {
+    if (document.getElementById('v9promo-workspace-final-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-workspace-final-style';
+    st.textContent = `
+      .modal-box.v9promo-workspace-modal{width:min(1420px,98vw)!important;max-height:95vh!important;border-radius:26px!important;overflow:hidden!important;background:#f8fafc!important}
+      .modal-box.v9promo-workspace-modal .modal-body{padding:0!important;background:#f8fafc!important}
+      .v9promo-workspace{display:grid;grid-template-columns:380px minmax(0,1fr) 340px;height:calc(95vh - 78px);min-height:700px;background:#f8fafc}
+      .v9promo-side,.v9promo-active{background:#fff;display:flex;flex-direction:column;min-width:0}.v9promo-side{border-right:1px solid #e2e8f0}.v9promo-active{border-left:1px solid #e2e8f0}
+      .v9promo-head{padding:18px;border-bottom:1px solid #e2e8f0}.v9promo-hero{padding:20px;border-radius:22px;background:linear-gradient(135deg,#0f172a,#2563eb 56%,#14b8a6);color:#fff;box-shadow:0 18px 42px rgba(37,99,235,.24)}
+      .v9promo-hero h3{margin:0;font-size:22px;font-weight:950}.v9promo-hero p{margin:4px 0 0;color:rgba(255,255,255,.74);font-size:12px;font-weight:800}
+      .v9promo-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}.v9promo-stat{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.13);border-radius:15px;padding:10px}.v9promo-stat span{display:block;font-size:10px;font-weight:900;color:rgba(255,255,255,.72)}.v9promo-stat b{display:block;font-size:21px;font-weight:950}
+      .v9promo-search{height:50px;border:1px solid #dbe3ef;border-radius:16px;background:#fff;display:flex;align-items:center;gap:9px;padding:0 14px;margin-top:14px;color:#94a3b8}.v9promo-search input{border:0;outline:0;background:transparent;flex:1;font-family:var(--font-thai,'Prompt'),sans-serif;font-size:14px}
+      .v9promo-list,.v9promo-active-list{overflow:auto;padding:12px;display:grid;gap:9px}.v9promo-pick{display:flex;align-items:center;gap:12px;border:1px solid #e2e8f0;border-radius:17px;background:#fff;padding:12px;cursor:pointer;transition:.16s}.v9promo-pick:hover,.v9promo-pick.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 12px 28px rgba(37,99,235,.12)}
+      .v9promo-icon{width:46px;height:46px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffedd5);display:flex;align-items:center;justify-content:center;color:#dc2626;flex-shrink:0}.v9promo-name{font-size:14px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v9promo-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.4}.v9promo-chip{font-size:11px;font-weight:950;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:999px;padding:4px 8px;white-space:nowrap}
+      .v9promo-main{padding:22px;overflow:auto;min-width:0}.v9promo-card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:18px;box-shadow:0 14px 32px rgba(15,23,42,.055);margin-bottom:16px}.v9promo-title{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #e2e8f0;padding-bottom:16px;margin-bottom:16px}.v9promo-title h3{font-size:25px;font-weight:950;margin:0;color:#0f172a}.v9promo-title p{font-size:13px;color:#64748b;margin:4px 0 0}
+      .v9promo-empty{height:100%;min-height:520px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8}.v9promo-empty i{display:block;font-size:74px;color:#cbd5e1;margin-bottom:10px}.v9promo-empty b{display:block;font-size:22px;color:#334155}
+      .v9promo-metrics,.v9promo-preview{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.v9promo-preview{grid-template-columns:repeat(3,1fr)}.v9promo-metric,.v9promo-prev{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}.v9promo-metric span,.v9promo-prev span{font-size:11px;font-weight:950;color:#64748b}.v9promo-metric b,.v9promo-prev b{display:block;font-size:22px;font-weight:950;margin-top:4px;color:#0f172a}
+      .v9promo-editor{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;align-items:center}.v9promo-percent{height:158px;border-radius:25px;background:linear-gradient(135deg,#fff1f2,#ffedd5);border:1px solid #fecaca;display:flex;flex-direction:column;align-items:center;justify-content:center}.v9promo-percent input{width:150px;border:0;background:transparent;text-align:center;font-size:44px;font-weight:950;color:#dc2626;outline:0}.v9promo-percent span{font-size:12px;color:#9f1239;font-weight:900}
+      .v9promo-actions{display:flex;gap:10px;margin-top:14px}.v9promo-actions .btn{height:52px;border-radius:15px;font-weight:950}.v9promo-active-row{border:1px solid #e2e8f0;border-radius:17px;background:#fff;padding:12px;cursor:pointer}.v9promo-active-row:hover{border-color:#fca5a5;background:#fff7ed}.v9promo-active-row strong{display:block;font-size:13px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v9promo-active-row span{font-size:12px;color:#64748b}
+      @media(max-width:1120px){.v9promo-workspace{grid-template-columns:340px minmax(0,1fr)}.v9promo-active{display:none}.v9promo-metrics,.v9promo-preview{grid-template-columns:1fr 1fr}.v9promo-editor{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+  function activePromos() {
+    const ps = promos();
+    return productsList().filter(p => Number(ps[p.id] || 0) > 0);
+  }
+  function pickHtml(q = '') {
+    const ps = promos();
+    const s = String(q || '').toLowerCase();
+    return productsList().filter(p => !s || String([p.name, p.barcode, p.category].join(' ')).toLowerCase().includes(s)).map(p => {
+      const cur = Number(ps[p.id] || 0);
+      return `<div class="v9promo-pick ${String(selectedPromoProductId) === String(p.id) ? 'on' : ''}" onclick="v9PromoSelectProduct('${js(p.id)}')">
+        <div class="v9promo-icon"><i class="material-icons-round">sell</i></div>
+        <div style="flex:1;min-width:0"><div class="v9promo-name">${esc(p.name)}</div><div class="v9promo-meta">ขาย ฿${fmt(p.price)} · ทุน ฿${fmt(p.cost)} · สต็อก ${fmt(p.stock)} ${esc(p.unit || '')}</div></div>
+        ${cur > 0 ? `<div class="v9promo-chip">ลด ${fmt(cur)}%</div>` : ''}
+      </div>`;
+    }).join('') || '<div style="padding:24px;text-align:center;color:#94a3b8">ไม่พบสินค้า</div>';
+  }
+  function activeHtml() {
+    const ps = promos();
+    return activePromos().map(p => {
+      const percent = Number(ps[p.id] || 0);
+      const c = calc(p, percent);
+      return `<div class="v9promo-active-row" onclick="v9PromoSelectProduct('${js(p.id)}')"><strong>${esc(p.name)}</strong><span>ลด ${fmt(percent)}% · เหลือ ฿${fmt(c.net)} · ลด ฿${fmt(c.off)}</span></div>`;
+    }).join('') || '<div style="padding:24px;text-align:center;color:#94a3b8;background:#f8fafc;border-radius:16px">ยังไม่มีสินค้าโปรโมชั่น</div>';
+  }
+  function detailHtml(id) {
+    const p = productsList().find(x => String(x.id) === String(id));
+    if (!p) return `<div class="v9promo-empty"><div><i class="material-icons-round">touch_app</i><b>เลือกสินค้าก่อน</b><p>เลือกรายการด้านซ้ายเพื่อดูรายละเอียดและตั้งส่วนลด</p></div></div>`;
+    const ps = promos();
+    const percent = Number(ps[p.id] || 0);
+    const c = calc(p, percent);
+    const hist = histories().filter(h => String(h.product_id) === String(p.id)).slice(0, 8);
+    return `<div class="v9promo-card"><div class="v9promo-title"><div><h3>${esc(p.name)}</h3><p>หมวด ${esc(p.category || '-')} · หน่วย ${esc(p.unit || 'ชิ้น')} · บาร์โค้ด ${esc(p.barcode || '-')}</p></div>${percent > 0 ? `<div class="v9promo-chip">กำลังลด ${fmt(percent)}%</div>` : `<div class="v9promo-chip" style="background:#f8fafc;color:#64748b;border-color:#e2e8f0">ยังไม่เปิดโปร</div>`}</div>
+      <div class="v9promo-metrics"><div class="v9promo-metric"><span>ราคาขายเดิม</span><b>฿${fmt(p.price)}</b></div><div class="v9promo-metric"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(p.cost)}</b></div><div class="v9promo-metric"><span>สต็อก</span><b>${fmt(p.stock)} ${esc(p.unit || '')}</b></div><div class="v9promo-metric"><span>มูลค่าทุน</span><b style="color:#16a34a">฿${fmt(Number(p.cost || 0) * Number(p.stock || 0))}</b></div></div></div>
+      <div class="v9promo-card"><div class="v9promo-editor"><div class="v9promo-percent"><input id="v9promo-selected-percent" type="number" min="0" max="100" step="0.01" value="${percent || ''}" placeholder="0" oninput="v9PromoPreviewSelected()"><span>เปอร์เซ็นต์ส่วนลด</span></div><div><div class="v9promo-preview"><div class="v9promo-prev"><span>ราคาหลังลด</span><b id="v9promo-preview-net">฿${fmt(c.net)}</b></div><div class="v9promo-prev"><span>ลดต่อหน่วย</span><b id="v9promo-preview-off" style="color:#dc2626">฿${fmt(c.off)}</b></div><div class="v9promo-prev"><span>กำไรหลังลด</span><b id="v9promo-preview-profit" style="color:${c.profit >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(c.profit)} · ${c.margin}%</b></div></div><div class="v9promo-actions"><button class="btn btn-primary" style="flex:1;background:linear-gradient(135deg,#dc2626,#f97316);border:0" onclick="v9PromoSaveSelected()"><i class="material-icons-round">save</i> บันทึกโปร</button><button class="btn btn-outline" onclick="v9PromoRemoveSelected()"><i class="material-icons-round">delete</i> ปิดโปร</button></div></div></div></div>
+      <div class="v9promo-card"><div style="font-size:15px;font-weight:950;margin-bottom:10px"><i class="material-icons-round" style="color:#2563eb;font-size:18px;vertical-align:middle">history</i> ประวัติโปรโมชั่น</div>${hist.length ? hist.map(h => `<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;margin-bottom:8px;font-size:12px"><span><b>${fmt(h.old_percent)}% → ${fmt(h.new_percent)}%</b><br><span style="color:#64748b">${new Date(h.at).toLocaleString('th-TH')} · ${esc(h.by || '')}</span></span><span style="color:#64748b">ขาย ฿${fmt(h.price)} · ทุน ฿${fmt(h.cost)}</span></div>`).join('') : '<div style="padding:18px;text-align:center;color:#94a3b8;background:#f8fafc;border-radius:14px">ยังไม่มีประวัติ</div>'}</div>`;
+  }
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    injectStyle();
+    const ps = promos();
+    const active = activePromos();
+    selectedPromoProductId = selectedPromoProductId || active[0]?.id || productsList()[0]?.id || null;
+    const avg = active.length ? Math.round(active.reduce((s, p) => s + Number(ps[p.id] || 0), 0) / active.length) : 0;
+    if (typeof openModal === 'function') openModal('จัดการสินค้าโปรโมชั่น', `<div class="v9promo-workspace">
+      <div class="v9promo-side"><div class="v9promo-head"><div class="v9promo-hero"><h3>สินค้าโปรโมชั่น</h3><p>เลือกสินค้าก่อน แล้วค่อยตั้งส่วนลด</p><div class="v9promo-stats"><div class="v9promo-stat"><span>สินค้า</span><b>${productsList().length}</b></div><div class="v9promo-stat"><span>เปิดโปร</span><b id="v9promo-active-count">${active.length}</b></div><div class="v9promo-stat"><span>ลดเฉลี่ย</span><b id="v9promo-avg">${avg}%</b></div></div></div><div class="v9promo-search"><i class="material-icons-round">search</i><input placeholder="ค้นหาสินค้า..." oninput="v9PromoFilterPick(this.value)"></div></div><div class="v9promo-list" id="v9promo-pick-list">${pickHtml('')}</div></div>
+      <div class="v9promo-main" id="v9promo-detail">${detailHtml(selectedPromoProductId)}</div>
+      <div class="v9promo-active"><div class="v9promo-head"><div style="font-size:16px;font-weight:950;color:#0f172a"><i class="material-icons-round" style="color:#dc2626;font-size:19px;vertical-align:middle">local_fire_department</i> กำลังจัดโปร</div><div style="font-size:12px;color:#64748b;margin-top:4px">รายการสินค้าที่เปิดโปรโมชั่นอยู่</div></div><div class="v9promo-active-list" id="v9promo-active-list">${activeHtml()}</div></div>
+    </div>`);
+    setTimeout(() => document.querySelector('.modal-box')?.classList.add('v9promo-workspace-modal'), 0);
+  };
+  window.v9PromoFilterPick = function (q) {
+    const el = document.getElementById('v9promo-pick-list');
+    if (el) el.innerHTML = pickHtml(q);
+  };
+  window.v9PromoSelectProduct = function (id) {
+    selectedPromoProductId = id;
+    const detail = document.getElementById('v9promo-detail');
+    if (detail) detail.innerHTML = detailHtml(id);
+    document.querySelectorAll('.v9promo-pick').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.v9promo-pick').forEach(x => {
+      if ((x.getAttribute('onclick') || '').includes(String(id).replace(/'/g, "\\'"))) x.classList.add('on');
+    });
+  };
+  window.v9PromoPreviewSelected = function () {
+    const p = productsList().find(x => String(x.id) === String(selectedPromoProductId));
+    if (!p) return;
+    const percent = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-selected-percent')?.value || 0)));
+    const c = calc(p, percent);
+    const net = document.getElementById('v9promo-preview-net');
+    const off = document.getElementById('v9promo-preview-off');
+    const profit = document.getElementById('v9promo-preview-profit');
+    if (net) net.textContent = '฿' + fmt(c.net);
+    if (off) off.textContent = '฿' + fmt(c.off);
+    if (profit) { profit.textContent = '฿' + fmt(c.profit) + ' · ' + c.margin + '%'; profit.style.color = c.profit >= 0 ? '#15803d' : '#dc2626'; }
+  };
+  window.v9PromoSaveSelected = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    const p = productsList().find(x => String(x.id) === String(selectedPromoProductId));
+    if (!p) return;
+    const old = promos();
+    const next = { ...old };
+    const val = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-selected-percent')?.value || 0)));
+    const oldVal = Number(old[p.id] || 0);
+    if (val > 0) next[p.id] = val; else delete next[p.id];
+    savePromos(next);
+    if (oldVal !== val) {
+      const hist = histories();
+      hist.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldVal, new_percent: val, price: Number(p.price || 0), cost: Number(p.cost || 0) });
+      saveHist(hist);
+    }
+    notify('บันทึกโปรโมชั่นแล้ว');
+    window.v9OpenPromoModal();
+    if (typeof renderInventory === 'function') renderInventory();
+    if (typeof renderProductGrid === 'function') renderProductGrid();
+  };
+  window.v9PromoRemoveSelected = function () {
+    const input = document.getElementById('v9promo-selected-percent');
+    if (input) input.value = 0;
+    window.v9PromoSaveSelected();
+  };
+  window.v9PromoWorkspaceApi = {
+    open: window.v9OpenPromoModal,
+    filter: window.v9PromoFilterPick,
+    select: window.v9PromoSelectProduct,
+    preview: window.v9PromoPreviewSelected,
+    save: window.v9PromoSaveSelected,
+    remove: window.v9PromoRemoveSelected
+  };
+})();
+
+// Promo modal v2: pick product first, then edit details in a large workspace.
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  let selectedId = null;
+
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const num = (v) => Number(v || 0);
+  const fmt = (v) => formatNum(Math.round(num(v) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const js = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => readJson(PROMO_KEY, {});
+  const savePromos = (v) => writeJson(PROMO_KEY, v || {});
+  const histories = () => readJson(HIST_KEY, []);
+  const saveHist = (v) => writeJson(HIST_KEY, (v || []).slice(0, 300));
+  const productsList = () => (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+    .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    else if (typeof toast === 'function') toast('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+
+  function injectStyle() {
+    if (document.getElementById('v9promo-v2-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-v2-style';
+    st.textContent = `
+      .modal-box.v9promo-v2-modal{width:min(1280px,96vw)!important;max-height:94vh!important;border-radius:24px!important;overflow:hidden!important;background:#f8fafc!important}
+      .modal-box.v9promo-v2-modal .modal-body{padding:0!important;background:#f8fafc!important}
+      .v9promo-v2{display:grid;grid-template-columns:360px 1fr 320px;height:calc(94vh - 78px);min-height:680px;background:#f8fafc}
+      .v9promo-v2-side{border-right:1px solid #e2e8f0;background:linear-gradient(180deg,#fff,#f8fafc);display:flex;flex-direction:column;min-width:0}
+      .v9promo-v2-active{border-left:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;min-width:0}
+      .v9promo-v2-head{padding:18px;border-bottom:1px solid #e2e8f0}
+      .v9promo-v2-hero{padding:20px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#2563eb 58%,#14b8a6);color:#fff;box-shadow:0 18px 42px rgba(37,99,235,.22)}
+      .v9promo-v2-hero h3{font-size:20px;font-weight:950;margin:0 0 4px}
+      .v9promo-v2-hero p{font-size:12px;font-weight:750;color:rgba(255,255,255,.72);margin:0}
+      .v9promo-v2-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+      .v9promo-v2-stat{padding:10px;border-radius:14px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.18)}
+      .v9promo-v2-stat span{display:block;font-size:10px;font-weight:900;color:rgba(255,255,255,.72)}
+      .v9promo-v2-stat b{display:block;font-size:20px;font-weight:950;margin-top:2px}
+      .v9promo-v2-search{margin-top:14px;display:flex;align-items:center;gap:9px;height:48px;border:1px solid #dbe3ef;border-radius:15px;background:#fff;padding:0 14px;color:#94a3b8}
+      .v9promo-v2-search input{border:0;outline:0;background:transparent;flex:1;font-family:var(--font-thai,'Prompt'),sans-serif;font-size:14px;color:#0f172a}
+      .v9promo-v2-list{overflow:auto;padding:12px 14px;display:grid;gap:8px}
+      .v9promo-v2-pick{display:flex;align-items:center;gap:12px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:12px;cursor:pointer;transition:.18s;min-width:0}
+      .v9promo-v2-pick:hover{border-color:#93c5fd;box-shadow:0 12px 24px rgba(37,99,235,.1);transform:translateY(-1px)}
+      .v9promo-v2-pick.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 12px 28px rgba(37,99,235,.14)}
+      .v9promo-v2-icon{width:44px;height:44px;border-radius:15px;background:linear-gradient(135deg,#fff1f2,#ffedd5);display:flex;align-items:center;justify-content:center;color:#dc2626;flex-shrink:0}
+      .v9promo-v2-name{font-size:14px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-v2-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.35}
+      .v9promo-v2-chip{font-size:11px;font-weight:950;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:999px;padding:3px 8px;white-space:nowrap}
+      .v9promo-v2-main{padding:22px;overflow:auto;min-width:0}
+      .v9promo-v2-empty{height:100%;min-height:520px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8}
+      .v9promo-v2-empty i{font-size:70px;color:#cbd5e1;display:block;margin-bottom:10px}
+      .v9promo-detail{display:grid;gap:16px}
+      .v9promo-detail-card{border:1px solid #e2e8f0;border-radius:22px;background:#fff;padding:18px;box-shadow:0 14px 32px rgba(15,23,42,.055)}
+      .v9promo-product-title{display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid #e2e8f0;padding-bottom:16px;margin-bottom:16px}
+      .v9promo-product-title h3{font-size:24px;font-weight:950;color:#0f172a;margin:0}
+      .v9promo-product-title p{font-size:13px;color:#64748b;margin:4px 0 0}
+      .v9promo-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+      .v9promo-metric{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}
+      .v9promo-metric span{display:block;font-size:11px;font-weight:950;color:#64748b}
+      .v9promo-metric b{display:block;font-size:22px;font-weight:950;color:#0f172a;margin-top:4px}
+      .v9promo-editor{display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:center}
+      .v9promo-percent-box{height:150px;border-radius:24px;background:linear-gradient(135deg,#fff1f2,#ffedd5);border:1px solid #fecaca;display:flex;flex-direction:column;align-items:center;justify-content:center}
+      .v9promo-percent-box input{width:140px;border:0;background:transparent;text-align:center;font-size:42px;font-weight:950;color:#dc2626;outline:0}
+      .v9promo-percent-box span{font-size:12px;color:#9f1239;font-weight:900}
+      .v9promo-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+      .v9promo-preview-card{padding:16px;border-radius:18px;background:#fff;border:1px solid #e2e8f0}
+      .v9promo-preview-card span{display:block;font-size:11px;font-weight:950;color:#64748b}
+      .v9promo-preview-card b{display:block;font-size:24px;font-weight:950;margin-top:4px}
+      .v9promo-actions{display:flex;gap:10px;margin-top:14px}
+      .v9promo-actions .btn{height:50px;border-radius:14px;font-weight:950}
+      .v9promo-history-list{display:grid;gap:8px;max-height:220px;overflow:auto}
+      .v9promo-history-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px}
+      .v9promo-active-list{overflow:auto;padding:12px;display:grid;gap:8px}
+      .v9promo-active-row{border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:12px;cursor:pointer;transition:.15s}
+      .v9promo-active-row:hover{border-color:#fca5a5;background:#fff7ed}
+      .v9promo-active-row strong{display:block;font-size:13px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-active-row span{font-size:12px;color:#64748b}
+      @media(max-width:1100px){.v9promo-v2{grid-template-columns:320px 1fr}.v9promo-v2-active{display:none}.v9promo-metrics,.v9promo-preview{grid-template-columns:1fr 1fr}.v9promo-editor{grid-template-columns:1fr}}
+      @media(max-width:760px){.v9promo-v2{grid-template-columns:1fr;height:auto}.v9promo-v2-side{max-height:46vh}.v9promo-metrics,.v9promo-preview{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function productById(id) {
+    return productsList().find(p => String(p.id) === String(id));
+  }
+
+  function activePromos() {
+    const ps = promos();
+    return productsList()
+      .map(p => ({ product: p, percent: Number(ps[p.id] || 0) }))
+      .filter(x => x.percent > 0);
+  }
+
+  function historyFor(id) {
+    return histories().filter(h => String(h.product_id) === String(id)).slice(0, 12);
+  }
+
+  function calc(p, percent) {
+    const price = num(p?.price);
+    const cost = num(p?.cost);
+    const pct = Math.max(0, Math.min(100, num(percent)));
+    const discount = price * pct / 100;
+    const net = Math.max(0, price - discount);
+    const profit = net - cost;
+    const margin = net > 0 ? Math.round((profit / net) * 100) : 0;
+    return { price, cost, pct, discount, net, profit, margin };
+  }
+
+  function refreshLists() {
+    const list = document.getElementById('v9promo-pick-list');
+    if (list) list.innerHTML = pickListHtml('');
+    const active = document.getElementById('v9promo-active-list');
+    if (active) active.innerHTML = activeListHtml();
+    updateHeroStats();
+  }
+
+  function updateHeroStats() {
+    const active = activePromos();
+    const avg = active.length ? Math.round(active.reduce((s, x) => s + x.percent, 0) / active.length) : 0;
+    const totalEl = document.getElementById('v9promo-stat-total');
+    const activeEl = document.getElementById('v9promo-stat-active');
+    const avgEl = document.getElementById('v9promo-stat-avg');
+    if (totalEl) totalEl.textContent = productsList().length;
+    if (activeEl) activeEl.textContent = active.length;
+    if (avgEl) avgEl.textContent = `${avg}%`;
+  }
+
+  function pickListHtml(q) {
+    const query = String(q || '').toLowerCase();
+    const ps = promos();
+    return productsList()
+      .filter(p => !query || [p.name, p.barcode, p.category].filter(Boolean).join(' ').toLowerCase().includes(query))
+      .map(p => {
+        const cur = Number(ps[p.id] || 0);
+        const c = calc(p, cur);
+        return `<div class="v9promo-v2-pick ${String(selectedId) === String(p.id) ? 'on' : ''}" data-name="${esc([p.name, p.barcode, p.category].join(' ').toLowerCase())}" onclick="v9PromoSelectProduct('${js(p.id)}')">
+          <div class="v9promo-v2-icon"><i class="material-icons-round">sell</i></div>
+          <div style="min-width:0;flex:1">
+            <div class="v9promo-v2-name">${esc(p.name)}</div>
+            <div class="v9promo-v2-meta">ขาย ฿${fmt(p.price)} · ทุน ฿${fmt(p.cost)} · สต็อก ${fmt(p.stock)} ${esc(p.unit || '')}</div>
+          </div>
+          ${cur > 0 ? `<div class="v9promo-v2-chip">ลด ${fmt(cur)}%</div>` : ''}
+        </div>`;
+      }).join('') || `<div style="padding:24px;text-align:center;color:#94a3b8">ไม่พบสินค้า</div>`;
+  }
+
+  function activeListHtml() {
+    const active = activePromos();
+    return active.map(({ product: p, percent }) => {
+      const c = calc(p, percent);
+      return `<div class="v9promo-active-row" onclick="v9PromoSelectProduct('${js(p.id)}')">
+        <strong>${esc(p.name)}</strong>
+        <span>ลด ${fmt(percent)}% · เหลือ ฿${fmt(c.net)} · ลด ฿${fmt(c.discount)}</span>
+      </div>`;
+    }).join('') || `<div style="padding:24px;text-align:center;color:#94a3b8">ยังไม่มีสินค้าโปร</div>`;
+  }
+
+  function detailHtml(id) {
+    const p = productById(id);
+    if (!p) return `<div class="v9promo-v2-empty"><div><i class="material-icons-round">touch_app</i><b>เลือกสินค้าก่อน</b><p>เลือกจากรายการด้านซ้ายเพื่อดูรายละเอียดและตั้งโปรโมชั่น</p></div></div>`;
+    const percent = Number(promos()[p.id] || 0);
+    const c = calc(p, percent);
+    const h = historyFor(p.id);
+    return `<div class="v9promo-detail">
+      <div class="v9promo-detail-card">
+        <div class="v9promo-product-title">
+          <div>
+            <h3>${esc(p.name)}</h3>
+            <p>หมวด ${esc(p.category || '-')} · หน่วย ${esc(p.unit || 'ชิ้น')} · บาร์โค้ด ${esc(p.barcode || '-')}</p>
+          </div>
+          ${percent > 0 ? `<div class="v9promo-v2-chip">กำลังลด ${fmt(percent)}%</div>` : `<div class="v9promo-v2-chip" style="background:#f8fafc;color:#64748b;border-color:#e2e8f0">ยังไม่เปิดโปร</div>`}
+        </div>
+        <div class="v9promo-metrics">
+          <div class="v9promo-metric"><span>ราคาขายเดิม</span><b>฿${fmt(p.price)}</b></div>
+          <div class="v9promo-metric"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(p.cost)}</b></div>
+          <div class="v9promo-metric"><span>สต็อก</span><b>${fmt(p.stock)} ${esc(p.unit || '')}</b></div>
+          <div class="v9promo-metric"><span>มูลค่าทุน</span><b style="color:#16a34a">฿${fmt(num(p.cost) * num(p.stock))}</b></div>
+        </div>
+      </div>
+      <div class="v9promo-detail-card">
+        <div class="v9promo-editor">
+          <div class="v9promo-percent-box">
+            <input id="v9promo-selected-percent" type="number" min="0" max="100" step="0.01" value="${percent || ''}" placeholder="0" oninput="v9PromoPreviewSelected()">
+            <span>เปอร์เซ็นต์ส่วนลด</span>
+          </div>
+          <div>
+            <div class="v9promo-preview">
+              <div class="v9promo-preview-card"><span>ราคาหลังลด</span><b id="v9promo-preview-net">฿${fmt(c.net)}</b></div>
+              <div class="v9promo-preview-card"><span>ลดต่อหน่วย</span><b id="v9promo-preview-off" style="color:#dc2626">฿${fmt(c.discount)}</b></div>
+              <div class="v9promo-preview-card"><span>กำไรหลังลด</span><b id="v9promo-preview-profit" style="color:${c.profit >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(c.profit)} · ${c.margin}%</b></div>
+            </div>
+            <div class="v9promo-actions">
+              <button class="btn btn-primary" style="flex:1;background:linear-gradient(135deg,#dc2626,#f97316);border:0" onclick="v9PromoSaveSelected()"><i class="material-icons-round">save</i> บันทึกโปร</button>
+              <button class="btn btn-outline" onclick="v9PromoRemoveSelected()"><i class="material-icons-round">delete</i> ปิดโปร</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="v9promo-detail-card">
+        <div style="font-size:15px;font-weight:950;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:8px"><i class="material-icons-round" style="color:#2563eb">history</i>ประวัติโปรโมชั่น</div>
+        <div class="v9promo-history-list">
+          ${h.length ? h.map(x => `<div class="v9promo-history-row"><span><b>${fmt(x.old_percent || 0)}% → ${fmt(x.new_percent || 0)}%</b><br><span style="color:#64748b">${new Date(x.at).toLocaleString('th-TH')} · ${esc(x.by || '')}</span></span><span style="color:#64748b">ขาย ฿${fmt(x.price)} · ทุน ฿${fmt(x.cost)}</span></div>`).join('') : '<div style="padding:18px;text-align:center;color:#94a3b8;background:#f8fafc;border-radius:14px">ยังไม่มีประวัติโปรโมชั่น</div>'}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) {
+      if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+      return;
+    }
+    injectStyle();
+    selectedId = activePromos()[0]?.product?.id || productsList()[0]?.id || null;
+    const active = activePromos();
+    const avg = active.length ? Math.round(active.reduce((s, x) => s + x.percent, 0) / active.length) : 0;
+    openModal?.('จัดการสินค้าโปรโมชั่น', `<div class="v9promo-v2">
+      <div class="v9promo-v2-side">
+        <div class="v9promo-v2-head">
+          <div class="v9promo-v2-hero">
+            <h3>สินค้าโปรโมชั่น</h3>
+            <p>เลือกสินค้าก่อน แล้วค่อยตั้งส่วนลด</p>
+            <div class="v9promo-v2-stats">
+              <div class="v9promo-v2-stat"><span>สินค้า</span><b id="v9promo-stat-total">${productsList().length}</b></div>
+              <div class="v9promo-v2-stat"><span>เปิดโปร</span><b id="v9promo-stat-active">${active.length}</b></div>
+              <div class="v9promo-v2-stat"><span>ลดเฉลี่ย</span><b id="v9promo-stat-avg">${avg}%</b></div>
+            </div>
+          </div>
+          <div class="v9promo-v2-search"><i class="material-icons-round">search</i><input placeholder="ค้นหาสินค้า..." oninput="v9PromoFilterPick(this.value)"></div>
+        </div>
+        <div class="v9promo-v2-list" id="v9promo-pick-list">${pickListHtml('')}</div>
+      </div>
+      <div class="v9promo-v2-main" id="v9promo-detail">${detailHtml(selectedId)}</div>
+      <div class="v9promo-v2-active">
+        <div class="v9promo-v2-head">
+          <div style="font-size:16px;font-weight:950;color:#0f172a;display:flex;align-items:center;gap:8px"><i class="material-icons-round" style="color:#dc2626">local_fire_department</i>กำลังจัดโปร</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px">คลิกเพื่อแก้ไขสินค้าโปรที่เปิดอยู่</div>
+        </div>
+        <div class="v9promo-active-list" id="v9promo-active-list">${activeListHtml()}</div>
+      </div>
+    </div>`);
+    setTimeout(() => {
+      const box = document.querySelector('.modal-box');
+      box?.classList.add('v9promo-v2-modal');
+    }, 20);
+  };
+
+  window.v9PromoFilterPick = function (value) {
+    const el = document.getElementById('v9promo-pick-list');
+    if (el) el.innerHTML = pickListHtml(value);
+  };
+
+  window.v9PromoSelectProduct = function (id) {
+    selectedId = id;
+    document.getElementById('v9promo-detail').innerHTML = detailHtml(id);
+    document.querySelectorAll('.v9promo-v2-pick').forEach(x => x.classList.remove('on'));
+    document.querySelector(`.v9promo-v2-pick[onclick*="${CSS.escape(String(id))}"]`)?.classList.add('on');
+  };
+
+  window.v9PromoPreviewSelected = function () {
+    const p = productById(selectedId);
+    if (!p) return;
+    const c = calc(p, document.getElementById('v9promo-selected-percent')?.value || 0);
+    const net = document.getElementById('v9promo-preview-net');
+    const off = document.getElementById('v9promo-preview-off');
+    const profit = document.getElementById('v9promo-preview-profit');
+    if (net) net.textContent = `฿${fmt(c.net)}`;
+    if (off) off.textContent = `฿${fmt(c.discount)}`;
+    if (profit) {
+      profit.textContent = `฿${fmt(c.profit)} · ${c.margin}%`;
+      profit.style.color = c.profit >= 0 ? '#15803d' : '#dc2626';
+    }
+  };
+
+  window.v9PromoSaveSelected = function () {
+    if (!isAdmin()) return;
+    const p = productById(selectedId);
+    if (!p) return;
+    const nextPct = Math.max(0, Math.min(100, num(document.getElementById('v9promo-selected-percent')?.value || 0)));
+    const ps = promos();
+    const oldPct = num(ps[p.id] || 0);
+    if (nextPct > 0) ps[p.id] = nextPct;
+    else delete ps[p.id];
+    savePromos(ps);
+    if (oldPct !== nextPct) {
+      const h = histories();
+      h.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldPct, new_percent: nextPct, price: num(p.price), cost: num(p.cost) });
+      saveHist(h);
+    }
+    toast?.('บันทึกโปรโมชั่นแล้ว', 'success');
+    document.getElementById('v9promo-detail').innerHTML = detailHtml(selectedId);
+    refreshLists();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+
+  window.v9PromoRemoveSelected = function () {
+    if (!isAdmin()) return;
+    const p = productById(selectedId);
+    if (!p) return;
+    const ps = promos();
+    const oldPct = num(ps[p.id] || 0);
+    delete ps[p.id];
+    savePromos(ps);
+    if (oldPct > 0) {
+      const h = histories();
+      h.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldPct, new_percent: 0, price: num(p.price), cost: num(p.cost) });
+      saveHist(h);
+    }
+    toast?.('ปิดโปรโมชั่นแล้ว', 'success');
+    document.getElementById('v9promo-detail').innerHTML = detailHtml(selectedId);
+    refreshLists();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+})();
+
+// Final placement guard: promotions only in inventory, admin only
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const fmt = (n) => formatNum(Math.round((Number(n) || 0) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => readJson(PROMO_KEY, {});
+  const histories = () => readJson(HIST_KEY, []);
+  const savePromos = (v) => writeJson(PROMO_KEY, v || {});
+  const saveHist = (v) => writeJson(HIST_KEY, (v || []).slice(0, 300));
+
+  function injectStyle() {
+    if (document.getElementById('v9promo-admin-final-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-admin-final-style';
+    st.textContent = `
+      .v9promo-admin-shell{display:grid;gap:14px}
+      .v9promo-admin-hero{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:12px;padding:16px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8 55%,#14b8a6);color:#fff;box-shadow:0 20px 48px rgba(37,99,235,.22)}
+      .v9promo-admin-title{font-size:18px;font-weight:950;display:flex;align-items:center;gap:10px}
+      .v9promo-admin-title i{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center}
+      .v9promo-admin-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px}
+      .v9promo-admin-stat span{display:block;font-size:11px;font-weight:900;color:rgba(255,255,255,.72)}
+      .v9promo-admin-stat b{display:block;font-size:22px;font-weight:950;margin-top:3px}
+      .v9promo-admin-row{display:grid;grid-template-columns:1.15fr 1.1fr 120px 120px;gap:12px;align-items:center;border:1px solid #e2e8f0;border-radius:18px;background:#fff;padding:14px;box-shadow:0 12px 28px rgba(15,23,42,.055)}
+      .v9promo-admin-prod{display:flex;align-items:center;gap:12px;min-width:0}
+      .v9promo-admin-icon{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffedd5);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+      .v9promo-admin-name{font-size:15px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.45}
+      .v9promo-admin-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+      .v9promo-mini{border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;padding:9px;min-width:0}
+      .v9promo-mini span{display:block;font-size:10px;font-weight:900;color:#64748b}
+      .v9promo-mini b{display:block;font-size:14px;font-weight:950;color:#0f172a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-row input{height:46px;border:1px solid #fecaca;border-radius:14px;text-align:center;font-size:17px;font-weight:950;color:#dc2626;outline:none;background:#fff7ed}
+      .v9promo-admin-row input:focus{border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.11)}
+      .v9promo-history{font-size:11px;color:#64748b;line-height:1.55;max-height:54px;overflow:hidden}
+      .v9promo-history b{color:#334155}
+      .v9promo-admin-empty{padding:32px;text-align:center;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:18px;background:#fff}
+      @media(max-width:900px){.v9promo-admin-hero,.v9promo-admin-row{grid-template-columns:1fr}.v9promo-admin-numbers{grid-template-columns:1fr 1fr 1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    else if (typeof toast === 'function') toast('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+
+  function productsList() {
+    return (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+      .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+  }
+
+  function rowsHtml() {
+    const ps = promos();
+    const hist = histories();
+    return productsList().map(p => {
+      const cur = Number(ps[p.id] || 0);
+      const price = Number(p.price || 0);
+      const cost = Number(p.cost || 0);
+      const net = Math.max(0, price - (price * cur / 100));
+      const margin = net > 0 ? Math.round(((net - cost) / net) * 100) : 0;
+      const ph = hist.filter(h => String(h.product_id) === String(p.id)).slice(0, 3);
+      return `
+        <div class="v9promo-admin-row" data-name="${esc((p.name || '').toLowerCase())}">
+          <div class="v9promo-admin-prod">
+            <div class="v9promo-admin-icon"><i class="material-icons-round">local_offer</i></div>
+            <div style="min-width:0">
+              <div class="v9promo-admin-name">${esc(p.name)}</div>
+              <div class="v9promo-admin-meta">สต็อก ${fmt(p.stock || 0)} ${esc(p.unit || '')} · มูลค่าทุน ฿${fmt((p.cost || 0) * (p.stock || 0))}</div>
+            </div>
+          </div>
+          <div class="v9promo-admin-numbers">
+            <div class="v9promo-mini"><span>ราคาขายเดิม</span><b>฿${fmt(price)}</b></div>
+            <div class="v9promo-mini"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(cost)}</b></div>
+            <div class="v9promo-mini"><span>หลังลด / กำไร</span><b style="color:${margin >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(net)} · ${margin}%</b></div>
+          </div>
+          <input type="number" min="0" max="100" step="0.01" id="v9promo-${p.id}" value="${cur || ''}" placeholder="0%">
+          <div class="v9promo-history">${ph.length ? ph.map(h => `<div><b>${h.old_percent || 0}% → ${h.new_percent || 0}%</b> · ${new Date(h.at).toLocaleDateString('th-TH')} ${esc(h.by || '')}</div>`).join('') : '<span>ยังไม่มีประวัติโปรโมชั่น</span>'}</div>
+        </div>`;
+    }).join('');
+  }
+
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    injectStyle();
+    const ps = promos();
+    const active = Object.values(ps).filter(v => Number(v) > 0).length;
+    const avg = active ? Math.round(Object.values(ps).reduce((s, v) => s + Number(v || 0), 0) / active) : 0;
+    if (typeof openModal === 'function') openModal('จัดการสินค้าโปรโมชั่น', `
+      <div class="v9promo-admin-shell">
+        <div class="v9promo-admin-hero">
+          <div class="v9promo-admin-title"><i class="material-icons-round">workspace_premium</i><div><div>สินค้าโปรโมชั่น</div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.72);margin-top:2px">จัดการจากหน้าคลังสินค้าเท่านั้น</div></div></div>
+          <div class="v9promo-admin-stat"><span>สินค้า</span><b>${productsList().length}</b></div>
+          <div class="v9promo-admin-stat"><span>เปิดโปร</span><b>${active}</b></div>
+          <div class="v9promo-admin-stat"><span>ลดเฉลี่ย</span><b>${avg}%</b></div>
+        </div>
+        <div class="search-box" style="width:100%">
+          <i class="material-icons-round">search</i>
+          <input placeholder="ค้นหาสินค้า..." oninput="v9FilterPromoAdminRows(this.value)">
+        </div>
+        <div style="max-height:58vh;overflow:auto;padding-right:4px">${rowsHtml() || '<div class="v9promo-admin-empty">ไม่มีสินค้า</div>'}</div>
+        <button class="btn btn-primary" style="height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#dc2626,#f97316);font-weight:950" onclick="v9SavePromotions()">
+          <i class="material-icons-round">save</i> บันทึกโปรโมชั่น
+        </button>
+      </div>`);
+  };
+
+  window.v9FilterPromoAdminRows = function (q) {
+    const s = String(q || '').toLowerCase();
+    document.querySelectorAll('.v9promo-admin-row').forEach(r => {
+      r.style.display = (r.dataset.name || '').includes(s) ? 'grid' : 'none';
+    });
+  };
+
+  window.v9SavePromotions = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    const old = promos();
+    const next = {};
+    const hist = histories();
+    productsList().forEach(p => {
+      const val = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-' + p.id)?.value || 0)));
+      if (val > 0) next[p.id] = val;
+      const oldVal = Number(old[p.id] || 0);
+      if (oldVal !== val) {
+        hist.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldVal, new_percent: val, price: Number(p.price || 0), cost: Number(p.cost || 0) });
+      }
+    });
+    savePromos(next);
+    saveHist(hist);
+    typeof toast === 'function' && toast('บันทึกโปรโมชั่นแล้ว', 'success');
+    typeof closeModal === 'function' && closeModal();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+
+  function removePosButton() { document.getElementById('v9promo-open-btn')?.remove(); }
+  function addInvButton() {
+    const pa = document.getElementById('page-actions');
+    if (!pa || document.getElementById('v9promo-inv-btn') || !isAdmin()) return;
+    pa.insertAdjacentHTML('afterbegin', `<button class="btn btn-outline" id="v9promo-inv-btn" onclick="v9OpenPromoModal()"><i class="material-icons-round">local_offer</i> โปรโมชั่น</button>`);
+  }
+
+  const prevGo = window.go;
+  window.go = function (page) {
+    const r = prevGo?.apply(this, arguments);
+    setTimeout(() => {
+      removePosButton();
+      if (page === 'inv') addInvButton();
+    }, 220);
+    return r;
+  };
+
+  const prevRenderInv = window.renderInventory;
+  window.renderInventory = async function () {
+    await prevRenderInv?.apply(this, arguments);
+    removePosButton();
+    addInvButton();
+    if (!isAdmin()) {
+      document.querySelectorAll('[onclick*="adjustStock"]').forEach(btn => btn.remove());
+      document.getElementById('v9promo-inv-btn')?.remove();
+    }
+  };
+
+  const prevAdjust = window.adjustStock;
+  window.adjustStock = async function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    return await prevAdjust?.apply(this, arguments);
+  };
+  try { adjustStock = window.adjustStock; } catch (_) {}
+
+  injectStyle();
+  setInterval(removePosButton, 800);
+})();
+
+// Promotion management belongs to inventory/admin, with admin-only stock/promo controls
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const fmt = (n) => formatNum(Math.round((Number(n) || 0) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+
+  function promos() { return readJson(PROMO_KEY, {}); }
+  function histories() { return readJson(HIST_KEY, []); }
+  function savePromos(v) { writeJson(PROMO_KEY, v || {}); }
+  function saveHist(v) { writeJson(HIST_KEY, (v || []).slice(0, 300)); }
+
+  function injectStyle() {
+    if (document.getElementById('v9promo-admin-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-admin-style';
+    st.textContent = `
+      .v9promo-admin-shell{display:grid;gap:14px}
+      .v9promo-admin-hero{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:12px;padding:16px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8 55%,#14b8a6);color:#fff;box-shadow:0 20px 48px rgba(37,99,235,.22)}
+      .v9promo-admin-title{font-size:18px;font-weight:950;display:flex;align-items:center;gap:10px}
+      .v9promo-admin-title i{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center}
+      .v9promo-admin-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px}
+      .v9promo-admin-stat span{display:block;font-size:11px;font-weight:900;color:rgba(255,255,255,.72)}
+      .v9promo-admin-stat b{display:block;font-size:22px;font-weight:950;margin-top:3px}
+      .v9promo-admin-row{display:grid;grid-template-columns:1.15fr 1.1fr 120px 120px;gap:12px;align-items:center;border:1px solid #e2e8f0;border-radius:18px;background:#fff;padding:14px;box-shadow:0 12px 28px rgba(15,23,42,.055)}
+      .v9promo-admin-prod{display:flex;align-items:center;gap:12px;min-width:0}
+      .v9promo-admin-icon{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffedd5);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+      .v9promo-admin-name{font-size:15px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.45}
+      .v9promo-admin-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+      .v9promo-mini{border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;padding:9px;min-width:0}
+      .v9promo-mini span{display:block;font-size:10px;font-weight:900;color:#64748b}
+      .v9promo-mini b{display:block;font-size:14px;font-weight:950;color:#0f172a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-row input{height:46px;border:1px solid #fecaca;border-radius:14px;text-align:center;font-size:17px;font-weight:950;color:#dc2626;outline:none;background:#fff7ed}
+      .v9promo-admin-row input:focus{border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.11)}
+      .v9promo-history{font-size:11px;color:#64748b;line-height:1.55;max-height:54px;overflow:hidden}
+      .v9promo-history b{color:#334155}
+      .v9promo-admin-empty{padding:32px;text-align:center;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:18px;background:#fff}
+      @media(max-width:900px){.v9promo-admin-hero,.v9promo-admin-row{grid-template-columns:1fr}.v9promo-admin-numbers{grid-template-columns:1fr 1fr 1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    } else if (typeof toast === 'function') toast('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+
+  function promoRows() {
+    const ps = promos();
+    const hist = histories();
+    const productsList = (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+      .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+    return productsList.map(p => {
+      const cur = Number(ps[p.id] || 0);
+      const price = Number(p.price || 0);
+      const cost = Number(p.cost || 0);
+      const off = price * cur / 100;
+      const net = Math.max(0, price - off);
+      const margin = net > 0 ? Math.round(((net - cost) / net) * 100) : 0;
+      const ph = hist.filter(h => String(h.product_id) === String(p.id)).slice(0, 3);
+      return `
+        <div class="v9promo-admin-row" data-name="${esc((p.name || '').toLowerCase())}">
+          <div class="v9promo-admin-prod">
+            <div class="v9promo-admin-icon"><i class="material-icons-round">local_offer</i></div>
+            <div style="min-width:0">
+              <div class="v9promo-admin-name">${esc(p.name)}</div>
+              <div class="v9promo-admin-meta">สต็อก ${fmt(p.stock || 0)} ${esc(p.unit || '')} · ต้นทุนรวมประมาณ ฿${fmt((p.cost || 0) * (p.stock || 0))}</div>
+            </div>
+          </div>
+          <div class="v9promo-admin-numbers">
+            <div class="v9promo-mini"><span>ราคาขายเดิม</span><b>฿${fmt(price)}</b></div>
+            <div class="v9promo-mini"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(cost)}</b></div>
+            <div class="v9promo-mini"><span>หลังลด / กำไร</span><b style="color:${margin >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(net)} · ${margin}%</b></div>
+          </div>
+          <input type="number" min="0" max="100" step="0.01" id="v9promo-${p.id}" value="${cur || ''}" placeholder="0%">
+          <div class="v9promo-history">
+            ${ph.length ? ph.map(h => `<div><b>${h.old_percent || 0}% → ${h.new_percent || 0}%</b> · ${new Date(h.at).toLocaleDateString('th-TH')} ${esc(h.by || '')}</div>`).join('') : '<span>ยังไม่มีประวัติโปรโมชั่น</span>'}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    injectStyle();
+    const ps = promos();
+    const productsList = typeof v9GetProducts === 'function' ? v9GetProducts() : [];
+    const active = Object.values(ps).filter(v => Number(v) > 0).length;
+    const avg = active ? Math.round(Object.values(ps).reduce((s, v) => s + Number(v || 0), 0) / active) : 0;
+    if (typeof openModal === 'function') openModal('จัดการสินค้าโปรโมชั่น', `
+      <div class="v9promo-admin-shell">
+        <div class="v9promo-admin-hero">
+          <div class="v9promo-admin-title"><i class="material-icons-round">workspace_premium</i><div><div>สินค้าโปรโมชั่น</div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.72);margin-top:2px">เฉพาะผู้ดูแลระบบ</div></div></div>
+          <div class="v9promo-admin-stat"><span>สินค้า</span><b>${productsList.length}</b></div>
+          <div class="v9promo-admin-stat"><span>เปิดโปร</span><b>${active}</b></div>
+          <div class="v9promo-admin-stat"><span>ลดเฉลี่ย</span><b>${avg}%</b></div>
+        </div>
+        <div class="search-box" style="width:100%">
+          <i class="material-icons-round">search</i>
+          <input placeholder="ค้นหาสินค้า..." oninput="v9FilterPromoAdminRows(this.value)">
+        </div>
+        <div style="max-height:58vh;overflow:auto;padding-right:4px">${promoRows() || '<div class="v9promo-admin-empty">ไม่มีสินค้า</div>'}</div>
+        <button class="btn btn-primary" style="height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#dc2626,#f97316);font-weight:950" onclick="v9SavePromotions()">
+          <i class="material-icons-round">save</i> บันทึกโปรโมชั่น
+        </button>
+      </div>`);
+  };
+
+  window.v9FilterPromoAdminRows = function (q) {
+    const s = String(q || '').toLowerCase();
+    document.querySelectorAll('.v9promo-admin-row').forEach(r => {
+      r.style.display = (r.dataset.name || '').includes(s) ? 'grid' : 'none';
+    });
+  };
+
+  window.v9SavePromotions = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    const old = promos();
+    const next = {};
+    const hist = histories();
+    const productsList = typeof v9GetProducts === 'function' ? v9GetProducts() : [];
+    productsList.forEach(p => {
+      const val = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-' + p.id)?.value || 0)));
+      if (val > 0) next[p.id] = val;
+      const oldVal = Number(old[p.id] || 0);
+      if (oldVal !== val) {
+        hist.unshift({
+          at: new Date().toISOString(),
+          by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''),
+          product_id: p.id,
+          product_name: p.name,
+          old_percent: oldVal,
+          new_percent: val,
+          price: Number(p.price || 0),
+          cost: Number(p.cost || 0),
+        });
+      }
+    });
+    savePromos(next);
+    saveHist(hist);
+    typeof toast === 'function' && toast('บันทึกโปรโมชั่นแล้ว', 'success');
+    typeof closeModal === 'function' && closeModal();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+
+  function injectInventoryPromoButton() {
+    const pa = document.getElementById('page-actions');
+    if (!pa || document.getElementById('v9promo-inv-btn')) return;
+    if (!isAdmin()) return;
+    pa.insertAdjacentHTML('afterbegin', `
+      <button class="btn btn-outline" id="v9promo-inv-btn" onclick="v9OpenPromoModal()">
+        <i class="material-icons-round">local_offer</i> โปรโมชั่น
+      </button>`);
+  }
+
+  function removePosPromoButton() {
+    document.getElementById('v9promo-open-btn')?.remove();
+  }
+
+  const prevGo = window.go;
+  window.go = function (page) {
+    const ret = prevGo?.apply(this, arguments);
+    if (page === 'pos') setTimeout(removePosPromoButton, 180);
+    if (page === 'inv') setTimeout(injectInventoryPromoButton, 180);
+    return ret;
+  };
+
+  const prevRenderInv = window.renderInventory;
+  window.renderInventory = async function () {
+    await prevRenderInv?.apply(this, arguments);
+    injectInventoryPromoButton();
+    if (!isAdmin()) {
+      document.querySelectorAll('[onclick*="adjustStock"]').forEach(btn => btn.remove());
+      document.getElementById('v9promo-inv-btn')?.remove();
+    }
+  };
+
+  const prevAdjust = window.adjustStock;
+  window.adjustStock = async function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    return await prevAdjust?.apply(this, arguments);
+  };
+  try { adjustStock = window.adjustStock; } catch (_) {}
+
+  const prevOpenProduct = window.showAddProductModal;
+  window.showAddProductModal = function () {
+    prevOpenProduct?.apply(this, arguments);
+    if (!isAdmin()) {
+      setTimeout(() => {
+        ['v9prod-stock', 'v9prod-min-stock', 'prod-stock', 'prod-min-stock'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.readOnly = true;
+            el.style.background = '#f8fafc';
+            el.title = 'ปรับสต็อกได้เฉพาะผู้ดูแลระบบ';
+          }
+        });
+      }, 80);
+    }
+  };
+
+  const prevSaveProduct = window.v9SaveProduct;
+  window.v9SaveProduct = async function () {
+    if (!isAdmin()) {
+      const editing = !!document.getElementById('v9prod-id')?.value;
+      if (editing) {
+        const id = document.getElementById('v9prod-id')?.value;
+        const prod = (typeof v9GetProducts === 'function' ? v9GetProducts() : []).find(p => String(p.id) === String(id));
+        const stockEl = document.getElementById('v9prod-stock');
+        const minEl = document.getElementById('v9prod-min-stock');
+        if (prod && stockEl) stockEl.value = prod.stock || 0;
+        if (prod && minEl) minEl.value = prod.min_stock || 0;
+      }
+    }
+    return await prevSaveProduct?.apply(this, arguments);
+  };
+
+  injectStyle();
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      removePosPromoButton();
+      injectInventoryPromoButton();
+    }, 220);
+  });
+})();
+
+// Promotion items: product-level percent discount + per-cart override + receipt display
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const m = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const f = (n) => formatNum(m(n));
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const js = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+  function getPromos() {
+    try { return JSON.parse(localStorage.getItem(PROMO_KEY) || '{}') || {}; }
+    catch (_) { return {}; }
+  }
+  function setPromos(v) { localStorage.setItem(PROMO_KEY, JSON.stringify(v || {})); }
+  function pctOf(productId) {
+    const p = Number(getPromos()[productId] || 0);
+    return Math.max(0, Math.min(100, p));
+  }
+  function discountAmount(item) {
+    const original = Number(item.original_price ?? item.price ?? 0);
+    const pct = Number(item.promo_percent || 0);
+    return m(original * Math.max(0, Math.min(100, pct)) / 100);
+  }
+  function applyItemPromo(item, percent) {
+    const p = Math.max(0, Math.min(100, Number(percent || 0)));
+    if (item.original_price == null) item.original_price = Number(item.price || 0);
+    item.promo_percent = p;
+    item.promo_discount = discountAmount(item);
+    item.price = m(Number(item.original_price || 0) - Number(item.promo_discount || 0));
+    if (item.price < 0) item.price = 0;
+  }
+  function lineDiscountTotal(item) {
+    return m(Number(item.promo_discount || 0) * Number(item.qty || 0));
+  }
+  function cartGross() {
+    return (cart || []).reduce((s, i) => s + Number(i.original_price ?? i.price ?? 0) * Number(i.qty || 0), 0);
+  }
+  function cartItemDiscount() {
+    return (cart || []).reduce((s, i) => s + lineDiscountTotal(i), 0);
+  }
+  function billDiscountInput() {
+    return Number(document.getElementById('pos-discount')?.value || 0);
+  }
+  function cartNet() {
+    return Math.max(0, cartGross() - cartItemDiscount() - billDiscountInput());
+  }
+  function itemDiscountInfo() {
+    return (cart || []).map((item, idx) => ({
+      idx,
+      product_id: item.id,
+      name: item.name,
+      unit: item.unit || 'ชิ้น',
+      percent: Number(item.promo_percent || 0),
+      discount_per_unit: m(item.promo_discount || 0),
+      discount_total: lineDiscountTotal(item),
+      original_price: m(item.original_price ?? item.price ?? 0),
+      net_price: m(item.price || 0),
+      qty: Number(item.qty || 0),
+    })).filter(x => x.discount_total > 0);
+  }
+  function parseInfo(info) {
+    if (!info) return {};
+    if (typeof info === 'string') { try { return JSON.parse(info) || {}; } catch (_) { return {}; } }
+    return info || {};
+  }
+  function discountForPrintedItem(bill, it, idx) {
+    const info = parseInfo(bill?.return_info);
+    const list = info.item_discounts || [];
+    return list.find(x =>
+      Number(x.idx) === idx ||
+      (x.product_id && String(x.product_id) === String(it.product_id)) ||
+      (x.name === it.name && x.unit === it.unit)
+    ) || null;
+  }
+
+  function injectStyle() {
+    if (document.getElementById('v9promo-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-style';
+    st.textContent = `
+      .v9promo-cart-box{margin-top:7px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+      .v9promo-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:#fff1f2;color:#dc2626;border:1px solid #fecaca;padding:3px 8px;font-size:11px;font-weight:900}
+      .v9promo-input{height:30px;width:82px;border:1px solid #fecaca;border-radius:10px;background:#fff7ed;color:#b91c1c;font-size:12px;font-weight:900;text-align:center;outline:none}
+      .v9promo-input:focus{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.12)}
+      .v9promo-panel{display:grid;gap:12px}
+      .v9promo-row{display:grid;grid-template-columns:1fr 120px auto;gap:10px;align-items:center;border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:12px;box-shadow:0 10px 24px rgba(15,23,42,.045)}
+      .v9promo-prod{display:flex;align-items:center;gap:10px;min-width:0}
+      .v9promo-icon{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#fff1f2,#ffedd5);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+      .v9promo-title{font-size:14px;font-weight:900;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-sub{font-size:12px;color:#64748b;margin-top:2px}
+      .v9promo-row input{height:42px;border:1px solid #dbe3ef;border-radius:12px;text-align:center;font-size:15px;font-weight:900;color:#dc2626;outline:none}
+      .v9promo-row input:focus{border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
+      .v9promo-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#ecfeff);border:1px solid #bfdbfe}
+      .v9promo-scard{background:#fff;border-radius:14px;padding:12px;border:1px solid #dbeafe}
+      .v9promo-scard span{display:block;font-size:11px;font-weight:900;color:#64748b}
+      .v9promo-scard b{display:block;font-size:18px;font-weight:950;color:#0f172a;margin-top:3px}
+      @media(max-width:720px){.v9promo-row{grid-template-columns:1fr}.v9promo-summary{grid-template-columns:1fr}.v9promo-row input{width:100%}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  window.v9OpenPromoModal = function () {
+    injectStyle();
+    const promos = getPromos();
+    const prods = (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || products || []))
+      .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+    const activeCount = Object.values(promos).filter(v => Number(v) > 0).length;
+    const rows = prods.map(p => {
+      const val = Number(promos[p.id] || 0);
+      const off = m((Number(p.price || 0) * val) / 100);
+      return `
+        <div class="v9promo-row" data-name="${esc((p.name || '').toLowerCase())}">
+          <div class="v9promo-prod">
+            <div class="v9promo-icon"><i class="material-icons-round">local_offer</i></div>
+            <div style="min-width:0">
+              <div class="v9promo-title">${esc(p.name)}</div>
+              <div class="v9promo-sub">ราคา ฿${f(p.price || 0)}${val > 0 ? ` · ลด ฿${f(off)}` : ''}</div>
+            </div>
+          </div>
+          <input type="number" min="0" max="100" step="0.01" id="v9promo-${p.id}" value="${val || ''}" placeholder="0%">
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('v9promo-${p.id}').value='0'">
+            <i class="material-icons-round">close</i>
+          </button>
+        </div>`;
+    }).join('');
+    if (typeof openModal === 'function') openModal('สินค้าโปรโมชั่น', `
+      <div class="v9promo-panel">
+        <div class="v9promo-summary">
+          <div class="v9promo-scard"><span>สินค้าในระบบ</span><b>${prods.length}</b></div>
+          <div class="v9promo-scard"><span>กำลังโปรโมชัน</span><b style="color:#dc2626">${activeCount}</b></div>
+          <div class="v9promo-scard"><span>รูปแบบ</span><b>% ลด</b></div>
+        </div>
+        <div class="search-box" style="width:100%;margin:2px 0 4px">
+          <i class="material-icons-round">search</i>
+          <input id="v9promo-search" placeholder="ค้นหาสินค้า..." oninput="v9FilterPromoRows(this.value)">
+        </div>
+        <div style="max-height:58vh;overflow:auto;padding-right:4px">${rows || '<div style="text-align:center;color:#94a3b8;padding:24px">ไม่มีสินค้า</div>'}</div>
+        <button class="btn btn-primary" style="height:54px;border-radius:14px;background:linear-gradient(135deg,#ef4444,#f97316);border:0;font-weight:900" onclick="v9SavePromotions()">
+          <i class="material-icons-round">save</i> บันทึกโปรโมชั่น
+        </button>
+      </div>`);
+  };
+
+  window.v9FilterPromoRows = function (q) {
+    const s = String(q || '').toLowerCase();
+    document.querySelectorAll('.v9promo-row').forEach(r => {
+      r.style.display = (r.dataset.name || '').includes(s) ? 'grid' : 'none';
+    });
+  };
+
+  window.v9SavePromotions = function () {
+    const prods = typeof v9GetProducts === 'function' ? v9GetProducts() : [];
+    const next = {};
+    prods.forEach(p => {
+      const v = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-' + p.id)?.value || 0)));
+      if (v > 0) next[p.id] = v;
+    });
+    setPromos(next);
+    if (typeof toast === 'function') toast('บันทึกโปรโมชั่นแล้ว', 'success');
+    typeof closeModal === 'function' && closeModal();
+    renderProductGrid?.();
+  };
+
+  const origPush = window.v9PushToCart;
+  window.v9PushToCart = function (prod, price, unitName, convRate, qty) {
+    const before = (cart || []).map(i => i);
+    origPush?.apply(this, arguments);
+    const item = (cart || []).find(c => c.id === prod.id && c.unit === unitName);
+    if (item && !before.includes(item) && !item.promo_manual) {
+      const p = pctOf(prod.id);
+      item.original_price = Number(price || 0);
+      applyItemPromo(item, p);
+      renderCart?.(); renderProductGrid?.();
+    } else if (item && item.original_price == null) {
+      item.original_price = Number(price || item.price || 0);
+    }
+  };
+
+  window.v9SetCartItemDiscount = function (idx, value) {
+    const item = cart?.[idx];
+    if (!item) return;
+    item.promo_manual = true;
+    applyItemPromo(item, value);
+    renderCart?.(); renderProductGrid?.();
+    if (typeof sendToDisplay === 'function') sendToDisplay({ type: 'cart', cart, total: getCartTotal?.() });
+  };
+
+  window.getCartTotal = function () { return cartNet(); };
+
+  const origStartCheckout = window.startCheckout;
+  window.startCheckout = function () {
+    if (!cart || cart.length === 0) return;
+    const itemDisc = cartItemDiscount();
+    const manualDisc = billDiscountInput();
+    checkoutState = {
+      step: 1,
+      total: cartNet(),
+      discount: m(manualDisc),
+      promo_discount: itemDisc,
+      manual_discount: manualDisc,
+      item_discounts: itemDiscountInfo(),
+      customer: { type: null, id: null, name: '' },
+      method: null,
+      received: 0,
+      change: 0,
+      receivedDenominations: {},
+      changeDenominations: {},
+    };
+    if (typeof BILLS !== 'undefined' && typeof COINS !== 'undefined') {
+      [...BILLS, ...COINS].forEach(d => {
+        checkoutState.receivedDenominations[d.value] = 0;
+        checkoutState.changeDenominations[d.value] = 0;
+      });
+    }
+    const overlay = document.getElementById('checkout-overlay');
+    overlay?.classList.remove('hidden');
+    if (typeof renderCheckout === 'function') renderCheckout();
+  };
+
+  const origRenderCart = window.renderCart;
+  window.renderCart = function () {
+    injectStyle();
+    const container = document.getElementById('cart-list');
+    const countBadge = document.getElementById('cart-count');
+    const totalDisplay = document.getElementById('pos-total');
+    const checkoutBtn = document.getElementById('checkout-btn');
+    if (!container) return origRenderCart?.apply(this, arguments);
+    const totalItems = (cart || []).reduce((s, c) => s + Number(c.qty || 0), 0);
+    if (countBadge) countBadge.textContent = parseFloat(totalItems.toFixed(4));
+    if (totalDisplay) totalDisplay.textContent = `฿${f(cartNet())}`;
+    if (checkoutBtn) checkoutBtn.disabled = !cart?.length;
+    if (!cart?.length) {
+      container.innerHTML = `<div class="cart-empty"><i class="material-icons-round">shopping_basket</i><p>ไม่มีสินค้าในตะกร้า</p><span>เลือกสินค้าจากรายการด้านซ้าย</span></div>`;
+      return;
+    }
+    container.innerHTML = cart.map((item, idx) => {
+      const original = Number(item.original_price ?? item.price ?? 0);
+      const pct = Number(item.promo_percent || 0);
+      const per = Number(item.promo_discount || 0);
+      const lineOff = lineDiscountTotal(item);
+      const unit = item.unit || 'ชิ้น';
+      return `
+        <div class="cart-item" style="border-radius:14px;margin-bottom:8px;align-items:flex-start;">
+          <div class="cart-item-info" style="flex:1;min-width:0;">
+            <span class="cart-item-name" style="display:block;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(item.name)}</span>
+            <span class="cart-item-price" style="font-size:12px;color:var(--text-tertiary);">
+              ฿${f(item.price)}/${esc(unit)} x ${item.qty}
+              ${pct > 0 ? `<span style="text-decoration:line-through;margin-left:5px;color:#94a3b8">฿${f(original)}</span>` : ''}
+            </span>
+            <div class="v9promo-cart-box">
+              <span class="v9promo-badge"><i class="material-icons-round" style="font-size:13px">local_offer</i>${lineOff > 0 ? `-฿${f(lineOff)}` : 'โปรโมชัน'}</span>
+              <input class="v9promo-input" type="number" min="0" max="100" step="0.01" value="${pct || ''}" placeholder="ลด %" onchange="v9SetCartItemDiscount(${idx},this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+            </div>
+          </div>
+          <div class="cart-item-controls">
+            <button class="qty-btn" onclick="updateCartQty('${js(item.id)}',-1,'${js(item.unit)}')">−</button>
+            <span class="qty-value">${item.qty}</span>
+            <button class="qty-btn" onclick="updateCartQty('${js(item.id)}',1,'${js(item.unit)}')">+</button>
+          </div>
+          <span class="cart-item-total">฿${f(Number(item.price || 0) * Number(item.qty || 0))}</span>
+          <button class="cart-item-delete" onclick="removeFromCart('${js(item.id)}','${js(item.unit)}')"><i class="material-icons-round">close</i></button>
+        </div>`;
+    }).join('');
+  };
+
+  const origRenderPG = window.renderProductGrid;
+  window.renderProductGrid = function () {
+    origRenderPG?.apply(this, arguments);
+    setTimeout(() => {
+      const promos = getPromos();
+      Object.entries(promos).forEach(([pid, percent]) => {
+        if (Number(percent) <= 0) return;
+        document.querySelectorAll(`[onclick*="${pid}"]`).forEach(card => {
+          if (card.querySelector('.v9promo-product-ribbon')) return;
+          const p = document.createElement('div');
+          p.className = 'v9promo-product-ribbon';
+          p.style.cssText = 'position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900;box-shadow:0 8px 18px rgba(239,68,68,.25);z-index:2;';
+          p.textContent = `ลด ${percent}%`;
+          const pos = getComputedStyle(card).position;
+          if (pos === 'static') card.style.position = 'relative';
+          card.appendChild(p);
+        });
+      });
+    }, 40);
+  };
+
+  const origGo = window.go;
+  window.go = function (page) {
+    const r = origGo?.apply(this, arguments);
+    if (page === 'pos') setTimeout(v9InjectPromoButton, 80);
+    return r;
+  };
+  function v9InjectPromoButton() {
+    injectStyle();
+    const pa = document.getElementById('page-actions');
+    if (!pa || document.getElementById('v9promo-open-btn')) return;
+    pa.insertAdjacentHTML('afterbegin', `
+      <button class="btn btn-outline" id="v9promo-open-btn" onclick="v9OpenPromoModal()">
+        <i class="material-icons-round">local_offer</i> โปรโมชั่น
+      </button>`);
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    injectStyle();
+    v9InjectPromoButton();
+    document.getElementById('pos-discount')?.addEventListener('input', () => {
+      renderCart?.();
+      if (typeof sendToDisplay === 'function') sendToDisplay({ type: 'cart', cart, total: getCartTotal?.() });
+    });
+  });
+
+  const origSale = window.v9Sale;
+  window.v9Sale = async function () {
+    if (window.isProcessingPayment) return;
+    window.isProcessingPayment = true;
+    v9ShowOverlay('กำลังบันทึกบิล...', 'โปรดรอสักครู่');
+    try {
+      const { data: session } = await db.from('cash_session')
+        .select('*').eq('status', 'open')
+        .order('opened_at', { ascending: false }).limit(1).maybeSingle();
+      const info = {
+        item_discounts: checkoutState.item_discounts || itemDiscountInfo(),
+        promo_discount: m(checkoutState.promo_discount ?? cartItemDiscount()),
+        manual_discount: m(checkoutState.manual_discount ?? billDiscountInput()),
+      };
+      const methodTH = { cash: 'เงินสด', transfer: 'โอนเงิน', credit: 'บัตรเครดิต', debt: 'ค้างชำระ', project: 'จ่ายของให้โครงการ' };
+      let bill;
+      try {
+        const res = await db.from('บิลขาย').insert({
+          date: new Date().toISOString(),
+          method: methodTH[checkoutState.method] || 'เงินสด',
+          total: checkoutState.total,
+          discount: checkoutState.discount || 0,
+          received: checkoutState.received || 0,
+          change: checkoutState.change || 0,
+          customer_name: checkoutState.customer?.name || null,
+          customer_id: checkoutState.customer?.id || null,
+          staff_name: v9Staff(),
+          status: checkoutState.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
+          return_info: info,
+        }).select().single();
+        if (res.error) throw new Error(res.error.message);
+        bill = res.data;
+      } catch (e) {
+        const res = await db.from('บิลขาย').insert({
+          date: new Date().toISOString(),
+          method: methodTH[checkoutState.method] || 'เงินสด',
+          total: checkoutState.total,
+          discount: checkoutState.discount || 0,
+          received: checkoutState.received || 0,
+          change: checkoutState.change || 0,
+          customer_name: checkoutState.customer?.name || null,
+          customer_id: checkoutState.customer?.id || null,
+          staff_name: v9Staff(),
+          status: checkoutState.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
+        }).select().single();
+        if (res.error) throw new Error(res.error.message);
+        bill = res.data;
+        try { await db.from('บิลขาย').update({ return_info: info }).eq('id', bill.id); bill.return_info = info; } catch (_) {}
+      }
+
+      const { data: freshProds } = await db.from('สินค้า').select('id,name,stock,product_type,unit,cost');
+      const stockMap = {};
+      (freshProds || []).forEach(p => { stockMap[p.id] = p; });
+      for (const item of cart) {
+        const fresh = stockMap[item.id] || {};
+        const convRate = parseFloat(item.conv_rate || 1);
+        const baseQty = parseFloat((item.qty * convRate).toFixed(6));
+        const sellUnit = item.unit || fresh.unit || 'ชิ้น';
+        const isMTO = !!(item.is_mto || fresh.product_type === 'ตามบิล' || fresh.product_type === 'เธ•เธฒเธกเธเธดเธฅ');
+        const costPerSellUnit = parseFloat(((parseFloat(fresh.cost || item.cost || 0)) * convRate).toFixed(6));
+        await db.from('รายการในบิล').insert({
+          bill_id: bill.id, product_id: item.id, name: item.name,
+          qty: item.qty, price: parseFloat(item.price || 0), cost: costPerSellUnit,
+          total: parseFloat((item.price * item.qty).toFixed(2)), unit: sellUnit,
+        });
+        if (!isMTO) {
+          const stockBefore = parseFloat(fresh.stock || 0);
+          const stockAfter = parseFloat(Math.max(0, stockBefore - baseQty).toFixed(6));
+          await db.from('สินค้า').update({ stock: stockAfter, updated_at: new Date().toISOString() }).eq('id', item.id);
+          await db.from('stock_movement').insert({
+            product_id: item.id, product_name: item.name,
+            type: 'ขาย', direction: 'out', qty: baseQty,
+            stock_before: stockBefore, stock_after: stockAfter,
+            ref_id: bill.id, ref_table: 'บิลขาย', staff_name: v9Staff(),
+            note: convRate !== 1 ? `ขาย ${item.qty} ${sellUnit} (${baseQty} ${fresh.unit || ''})` : null,
+          });
+        } else {
+          try {
+            const { data: recipes } = await db.from('สูตรสินค้า').select('*').eq('product_id', item.id);
+            for (const r of (recipes || [])) {
+              const mat = stockMap[r.material_id] || {};
+              const needed = parseFloat((Number(r.quantity || 0) * Number(item.qty || 0)).toFixed(6));
+              const matBefore = parseFloat(mat.stock || 0);
+              const matAfter = parseFloat(Math.max(0, matBefore - needed).toFixed(6));
+              await db.from('สินค้า').update({ stock: matAfter, updated_at: new Date().toISOString() }).eq('id', r.material_id);
+              await db.from('stock_movement').insert({
+                product_id: r.material_id,
+                product_name: mat.name || r.material_id,
+                type: 'ใช้ผลิต(ขาย)',
+                direction: 'out',
+                qty: needed,
+                stock_before: matBefore,
+                stock_after: matAfter,
+                ref_id: bill.id,
+                ref_table: 'บิลขาย',
+                staff_name: v9Staff(),
+                note: `บิล #${bill.bill_no}: ${item.name} x ${item.qty} ${sellUnit}`,
+              });
+            }
+          } catch (e) {
+            console.warn('[v9Sale promo] BOM:', e.message);
+          }
+        }
+      }
+      if (checkoutState.method === 'cash' && session && typeof window.recordCashTx === 'function') {
+        let chgD = checkoutState.changeDenominations || {};
+        if (!Object.values(chgD).some(v => Number(v) > 0) && checkoutState.change > 0)
+          chgD = typeof calcChangeDenominations === 'function' ? calcChangeDenominations(checkoutState.change) : {};
+        await window.recordCashTx({
+          sessionId: session.id, type: 'ขาย', direction: 'in',
+          amount: checkoutState.received, changeAmt: checkoutState.change, netAmount: checkoutState.total,
+          refId: bill.id, refTable: 'บิลขาย',
+          denominations: checkoutState.receivedDenominations || null,
+          changeDenominations: chgD || null, note: null,
+        });
+      }
+      if (checkoutState.customer?.id) {
+        const { data: cust } = await db.from('customer').select('total_purchase,visit_count,debt_amount').eq('id', checkoutState.customer.id).maybeSingle();
+        await db.from('customer').update({
+          total_purchase: (cust?.total_purchase || 0) + checkoutState.total,
+          visit_count: (cust?.visit_count || 0) + 1,
+          debt_amount: checkoutState.method === 'debt' ? (cust?.debt_amount || 0) + checkoutState.total : (cust?.debt_amount || 0),
+        }).eq('id', checkoutState.customer.id);
+      }
+      typeof logActivity === 'function' && logActivity('ขายสินค้า', `บิล #${bill.bill_no} ฿${formatNum(checkoutState.total)}`, bill.id, 'บิลขาย');
+      typeof sendToDisplay === 'function' && sendToDisplay({ type: 'thanks', billNo: bill.bill_no, total: checkoutState.total });
+      const { data: bItems } = await db.from('รายการในบิล').select('*').eq('bill_id', bill.id);
+      try { cart = []; } catch (_) { window.cart = []; }
+      await loadProducts?.();
+      renderCart?.(); renderProductGrid?.(); updateHomeStats?.();
+      v9HideOverlay();
+      typeof closeCheckout === 'function' && closeCheckout();
+      const { value: printChoice } = await Swal.fire({
+        icon: 'success',
+        title: `บิล #${bill.bill_no} สำเร็จ`,
+        html: `<div style="font-size:28px;font-weight:950;color:#16a34a;margin:8px 0">฿${formatNum(bill.total)}</div>
+          ${info.promo_discount > 0 ? `<div style="font-size:13px;color:#dc2626;font-weight:800;margin-bottom:12px">โปรโมชั่น -฿${formatNum(info.promo_discount)}</div>` : ''}
+          <div style="display:flex;gap:10px;justify-content:center;">
+            <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='80mm'" style="padding:14px 18px;border-radius:12px;border:2px solid #dc2626;background:#fff5f5;color:#dc2626;font-weight:900;cursor:pointer">80mm</button>
+            <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='A4'" style="padding:14px 18px;border-radius:12px;border:2px solid #2563eb;background:#eff6ff;color:#2563eb;font-weight:900;cursor:pointer">A4</button>
+            <button onclick="Swal.getDenyButton().click()" style="padding:14px 18px;border-radius:12px;border:2px solid #d1d5db;background:#f9fafb;color:#64748b;font-weight:900;cursor:pointer">ข้าม</button>
+          </div>`,
+        showConfirmButton: true, showDenyButton: true, showCancelButton: false,
+        confirmButtonText: '', denyButtonText: '',
+        didOpen: () => { document.querySelectorAll('.swal2-confirm,.swal2-deny').forEach(b => b.style.display = 'none'); window._v9PrintFmt = null; },
+        timer: 15000, timerProgressBar: true,
+      });
+      const fmt = window._v9PrintFmt;
+      if (fmt && typeof printReceipt === 'function') printReceipt(bill, bItems || [], fmt);
+      window._v9PrintFmt = null;
+    } catch (e) {
+      v9HideOverlay();
+      typeof toast === 'function' && toast('เกิดข้อผิดพลาด: ' + (e.message || e), 'error');
+      console.error('[v9Sale promo]', e);
+    } finally {
+      window.isProcessingPayment = false;
+    }
+  };
+
+  const origPrintReceipt = window.printReceipt;
+  window.printReceipt = async function (bill, items, format) {
+    const info = parseInfo(bill?.return_info);
+    if (info.item_discounts?.length) {
+      (items || []).forEach((it, idx) => {
+        const d = discountForPrintedItem(bill, it, idx);
+        if (d?.discount_total > 0 && !String(it.name || '').includes('ส่วนลด')) {
+          it.name = `${it.name}<div style="font-size:11px;color:#dc2626;font-weight:800;margin-top:2px">-฿${formatNum(d.discount_total)}</div>`;
+        }
+      });
+    }
+    return origPrintReceipt?.apply(this, [bill, items, format]);
+  };
+
+  injectStyle();
+})();
+
+// Absolute final guard for promotion placement and admin-only controls.
+(function () {
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const HIST_KEY = 'sk_pos_product_promotions_history_v1';
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const fmt = (n) => formatNum(Math.round((Number(n) || 0) * 100) / 100);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const readJson = (k, fb) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch (_) { return fb; } };
+  const writeJson = (k, v) => localStorage.setItem(k, JSON.stringify(v || (Array.isArray(v) ? [] : {})));
+  const promos = () => readJson(PROMO_KEY, {});
+  const histories = () => readJson(HIST_KEY, []);
+  const savePromos = (v) => writeJson(PROMO_KEY, v || {});
+  const saveHist = (v) => writeJson(HIST_KEY, (v || []).slice(0, 300));
+  const productsList = () => (typeof v9GetProducts === 'function' ? v9GetProducts() : (window.products || []))
+    .filter(p => p && p.id && p.product_type !== 'ตามบิล' && p.product_type !== 'เธ•เธฒเธกเธเธดเธฅ');
+
+  function denyAdmin() {
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'เฉพาะผู้ดูแลระบบ', text: 'ฟีเจอร์นี้ต้องใช้สิทธิ์แอดมิน', confirmButtonColor: '#dc2626' });
+    else if (typeof toast === 'function') toast('เฉพาะผู้ดูแลระบบ', 'error');
+  }
+  function injectStyle() {
+    if (document.getElementById('v9promo-absolute-final-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9promo-absolute-final-style';
+    st.textContent = `
+      .v9promo-admin-shell{display:grid;gap:14px}
+      .v9promo-admin-hero{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:12px;padding:16px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8 55%,#14b8a6);color:#fff;box-shadow:0 20px 48px rgba(37,99,235,.22)}
+      .v9promo-admin-title{font-size:18px;font-weight:950;display:flex;align-items:center;gap:10px}
+      .v9promo-admin-title i{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center}
+      .v9promo-admin-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px}
+      .v9promo-admin-stat span{display:block;font-size:11px;font-weight:900;color:rgba(255,255,255,.72)}
+      .v9promo-admin-stat b{display:block;font-size:22px;font-weight:950;margin-top:3px}
+      .v9promo-admin-row{display:grid;grid-template-columns:1.15fr 1.1fr 120px 120px;gap:12px;align-items:center;border:1px solid #e2e8f0;border-radius:18px;background:#fff;padding:14px;box-shadow:0 12px 28px rgba(15,23,42,.055)}
+      .v9promo-admin-prod{display:flex;align-items:center;gap:12px;min-width:0}
+      .v9promo-admin-icon{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffedd5);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+      .v9promo-admin-name{font-size:15px;font-weight:950;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-meta{font-size:12px;color:#64748b;margin-top:2px;line-height:1.45}
+      .v9promo-admin-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+      .v9promo-mini{border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;padding:9px;min-width:0}
+      .v9promo-mini span{display:block;font-size:10px;font-weight:900;color:#64748b}
+      .v9promo-mini b{display:block;font-size:14px;font-weight:950;color:#0f172a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v9promo-admin-row input{height:46px;border:1px solid #fecaca;border-radius:14px;text-align:center;font-size:17px;font-weight:950;color:#dc2626;outline:none;background:#fff7ed}
+      .v9promo-history{font-size:11px;color:#64748b;line-height:1.55;max-height:54px;overflow:hidden}
+      .v9promo-history b{color:#334155}
+      @media(max-width:900px){.v9promo-admin-hero,.v9promo-admin-row{grid-template-columns:1fr}.v9promo-admin-numbers{grid-template-columns:1fr 1fr 1fr}}
+    `;
+    document.head.appendChild(st);
+  }
+  function rowsHtml() {
+    const ps = promos();
+    const hist = histories();
+    return productsList().map(p => {
+      const cur = Number(ps[p.id] || 0);
+      const price = Number(p.price || 0);
+      const cost = Number(p.cost || 0);
+      const net = Math.max(0, price - (price * cur / 100));
+      const margin = net > 0 ? Math.round(((net - cost) / net) * 100) : 0;
+      const ph = hist.filter(h => String(h.product_id) === String(p.id)).slice(0, 3);
+      return `<div class="v9promo-admin-row" data-name="${esc((p.name || '').toLowerCase())}">
+        <div class="v9promo-admin-prod"><div class="v9promo-admin-icon"><i class="material-icons-round">local_offer</i></div><div style="min-width:0"><div class="v9promo-admin-name">${esc(p.name)}</div><div class="v9promo-admin-meta">สต็อก ${fmt(p.stock || 0)} ${esc(p.unit || '')} · มูลค่าทุน ฿${fmt((p.cost || 0) * (p.stock || 0))}</div></div></div>
+        <div class="v9promo-admin-numbers"><div class="v9promo-mini"><span>ราคาขายเดิม</span><b>฿${fmt(price)}</b></div><div class="v9promo-mini"><span>ราคาทุนเดิม</span><b style="color:#d97706">฿${fmt(cost)}</b></div><div class="v9promo-mini"><span>หลังลด / กำไร</span><b style="color:${margin >= 0 ? '#15803d' : '#dc2626'}">฿${fmt(net)} · ${margin}%</b></div></div>
+        <input type="number" min="0" max="100" step="0.01" id="v9promo-${p.id}" value="${cur || ''}" placeholder="0%">
+        <div class="v9promo-history">${ph.length ? ph.map(h => `<div><b>${h.old_percent || 0}% → ${h.new_percent || 0}%</b> · ${new Date(h.at).toLocaleDateString('th-TH')} ${esc(h.by || '')}</div>`).join('') : '<span>ยังไม่มีประวัติโปรโมชั่น</span>'}</div>
+      </div>`;
+    }).join('');
+  }
+  window.v9OpenPromoModal = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    injectStyle();
+    const ps = promos();
+    const active = Object.values(ps).filter(v => Number(v) > 0).length;
+    const avg = active ? Math.round(Object.values(ps).reduce((s, v) => s + Number(v || 0), 0) / active) : 0;
+    openModal?.('จัดการสินค้าโปรโมชั่น', `<div class="v9promo-admin-shell">
+      <div class="v9promo-admin-hero"><div class="v9promo-admin-title"><i class="material-icons-round">workspace_premium</i><div><div>สินค้าโปรโมชั่น</div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.72);margin-top:2px">จัดการจากหน้าคลังสินค้าเท่านั้น</div></div></div><div class="v9promo-admin-stat"><span>สินค้า</span><b>${productsList().length}</b></div><div class="v9promo-admin-stat"><span>เปิดโปร</span><b>${active}</b></div><div class="v9promo-admin-stat"><span>ลดเฉลี่ย</span><b>${avg}%</b></div></div>
+      <div class="search-box" style="width:100%"><i class="material-icons-round">search</i><input placeholder="ค้นหาสินค้า..." oninput="v9FilterPromoAdminRows(this.value)"></div>
+      <div style="max-height:58vh;overflow:auto;padding-right:4px">${rowsHtml() || '<div style="padding:32px;text-align:center;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:18px;background:#fff">ไม่มีสินค้า</div>'}</div>
+      <button class="btn btn-primary" style="height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#dc2626,#f97316);font-weight:950" onclick="v9SavePromotions()"><i class="material-icons-round">save</i> บันทึกโปรโมชั่น</button>
+    </div>`);
+  };
+  window.v9FilterPromoAdminRows = function (q) {
+    const s = String(q || '').toLowerCase();
+    document.querySelectorAll('.v9promo-admin-row').forEach(r => { r.style.display = (r.dataset.name || '').includes(s) ? 'grid' : 'none'; });
+  };
+  window.v9SavePromotions = function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    const old = promos();
+    const next = {};
+    const hist = histories();
+    productsList().forEach(p => {
+      const val = Math.max(0, Math.min(100, Number(document.getElementById('v9promo-' + p.id)?.value || 0)));
+      if (val > 0) next[p.id] = val;
+      const oldVal = Number(old[p.id] || 0);
+      if (oldVal !== val) hist.unshift({ at: new Date().toISOString(), by: (typeof v9Staff === 'function' ? v9Staff() : USER?.username || ''), product_id: p.id, product_name: p.name, old_percent: oldVal, new_percent: val, price: Number(p.price || 0), cost: Number(p.cost || 0) });
+    });
+    savePromos(next);
+    saveHist(hist);
+    toast?.('บันทึกโปรโมชั่นแล้ว', 'success');
+    closeModal?.();
+    renderInventory?.();
+    renderProductGrid?.();
+  };
+  function removePosButton() { document.getElementById('v9promo-open-btn')?.remove(); }
+  function addInvButton() {
+    const pa = document.getElementById('page-actions');
+    if (!pa || document.getElementById('v9promo-inv-btn') || !isAdmin()) return;
+    pa.insertAdjacentHTML('afterbegin', `<button class="btn btn-outline" id="v9promo-inv-btn" onclick="v9OpenPromoModal()"><i class="material-icons-round">local_offer</i> โปรโมชั่น</button>`);
+  }
+  const prevGo = window.go;
+  window.go = function (page) {
+    const r = prevGo?.apply(this, arguments);
+    setTimeout(() => { removePosButton(); if (page === 'inv') addInvButton(); }, 260);
+    return r;
+  };
+  const prevRenderInv = window.renderInventory;
+  window.renderInventory = async function () {
+    await prevRenderInv?.apply(this, arguments);
+    removePosButton();
+    addInvButton();
+    if (!isAdmin()) {
+      document.querySelectorAll('[onclick*="adjustStock"]').forEach(btn => btn.remove());
+      document.getElementById('v9promo-inv-btn')?.remove();
+    }
+  };
+  const prevAdjust = window.adjustStock;
+  window.adjustStock = async function () {
+    if (!isAdmin()) { denyAdmin(); return; }
+    return await prevAdjust?.apply(this, arguments);
+  };
+  try { adjustStock = window.adjustStock; } catch (_) {}
+  injectStyle();
+  setInterval(removePosButton, 800);
+  if (window.v9PromoWorkspaceApi) {
+    window.v9OpenPromoModal = window.v9PromoWorkspaceApi.open;
+    window.v9PromoFilterPick = window.v9PromoWorkspaceApi.filter;
+    window.v9PromoSelectProduct = window.v9PromoWorkspaceApi.select;
+    window.v9PromoPreviewSelected = window.v9PromoWorkspaceApi.preview;
+    window.v9PromoSaveSelected = window.v9PromoWorkspaceApi.save;
+    window.v9PromoRemoveSelected = window.v9PromoWorkspaceApi.remove;
+  }
+  if (typeof window.v9InstallPermissionPromoGuards === 'function') window.v9InstallPermissionPromoGuards();
+})();

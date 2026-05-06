@@ -149,7 +149,7 @@
       };
 
       prepared.push({
-        oldId: old.id,
+        oldId: old.id || null,
         rec,
         attendance: { id: old.id || `temp-${emp.id}`, ...old, ...rec },
         emp,
@@ -174,7 +174,7 @@
       if (isWorkingStatus(item.status)) {
         const tempId = item.attendance.id;
         const activeBtn = document.querySelector(`[data-v51-seg="${cssEsc(tempId)}"] button.on`);
-        if (activeBtn) type = activeBtn.dataset.type || 'store';
+        type = activeBtn?.dataset.type || 'store';
 
         const projectId = document.querySelector(`[data-project-for="${cssEsc(tempId)}"]`)?.value || '';
         project = projects.find(p => p.id === projectId);
@@ -189,22 +189,20 @@
         ? makeAssignmentNote(baseNote, { type, projectName: project?.name || '' })
         : baseNote;
 
-      let finalAttId = item.oldId;
-      if (finalAttId) {
-        const { data, error } = await db.from(ATT_TABLE).update(item.rec).eq('id', finalAttId).select().single();
+      let finalAttendance = null;
+      if (item.oldId) {
+        const { data, error } = await db.from(ATT_TABLE).update(item.rec).eq('id', item.oldId).select().single();
         if (error) throw error;
-        item.attendance = data;
+        finalAttendance = data || { ...item.attendance, ...item.rec, id: item.oldId };
       } else {
         const { data, error } = await db.from(ATT_TABLE).insert(item.rec).select().single();
         if (error) throw error;
-        finalAttId = data.id;
-        item.attendance = data;
+        finalAttendance = data;
       }
 
-      // ลบต้นทุนโครงการเดิมออกก่อนเสมอเพื่อป้องกันยอดซ้ำ
-      await removeProjectLabor(finalAttId);
+      item.attendance = finalAttendance;
+      await removeProjectLabor(finalAttendance.id);
 
-      // ถ้าทำงานจริงและเลือกโครงการ ให้เพิ่มต้นทุนใหม่
       if (isWorkingStatus(item.status) && type === 'project') {
         await addProjectLabor(item, project);
       }
@@ -267,8 +265,8 @@
 
   async function openWorkplaceModal(preparedRows, skippedCount) {
     injectStyle();
-    window.__v51PreparedRows = preparedRows;
-    window.__v51SkippedCount = skippedCount;
+    window.__v51PreparedRows = preparedRows || [];
+    window.__v51SkippedCount = skippedCount || 0;
 
     const rows = (preparedRows || []).filter(x => isWorkingStatus(x.status));
     const { data: projects } = await db.from(PROJECT_TABLE).select('id,name,status,total_expenses').eq('status', 'active').order('name');
@@ -276,14 +274,15 @@
     window.__v51Projects = activeProjects;
 
     if (!rows.length) {
-      const ok = confirm('ไม่มีพนักงานที่มาทำงานจริง (มีเฉพาะ ลา/ขาด) ต้องการบันทึกสถานะตอนนี้หรือไม่?');
+      const ok = confirm('ไม่มีพนักงานที่มาทำงานจริง (มีเฉพาะ ลา/ขาด) ต้องการบันทึกเช็คชื่อตอนนี้หรือไม่?');
       if (!ok) return;
-
       try {
         const savedCount = await saveAllFinal();
         toast?.(`บันทึกเช็คชื่อ ${savedCount} คน${skippedCount ? ` (ยังไม่ลง ${skippedCount})` : ''}`, 'success');
+        logActivity?.('เช็คชื่อพนักงาน', `บันทึก ${savedCount} คน`);
         window.renderAttendance?.();
       } catch (e) {
+        console.error('[v51] save no-work attendance:', e);
         toast?.('บันทึกไม่สำเร็จ: ' + e.message, 'error');
       }
       return;
@@ -300,7 +299,7 @@
           <div>
             <div class="v51-kicker">Attendance Allocation</div>
             <h2 class="v51-title">เลือกสถานที่ทำงานของพนักงาน</h2>
-            <div class="v51-sub">ยืนยันข้อมูลแล้วบันทึก ขั้นตอนนี้ใช้แยกต้นทุนหน้าร้านกับต้นทุนโครงการ</div>
+            <div class="v51-sub">ยังไม่บันทึกจริง ตรวจรายชื่อและเลือกสถานที่ก่อน แล้วค่อยกดบันทึก</div>
           </div>
           <button class="v51-close" onclick="document.getElementById('v51-workplace-modal')?.remove(); renderAttendance?.();"><i class="material-icons-round">close</i></button>
         </div>
@@ -336,7 +335,7 @@
             <span class="v51-chip">ค่าแรงรวม ฿${fmt(totalCost)}</span>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="v51-btn" onclick="document.getElementById('v51-workplace-modal')?.remove(); renderAttendance?.();">ยกเลิก</button>
+            <button class="v51-btn" onclick="document.getElementById('v51-workplace-modal')?.remove();">ยกเลิก</button>
             <button class="v51-btn primary" id="v51-save-workplace" onclick="v51SaveWorkplaceAssignments()"><i class="material-icons-round">save</i>บันทึกสถานที่ทำงาน</button>
           </div>
         </div>
@@ -360,7 +359,6 @@
     try {
       const savedCount = await saveAllFinal();
       const skippedCount = window.__v51SkippedCount || 0;
-
       logActivity?.('เช็คชื่อพนักงานและจัดสถานที่', `บันทึก ${savedCount} คน`);
       toast?.(`บันทึกข้อมูลเรียบร้อย ${savedCount} คน${skippedCount ? ` (ยังไม่ลง ${skippedCount})` : ''}`, 'success');
       document.getElementById('v51-workplace-modal')?.remove();
@@ -379,7 +377,7 @@
       const btn = document.getElementById('v26-save-btn');
       if (btn) {
         btn.innerHTML = '<i class="material-icons-round">navigate_next</i> ถัดไป';
-        btn.title = 'เตรียมข้อมูล แล้วเลือกสถานที่ทำงาน';
+        btn.title = 'ตรวจรายชื่อ แล้วเลือกสถานที่ทำงานก่อนบันทึก';
       }
     }, 30);
     return result;
@@ -405,30 +403,27 @@
   };
 
   window.v26SaveAll = window.v51AttendanceNext;
-  try { renderAttendance = window.renderAttendance; } catch (_) { }
-  try { v26SaveAll = window.v51AttendanceNext; } catch (_) { }
+  try { renderAttendance = window.renderAttendance; } catch (_) {}
+  try { v26SaveAll = window.v51AttendanceNext; } catch (_) {}
 
   function v51ForceBindAttendanceButton() {
     const btn = document.getElementById('v26-save-btn');
     if (!btn) return;
 
-    // เปลี่ยนหน้าตาปุ่มเสมอเพื่อความชัวร์
     btn.innerHTML = '<i class="material-icons-round">navigate_next</i> ถัดไป';
-    btn.title = 'เตรียมข้อมูล แล้วเลือกสถานที่ทำงาน';
+    btn.title = 'ตรวจรายชื่อ แล้วเลือกสถานที่ทำงานก่อนบันทึก';
     btn.removeAttribute('onclick');
     btn.onclick = null;
 
     if (btn.dataset.v51Bound === '1') return;
     btn.dataset.v51Bound = '1';
 
-    // ใช้ cloneNode ล้าง event listener เก่า และใช้ capture phase เพื่อความแรง
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
-
     newBtn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      window.v26SaveAll();
+      window.v51AttendanceNext();
     }, true);
   }
 

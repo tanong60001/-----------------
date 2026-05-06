@@ -247,6 +247,33 @@ console.log('[v36] Usage safety patch loaded');
     return { billItems, movements, stockUpdates };
   }
 
+  function salePromoInfoV36(cartSnapshot) {
+    const itemDiscounts = (cartSnapshot || []).map((item, index) => {
+      const perUnit = money(item.promo_discount || item.discount_per_unit || 0);
+      const manualPerUnit = money(item.manual_discount_per_unit || 0);
+      const discountTotal = money(item.discount_total || (perUnit + manualPerUnit) * money(item.qty));
+      return {
+        product_id: item.id,
+        product_name: item.name || '',
+        cart_index: index,
+        percent: money(item.promo_percent || item.discount_percent || 0),
+        discount_per_unit: Number((perUnit + manualPerUnit).toFixed(2)),
+        discount_total: Number(discountTotal.toFixed(2)),
+        original_price: money(item.original_price || (money(item.price) + perUnit + manualPerUnit)),
+        net_price: money(item.price),
+      };
+    }).filter(item => item.discount_total > 0);
+    const promoDiscount = money(window.checkoutState?.promo_discount ?? itemDiscounts.reduce((sum, item) => sum + item.discount_total, 0));
+    const manualDiscount = money(window.checkoutState?.manual_discount ?? window.checkoutState?.discount ?? 0);
+    const baseInfo = (window.checkoutState?.return_info && typeof window.checkoutState.return_info === 'object') ? window.checkoutState.return_info : {};
+    return {
+      ...baseInfo,
+      item_discounts: itemDiscounts,
+      promo_discount: Number(promoDiscount.toFixed(2)),
+      manual_discount: Number(manualDiscount.toFixed(2)),
+    };
+  }
+
   async function runSafeSale() {
     if (window.__posPaymentLock) return;
     window.__posPaymentLock = true;
@@ -288,6 +315,7 @@ console.log('[v36] Usage safety patch loaded');
         customer_phone: checkoutState.customer?.phone || null,
         staff_name: typeof v9Staff === 'function' ? v9Staff() : userName(),
         status: checkoutState.method === 'debt' ? txt.debt : txt.success,
+        return_info: salePromoInfoV36(cartSnapshot),
       }).select().single(), 'บันทึกบิล');
       bill = billRes.data;
 
@@ -1563,7 +1591,9 @@ console.log('[v36] Usage safety patch loaded');
   const PERMISSION_DEFS = [
     { key: 'can_pos', page: 'pos', label: 'POS ขาย', icon: 'point_of_sale', desc: 'ขายสินค้าและออกบิล' },
     { key: 'can_inv', page: 'inv', label: 'คลังสินค้า', icon: 'inventory_2', desc: 'ดู/แก้ไขสินค้าและสต็อก' },
+    { key: 'can_adjust_stock', page: 'adjust_stock', label: 'ปรับสต็อก', icon: 'inventory', desc: 'เพิ่ม/ลด/แก้ไขจำนวนสต็อกสินค้า' },
     { key: 'can_manage', page: 'manage', label: 'จัดการสินค้า', icon: 'settings_suggest', desc: 'หมวดหมู่ หน่วยนับ สูตร ซัพพลายเออร์ ผลิต' },
+    { key: 'can_promotion', page: 'promotion', label: 'โปรโมชั่น', icon: 'local_offer', desc: 'ตั้งค่าสินค้าโปรโมชั่นและส่วนลด' },
     { key: 'can_delete', page: 'delete', label: 'สิทธิ์ลบรายการ', icon: 'delete_sweep', desc: 'อนุญาตให้ลบสินค้า รายจ่าย หมวดหมู่ และยกเลิกบิล' },
     { key: 'can_cash', page: 'cash', label: 'ลิ้นชักเงินสด', icon: 'account_balance_wallet', desc: 'เปิด/ปิดรอบ เพิ่ม/เบิกเงิน' },
     { key: 'can_exp', page: 'exp', label: 'รายจ่าย', icon: 'receipt_long', desc: 'บันทึกและดูรายจ่าย' },
@@ -1591,6 +1621,19 @@ console.log('[v36] Usage safety patch loaded');
   });
 
   let v36PermissionColumns = null;
+  const V36_LOCAL_PERMISSION_KEYS = ['can_adjust_stock', 'can_promotion'];
+  const V36_LOCAL_PERMISSION_STORE = 'sk_pos_extra_permissions_v1';
+  function localPermissionStoreV36() {
+    try { return JSON.parse(localStorage.getItem(V36_LOCAL_PERMISSION_STORE) || '{}'); } catch (_) { return {}; }
+  }
+  function saveLocalPermissionStoreV36(store) {
+    try { localStorage.setItem(V36_LOCAL_PERMISSION_STORE, JSON.stringify(store || {})); } catch (_) { }
+  }
+  function localPermissionValueV36(userId, key) {
+    if (!V36_LOCAL_PERMISSION_KEYS.includes(key)) return undefined;
+    const store = localPermissionStoreV36();
+    return store?.[userId]?.[key];
+  }
 
   function canAccessPageV36(page) {
     if (!USER) return false;
@@ -1709,7 +1752,7 @@ console.log('[v36] Usage safety patch loaded');
 
   function missingPermissionColumns(columns) {
     if (!columns || !columns.size) return [];
-    return PERMISSION_DEFS.map(p => p.key).filter(key => !columns.has(key));
+    return PERMISSION_DEFS.map(p => p.key).filter(key => !columns.has(key) && !V36_LOCAL_PERMISSION_KEYS.includes(key));
   }
 
   function permissionMigrationSQL(keys) {
@@ -1722,6 +1765,10 @@ console.log('[v36] Usage safety patch loaded');
       const el = document.getElementById(`v36perm-${userId}-${def.key}`);
       payload[def.key] = !!el?.checked;
     });
+    const localStore = localPermissionStoreV36();
+    localStore[userId] = localStore[userId] || {};
+    V36_LOCAL_PERMISSION_KEYS.forEach(key => { localStore[userId][key] = !!payload[key]; });
+    saveLocalPermissionStoreV36(localStore);
 
     const cols = await detectPermissionColumns();
     const missing = missingPermissionColumns(cols);
@@ -1772,8 +1819,13 @@ console.log('[v36] Usage safety patch loaded');
   }
 
   function effectivePermissionChecked(perms, def) {
+    const localValue = localPermissionValueV36(perms?.user_id, def.key);
+    if (localValue === true) return true;
+    if (localValue === false) return false;
     if (perms?.[def.key] === true) return true;
     if (perms?.[def.key] === false) return false;
+    if (def.key === 'can_adjust_stock') return perms?.can_manage === true || perms?.can_inv === true;
+    if (def.key === 'can_promotion') return perms?.can_manage === true;
     if (def.key === 'can_history') return perms?.can_log === true;
     if (def.key === 'can_payable') return perms?.can_purchase === true;
     if (def.key === 'can_delivery') return perms?.can_purchase === true || perms?.can_pos === true;
@@ -1842,7 +1894,7 @@ console.log('[v36] Usage safety patch loaded');
               ${isAdmin ? '' : `
                 <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">
                   ${PERMISSION_DEFS.map(def => {
-        const checked = effectivePermissionChecked(p, def);
+        const checked = effectivePermissionChecked({ ...p, user_id: user.id }, def);
         const unsupported = missing.includes(def.key);
         return `
                       <label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:1.5px solid ${checked ? '#ef4444' : '#e2e8f0'};background:${unsupported ? '#f8fafc' : checked ? '#fff1f2' : '#fff'};cursor:${unsupported ? 'not-allowed' : 'pointer'};opacity:${unsupported ? '.62' : '1'}">
@@ -4850,10 +4902,49 @@ console.log('[v36] Usage safety patch loaded');
       : (suppressQr && !isBillingDoc ? `<div class="paid-note">ชำระแล้ว<small>ขอบคุณที่ใช้บริการ</small></div>` : '');
     const title = isBillingDoc ? 'ใบวางบิล' : (docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน / ใบกำกับภาษี'));
     const titleEn = isBillingDoc ? 'BILLING NOTE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT / TAX INVOICE'));
+    const promoInfo = (() => {
+      try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
+    })();
+    const itemDiscounts = Array.isArray(promoInfo.item_discounts) ? promoInfo.item_discounts : [];
+    const promoMapForPrint = (() => {
+      try { return JSON.parse(localStorage.getItem('sk_pos_product_promotions_v1') || '{}') || {}; } catch (_) { return {}; }
+    })();
+    const productListForPrint = (() => {
+      try { return Array.isArray(products) ? products : []; } catch (_) { return Array.isArray(window.products) ? window.products : []; }
+    })();
+    const itemDiscountLine = (it, idx) => {
+      let found = itemDiscounts.find(d =>
+        (d.product_id && it.product_id && String(d.product_id) === String(it.product_id)) ||
+        Number(d.cart_index) === idx ||
+        (d.product_name && String(d.product_name) === String(it.name || it.product_name || ''))
+      );
+      if (!found) {
+        const product = productListForPrint.find(p => String(p.id) === String(it.product_id || it.id));
+        const percent = Math.max(0, money(promoMapForPrint[it.product_id || it.id] || 0));
+        const original = money(it.original_price || product?.price || 0);
+        const net = money(it.price || it.unit_price || 0);
+        const qty = money(it.qty || it.quantity || 1);
+        const perUnitDiscount = Math.max(0, original - net);
+        if (percent > 0 && original > net && perUnitDiscount > 0) {
+          found = {
+            original_price: original,
+            net_price: net,
+            discount_per_unit: perUnitDiscount,
+            discount_total: perUnitDiscount * qty,
+            percent,
+          };
+        }
+      }
+      const amount = money(found?.discount_total || 0);
+      if (amount <= 0) return '';
+      const oldPrice = money(found?.original_price || it.original_price || (money(it.price) + money(found?.discount_per_unit || 0)));
+      const newPrice = money(found?.net_price || it.price);
+      return `<div class="item-disc">ก่อนลด ฿${fmt(oldPrice)} → หลังลด ฿${fmt(newPrice)} <b>-฿${fmt(amount)}</b></div>`;
+    };
     const rows = (items || []).map((it, idx) => `
       <tr>
         <td class="c num">${idx + 1}</td>
-        <td class="desc">${htmlAttr(it.name || '')}</td>
+        <td class="desc">${htmlAttr(it.name || '')}${itemDiscountLine(it, idx)}</td>
         <td class="c">${fmt(money(it.qty || 1)).replace(/\.00$/, '')}</td>
         <td class="c">${htmlAttr(it.unit || 'ชิ้น')}</td>
         <td class="r">${fmt(money(it.price || 0))}</td>
@@ -4877,7 +4968,7 @@ console.log('[v36] Usage safety patch loaded');
 @page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{margin:0;background:#f8fafc;font-family:'Sarabun',sans-serif;color:#0f172a;font-size:10px;letter-spacing:0}.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:8mm 14mm 5mm;display:flex;flex-direction:column;position:relative;box-shadow:0 0 0 1px #e5e7eb}
 .top{display:flex;justify-content:space-between;align-items:flex-start}.shop h1{margin:0;color:#e11d22;font-size:18px;line-height:1;font-weight:900;letter-spacing:.1px}.shop .en{font-size:8px;color:#0f172a;font-weight:900;letter-spacing:.25px;margin-top:1px}.shop .addr{margin-top:3px;color:#64748b;line-height:1.25;font-size:8px}.doc{text-align:right}.doc-badge{display:inline-block;background:#e11d22;color:#fff;border:2px solid #e11d22;border-radius:7px;padding:7px 18px;text-align:center;min-width:170px;box-shadow:0 10px 24px rgba(225,29,34,.16)}.doc-badge b{display:block;font-size:14px;line-height:1.1}.doc-badge span{display:block;font-size:8px;opacity:.95}.meta{margin-top:6px;color:#64748b;line-height:1.45;font-size:8px}.meta b{color:#0f172a}.rule{height:3px;background:#e11d22;border-radius:999px;margin:10px 0 7px}
 .cust{border:1px solid #e2e8f0;border-radius:7px;overflow:hidden;background:#fff}.cust-h{background:#fff5f5;color:#e11d22;font-size:9px;font-weight:900;padding:3px 8px;border-bottom:1px solid #fee2e2}.cust-b{display:grid;grid-template-columns:1fr 1fr;padding:6px 8px;gap:10px}.cust-b>div+div{border-left:1px solid #e2e8f0;padding-left:12px}.cust-name{font-size:12px;font-weight:900;margin-bottom:1px}.muted{color:#94a3b8}.phone{color:#e11d48;font-weight:900}.info-row{display:grid;grid-template-columns:88px 1fr;gap:7px;line-height:1.45}.info-row b{text-align:right}
-table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead th{background:#e11d22;color:#fff;padding:4px 5px;font-size:8px;font-weight:900}thead th:first-child{border-radius:5px 0 0 0}thead th:last-child{border-radius:0 5px 0 0}tbody td{padding:2.5px 5px;border-bottom:1px solid #e9eef5;font-size:8px;line-height:1.12}tbody tr:nth-child(even){background:#f8fafc}.num{color:#64748b}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.desc{font-weight:900}
+ table{width:100%;border-collapse:separate;border-spacing:0;margin-top:7px}thead th{background:#e11d22;color:#fff;padding:4px 5px;font-size:8px;font-weight:900}thead th:first-child{border-radius:5px 0 0 0}thead th:last-child{border-radius:0 5px 0 0}tbody td{padding:2.5px 5px;border-bottom:1px solid #e9eef5;font-size:8px;line-height:1.12}tbody tr:nth-child(even){background:#f8fafc}.num{color:#64748b}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.desc{font-weight:900}.item-disc{margin-top:1px;color:#dc2626;font-size:7px;font-weight:900}.item-disc b{font-weight:900}
 .mid{display:grid;grid-template-columns:1.2fr 80px 205px;gap:10px;align-items:start;margin-top:7px}.words{font-size:9px;color:#94a3b8}.words b{display:block;color:#e11d22;font-size:10px;font-weight:900}.note{margin-top:6px;font-size:9px;color:#334155;line-height:1.3}.note b{display:block;color:#0f172a}
 .summary{margin-left:auto;width:100%}.sum-row{display:flex;justify-content:space-between;gap:16px;color:#64748b;font-size:9px;margin-bottom:4px;border-bottom:1px solid #e2e8f0;padding-bottom:3px}.sum-row b{color:#0f172a}.grand{background:#e11d22;color:#fff;border-radius:7px;padding:7px 12px;text-align:center;box-shadow:0 10px 22px rgba(225,29,34,.14)}.grand span{display:block;font-size:8px;opacity:.95}.grand b{font-size:19px;line-height:1.08}
 .pay-slot{min-height:0;display:flex;align-items:flex-start;justify-content:center;padding-top:3px}.pay-qr{text-align:center;width:96px}.qr-head{height:20px;background:#144b73;color:#fff;display:flex;align-items:center;justify-content:center;gap:4px;font-size:6px;font-weight:900;line-height:1.05;border-radius:2px 2px 0 0}.qr-head .material-icons-round{font-size:13px}.qr-pill{display:inline-block;border:1px solid #172033;color:#172033;font-size:5px;font-weight:900;padding:1px 6px;margin:3px 0 2px}.pay-qr img{width:78px;height:78px;display:block;margin:0 auto}.qr-name{font-size:6px;font-weight:900;color:#172033;margin-top:2px}.qr-sub{font-size:5px;color:#64748b}

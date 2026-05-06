@@ -926,10 +926,11 @@ window.v12BMCLoad = async function () {
     const { data: bills } = await query;
     // filter by search text
     const all = (bills || []).filter(b => !search || b.bill_no?.toString().includes(search) || b.customer_name?.toLowerCase().includes(search));
-    const isDep = b => b.deposit_amount > 0 && b.deposit_amount < b.total && !['ยกเลิก', 'คืนสินค้า'].includes(b.status);
+    const isClosedBill = b => ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(b.status);
+    const isDep = b => b.deposit_amount > 0 && b.deposit_amount < b.total && !isClosedBill(b);
     const cnt = {
       all: all.length, done: all.filter(b => b.status === 'สำเร็จ').length,
-      pending: all.filter(b => b.delivery_status === 'รอจัดส่ง').length,
+      pending: all.filter(b => b.delivery_status === 'รอจัดส่ง' && !isClosedBill(b)).length,
       debt: all.filter(b => b.status === 'ค้างชำระ' && !isDep(b)).length,
       deposit: all.filter(isDep).length,
       returned: all.filter(b => ['คืนสินค้า', 'คืนบางส่วน'].includes(b.status)).length,
@@ -939,7 +940,7 @@ window.v12BMCLoad = async function () {
     const tab = window.v12BMCActiveTab || 'all';
     let f = all;
     if (tab === 'done') f = all.filter(b => b.status === 'สำเร็จ');
-    else if (tab === 'pending') f = all.filter(b => b.delivery_status === 'รอจัดส่ง');
+    else if (tab === 'pending') f = all.filter(b => b.delivery_status === 'รอจัดส่ง' && !isClosedBill(b));
     else if (tab === 'debt') f = all.filter(b => b.status === 'ค้างชำระ' && !isDep(b));
     else if (tab === 'deposit') f = all.filter(isDep);
     else if (tab === 'returned') f = all.filter(b => ['คืนสินค้า', 'คืนบางส่วน'].includes(b.status));

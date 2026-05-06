@@ -15,6 +15,57 @@
   const fmt = value => typeof formatNum === 'function' ? formatNum(value) : money(value).toLocaleString('th-TH');
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
+  function parseInfoV50(value) {
+    if (!value) return {};
+    if (typeof value === 'string') {
+      try { return JSON.parse(value) || {}; } catch (_) { return {}; }
+    }
+    return (typeof value === 'object') ? { ...value } : {};
+  }
+
+  function enrichPromoPrintBillV50(bill, items) {
+    if (!bill) return bill;
+    const list = Array.isArray(items) ? items : [];
+    const info = parseInfoV50(bill.return_info);
+    const existing = Array.isArray(info.item_discounts) ? info.item_discounts : [];
+    const promoMap = (() => {
+      try { return JSON.parse(localStorage.getItem('sk_pos_product_promotions_v1') || '{}') || {}; } catch (_) { return {}; }
+    })();
+    const productList = (() => {
+      try { return Array.isArray(products) ? products : []; } catch (_) { return Array.isArray(window.products) ? window.products : []; }
+    })();
+    const byProduct = new Set(existing.map(d => String(d.product_id || '')));
+    const inferred = list.map((item, index) => {
+      const productId = item.product_id || item.id;
+      if (!productId || byProduct.has(String(productId))) return null;
+      const product = productList.find(p => String(p.id) === String(productId));
+      const percent = Math.max(0, money(promoMap[productId]));
+      const net = money(item.price || item.unit_price || 0);
+      const original = money(item.original_price || product?.price || 0);
+      const qty = money(item.qty || item.quantity || 1);
+      const discountPerUnit = Math.max(0, original - net);
+      if (percent <= 0 || original <= net || discountPerUnit <= 0) return null;
+      return {
+        product_id: productId,
+        product_name: item.name || item.product_name || product?.name || '',
+        cart_index: index,
+        percent,
+        discount_per_unit: Number(discountPerUnit.toFixed(2)),
+        discount_total: Number((discountPerUnit * qty).toFixed(2)),
+        original_price: Number(original.toFixed(2)),
+        net_price: Number(net.toFixed(2)),
+      };
+    }).filter(Boolean);
+    if (!existing.length && !inferred.length) return bill;
+    return {
+      ...bill,
+      return_info: {
+        ...info,
+        item_discounts: [...existing, ...inferred],
+      },
+    };
+  }
+
   function injectStyle() {
     document.getElementById('v50-final-style')?.remove();
     const style = document.createElement('style');
@@ -221,7 +272,8 @@
     if (typeof original !== 'function' || original.__v50Project) return;
     window[name] = async function (bill, items) {
       if (isProjectBill(bill)) return printProjectDoc(bill, items || []);
-      return original.apply(this, arguments);
+      const nextBill = enrichPromoPrintBillV50(bill, items || []);
+      return original.call(this, nextBill, items || [], ...Array.prototype.slice.call(arguments, 2));
     };
     window[name].__v50Project = true;
     sync(name);
@@ -234,7 +286,8 @@
     if (typeof pr === 'function' && !pr.__v50Project) {
       window.printReceipt = async function (bill, items, format) {
         if (isProjectBill(bill) && String(format || '').toLowerCase().includes('a4')) return printProjectDoc(bill, items || []);
-        return pr.apply(this, arguments);
+        const nextBill = enrichPromoPrintBillV50(bill, items || []);
+        return pr.call(this, nextBill, items || [], format);
       };
       window.printReceipt.__v50Project = true;
       sync('printReceipt');
@@ -399,23 +452,276 @@
     window.renderActivityLog.__v50Combined = true;
   }
 
+  const PROMO_KEY = 'sk_pos_product_promotions_v1';
+  const PROMO_CAT = 'สินค้าลดราคา';
+  function promoMapV50() {
+    try { return JSON.parse(localStorage.getItem(PROMO_KEY) || '{}'); } catch (_) { return {}; }
+  }
+  function promoPercentV50(productId) {
+    return Math.max(0, Number(promoMapV50()[productId] || 0));
+  }
+  function promoProductsV50() {
+    try {
+      return (products || []).filter(p => p && promoPercentV50(p.id) > 0);
+    } catch (_) {
+      return [];
+    }
+  }
+  function promoPriceV50(product) {
+    const percent = promoPercentV50(product?.id);
+    const price = money(product?.price);
+    const discount = price * percent / 100;
+    return { percent, discount, net: Math.max(0, price - discount) };
+  }
+  function renderPromoProductGridV50() {
+    const container = document.getElementById('pos-product-grid');
+    if (!container) return;
+    const searchTerm = String(document.getElementById('pos-search')?.value || '').toLowerCase();
+    const viewMode = document.querySelector('.view-btn.active')?.dataset?.view || 'grid';
+    const list = promoProductsV50().filter(p => {
+      const hay = [p.name, p.barcode, p.category].filter(Boolean).join(' ').toLowerCase();
+      return !searchTerm || hay.includes(searchTerm);
+    });
+    const countEl = document.getElementById('products-count');
+    if (countEl) countEl.textContent = `แสดง ${list.length} จาก ${promoProductsV50().length} รายการ · ${PROMO_CAT}`;
+    const cardPrice = p => {
+      const promo = promoPriceV50(p);
+      return `<span class="v50-promo-price">฿${fmt(promo.net)}</span><span class="v50-promo-old">฿${fmt(p.price)}</span>`;
+    };
+    if (viewMode === 'list') {
+      container.className = 'product-list';
+      container.innerHTML = list.map(p => {
+        const inCart = (cart || []).find(c => c.id === p.id);
+        const isLow = p.stock <= (p.min_stock || 0) && p.stock > 0;
+        const isOut = p.stock <= 0;
+        const promo = promoPriceV50(p);
+        return `<div class="product-list-item ${isOut ? 'out-of-stock' : ''}" onclick="addToCart('${esc(String(p.id))}')">
+          <div class="product-list-img v50-promo-img">${p.img_url ? `<img src="${esc(p.img_url)}" alt="${esc(p.name)}" loading="lazy">` : `<i class="material-icons-round">local_offer</i>`}<span class="v50-promo-ribbon">-${fmt(promo.percent)}%</span></div>
+          <div class="product-list-info"><div class="product-name">${esc(p.name)}</div><div class="product-sku">${esc(p.barcode || p.category || '-')}</div></div>
+          <div class="product-list-right">${cardPrice(p)}<span class="product-stock ${isLow ? 'low' : ''} ${isOut ? 'out' : ''}">${isOut ? 'หมด' : `${fmt(p.stock)}`}</span>${inCart ? `<span class="product-badge">${fmt(inCart.qty)}</span>` : ''}</div>
+        </div>`;
+      }).join('') || `<div style="grid-column:1/-1;text-align:center;padding:42px;color:#94a3b8;font-weight:800">ยังไม่มีสินค้าโปรโมชั่น</div>`;
+      return;
+    }
+    container.className = 'product-grid';
+    container.innerHTML = list.map(p => {
+      const inCart = (cart || []).find(c => c.id === p.id);
+      const isLow = p.stock <= (p.min_stock || 0) && p.stock > 0;
+      const isOut = p.stock <= 0;
+      const promo = promoPriceV50(p);
+      return `<div class="product-card v50-promo-card ${isOut ? 'out-of-stock' : ''}" onclick="addToCart('${esc(String(p.id))}')">
+        <div class="product-img v50-promo-img">
+          ${p.img_url ? `<img src="${esc(p.img_url)}" alt="${esc(p.name)}" loading="lazy">` : `<i class="material-icons-round">local_offer</i>`}
+          <span class="v50-promo-ribbon">-${fmt(promo.percent)}%</span>
+          ${inCart ? `<span class="product-badge">${fmt(inCart.qty)}</span>` : ''}
+        </div>
+        <div class="product-info">
+          <div class="product-name">${esc(p.name)}</div>
+          <div class="product-sku">${esc(p.barcode || p.category || '-')}</div>
+          <div class="product-footer">
+            <span style="display:flex;flex-direction:column;gap:2px">${cardPrice(p)}</span>
+            <span class="product-stock ${isLow ? 'low' : ''} ${isOut ? 'out' : ''}">${isOut ? 'หมด' : `${fmt(p.stock)}`}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('') || `<div style="grid-column:1/-1;text-align:center;padding:42px;color:#94a3b8;font-weight:800">ยังไม่มีสินค้าโปรโมชั่น</div>`;
+  }
+
+  function enhanceNormalPromoCardsV50() {
+    const productList = (() => { try { return products || []; } catch (_) { return window.products || []; } })();
+    if (!Array.isArray(productList) || !productList.length) return;
+    document.querySelectorAll('#pos-product-grid [onclick*="addToCart"]').forEach(card => {
+      const raw = card.getAttribute('onclick') || '';
+      const match = raw.match(/addToCart\(['"]([^'"]+)['"]\)/);
+      if (!match) return;
+      const product = productList.find(p => String(p.id) === String(match[1]));
+      if (!product) return;
+      const promo = promoPriceV50(product);
+      if (promo.percent <= 0) return;
+      card.classList.add('v50-promo-card');
+      const img = card.querySelector('.product-img,.product-list-img');
+      if (img && !img.querySelector('.v50-promo-ribbon')) {
+        img.classList.add('v50-promo-img');
+        img.insertAdjacentHTML('afterbegin', `<span class="v50-promo-ribbon">-${fmt(promo.percent)}%</span>`);
+      }
+      const price = card.querySelector('.product-price');
+      if (price && !price.dataset.v50PromoPrice) {
+        price.dataset.v50PromoPrice = '1';
+        price.innerHTML = `<span class="v50-promo-price">฿${fmt(promo.net)}</span><span class="v50-promo-old">฿${fmt(product.price)}</span>`;
+      }
+    });
+  }
+
+  function installPromoSaleCategory() {
+    const style = document.getElementById('v50-promo-sale-style') || document.createElement('style');
+    style.id = 'v50-promo-sale-style';
+    style.textContent = `
+      #pos-categories .cat-tab.v50-promo-tab{background:#fff1f2;color:#dc2626;border-color:#fecaca;font-weight:900}
+      #pos-categories .cat-tab.v50-promo-tab.active{background:linear-gradient(135deg,#dc2626,#f97316);color:#fff;border-color:#dc2626;box-shadow:0 10px 22px rgba(220,38,38,.18)}
+      .v50-promo-card{border-color:#fecaca!important}.v50-promo-img{position:relative}.v50-promo-ribbon{position:absolute;left:8px;top:8px;background:#dc2626;color:#fff;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:950;box-shadow:0 8px 18px rgba(220,38,38,.24)}
+      .v50-promo-price{color:#dc2626!important;font-size:17px!important;font-weight:950!important;line-height:1}.v50-promo-old{color:#94a3b8!important;font-size:10px!important;text-decoration:line-through;font-weight:800}
+    `;
+    if (!style.parentNode) document.head.appendChild(style);
+
+    if (typeof window.renderCategories === 'function' && !window.renderCategories.__v50PromoCat) {
+      const originalRenderCategories = window.renderCategories;
+      window.renderCategories = function () {
+        const out = originalRenderCategories?.apply(this, arguments);
+        const container = document.getElementById('pos-categories');
+        if (container && !container.querySelector('[data-cat="__promo__"]')) {
+          container.insertAdjacentHTML('beforeend', `<button class="cat-tab v50-promo-tab ${window.__v50PromoCategoryActive ? 'active' : ''}" data-cat="__promo__" onclick="v50FilterPromoCategory()"><i class="material-icons-round" style="font-size:15px;vertical-align:-3px">local_offer</i> ${PROMO_CAT}</button>`);
+        }
+        return out;
+      };
+      window.renderCategories.__v50PromoCat = true;
+      try { renderCategories = window.renderCategories; } catch (_) {}
+    }
+    if (typeof window.filterByCategory === 'function' && !window.filterByCategory.__v50PromoCat) {
+      const originalFilterByCategory = window.filterByCategory;
+      window.filterByCategory = function (cat) {
+        window.__v50PromoCategoryActive = false;
+        return originalFilterByCategory?.apply(this, arguments);
+      };
+      window.filterByCategory.__v50PromoCat = true;
+      try { filterByCategory = window.filterByCategory; } catch (_) {}
+    }
+    if (typeof window.renderProductGrid === 'function' && !window.renderProductGrid.__v50PromoCat) {
+      const originalRenderProductGrid = window.renderProductGrid;
+      window.renderProductGrid = function () {
+        if (window.__v50PromoCategoryActive) return renderPromoProductGridV50();
+        const out = originalRenderProductGrid?.apply(this, arguments);
+        setTimeout(enhanceNormalPromoCardsV50, 0);
+        return out;
+      };
+      window.renderProductGrid.__v50PromoCat = true;
+      try { renderProductGrid = window.renderProductGrid; } catch (_) {}
+    }
+    window.v50FilterPromoCategory = function () {
+      window.__v50PromoCategoryActive = true;
+      document.querySelectorAll('#pos-categories .cat-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.cat === '__promo__'));
+      renderPromoProductGridV50();
+    };
+    try { renderCategories?.(); } catch (_) {}
+    setTimeout(enhanceNormalPromoCardsV50, 0);
+  }
+
+  function installPromoCartPricing() {
+    if (window.addToCart?.__v50PromoPrice) return;
+    let applyingPromoCart = false;
+
+    function activeCartV50() {
+      try { if (Array.isArray(cart)) return cart; } catch (_) {}
+      return Array.isArray(window.cart) ? window.cart : [];
+    }
+    function syncCartV50(next) {
+      try { cart = next; } catch (_) { window.cart = next; }
+    }
+    function applyPromoToCartItem(item, product) {
+      if (!item || !product) return false;
+      const percent = promoPercentV50(product.id);
+      const currentOriginal = money(item.original_price ?? item.price ?? product.price);
+      if (percent <= 0) {
+        if (item.promo_percent || item.promo_discount) {
+          item.price = currentOriginal;
+          delete item.original_price;
+          delete item.promo_percent;
+          delete item.promo_discount;
+          delete item.discount_total;
+          return true;
+        }
+        return false;
+      }
+      const original = item.original_price != null ? money(item.original_price) : currentOriginal;
+      const discount = Math.round((original * percent / 100) * 100) / 100;
+      const net = Math.max(0, Math.round((original - discount) * 100) / 100);
+      const changed = money(item.price) !== net || money(item.promo_discount) !== discount || money(item.promo_percent) !== percent;
+      item.original_price = original;
+      item.promo_percent = percent;
+      item.promo_discount = discount;
+      item.discount_total = Math.round((discount * money(item.qty || 1)) * 100) / 100;
+      item.price = net;
+      return changed;
+    }
+    function applyPromoToCart(productId) {
+      if (applyingPromoCart) return false;
+      applyingPromoCart = true;
+      let changed = false;
+      try {
+        const list = activeCartV50();
+        const productList = (() => { try { return products || []; } catch (_) { return window.products || []; } })();
+        list.forEach(item => {
+          if (productId && String(item.id) !== String(productId)) return;
+          const product = productList.find(p => String(p.id) === String(item.id));
+          changed = applyPromoToCartItem(item, product) || changed;
+        });
+        if (changed) {
+          syncCartV50(list);
+          try { renderCart?.(); } catch (_) {}
+          try { renderProductGrid?.(); } catch (_) {}
+          try { sendToDisplay?.({ type: 'cart', cart: list, total: getCartTotal?.() || 0 }); } catch (_) {}
+        }
+      } finally {
+        applyingPromoCart = false;
+      }
+      return changed;
+    }
+
+    const originalAddToCart = window.addToCart;
+    window.addToCart = async function (productId) {
+      const result = await originalAddToCart?.apply(this, arguments);
+      applyPromoToCart(productId);
+      return result;
+    };
+    window.addToCart.__v50PromoPrice = true;
+    try { addToCart = window.addToCart; } catch (_) {}
+
+    const originalUpdateCartQty = window.updateCartQty;
+    if (typeof originalUpdateCartQty === 'function' && !originalUpdateCartQty.__v50PromoPrice) {
+      window.updateCartQty = function (productId) {
+        const result = originalUpdateCartQty.apply(this, arguments);
+        applyPromoToCart(productId);
+        return result;
+      };
+      window.updateCartQty.__v50PromoPrice = true;
+      try { updateCartQty = window.updateCartQty; } catch (_) {}
+    }
+
+    const originalGetCartTotal = window.getCartTotal;
+    window.getCartTotal = function () {
+      applyPromoToCart();
+      const discount = Number(document.getElementById('pos-discount')?.value || 0);
+      const total = activeCartV50().reduce((sum, item) => sum + money(item.price) * money(item.qty), 0);
+      return Math.max(0, total - discount);
+    };
+    window.getCartTotal.__v50PromoPrice = true;
+    try { getCartTotal = window.getCartTotal; } catch (_) {}
+
+    setTimeout(() => applyPromoToCart(), 300);
+  }
+
   function boot() {
     injectStyle();
     installProjectPrintGuards();
     installPrintClickGuard();
     installAdminCommissionSection();
     installActivityHistory();
+    installPromoSaleCategory();
+    installPromoCartPricing();
     [300, 900, 1800, 3500, 7000, 12000].forEach(delay => setTimeout(() => {
       injectStyle();
       installProjectPrintGuards();
       installAdminCommissionSection();
       installActivityHistory();
+      installPromoSaleCategory();
+      installPromoCartPricing();
     }, delay));
     if (!window.__v50FinalInterval) {
       window.__v50FinalInterval = setInterval(() => {
         injectStyle();
         installProjectPrintGuards();
         installAdminCommissionSection();
+        installPromoSaleCategory();
+        installPromoCartPricing();
       }, 2500);
       setTimeout(() => clearInterval(window.__v50FinalInterval), 45000);
     }
