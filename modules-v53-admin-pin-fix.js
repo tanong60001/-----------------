@@ -375,3 +375,344 @@
   setTimeout(boot, 500);
   setTimeout(boot, 1500);
 })();
+
+
+/* ===== ต่อท้าย V53: V54 USER PASSWORD HOTFIX ===== */
+
+/* ==========================================================================
+   SK POS V54 — User Permission Password/PIN Hotfix
+   แก้ปัญหาหน้า "แก้ไขรหัสของสิทธิ์ผู้ใช้" กรอกไม่ได้บนมือถือ/iPhone/SUNMI
+   ใช้ต่อจาก V53 ได้เลย: <script src="modules-v54-user-password-hotfix.js?v=1"></script>
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  const TAG = '[v54-user-password-hotfix]';
+  const STYLE_ID = 'v54-user-password-hotfix-style';
+
+  function css() {
+    if (document.getElementById(STYLE_ID)) return;
+    const st = document.createElement('style');
+    st.id = STYLE_ID;
+    st.textContent = `
+      .swal2-container, .swal2-popup, .swal2-html-container { pointer-events:auto !important; }
+      .swal2-popup input,
+      .swal2-popup textarea,
+      .swal2-popup select,
+      .modal input,
+      .modal textarea,
+      .modal select {
+        pointer-events:auto !important;
+        user-select:text !important;
+        -webkit-user-select:text !important;
+        touch-action:manipulation !important;
+        position:relative !important;
+        z-index:2147483647 !important;
+      }
+
+      .v54-pin-box{
+        width:100%;
+        display:grid;
+        gap:12px;
+        margin-top:10px;
+      }
+      .v54-pin-main{
+        width:min(280px,100%) !important;
+        height:64px !important;
+        margin:0 auto !important;
+        border:2px solid #e2e8f0 !important;
+        border-radius:18px !important;
+        background:#fff !important;
+        color:#111827 !important;
+        text-align:center !important;
+        font-size:30px !important;
+        font-weight:950 !important;
+        letter-spacing:10px !important;
+        outline:none !important;
+        padding:0 10px !important;
+        box-shadow:0 0 0 0 rgba(220,38,38,0) !important;
+        pointer-events:auto !important;
+        -webkit-text-security:disc;
+      }
+      .v54-pin-main:focus{
+        border-color:#dc2626 !important;
+        box-shadow:0 0 0 5px rgba(220,38,38,.12) !important;
+      }
+      .v54-pin-hint{
+        text-align:center;
+        color:#64748b;
+        font-size:12px;
+        font-weight:800;
+      }
+      .v54-keypad{
+        width:min(310px,100%);
+        margin:0 auto;
+        display:grid;
+        grid-template-columns:repeat(3,1fr);
+        gap:9px;
+      }
+      .v54-key{
+        height:50px;
+        border:1px solid #e5e7eb;
+        background:#f8fafc;
+        border-radius:15px;
+        font-size:20px;
+        font-weight:950;
+        color:#111827;
+        font-family:inherit;
+        touch-action:manipulation;
+        -webkit-tap-highlight-color:transparent;
+      }
+      .v54-key:active{background:#fee2e2;color:#b91c1c;transform:translateY(1px)}
+      .v54-key.muted{font-size:13px;color:#64748b}
+      .swal2-popup.v54-popup-fix{
+        border-radius:24px !important;
+        padding:24px 22px 20px !important;
+      }
+      .swal2-popup.v54-popup-fix .swal2-title{
+        font-size:24px !important;
+        font-weight:950 !important;
+        color:#111827 !important;
+      }
+      .swal2-popup.v54-popup-fix .swal2-confirm,
+      .swal2-popup.v54-popup-fix .swal2-cancel{
+        height:46px !important;
+        min-width:110px !important;
+        border-radius:14px !important;
+        font-weight:950 !important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function onlyDigits(v, max = 4) {
+    return String(v || '').replace(/\D/g, '').slice(0, max);
+  }
+
+  function isPinContext(root) {
+    if (!root) return false;
+    const text = [
+      root.querySelector?.('.swal2-title')?.textContent,
+      root.querySelector?.('.swal2-html-container')?.textContent,
+      root.textContent
+    ].filter(Boolean).join(' ');
+    return /(pin|พิน|รหัส|password|สิทธิ์|ผู้ใช้|ผู้ใช้งาน|admin|แอดมิน)/i.test(text);
+  }
+
+  function fireInputEvents(input) {
+    ['input', 'change', 'keyup', 'blur'].forEach(type => {
+      try { input.dispatchEvent(new Event(type, { bubbles:true, cancelable:true })); } catch (_) {}
+    });
+  }
+
+  function makeEditable(input) {
+    if (!input) return;
+    input.disabled = false;
+    input.readOnly = false;
+    input.removeAttribute('disabled');
+    input.removeAttribute('readonly');
+    input.removeAttribute('aria-hidden');
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('pattern', '[0-9]*');
+    input.setAttribute('maxlength', '4');
+    input.type = 'tel';
+    input.classList.add('v54-pin-main');
+    input.style.pointerEvents = 'auto';
+    input.style.zIndex = '2147483647';
+    input.style.position = 'relative';
+
+    if (input.dataset.v54Bound !== '1') {
+      input.dataset.v54Bound = '1';
+      input.addEventListener('input', () => {
+        input.value = onlyDigits(input.value, 4);
+        input.classList.toggle('filled', !!input.value);
+      }, true);
+      input.addEventListener('touchstart', () => setTimeout(() => input.focus({ preventScroll:true }), 0), true);
+      input.addEventListener('click', () => setTimeout(() => input.focus({ preventScroll:true }), 0), true);
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.querySelector('.swal2-confirm')?.click();
+        }
+      }, true);
+    }
+
+    setTimeout(() => {
+      try {
+        input.focus({ preventScroll:true });
+        input.select?.();
+      } catch (_) {}
+    }, 80);
+  }
+
+  function addKeypad(root, input) {
+    if (!root || !input || root.querySelector('.v54-keypad')) return;
+
+    const box = document.createElement('div');
+    box.className = 'v54-pin-box';
+    box.innerHTML = `
+      <div class="v54-pin-hint">กดตัวเลขด้านล่างได้เลย ถ้าคีย์บอร์ดมือถือไม่ขึ้น</div>
+      <div class="v54-keypad">
+        ${[1,2,3,4,5,6,7,8,9].map(n => `<button type="button" class="v54-key" data-v54-digit="${n}">${n}</button>`).join('')}
+        <button type="button" class="v54-key muted" data-v54-clear="1">ล้าง</button>
+        <button type="button" class="v54-key" data-v54-digit="0">0</button>
+        <button type="button" class="v54-key muted" data-v54-back="1">⌫</button>
+      </div>
+    `;
+
+    const host = root.querySelector('.swal2-html-container') || input.parentElement || root;
+    if (host === input.parentElement) host.appendChild(box);
+    else host.appendChild(box);
+
+    box.querySelectorAll('[data-v54-digit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        input.value = onlyDigits(input.value + btn.dataset.v54Digit, 4);
+        makeEditable(input);
+        fireInputEvents(input);
+      });
+    });
+    box.querySelector('[data-v54-clear]')?.addEventListener('click', () => {
+      input.value = '';
+      fireInputEvents(input);
+      input.focus({ preventScroll:true });
+    });
+    box.querySelector('[data-v54-back]')?.addEventListener('click', () => {
+      input.value = onlyDigits(input.value, 4).slice(0, -1);
+      fireInputEvents(input);
+      input.focus({ preventScroll:true });
+    });
+  }
+
+  function enhanceRoot(root) {
+    if (!root || !isPinContext(root)) return false;
+
+    root.classList?.add('v54-popup-fix');
+
+    const inputs = Array.from(root.querySelectorAll?.('input') || [])
+      .filter(i => {
+        const hay = `${i.id || ''} ${i.name || ''} ${i.placeholder || ''} ${i.type || ''} ${i.className || ''}`;
+        return /pin|รหัส|pass|password|swal2-input|text|tel|number/i.test(hay) || root.classList?.contains('swal2-popup');
+      });
+
+    if (!inputs.length) return false;
+
+    const input = inputs.find(i => /pin|รหัส|pass|password/i.test(`${i.id} ${i.name} ${i.placeholder} ${i.type}`)) || inputs[0];
+    makeEditable(input);
+    addKeypad(root, input);
+    return true;
+  }
+
+  function enhanceAll() {
+    css();
+
+    document.querySelectorAll('.swal2-popup, .modal, [role="dialog"], .modal-content').forEach(enhanceRoot);
+
+    // เผื่อ SweetAlert สร้าง input ไว้นอก html-container
+    const popup = document.querySelector('.swal2-popup');
+    if (popup) enhanceRoot(popup);
+  }
+
+  function patchSwal() {
+    if (!window.Swal || typeof Swal.fire !== 'function' || Swal.fire.__v54Patched) return;
+
+    const original = Swal.fire.bind(Swal);
+
+    Swal.fire = function v54Fire(arg1, ...rest) {
+      if (arg1 && typeof arg1 === 'object') {
+        const cfg = { ...arg1 };
+        const txt = `${cfg.title || ''} ${cfg.text || ''} ${cfg.inputLabel || ''} ${cfg.html || ''}`;
+        const maybePin = /(pin|พิน|รหัส|password|สิทธิ์|ผู้ใช้|ผู้ใช้งาน|admin|แอดมิน)/i.test(txt);
+
+        if (maybePin) {
+          cfg.customClass = {
+            ...(cfg.customClass || {}),
+            popup: `${cfg.customClass?.popup || ''} v54-popup-fix`.trim()
+          };
+
+          if (cfg.input) {
+            cfg.input = 'tel';
+            cfg.inputAttributes = {
+              ...(cfg.inputAttributes || {}),
+              inputmode: 'numeric',
+              pattern: '[0-9]*',
+              maxlength: '4',
+              autocomplete: 'off',
+              autocapitalize: 'off',
+              autocorrect: 'off',
+              spellcheck: 'false'
+            };
+          }
+
+          const oldDidOpen = cfg.didOpen;
+          cfg.didOpen = function (popup) {
+            try { oldDidOpen?.apply(this, arguments); } catch (e) { console.warn(TAG, e); }
+            setTimeout(() => enhanceRoot(popup), 0);
+            setTimeout(enhanceAll, 80);
+            setTimeout(enhanceAll, 250);
+          };
+
+          const oldPreConfirm = cfg.preConfirm;
+          cfg.preConfirm = function (value) {
+            const input = document.querySelector('.swal2-popup input');
+            const pin = onlyDigits(value || input?.value || '', 4);
+            if (input) {
+              input.value = pin;
+              fireInputEvents(input);
+            }
+            if (pin.length !== 4) {
+              try { Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4 หลัก'); } catch (_) {}
+              return false;
+            }
+            if (oldPreConfirm) return oldPreConfirm.call(this, pin);
+            return pin;
+          };
+        }
+
+        return original(cfg, ...rest);
+      }
+
+      return original(arg1, ...rest);
+    };
+
+    Swal.fire.__v54Patched = true;
+    console.log(TAG, 'SweetAlert patched');
+  }
+
+  // แก้เคสฟังก์ชันเดิมเปิด popup แล้ว input ถูกทับ/กดไม่ได้
+  function bindGlobalFix() {
+    if (window.__v54GlobalFixBound) return;
+    window.__v54GlobalFixBound = true;
+
+    document.addEventListener('click', () => {
+      setTimeout(enhanceAll, 80);
+      setTimeout(enhanceAll, 250);
+      setTimeout(enhanceAll, 700);
+    }, true);
+
+    document.addEventListener('touchend', () => {
+      setTimeout(enhanceAll, 80);
+      setTimeout(enhanceAll, 250);
+    }, true);
+
+    const mo = new MutationObserver(() => enhanceAll());
+    mo.observe(document.documentElement, { childList:true, subtree:true });
+  }
+
+  function boot() {
+    css();
+    patchSwal();
+    bindGlobalFix();
+    enhanceAll();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  setTimeout(boot, 300);
+  setTimeout(boot, 1000);
+  setTimeout(boot, 2500);
+})();
