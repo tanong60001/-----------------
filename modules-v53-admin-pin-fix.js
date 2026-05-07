@@ -1,19 +1,20 @@
 /* ==========================================================================
-   SK POS V53.3 — PIN/Password Modal Fix
+   SK POS V53 FINAL — User PIN Fix (clean replacement)
    ใช้แทนไฟล์ modules-v53-admin-pin-fix.js เดิมทั้งไฟล์
 
-   แก้เพิ่มจาก V53.2:
-   1) กดบันทึกแล้วไม่อ่านค่าช่องกรอกผิดช่อง
-   2) รองรับรหัส 4-6 ตัว ตาม placeholder "PIN ใหม่ 4-6"
-   3) รองรับเลขไทย ๐-๙ และเลขอารบิก 0-9
-   4) ไม่สร้างแป้นตัวเลขซ้ำ / ไม่ครอบสีฟ้า
-   5) กัน toast สวัสดี/ยินดีต้อนรับ เด้งซ้ำ
+   จุดที่แก้:
+   - ไม่ต่อ V54 / ไม่สร้างแป้นตัวเลขซ้ำ
+   - ไม่ใช้ input.select() จึงไม่ครอบสีฟ้าเองบน iPhone
+   - อ่านค่าจาก input ตัวจริงตอนกดบันทึก
+   - บังคับ PIN เป็นเลข 4 หลัก ตามระบบ login เดิม
+   - แก้/ครอบ SweetAlert ที่ชื่อเกี่ยวกับ แก้ PIN / รหัส / ผู้ใช้งาน
+   - กัน toast สวัสดี/ยินดีต้อนรับซ้ำภายใน 1.5 วิ
    ========================================================================== */
 (function () {
   'use strict';
 
-  const TAG = '[v53.3-pin-password-modal-fix]';
-  const STYLE_ID = 'v53_3_pin_input_fix_style';
+  const TAG = '[V53-FINAL-PIN-FIX]';
+  const STYLE_ID = 'v53-final-pin-fix-style';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -21,53 +22,42 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      .swal2-container,
-      .swal2-popup,
-      .swal2-html-container {
-        pointer-events: auto !important;
+      .v53-pin-keypad,
+      .v54-keypad,
+      .v54-pin-box,
+      .v54-pin-hint {
+        display: none !important;
       }
 
-      .swal2-popup.v53-pin-popup,
-      .swal2-popup.v54-popup-fix {
+      .swal2-popup.v53-final-pin-popup {
         width: min(430px, calc(100vw - 28px)) !important;
         border-radius: 24px !important;
-        padding: 26px 24px 22px !important;
+        padding: 28px 24px 22px !important;
         font-family: var(--font-thai, 'Prompt', system-ui, sans-serif) !important;
         box-shadow: 0 28px 80px rgba(15, 23, 42, .25) !important;
       }
 
-      .swal2-popup.v53-pin-popup .swal2-title,
-      .swal2-popup.v54-popup-fix .swal2-title {
+      .swal2-popup.v53-final-pin-popup .swal2-title {
         font-size: 24px !important;
         font-weight: 950 !important;
         color: #0f172a !important;
         line-height: 1.25 !important;
-        margin: 6px 0 10px !important;
+        margin: 6px 0 16px !important;
       }
 
-      .swal2-popup input,
-      .modal input,
-      [role="dialog"] input {
-        pointer-events: auto !important;
-        touch-action: manipulation !important;
-        -webkit-tap-highlight-color: transparent !important;
-        user-select: text !important;
-        -webkit-user-select: text !important;
+      .v53-final-pin-box {
+        width: 100%;
+        display: grid;
+        gap: 10px;
+        justify-items: center;
+        margin: 4px auto 2px;
       }
 
-      .swal2-popup input::selection,
-      .modal input::selection,
-      [role="dialog"] input::selection {
-        background: transparent !important;
-        color: inherit !important;
-      }
-
-      .v53-pin-input,
-      .v54-pin-main,
-      .swal2-popup .swal2-input {
+      .v53-final-pin-input,
+      .swal2-popup.v53-final-pin-popup .swal2-input {
         width: min(280px, 100%) !important;
         height: 64px !important;
-        margin: 12px auto 8px !important;
+        margin: 0 auto !important;
         border: 2px solid #e2e8f0 !important;
         border-radius: 18px !important;
         background: #fff !important;
@@ -75,46 +65,49 @@
         text-align: center !important;
         font-size: 30px !important;
         font-weight: 950 !important;
-        letter-spacing: 6px !important;
+        letter-spacing: 8px !important;
         outline: none !important;
-        padding: 0 10px !important;
+        padding: 0 12px !important;
         box-shadow: none !important;
-        position: relative !important;
-        z-index: 2147483647 !important;
+        pointer-events: auto !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
+        -webkit-tap-highlight-color: transparent !important;
         -webkit-text-security: disc;
       }
 
-      .v53-pin-input:focus,
-      .v54-pin-main:focus,
-      .swal2-popup .swal2-input:focus {
+      .v53-final-pin-input:focus,
+      .swal2-popup.v53-final-pin-popup .swal2-input:focus {
         border-color: #dc2626 !important;
         box-shadow: 0 0 0 5px rgba(220, 38, 38, .12) !important;
       }
 
-      .v53-pin-hint {
-        text-align: center;
+      .v53-final-pin-input::selection,
+      .swal2-popup.v53-final-pin-popup .swal2-input::selection {
+        background: transparent !important;
+        color: inherit !important;
+      }
+
+      .v53-final-pin-hint {
         color: #64748b;
         font-size: 12px;
         font-weight: 800;
-        margin-top: 6px;
+        text-align: center;
       }
 
-      .v53-pin-keypad,
-      .v54-keypad,
-      .v54-pin-hint {
-        display: none !important;
+      .swal2-popup.v53-final-pin-popup .swal2-validation-message {
+        margin: 14px auto 0 !important;
+        border-radius: 12px !important;
+        font-weight: 800 !important;
       }
 
-      .swal2-popup.v53-pin-popup .swal2-actions,
-      .swal2-popup.v54-popup-fix .swal2-actions {
+      .swal2-popup.v53-final-pin-popup .swal2-actions {
         gap: 10px !important;
-        margin-top: 18px !important;
+        margin-top: 20px !important;
       }
 
-      .swal2-popup.v53-pin-popup .swal2-confirm,
-      .swal2-popup.v53-pin-popup .swal2-cancel,
-      .swal2-popup.v54-popup-fix .swal2-confirm,
-      .swal2-popup.v54-popup-fix .swal2-cancel {
+      .swal2-popup.v53-final-pin-popup .swal2-confirm,
+      .swal2-popup.v53-final-pin-popup .swal2-cancel {
         min-width: 116px !important;
         height: 48px !important;
         border-radius: 14px !important;
@@ -123,45 +116,46 @@
         box-shadow: none !important;
       }
 
-      .swal2-popup.v53-pin-popup .swal2-confirm,
-      .swal2-popup.v54-popup-fix .swal2-confirm {
+      .swal2-popup.v53-final-pin-popup .swal2-confirm {
         background: linear-gradient(135deg, #dc2626, #ef4444) !important;
       }
 
-      .swal2-popup.v53-pin-popup .swal2-cancel,
-      .swal2-popup.v54-popup-fix .swal2-cancel {
+      .swal2-popup.v53-final-pin-popup .swal2-cancel {
         background: #64748b !important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  function normalizeDigits(value) {
+  function toPin4(value) {
     const thai = '๐๑๒๓๔๕๖๗๘๙';
-    const arabic = '0123456789';
-
     return String(value || '')
       .replace(/[๐-๙]/g, ch => String(thai.indexOf(ch)))
       .replace(/[０-９]/g, ch => String(ch.charCodeAt(0) - 0xFF10))
       .replace(/\D/g, '')
-      .slice(0, 6);
+      .slice(0, 4);
   }
 
-  function isPinText(value) {
-    return /(pin|พิน|รหัส|password|pass|สิทธิ์|ผู้ใช้|ผู้ใช้งาน|admin|แอดมิน)/i.test(String(value || ''));
+  function looksLikePinDialogText(value) {
+    return /(แก้\s*pin|แก้\s*รหัส|เปลี่ยน\s*pin|เปลี่ยน\s*รหัส|pin|พิน|รหัส|ผู้ใช้|ผู้ใช้งาน|สิทธิ์|admin|แอดมิน)/i.test(String(value || ''));
   }
 
-  function isVisible(el) {
-    if (!el) return false;
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  function getDbClient() {
+    try {
+      if (window.db) return window.db;
+    } catch (_) {}
+
+    try {
+      if (typeof db !== 'undefined') return db;
+    } catch (_) {}
+
+    return null;
   }
 
-  function getBestInput(root = document) {
+  function findPinInput(root = document) {
     const scope = root.querySelector ? root : document;
     const inputs = Array.from(scope.querySelectorAll('input'))
-      .filter(i => isVisible(i) && !i.disabled && i.type !== 'hidden');
+      .filter(input => input.type !== 'hidden' && !input.disabled);
 
     if (!inputs.length) return null;
 
@@ -169,26 +163,14 @@
     if (active && inputs.includes(active)) return active;
 
     return (
-      inputs.find(i => i.dataset.v533Bound === '1') ||
+      inputs.find(i => i.id === 'v53-final-pin-input') ||
       inputs.find(i => i.classList.contains('swal2-input')) ||
-      inputs.find(i => isPinText(`${i.id} ${i.name} ${i.placeholder} ${i.type} ${i.className}`)) ||
+      inputs.find(i => /pin|รหัส|pass|password/i.test(`${i.id} ${i.name} ${i.placeholder} ${i.type} ${i.className}`)) ||
       inputs[inputs.length - 1]
     );
   }
 
-  function removeOldKeypads(root = document) {
-    root.querySelectorAll?.('.v53-pin-keypad, .v54-keypad, .v54-pin-hint').forEach(el => el.remove());
-  }
-
-  function fireInputEvents(input) {
-    ['input', 'change', 'keyup'].forEach(type => {
-      try {
-        input.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
-      } catch (_) {}
-    });
-  }
-
-  function makeInputUsable(input) {
+  function makePinInputSafe(input) {
     if (!input) return;
 
     input.disabled = false;
@@ -198,7 +180,7 @@
 
     input.type = 'tel';
     input.inputMode = 'numeric';
-    input.maxLength = 6;
+    input.maxLength = 4;
     input.autocomplete = 'off';
     input.autocapitalize = 'off';
     input.autocorrect = 'off';
@@ -206,31 +188,25 @@
 
     input.setAttribute('inputmode', 'numeric');
     input.setAttribute('pattern', '[0-9]*');
-    input.setAttribute('maxlength', '6');
+    input.setAttribute('maxlength', '4');
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('name', `sk_pin_${Date.now()}`);
+    input.setAttribute('placeholder', 'PIN ใหม่ 4 หลัก');
 
-    if (!input.placeholder || /pin|รหัส/i.test(input.placeholder)) {
-      input.placeholder = 'PIN ใหม่ 4-6';
-    }
+    input.classList.add('v53-final-pin-input');
 
-    input.classList.add('v53-pin-input');
-    input.style.pointerEvents = 'auto';
-    input.style.position = 'relative';
-    input.style.zIndex = '2147483647';
-
-    if (input.dataset.v533Bound === '1') return;
-    input.dataset.v533Bound = '1';
+    if (input.dataset.v53FinalBound === '1') return;
+    input.dataset.v53FinalBound = '1';
 
     input.addEventListener('input', () => {
-      input.value = normalizeDigits(input.value);
+      input.value = toPin4(input.value);
     }, true);
 
     input.addEventListener('click', () => {
       setTimeout(() => {
         try {
           input.focus({ preventScroll: true });
-          /* ห้าม input.select() เพราะ iPhone จะครอบสีฟ้า */
+          /* ห้าม select() เพราะ iPhone จะครอบสีฟ้า */
         } catch (_) {}
       }, 0);
     }, true);
@@ -249,82 +225,87 @@
         document.querySelector('.swal2-confirm')?.click();
       }
     }, true);
-
-    setTimeout(() => {
-      try {
-        input.focus({ preventScroll: true });
-        /* ห้าม input.select() */
-      } catch (_) {}
-    }, 120);
   }
 
-  function enhancePopup(root) {
-    if (!root) return false;
-
-    const title = root.querySelector?.('.swal2-title')?.textContent || '';
-    const html = root.querySelector?.('.swal2-html-container')?.textContent || '';
-    const allText = `${title} ${html} ${root.textContent || ''}`;
-
-    if (!isPinText(allText)) return false;
-
-    root.classList?.add('v53-pin-popup');
-    removeOldKeypads(root);
-
-    const target = getBestInput(root);
-    if (!target) return false;
-
-    makeInputUsable(target);
-
-    const htmlBox = root.querySelector?.('.swal2-html-container');
-    if (htmlBox && !htmlBox.querySelector('.v53-pin-hint')) {
-      const hint = document.createElement('div');
-      hint.className = 'v53-pin-hint';
-      hint.textContent = 'กรอกตัวเลข 4-6 หลัก';
-      htmlBox.appendChild(hint);
-    } else if (htmlBox) {
-      const hint = htmlBox.querySelector('.v53-pin-hint');
-      if (hint) hint.textContent = 'กรอกตัวเลข 4-6 หลัก';
-    }
-
-    return true;
+  function removeOldKeypads(root = document) {
+    root.querySelectorAll?.('.v53-pin-keypad, .v54-keypad, .v54-pin-box, .v54-pin-hint')
+      .forEach(el => el.remove());
   }
 
-  function readPinFromPopup() {
+  function readCurrentPin() {
     const popup = document.querySelector('.swal2-popup') || document;
-    const input = getBestInput(popup) || getBestInput(document);
-    const pin = normalizeDigits(input?.value || '');
+    const input = findPinInput(popup) || findPinInput(document);
+    const pin = toPin4(input?.value || '');
 
     if (input) {
       input.value = pin;
-      fireInputEvents(input);
+      try {
+        input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      } catch (_) {}
     }
 
     return pin;
   }
 
-  function validatePin(pin) {
-    return /^\d{4,6}$/.test(String(pin || ''));
+  function showPinValidation() {
+    if (window.Swal?.showValidationMessage) {
+      Swal.showValidationMessage('กรุณากรอก PIN เป็นตัวเลข 4 หลัก');
+    }
   }
 
-  async function openPinModal(options = {}) {
+  function enhanceOpenPinPopup(root) {
+    if (!root) return false;
+
+    const text = [
+      root.querySelector?.('.swal2-title')?.textContent,
+      root.querySelector?.('.swal2-html-container')?.textContent,
+      root.textContent
+    ].filter(Boolean).join(' ');
+
+    if (!looksLikePinDialogText(text)) return false;
+
+    root.classList?.add('v53-final-pin-popup');
+    removeOldKeypads(root);
+
+    const input = findPinInput(root);
+    if (input) {
+      makePinInputSafe(input);
+      setTimeout(() => {
+        try {
+          input.focus({ preventScroll: true });
+        } catch (_) {}
+      }, 120);
+    }
+
+    return true;
+  }
+
+  async function openFinalPinDialog(username = '', currentPin = '') {
     injectStyle();
 
     const result = await Swal.fire({
-      title: options.title || `แก้ PIN${options.username ? ` — ${options.username}` : ''}`,
-      input: 'tel',
-      inputValue: normalizeDigits(options.currentPin || ''),
-      inputPlaceholder: 'PIN ใหม่ 4-6',
-      inputAttributes: {
-        inputmode: 'numeric',
-        pattern: '[0-9]*',
-        maxlength: '6',
-        autocomplete: 'off',
-        autocapitalize: 'off',
-        autocorrect: 'off',
-        spellcheck: 'false'
-      },
-      html: '<div class="v53-pin-hint">กรอกตัวเลข 4-6 หลัก</div>',
-      customClass: { popup: 'v53-pin-popup' },
+      title: `แก้ PIN${username ? ` — ${username}` : ''}`,
+      html: `
+        <div class="v53-final-pin-box">
+          <input
+            id="v53-final-pin-input"
+            class="v53-final-pin-input"
+            type="tel"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="4"
+            value="${toPin4(currentPin)}"
+            placeholder="PIN ใหม่ 4 หลัก"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <div class="v53-final-pin-hint">กรอกตัวเลข 4 หลัก เช่น 1234</div>
+        </div>
+      `,
+      customClass: { popup: 'v53-final-pin-popup' },
       showCancelButton: true,
       confirmButtonText: 'บันทึก',
       cancelButtonText: 'ยกเลิก',
@@ -332,13 +313,15 @@
       allowOutsideClick: false,
       didOpen: (popup) => {
         removeOldKeypads(popup);
-        enhancePopup(popup);
+        const input = document.getElementById('v53-final-pin-input');
+        makePinInputSafe(input);
+        setTimeout(() => input?.focus({ preventScroll: true }), 120);
       },
       preConfirm: () => {
-        const pin = readPinFromPopup();
+        const pin = readCurrentPin();
 
-        if (!validatePin(pin)) {
-          Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4-6 หลัก');
+        if (!/^\d{4}$/.test(pin)) {
+          showPinValidation();
           return false;
         }
 
@@ -349,35 +332,30 @@
     return result.isConfirmed ? result.value : null;
   }
 
-  async function saveUserPin(userId, pin) {
-    if (!userId) throw new Error('ไม่พบ user id');
-    if (!window.db) throw new Error('ไม่พบตัวแปร db / Supabase client');
-
-    const { error } = await db
-      .from('ผู้ใช้งาน')
-      .update({ pin: normalizeDigits(pin) })
-      .eq('id', userId);
-
-    if (error) throw error;
-    return true;
-  }
-
   window.skEditUserPin = async function skEditUserPin(userId, username = '', currentPin = '') {
     try {
-      const pin = await openPinModal({
-        username,
-        currentPin,
-        title: `แก้ PIN${username ? ` — ${username}` : ''}`
-      });
-
+      const pin = await openFinalPinDialog(username, currentPin);
       if (!pin) return;
 
-      await saveUserPin(userId, pin);
+      const client = getDbClient();
+      if (!client) throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล db');
 
-      if (typeof toast === 'function') toast(`บันทึก PIN ของ ${username || 'ผู้ใช้งาน'} แล้ว`, 'success');
-      else await Swal.fire('สำเร็จ', 'บันทึก PIN แล้ว', 'success');
+      const { error } = await client
+        .from('ผู้ใช้งาน')
+        .update({ pin })
+        .eq('id', userId);
 
-      if (typeof renderAdmin === 'function') setTimeout(() => renderAdmin(), 150);
+      if (error) throw error;
+
+      if (typeof toast === 'function') {
+        toast(`บันทึก PIN ของ ${username || 'ผู้ใช้งาน'} แล้ว`, 'success');
+      } else {
+        await Swal.fire('สำเร็จ', 'บันทึก PIN แล้ว', 'success');
+      }
+
+      if (typeof renderAdmin === 'function') {
+        setTimeout(() => renderAdmin(), 150);
+      }
     } catch (err) {
       console.error(TAG, err);
       const msg = err?.message || 'บันทึก PIN ไม่สำเร็จ';
@@ -387,29 +365,29 @@
   };
 
   function patchSwalFire() {
-    if (!window.Swal || typeof Swal.fire !== 'function' || Swal.fire.__v533Patched) return;
+    if (!window.Swal || typeof Swal.fire !== 'function' || Swal.fire.__v53FinalPinPatched) return;
 
     const originalFire = Swal.fire.bind(Swal);
 
-    Swal.fire = function patchedSwalFire(arg1, ...rest) {
+    Swal.fire = function v53FinalSwalFire(arg1, ...rest) {
       if (arg1 && typeof arg1 === 'object') {
         const cfg = { ...arg1 };
-        const text = `${cfg.title || ''} ${cfg.text || ''} ${cfg.inputLabel || ''} ${cfg.html || ''} ${cfg.inputPlaceholder || ''}`;
+        const text = `${cfg.title || ''} ${cfg.text || ''} ${cfg.inputLabel || ''} ${cfg.inputPlaceholder || ''} ${cfg.html || ''}`;
 
-        if (isPinText(text)) {
+        if (looksLikePinDialogText(text)) {
           cfg.customClass = {
             ...(cfg.customClass || {}),
-            popup: `${cfg.customClass?.popup || ''} v53-pin-popup`.trim()
+            popup: `${cfg.customClass?.popup || ''} v53-final-pin-popup`.trim()
           };
 
           if (cfg.input) {
             cfg.input = 'tel';
-            cfg.inputPlaceholder = cfg.inputPlaceholder || 'PIN ใหม่ 4-6';
+            cfg.inputPlaceholder = 'PIN ใหม่ 4 หลัก';
             cfg.inputAttributes = {
               ...(cfg.inputAttributes || {}),
               inputmode: 'numeric',
               pattern: '[0-9]*',
-              maxlength: '6',
+              maxlength: '4',
               autocomplete: 'off',
               autocapitalize: 'off',
               autocorrect: 'off',
@@ -423,34 +401,23 @@
             try {
               oldDidOpen?.apply(this, arguments);
             } catch (e) {
-              console.warn(TAG, e);
+              console.warn(TAG, 'old didOpen failed:', e);
             }
 
-            setTimeout(() => {
-              removeOldKeypads(popup);
-              enhancePopup(popup);
-            }, 0);
-
-            setTimeout(enhanceAll, 120);
+            setTimeout(() => enhanceOpenPinPopup(popup), 0);
+            setTimeout(enhanceAllPinPopups, 120);
           };
 
-          const oldPreConfirm = cfg.preConfirm;
+          /*
+            สำคัญ: ไม่เรียก oldPreConfirm ในเคส PIN
+            เพราะโค้ดเดิมอ่าน input ผิดตัว ทำให้กรอกครบแล้วยังฟ้องว่าไม่ครบ
+          */
           cfg.preConfirm = function () {
-            const pin = readPinFromPopup();
+            const pin = readCurrentPin();
 
-            if (!validatePin(pin)) {
-              try {
-                Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4-6 หลัก');
-              } catch (_) {}
+            if (!/^\d{4}$/.test(pin)) {
+              showPinValidation();
               return false;
-            }
-
-            if (oldPreConfirm) {
-              /*
-                สำคัญ: ส่ง pin ที่อ่านจากช่องจริงเข้า oldPreConfirm
-                กันเคส SweetAlert ส่ง value ว่างหรืออ่านผิด input
-              */
-              return oldPreConfirm.call(this, pin);
             }
 
             return pin;
@@ -463,15 +430,15 @@
       return originalFire(arg1, ...rest);
     };
 
-    Swal.fire.__v533Patched = true;
-    console.log(TAG, 'SweetAlert patched');
+    Swal.fire.__v53FinalPinPatched = true;
+    console.log(TAG, 'SweetAlert PIN patch installed');
   }
 
   function patchDuplicateToast() {
-    if (window.__v533ToastPatchInstalled) return;
+    if (window.__v53FinalToastPatchInstalled) return;
     if (typeof window.toast !== 'function') return;
 
-    const oldToast = window.toast;
+    const originalToast = window.toast;
     let lastMessage = '';
     let lastType = '';
     let lastTime = 0;
@@ -489,50 +456,50 @@
       lastType = kind;
       lastTime = now;
 
-      return oldToast.apply(this, arguments);
+      return originalToast.apply(this, arguments);
     };
 
-    window.__v533ToastPatchInstalled = true;
-    console.log(TAG, 'toast duplicate guard installed');
+    window.__v53FinalToastPatchInstalled = true;
   }
 
-  function enhanceAll() {
+  function enhanceAllPinPopups() {
     injectStyle();
     removeOldKeypads(document);
 
     document
       .querySelectorAll('.swal2-popup, .modal, [role="dialog"], .modal-content')
-      .forEach(enhancePopup);
+      .forEach(enhanceOpenPinPopup);
   }
 
-  function bindGlobalFix() {
-    if (window.__v533GlobalFixBound) return;
-    window.__v533GlobalFixBound = true;
+  function installObserver() {
+    if (window.__v53FinalPinObserver) return;
+    window.__v53FinalPinObserver = new MutationObserver(() => enhanceAllPinPopups());
+    window.__v53FinalPinObserver.observe(document.documentElement, { childList: true, subtree: true });
 
     document.addEventListener('click', () => {
-      setTimeout(enhanceAll, 80);
-      setTimeout(enhanceAll, 250);
+      setTimeout(enhanceAllPinPopups, 80);
+      setTimeout(enhanceAllPinPopups, 250);
     }, true);
 
     document.addEventListener('touchend', () => {
-      setTimeout(enhanceAll, 80);
-      setTimeout(enhanceAll, 250);
+      setTimeout(enhanceAllPinPopups, 80);
+      setTimeout(enhanceAllPinPopups, 250);
     }, true);
-
-    const mo = new MutationObserver(() => enhanceAll());
-    mo.observe(document.documentElement, { childList: true, subtree: true });
   }
 
   function boot() {
     injectStyle();
     patchSwalFire();
     patchDuplicateToast();
-    bindGlobalFix();
-    enhanceAll();
+    installObserver();
+    enhanceAllPinPopups();
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 
   setTimeout(boot, 300);
   setTimeout(boot, 1000);
