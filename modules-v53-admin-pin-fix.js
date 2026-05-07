@@ -1,18 +1,19 @@
 /* ==========================================================================
-   SK POS V53.2 — PIN Input Fix + No Duplicate Welcome Toast
+   SK POS V53.3 — PIN/Password Modal Fix
    ใช้แทนไฟล์ modules-v53-admin-pin-fix.js เดิมทั้งไฟล์
 
-   แก้:
-   1) หน้าแก้รหัส/PIN กรอกได้บนมือถือ/iPhone/SUNMI
-   2) ไม่สร้างแป้นตัวเลขซ้ำ
-   3) ไม่ครอบสีฟ้าเอง เพราะไม่มี input.select()
-   4) กัน Toast "ยินดีต้อนรับ/สวัสดี" เด้งซ้ำตอนเข้าเว็บครั้งแรก
+   แก้เพิ่มจาก V53.2:
+   1) กดบันทึกแล้วไม่อ่านค่าช่องกรอกผิดช่อง
+   2) รองรับรหัส 4-6 ตัว ตาม placeholder "PIN ใหม่ 4-6"
+   3) รองรับเลขไทย ๐-๙ และเลขอารบิก 0-9
+   4) ไม่สร้างแป้นตัวเลขซ้ำ / ไม่ครอบสีฟ้า
+   5) กัน toast สวัสดี/ยินดีต้อนรับ เด้งซ้ำ
    ========================================================================== */
 (function () {
   'use strict';
 
-  const TAG = '[v53.2-pin-fix-toast-dedupe]';
-  const STYLE_ID = 'v53_2_pin_input_fix_style';
+  const TAG = '[v53.3-pin-password-modal-fix]';
+  const STYLE_ID = 'v53_3_pin_input_fix_style';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -74,7 +75,7 @@
         text-align: center !important;
         font-size: 30px !important;
         font-weight: 950 !important;
-        letter-spacing: 8px !important;
+        letter-spacing: 6px !important;
         outline: none !important;
         padding: 0 10px !important;
         box-shadow: none !important;
@@ -98,7 +99,6 @@
         margin-top: 6px;
       }
 
-      /* ปิด/ลบแป้นตัวเลขที่รุ่นเก่าเคยสร้างไว้ */
       .v53-pin-keypad,
       .v54-keypad,
       .v54-pin-hint {
@@ -136,12 +136,44 @@
     document.head.appendChild(style);
   }
 
-  function sanitizePin(value, max = 4) {
-    return String(value || '').replace(/\D/g, '').slice(0, max);
+  function normalizeDigits(value) {
+    const thai = '๐๑๒๓๔๕๖๗๘๙';
+    const arabic = '0123456789';
+
+    return String(value || '')
+      .replace(/[๐-๙]/g, ch => String(thai.indexOf(ch)))
+      .replace(/[０-９]/g, ch => String(ch.charCodeAt(0) - 0xFF10))
+      .replace(/\D/g, '')
+      .slice(0, 6);
   }
 
   function isPinText(value) {
     return /(pin|พิน|รหัส|password|pass|สิทธิ์|ผู้ใช้|ผู้ใช้งาน|admin|แอดมิน)/i.test(String(value || ''));
+  }
+
+  function isVisible(el) {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
+  function getBestInput(root = document) {
+    const scope = root.querySelector ? root : document;
+    const inputs = Array.from(scope.querySelectorAll('input'))
+      .filter(i => isVisible(i) && !i.disabled && i.type !== 'hidden');
+
+    if (!inputs.length) return null;
+
+    const active = document.activeElement;
+    if (active && inputs.includes(active)) return active;
+
+    return (
+      inputs.find(i => i.dataset.v533Bound === '1') ||
+      inputs.find(i => i.classList.contains('swal2-input')) ||
+      inputs.find(i => isPinText(`${i.id} ${i.name} ${i.placeholder} ${i.type} ${i.className}`)) ||
+      inputs[inputs.length - 1]
+    );
   }
 
   function removeOldKeypads(root = document) {
@@ -166,7 +198,7 @@
 
     input.type = 'tel';
     input.inputMode = 'numeric';
-    input.maxLength = 4;
+    input.maxLength = 6;
     input.autocomplete = 'off';
     input.autocapitalize = 'off';
     input.autocorrect = 'off';
@@ -174,20 +206,24 @@
 
     input.setAttribute('inputmode', 'numeric');
     input.setAttribute('pattern', '[0-9]*');
-    input.setAttribute('maxlength', '4');
+    input.setAttribute('maxlength', '6');
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('name', `sk_pin_${Date.now()}`);
+
+    if (!input.placeholder || /pin|รหัส/i.test(input.placeholder)) {
+      input.placeholder = 'PIN ใหม่ 4-6';
+    }
 
     input.classList.add('v53-pin-input');
     input.style.pointerEvents = 'auto';
     input.style.position = 'relative';
     input.style.zIndex = '2147483647';
 
-    if (input.dataset.v532Bound === '1') return;
-    input.dataset.v532Bound = '1';
+    if (input.dataset.v533Bound === '1') return;
+    input.dataset.v533Bound = '1';
 
     input.addEventListener('input', () => {
-      input.value = sanitizePin(input.value, 4);
+      input.value = normalizeDigits(input.value);
     }, true);
 
     input.addEventListener('click', () => {
@@ -234,12 +270,7 @@
     root.classList?.add('v53-pin-popup');
     removeOldKeypads(root);
 
-    const inputs = Array.from(root.querySelectorAll?.('input') || []);
-    const target =
-      inputs.find(i => isPinText(`${i.id} ${i.name} ${i.placeholder} ${i.type} ${i.className}`)) ||
-      inputs.find(i => i.classList.contains('swal2-input')) ||
-      inputs[0];
-
+    const target = getBestInput(root);
     if (!target) return false;
 
     makeInputUsable(target);
@@ -248,30 +279,51 @@
     if (htmlBox && !htmlBox.querySelector('.v53-pin-hint')) {
       const hint = document.createElement('div');
       hint.className = 'v53-pin-hint';
-      hint.textContent = 'กรอกตัวเลข 4 หลัก';
+      hint.textContent = 'กรอกตัวเลข 4-6 หลัก';
       htmlBox.appendChild(hint);
+    } else if (htmlBox) {
+      const hint = htmlBox.querySelector('.v53-pin-hint');
+      if (hint) hint.textContent = 'กรอกตัวเลข 4-6 หลัก';
     }
 
     return true;
+  }
+
+  function readPinFromPopup() {
+    const popup = document.querySelector('.swal2-popup') || document;
+    const input = getBestInput(popup) || getBestInput(document);
+    const pin = normalizeDigits(input?.value || '');
+
+    if (input) {
+      input.value = pin;
+      fireInputEvents(input);
+    }
+
+    return pin;
+  }
+
+  function validatePin(pin) {
+    return /^\d{4,6}$/.test(String(pin || ''));
   }
 
   async function openPinModal(options = {}) {
     injectStyle();
 
     const result = await Swal.fire({
-      title: options.title || `แก้รหัส${options.username ? ` — ${options.username}` : ''}`,
+      title: options.title || `แก้ PIN${options.username ? ` — ${options.username}` : ''}`,
       input: 'tel',
-      inputValue: sanitizePin(options.currentPin || ''),
+      inputValue: normalizeDigits(options.currentPin || ''),
+      inputPlaceholder: 'PIN ใหม่ 4-6',
       inputAttributes: {
         inputmode: 'numeric',
         pattern: '[0-9]*',
-        maxlength: '4',
+        maxlength: '6',
         autocomplete: 'off',
         autocapitalize: 'off',
         autocorrect: 'off',
         spellcheck: 'false'
       },
-      html: '<div class="v53-pin-hint">กรอกตัวเลข 4 หลัก</div>',
+      html: '<div class="v53-pin-hint">กรอกตัวเลข 4-6 หลัก</div>',
       customClass: { popup: 'v53-pin-popup' },
       showCancelButton: true,
       confirmButtonText: 'บันทึก',
@@ -282,17 +334,14 @@
         removeOldKeypads(popup);
         enhancePopup(popup);
       },
-      preConfirm: (value) => {
-        const input = document.querySelector('.swal2-popup input');
-        const pin = sanitizePin(value || input?.value || '', 4);
-        if (input) {
-          input.value = pin;
-          fireInputEvents(input);
-        }
-        if (pin.length !== 4) {
-          Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4 หลัก');
+      preConfirm: () => {
+        const pin = readPinFromPopup();
+
+        if (!validatePin(pin)) {
+          Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4-6 หลัก');
           return false;
         }
+
         return pin;
       }
     });
@@ -306,7 +355,7 @@
 
     const { error } = await db
       .from('ผู้ใช้งาน')
-      .update({ pin: sanitizePin(pin) })
+      .update({ pin: normalizeDigits(pin) })
       .eq('id', userId);
 
     if (error) throw error;
@@ -318,34 +367,34 @@
       const pin = await openPinModal({
         username,
         currentPin,
-        title: `แก้รหัส${username ? ` — ${username}` : ''}`
+        title: `แก้ PIN${username ? ` — ${username}` : ''}`
       });
 
       if (!pin) return;
 
       await saveUserPin(userId, pin);
 
-      if (typeof toast === 'function') toast(`บันทึกรหัสของ ${username || 'ผู้ใช้งาน'} แล้ว`, 'success');
-      else await Swal.fire('สำเร็จ', 'บันทึกรหัสแล้ว', 'success');
+      if (typeof toast === 'function') toast(`บันทึก PIN ของ ${username || 'ผู้ใช้งาน'} แล้ว`, 'success');
+      else await Swal.fire('สำเร็จ', 'บันทึก PIN แล้ว', 'success');
 
       if (typeof renderAdmin === 'function') setTimeout(() => renderAdmin(), 150);
     } catch (err) {
       console.error(TAG, err);
-      const msg = err?.message || 'บันทึกรหัสไม่สำเร็จ';
+      const msg = err?.message || 'บันทึก PIN ไม่สำเร็จ';
       if (typeof toast === 'function') toast(msg, 'error');
       else await Swal.fire('ผิดพลาด', msg, 'error');
     }
   };
 
   function patchSwalFire() {
-    if (!window.Swal || typeof Swal.fire !== 'function' || Swal.fire.__v532Patched) return;
+    if (!window.Swal || typeof Swal.fire !== 'function' || Swal.fire.__v533Patched) return;
 
     const originalFire = Swal.fire.bind(Swal);
 
     Swal.fire = function patchedSwalFire(arg1, ...rest) {
       if (arg1 && typeof arg1 === 'object') {
         const cfg = { ...arg1 };
-        const text = `${cfg.title || ''} ${cfg.text || ''} ${cfg.inputLabel || ''} ${cfg.html || ''}`;
+        const text = `${cfg.title || ''} ${cfg.text || ''} ${cfg.inputLabel || ''} ${cfg.html || ''} ${cfg.inputPlaceholder || ''}`;
 
         if (isPinText(text)) {
           cfg.customClass = {
@@ -355,11 +404,12 @@
 
           if (cfg.input) {
             cfg.input = 'tel';
+            cfg.inputPlaceholder = cfg.inputPlaceholder || 'PIN ใหม่ 4-6';
             cfg.inputAttributes = {
               ...(cfg.inputAttributes || {}),
               inputmode: 'numeric',
               pattern: '[0-9]*',
-              maxlength: '4',
+              maxlength: '6',
               autocomplete: 'off',
               autocapitalize: 'off',
               autocorrect: 'off',
@@ -385,23 +435,24 @@
           };
 
           const oldPreConfirm = cfg.preConfirm;
-          cfg.preConfirm = function (value) {
-            const input = document.querySelector('.swal2-popup input');
-            const pin = sanitizePin(value || input?.value || '', 4);
+          cfg.preConfirm = function () {
+            const pin = readPinFromPopup();
 
-            if (input) {
-              input.value = pin;
-              fireInputEvents(input);
-            }
-
-            if (pin.length !== 4) {
+            if (!validatePin(pin)) {
               try {
-                Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4 หลัก');
+                Swal.showValidationMessage('กรุณากรอกรหัสเป็นตัวเลข 4-6 หลัก');
               } catch (_) {}
               return false;
             }
 
-            if (oldPreConfirm) return oldPreConfirm.call(this, pin);
+            if (oldPreConfirm) {
+              /*
+                สำคัญ: ส่ง pin ที่อ่านจากช่องจริงเข้า oldPreConfirm
+                กันเคส SweetAlert ส่ง value ว่างหรืออ่านผิด input
+              */
+              return oldPreConfirm.call(this, pin);
+            }
+
             return pin;
           };
         }
@@ -412,12 +463,12 @@
       return originalFire(arg1, ...rest);
     };
 
-    Swal.fire.__v532Patched = true;
+    Swal.fire.__v533Patched = true;
     console.log(TAG, 'SweetAlert patched');
   }
 
   function patchDuplicateToast() {
-    if (window.__v532ToastPatchInstalled) return;
+    if (window.__v533ToastPatchInstalled) return;
     if (typeof window.toast !== 'function') return;
 
     const oldToast = window.toast;
@@ -430,7 +481,6 @@
       const msg = String(message || '').trim();
       const kind = String(type || 'success');
 
-      /* กันเฉพาะข้อความซ้ำติดกันใน 1.5 วิ เช่น ยินดีต้อนรับ/สวัสดี เด้ง 2 ครั้ง */
       if (msg === lastMessage && kind === lastType && (now - lastTime) < 1500) {
         return;
       }
@@ -442,7 +492,7 @@
       return oldToast.apply(this, arguments);
     };
 
-    window.__v532ToastPatchInstalled = true;
+    window.__v533ToastPatchInstalled = true;
     console.log(TAG, 'toast duplicate guard installed');
   }
 
@@ -456,8 +506,8 @@
   }
 
   function bindGlobalFix() {
-    if (window.__v532GlobalFixBound) return;
-    window.__v532GlobalFixBound = true;
+    if (window.__v533GlobalFixBound) return;
+    window.__v533GlobalFixBound = true;
 
     document.addEventListener('click', () => {
       setTimeout(enhanceAll, 80);
