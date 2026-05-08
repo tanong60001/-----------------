@@ -1071,7 +1071,9 @@ async function saveProduct() {
   const id = document.getElementById('prod-id').value;
   const data = {
     name: document.getElementById('prod-name').value,
-    barcode: document.getElementById('prod-barcode').value || null,
+    barcode: (typeof window.v55NormalizeSmartCode === 'function'
+      ? window.v55NormalizeSmartCode(document.getElementById('prod-barcode').value)
+      : document.getElementById('prod-barcode').value) || null,
     price: Number(document.getElementById('prod-price').value),
     cost: Number(document.getElementById('prod-cost').value) || 0,
     stock: Number(document.getElementById('prod-stock').value),
@@ -1128,19 +1130,107 @@ function exportInventory() {
   a.download = `inventory_${new Date().toLocaleDateString('th-TH')}.csv`; a.click();
 }
 
+function barcodeHtmlEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function barcodeJsEscape(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function barcodeSvgMarkup(code) {
+  if (typeof JsBarcode === 'undefined') return `<div style="font:900 11px monospace;letter-spacing:.4px">${barcodeHtmlEscape(code)}</div>`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  JsBarcode(svg, code, {
+    format: 'CODE128',
+    width: 1.15,
+    height: 34,
+    displayValue: false,
+    margin: 0
+  });
+  return svg.outerHTML;
+}
+
+function openBarcodeLabelPrint(productId) {
+  const product = products.find(p => p.id === productId);
+  if (!product) return;
+  const barcode = product.barcode || `SK${Date.now().toString().slice(-10)}`;
+  const qty = Math.max(1, Math.min(999, Number(document.getElementById('barcode-label-qty')?.value || 30)));
+  const labelSvg = barcodeSvgMarkup(barcode);
+  const price = `฿${formatNum(product.price || 0)}`;
+  const name = barcodeHtmlEscape(String(product.name || '').trim());
+  const labels = Array.from({ length: qty }, () => `
+    <div class="label">
+      <div class="name">${name}</div>
+      <div class="price">${price}</div>
+      <div class="bars">${labelSvg}</div>
+      <div class="code">${barcodeHtmlEscape(barcode)}</div>
+    </div>
+  `).join('');
+  const win = window.open('', '_blank');
+  if (!win) return toast?.('เบราว์เซอร์บล็อกหน้าพิมพ์ กรุณาอนุญาต popup', 'warning');
+  win.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Barcode 32x25</title>
+<style>
+@page{size:104mm 297mm;margin:0}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:#fff;color:#111;font-family:Arial,Tahoma,sans-serif}
+.sheet{width:104mm;padding:0;display:grid;grid-template-columns:repeat(3,32mm);column-gap:2mm;row-gap:0;align-items:start}
+.label{width:32mm;height:25mm;overflow:hidden;padding:1.2mm 1.4mm .9mm;border:0 solid transparent;display:grid;grid-template-rows:3.2mm 6.4mm 10.8mm 2.6mm;align-items:center;text-align:center;break-inside:avoid;page-break-inside:avoid}
+.name{font-size:5.8pt;font-weight:700;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.price{font-size:13.6pt;font-weight:900;line-height:1;color:#000;white-space:nowrap;letter-spacing:0}
+.bars{height:10.8mm;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.bars svg{width:29mm!important;height:10.2mm!important;display:block}
+.code{font:700 5.8pt Consolas,monospace;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:.2px}
+@media screen{body{background:#e5e7eb;padding:12px}.sheet{background:#fff;box-shadow:0 12px 32px rgba(15,23,42,.18)}.label{outline:1px dashed #d1d5db}}
+</style></head><body><div class="sheet">${labels}</div><script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
+  win.document.close();
+  if (!product.barcode) {
+    product.barcode = barcode;
+    db.from('สินค้า').update({ barcode }).eq('id', productId);
+  }
+}
+
 function generateBarcode(productId) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
   const barcode = product.barcode || `SK${Date.now().toString().slice(-10)}`;
   openModal('บาร์โค้ดสินค้า', `
-    <div style="text-align:center;padding:20px;">
-      <h3 style="margin-bottom:16px;">${product.name}</h3>
-      <svg id="barcode-svg"></svg>
-      <p style="margin-top:12px;font-family:var(--font-display);font-size:18px;">${barcode}</p>
-      <button class="btn btn-primary" onclick="window.print()" style="margin-top:20px;"><i class="material-icons-round">print</i> พิมพ์</button>
+    <div style="padding:20px;text-align:left;">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:18px;align-items:start;">
+        <div>
+          <div style="font-size:13px;color:var(--text-secondary);font-weight:800;">ฉลากมาตรฐาน 32 x 25 มม. · 3 ดวงต่อแถว</div>
+          <h3 style="margin:6px 0 6px;font-size:22px;font-weight:950;">${barcodeHtmlEscape(product.name)}</h3>
+          <div style="color:var(--text-secondary);font-family:var(--font-display);font-weight:800;">${barcodeHtmlEscape(barcode)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px;color:var(--text-secondary);font-weight:800;">ราคาขาย</div>
+          <div style="font-size:30px;font-weight:950;color:var(--danger);">฿${formatNum(product.price || 0)}</div>
+        </div>
+      </div>
+      <div style="margin:18px auto 12px;width:32mm;height:25mm;border:1px dashed #cbd5e1;background:#fff;padding:1.2mm 1.4mm .9mm;display:grid;grid-template-rows:3.2mm 6.4mm 10.8mm 2.6mm;align-items:center;text-align:center;overflow:hidden;">
+        <div style="font-size:5.8pt;font-weight:700;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${barcodeHtmlEscape(product.name)}</div>
+        <div style="font-size:13.6pt;font-weight:950;line-height:1;color:#000;">฿${formatNum(product.price || 0)}</div>
+        <svg id="barcode-svg" style="width:29mm;height:10.2mm;margin:auto;display:block;"></svg>
+        <div style="font:700 5.8pt Consolas,monospace;white-space:nowrap;overflow:hidden;">${barcodeHtmlEscape(barcode)}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:16px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">จำนวนฉลาก</label>
+          <input class="form-input" id="barcode-label-qty" type="number" min="1" max="999" value="30">
+        </div>
+        <button class="btn btn-primary" onclick="openBarcodeLabelPrint('${barcodeJsEscape(productId)}')">
+          <i class="material-icons-round">print</i> พิมพ์ 32x25
+        </button>
+      </div>
+      <div style="margin-top:12px;padding:11px 12px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:12px;color:var(--text-secondary);font-size:12px;font-weight:750;line-height:1.45;">
+        รองรับกระดาษสติ๊กเกอร์บาร์โค้ด 32x25 มม. แบบ 3 ดวงต่อแถว เช่นม้วน 5,000 ดวง แกน 1.5 นิ้ว ปรับ printer scale เป็น 100% เพื่อไม่ให้ตำแหน่งคลาด
+      </div>
     </div>`);
-  setTimeout(() => { if (typeof JsBarcode !== 'undefined') JsBarcode('#barcode-svg', barcode, { format: 'CODE128', width: 2, height: 80, displayValue: false }); }, 100);
-  if (!product.barcode) db.from('สินค้า').update({ barcode }).eq('id', productId);
+  setTimeout(() => { if (typeof JsBarcode !== 'undefined') JsBarcode('#barcode-svg', barcode, { format: 'CODE128', width: 1.15, height: 34, displayValue: false, margin: 0 }); }, 100);
+  if (!product.barcode) {
+    product.barcode = barcode;
+    db.from('สินค้า').update({ barcode }).eq('id', productId);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

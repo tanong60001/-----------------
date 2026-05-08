@@ -73,14 +73,22 @@
 
   function ensureDay(map, key) {
     if (!map[key]) {
-      map[key] = { revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0, profit: 0 };
+      map[key] = {
+        revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0, profit: 0,
+        store: { revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0, profit: 0 },
+        project: { revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0, profit: 0 },
+      };
     }
     return map[key];
   }
 
-  function add(map, key, field, amount) {
+  function add(map, key, field, amount, bucket = 'store') {
     if (!key) return;
-    ensureDay(map, key)[field] += money(amount);
+    const day = ensureDay(map, key);
+    const scope = bucket === 'project' ? day.project : day.store;
+    const value = money(amount);
+    scope[field] += value;
+    day[field] += value;
   }
 
   async function loadMonthProfit(info) {
@@ -123,11 +131,11 @@
     paidBills.forEach(bill => {
       const key = rowDate(bill.date);
       billDate[bill.id] = key;
-      add(dayMap, key, 'revenue', effectiveBillTotal(bill));
+      add(dayMap, key, 'revenue', effectiveBillTotal(bill), 'store');
     });
 
     billItems.forEach(item => {
-      add(dayMap, billDate[item.bill_id], 'cogs', money(item.cost) * money(item.qty));
+      add(dayMap, billDate[item.bill_id], 'cogs', money(item.cost) * money(item.qty), 'store');
     });
 
     paidBills.forEach(bill => {
@@ -140,24 +148,24 @@
           const original = billItems.find(item => item.bill_id === bill.id && item.name === ret.name);
           cost = money(original?.cost);
         }
-        add(dayMap, key, 'cogs', -cost * money(ret.qty));
+        add(dayMap, key, 'cogs', -cost * money(ret.qty), 'store');
       });
     });
 
     (expR.data || []).filter(e => !isStockPurchaseExpense(e)).forEach(expense => {
-      add(dayMap, rowDate(expense.date), 'expenses', expense.amount);
+      add(dayMap, rowDate(expense.date), 'expenses', expense.amount, 'store');
     });
 
     (projExpR.data || []).forEach(expense => {
-      add(dayMap, rowDate(expense.paid_at), 'expenses', expense.amount);
+      add(dayMap, rowDate(expense.paid_at), 'expenses', expense.amount, 'project');
     });
 
     (projMsR.data || []).forEach(milestone => {
-      add(dayMap, rowDate(milestone.billed_at), 'revenue', milestone.amount);
+      add(dayMap, rowDate(milestone.billed_at), 'revenue', milestone.amount, 'project');
     });
 
     (advR.data || []).filter(row => row.status === 'อนุมัติ').forEach(row => {
-      add(dayMap, rowDate(row.date), 'advance', row.amount);
+      add(dayMap, rowDate(row.date), 'advance', row.amount, 'store');
     });
 
     const attendances = attR.data || [];
@@ -175,32 +183,49 @@
       if (row.status === 'มา' || row.status === 'มาสาย') amount = wage;
       else if (row.status === 'ครึ่งวัน' || row.status === 'มาครึ่งวัน') amount = wage / 2;
       amount = Math.max(0, amount - money(row.deduction));
-      add(dayMap, rowDate(row.date), 'salary', amount);
+      const isProjectLabor = String(row.note || '').includes('โครงการ') || /project/i.test(String(row.note || ''));
+      add(dayMap, rowDate(row.date), 'salary', amount, isProjectLabor ? 'project' : 'store');
     });
 
     Object.values(dayMap).forEach(day => {
+      day.store.cogs = Math.max(0, day.store.cogs);
+      day.project.cogs = Math.max(0, day.project.cogs);
       day.cogs = Math.max(0, day.cogs);
+      day.store.profit = day.store.revenue - day.store.cogs - day.store.expenses - day.store.salary - day.store.advance;
+      day.project.profit = day.project.revenue - day.project.cogs - day.project.expenses - day.project.salary - day.project.advance;
       day.profit = day.revenue - day.cogs - day.expenses - day.salary - day.advance;
     });
 
     return dayMap;
   }
 
-  function renderDays(dayMap, info) {
+  function scopeRow(row, mode) {
+    if (mode === 'project') return row?.project || { profit: 0, revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0 };
+    if (mode === 'store') return row?.store || { profit: 0, revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0 };
+    return row || { profit: 0, revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0 };
+  }
+
+  function modeTitle(mode) {
+    if (mode === 'project') return 'โครงการ';
+    if (mode === 'store') return 'หน้าร้าน';
+    return 'รวมทั้งหมด';
+  }
+
+  function renderDays(dayMap, info, mode = 'all') {
     const cells = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(day => `<div class="v57-dow">${day}</div>`);
     for (let i = 0; i < info.first.getDay(); i++) cells.push('<div class="v57-day muted"></div>');
 
     for (let day = 1; day <= info.last.getDate(); day++) {
       const date = new Date(info.first.getFullYear(), info.first.getMonth(), day);
       const key = localDate(date);
-      const row = dayMap[key] || { profit: 0, revenue: 0, cogs: 0, expenses: 0, salary: 0, advance: 0 };
+      const row = scopeRow(dayMap[key], mode);
       const profit = money(row.profit);
       const cls = profit > 0 ? 'plus' : profit < 0 ? 'minus' : 'zero';
       cells.push(`
         <div class="v57-day ${cls}">
           <div class="v57-day-top"><b>${day}</b><span>${profit > 0 ? 'กำไร' : profit < 0 ? 'ขาดทุน' : 'ไม่มีรายการ'}</span></div>
           <strong>${profit < 0 ? '-' : ''}฿${fmt(Math.abs(profit))}</strong>
-          <small>ขาย ฿${fmt(row.revenue)}</small>
+          <small>รายรับ ฿${fmt(row.revenue)}</small>
           <small>ต้นทุน/จ่าย ฿${fmt(row.cogs + row.expenses + row.salary + row.advance)}</small>
         </div>
       `);
@@ -221,7 +246,7 @@
       .v57-head{padding:20px 22px;background:linear-gradient(135deg,#4f46e5,#ec4899);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px}
       .v57-title{display:flex;align-items:center;gap:12px}.v57-title i{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.16);display:grid;place-items:center}.v57-title h3{margin:0;color:#fff;font-size:20px;font-weight:950}.v57-title p{margin:4px 0 0;color:rgba(255,255,255,.78);font-size:12px;font-weight:800}
       .v57-nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.v57-nav button{height:38px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:0 12px;font:inherit;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-      .v57-body{padding:18px 22px 22px;background:#f8fafc;overflow:auto}.v57-total{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #e2e8f0;background:#fff;border-radius:15px;padding:14px 16px;margin-bottom:14px}.v57-total span{color:#64748b;font-size:12px;font-weight:950}.v57-total strong{font-size:26px;font-weight:950}
+      .v57-body{padding:18px 22px 22px;background:#f8fafc;overflow:auto}.v57-tabs{display:inline-flex;gap:6px;padding:6px;border:1px solid #e2e8f0;background:#fff;border-radius:14px;margin-bottom:14px}.v57-tabs button{height:38px;border:0;border-radius:10px;background:transparent;color:#64748b;padding:0 14px;font:inherit;font-weight:950;cursor:pointer}.v57-tabs button.on{background:#0f172a;color:#fff;box-shadow:0 8px 18px rgba(15,23,42,.16)}.v57-total{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #e2e8f0;background:#fff;border-radius:15px;padding:14px 16px;margin-bottom:14px}.v57-total span{color:#64748b;font-size:12px;font-weight:950}.v57-total strong{font-size:26px;font-weight:950}
       .v57-grid{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:9px}.v57-dow{text-align:center;color:#64748b;font-size:12px;font-weight:950;padding:8px}
       .v57-day{min-height:118px;border:1px solid #e2e8f0;background:#fff;border-radius:13px;padding:10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 18px rgba(15,23,42,.035)}.v57-day.muted{opacity:.35}.v57-day-top{display:flex;justify-content:space-between;gap:8px;align-items:center}.v57-day-top b{font-size:14px}.v57-day-top span{font-size:11px;font-weight:950;border-radius:999px;padding:4px 8px;background:#f1f5f9;color:#64748b}.v57-day strong{font-size:20px;font-weight:950;color:#0f172a}.v57-day small{color:#64748b;font-size:11px;font-weight:850}
       .v57-day.plus{border-color:#bbf7d0;background:#f0fdf4}.v57-day.plus .v57-day-top span{background:#dcfce7;color:#047857}.v57-day.plus strong{color:#047857}
@@ -232,7 +257,20 @@
     document.head.appendChild(style);
   }
 
-  function shell(offset, body) {
+  function modeTabs(offset, active) {
+    const modes = [
+      ['all', 'รวมทั้งหมด', 'insights'],
+      ['store', 'หน้าร้าน', 'storefront'],
+      ['project', 'โครงการ', 'business_center'],
+    ];
+    return `<div class="v57-tabs">${modes.map(([key, label, icon]) => `
+      <button class="${active === key ? 'on' : ''}" onclick="v57OpenProfitCalendar(${offset}, '${key}')">
+        <i class="material-icons-round" style="font-size:18px;vertical-align:-4px;margin-right:5px">${icon}</i>${label}
+      </button>
+    `).join('')}</div>`;
+  }
+
+  function shell(offset, body, mode = 'all') {
     const info = monthInfo(offset);
     const label = info.first.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     document.getElementById('v57-profit-modal')?.remove();
@@ -242,11 +280,11 @@
     modal.innerHTML = `
       <div class="v57-box">
         <div class="v57-head">
-          <div class="v57-title"><i class="material-icons-round">insights</i><div><h3>ปฏิทินกำไรจริง</h3><p>${esc(label)} · แสดงกำไรสุทธิรายวันและยอดรวมทั้งเดือน</p></div></div>
+          <div class="v57-title"><i class="material-icons-round">insights</i><div><h3>ปฏิทินกำไรจริง</h3><p>${esc(label)} · มุมมอง${esc(modeTitle(mode))} · แสดงกำไรสุทธิรายวันและยอดรวมทั้งเดือน</p></div></div>
           <div class="v57-nav">
-            <button onclick="v57OpenProfitCalendar(${info.offset - 1})"><i class="material-icons-round">chevron_left</i>เดือนก่อน</button>
-            <button onclick="v57OpenProfitCalendar(0)">เดือนนี้</button>
-            <button onclick="v57OpenProfitCalendar(${info.offset + 1})">เดือนถัดไป<i class="material-icons-round">chevron_right</i></button>
+            <button onclick="v57OpenProfitCalendar(${info.offset - 1}, '${mode}')"><i class="material-icons-round">chevron_left</i>เดือนก่อน</button>
+            <button onclick="v57OpenProfitCalendar(0, '${mode}')">เดือนนี้</button>
+            <button onclick="v57OpenProfitCalendar(${info.offset + 1}, '${mode}')">เดือนถัดไป<i class="material-icons-round">chevron_right</i></button>
             <button onclick="document.getElementById('v57-profit-modal')?.remove()"><i class="material-icons-round">close</i></button>
           </div>
         </div>
@@ -260,16 +298,17 @@
     return info;
   }
 
-  window.v57OpenProfitCalendar = async function (offset = 0) {
-    const info = shell(offset, '<div class="v57-loading">กำลังคำนวณกำไรจริงรายวัน...</div>');
+  window.v57OpenProfitCalendar = async function (offset = 0, mode = 'all') {
+    const activeMode = ['all', 'store', 'project'].includes(mode) ? mode : 'all';
+    const info = shell(offset, `${modeTabs(offset, activeMode)}<div class="v57-loading">กำลังคำนวณกำไรจริงรายวัน...</div>`, activeMode);
     try {
       const data = await loadMonthProfit(info);
-      const total = Object.values(data).reduce((sum, row) => sum + money(row.profit), 0);
-      const totalHtml = `<div class="v57-total"><div><span>ยอดกำไรจริงรวมทั้งเดือน</span><strong style="color:${total >= 0 ? '#047857' : '#b91c1c'}">${total < 0 ? '-' : ''}฿${fmt(Math.abs(total))}</strong></div><span>คลิกเดือนก่อน/ถัดไปเพื่อเปลี่ยนเดือน</span></div>`;
-      shell(offset, `${totalHtml}<div class="v57-grid">${renderDays(data, info)}</div>`);
+      const total = Object.values(data).reduce((sum, row) => sum + money(scopeRow(row, activeMode).profit), 0);
+      const totalHtml = `<div class="v57-total"><div><span>ยอดกำไรจริงรวมทั้งเดือน · ${esc(modeTitle(activeMode))}</span><strong style="color:${total >= 0 ? '#047857' : '#b91c1c'}">${total < 0 ? '-' : ''}฿${fmt(Math.abs(total))}</strong></div><span>เลือกมุมมองหน้าร้าน/โครงการ หรือเปลี่ยนเดือนจากปุ่มด้านบน</span></div>`;
+      shell(offset, `${modeTabs(info.offset, activeMode)}${totalHtml}<div class="v57-grid">${renderDays(data, info, activeMode)}</div>`, activeMode);
     } catch (error) {
       console.error('[v57] profit calendar:', error);
-      shell(offset, `<div class="v57-error">โหลดปฏิทินกำไรไม่สำเร็จ: ${esc(error.message || error)}</div>`);
+      shell(offset, `${modeTabs(offset, activeMode)}<div class="v57-error">โหลดปฏิทินกำไรไม่สำเร็จ: ${esc(error.message || error)}</div>`, activeMode);
     }
   };
 

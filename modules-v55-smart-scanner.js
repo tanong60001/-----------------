@@ -42,6 +42,21 @@
     );
   }
 
+  const THAI_KEYBOARD_TO_ASCII = {
+    'ๅ': '1', '/': '2', '-': '3', 'ภ': '4', 'ถ': '5', 'ุ': '6', 'ึ': '7', 'ค': '8', 'ต': '9', 'จ': '0', 'ข': '-', 'ช': '=',
+    '+': '!', '๑': '@', '๒': '#', '๓': '$', '๔': '%', 'ู': '^', '฿': '&', '๕': '*', '๖': '(', '๗': ')', '๘': '_', '๙': '+',
+    'ๆ': 'q', 'ไ': 'w', 'ำ': 'e', 'พ': 'r', 'ะ': 't', 'ั': 'y', 'ี': 'u', 'ร': 'i', 'น': 'o', 'ย': 'p', 'บ': '[', 'ล': ']', 'ฃ': '\\',
+    '๐': 'Q', '"': 'W', 'ฎ': 'E', 'ฑ': 'R', 'ธ': 'T', 'ํ': 'Y', '๊': 'U', 'ณ': 'I', 'ฯ': 'O', 'ญ': 'P', 'ฐ': '{', ',': '}',
+    'ฟ': 'a', 'ห': 's', 'ก': 'd', 'ด': 'f', 'เ': 'g', '้': 'h', '่': 'j', 'า': 'k', 'ส': 'l', 'ว': ';', 'ง': "'",
+    'ฤ': 'A', 'ฆ': 'S', 'ฏ': 'D', 'โ': 'F', 'ฌ': 'G', '็': 'H', '๋': 'J', 'ษ': 'K', 'ศ': 'L', 'ซ': ':', '.': '"',
+    'ผ': 'z', 'ป': 'x', 'แ': 'c', 'อ': 'v', 'ิ': 'b', 'ื': 'n', 'ท': 'm', 'ม': ',', 'ใ': '.', 'ฝ': '/',
+    '(': 'Z', ')': 'X', 'ฉ': 'C', 'ฮ': 'V', 'ฺ': 'B', '์': 'N', '?': 'M', 'ฒ': '<', 'ฬ': '>', 'ฦ': '?'
+  };
+
+  function thaiKeyboardToAscii(value) {
+    return text(value).split('').map(ch => THAI_KEYBOARD_TO_ASCII[ch] ?? ch).join('');
+  }
+
   function decodePercent(value) {
     const raw = text(value).trim();
     if (!/%[0-9A-Fa-f]{2}/.test(raw)) return raw;
@@ -89,18 +104,39 @@
     const payload = extractPayload(raw);
     const compact = stripHidden(payload);
     const ascii = stripHidden(thaiDigitToAscii(fullWidthToAscii(compact)));
+    const hasThaiKeyboardText = /[\u0E00-\u0E7F]/.test(compact);
+    const keyboardAscii = stripHidden(thaiDigitToAscii(fullWidthToAscii(thaiKeyboardToAscii(compact))));
     const readable = stripHidden(ascii.replace(/[^0-9A-Za-z._:-]/g, ''));
+    const keyboardReadable = stripHidden(keyboardAscii.replace(/[^0-9A-Za-z._:-]/g, ''));
 
     const digitRun = ascii.match(/[0-9]{4,}/g) || [];
     const alphaNumRun = ascii.match(/[0-9A-Za-z][0-9A-Za-z._:-]{3,}/g) || [];
+    const keyboardDigitRun = keyboardAscii.match(/[0-9]{4,}/g) || [];
+    const keyboardAlphaNumRun = keyboardAscii.match(/[0-9A-Za-z][0-9A-Za-z._:-]{3,}/g) || [];
 
-    return [...new Set([
+    const ordered = hasThaiKeyboardText ? [
+      keyboardAscii,
+      keyboardReadable,
+      ...keyboardDigitRun,
+      ...keyboardAlphaNumRun,
+      ascii,
+      readable,
+      compact,
+      ...digitRun,
+      ...alphaNumRun,
+    ] : [
       compact,
       ascii,
       readable,
+      keyboardAscii,
+      keyboardReadable,
       ...digitRun,
       ...alphaNumRun,
-    ].filter(code => stripHidden(code).length >= MIN_CODE_LENGTH))];
+      ...keyboardDigitRun,
+      ...keyboardAlphaNumRun,
+    ];
+
+    return [...new Set(ordered.filter(code => stripHidden(code).length >= MIN_CODE_LENGTH))];
   }
 
   function normalizeSmartCode(raw) {
@@ -275,6 +311,16 @@
     document.addEventListener('keydown', onTargetKeydown, true);
     document.addEventListener('paste', onTargetPaste, true);
     document.addEventListener('input', onTargetInput, true);
+    document.addEventListener('submit', event => {
+      const form = event.target;
+      if (form?.id === 'product-form') window.v55SmartScannerCommit('prod-barcode');
+    }, true);
+    document.addEventListener('click', event => {
+      const target = event.target?.closest?.('.swal2-confirm,[type="submit"]');
+      if (!target) return;
+      window.v55SmartScannerCommit('v54-quick-barcode');
+      window.v55SmartScannerCommit('prod-barcode');
+    }, true);
     wrapCameraScanner();
     [250, 800, 1800].forEach(delay => setTimeout(wrapCameraScanner, delay));
   }

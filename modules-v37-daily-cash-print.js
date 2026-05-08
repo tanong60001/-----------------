@@ -402,7 +402,7 @@
     );
     const paid = billIsPaid(bill, total, deposit) ? total : explicitPaid;
     const due = Math.max(0, total - Math.min(total, paid));
-    let label = 'ชำระครบแล้ว';
+    let label = 'บิลนี้ชำระครบแล้ว';
     let tone = '#059669';
     if (due > 0 && deposit > 0) {
       label = 'ชำระมัดจำแล้ว / คงเหลือต้องชำระ';
@@ -451,7 +451,7 @@
   function qrPaymentBlock(rc, amountDue, paymentState) {
     const s = localPaymentSettings(rc);
     if (!s.enabled || !s.showReceipt || paymentState.paidFull || amountDue <= 0) {
-      return `<div class="paid-stamp">ชำระครบแล้ว<small>ไม่ต้องแสดง QR ในบิลนี้</small></div>`;
+      return `<div class="paid-stamp">บิลนี้ชำระครบแล้ว<small>ขอบคุณที่ใช้บริการ</small></div>`;
     }
     const src = promptpaySrc(s.promptpay, amountDue);
     const bank = s.mode === 'bank' || s.bankAccount

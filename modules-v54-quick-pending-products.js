@@ -47,6 +47,21 @@
     return Array.isArray(window.cart) ? window.cart : [];
   };
 
+  const canManagePendingStock = () => {
+    try {
+      if (typeof window.v52CanAdjustStock === 'function') return window.v52CanAdjustStock();
+      if (typeof USER !== 'undefined' && USER?.role === 'admin') return true;
+      if (typeof USER_PERMS !== 'undefined') return !!(USER_PERMS?.can_adjust_stock || USER_PERMS?.can_manage || USER_PERMS?.can_inv);
+    } catch (_) { }
+    return false;
+  };
+
+  function denyPendingDelete() {
+    const msg = 'ต้องได้รับสิทธิ์คลังสินค้า/ปรับสต็อกจากแอดมินก่อนลบสินค้ารอเคลียร์';
+    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์ลบ', text: msg, confirmButtonColor: '#dc2626' });
+    else toast?.(msg, 'warning');
+  }
+
   const syncCart = next => {
     try { cart = next; } catch (_) { window.cart = next; }
   };
@@ -92,6 +107,8 @@
       .v54-pending-meta{font-size:12px;color:#64748b;margin-top:2px}
       .v54-pill{font-size:11px;font-weight:900;border-radius:999px;padding:5px 9px;background:#ffedd5;color:#c2410c;white-space:nowrap}
       .v54-mini{height:34px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:900;display:inline-flex;align-items:center;gap:5px;padding:0 11px;cursor:pointer}
+      .v54-mini.danger{background:#fff1f2;color:#dc2626;border:1px solid #fecaca}
+      .v54-mini.danger:hover{background:#fee2e2}
       .v54-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
       .v54-field{text-align:left}
       .v54-field label{display:block;font-size:12px;font-weight:950;color:#475569;margin:0 0 6px}
@@ -320,7 +337,8 @@
       focusConfirm: false,
       preConfirm: () => {
         const name = document.getElementById('v54-quick-name')?.value.trim();
-        const barcode = document.getElementById('v54-quick-barcode')?.value.trim() || null;
+        const rawBarcode = document.getElementById('v54-quick-barcode')?.value.trim() || '';
+        const barcode = (typeof window.v55NormalizeSmartCode === 'function' ? window.v55NormalizeSmartCode(rawBarcode) : rawBarcode) || null;
         const price = money(document.getElementById('v54-quick-price')?.value);
         const unit = document.getElementById('v54-quick-unit')?.value.trim() || 'ชิ้น';
         if (!name) return Swal.showValidationMessage('กรุณาระบุชื่อสินค้า');
@@ -387,14 +405,14 @@
       <form id="v54-clear-form">
         <div class="v54-clear-summary">
           <strong>${esc(product.name)}</strong>
-          <span>ขายไปแล้ว ${fmt(summary.qty)} ${esc(product.unit || 'ชิ้น')} · ยอดขาย ฿${fmt(summary.revenue)} · เคลียร์ได้ครั้งเดียวแล้วจะออกจากรายการรอจัดการ</span>
+          <span>ขายไปแล้ว ${fmt(summary.qty)} ${esc(product.unit || 'ชิ้น')} · ยอดขาย ฿${fmt(summary.revenue)} · ช่องสต็อกด้านล่างให้กรอก “จำนวนคงเหลือจริงหลังขายไปแล้ว”</span>
         </div>
         <div class="v54-form-grid">
           <div class="v54-field"><label>บาร์โค้ด</label><input id="v54-clear-barcode" value="${esc(product.barcode || '')}"></div>
           <div class="v54-field"><label>หมวดหมู่จริง *</label><select id="v54-clear-category"><option value="">-- เลือกหมวดหมู่จริง --</option>${categoryOptions}</select></div>
           <div class="v54-field"><label>ต้นทุน/หน่วย *</label><input id="v54-clear-cost" type="number" min="0" step="0.01" value="${esc(product.cost || '')}" oninput="v54UpdatePendingCalc('${js(productId)}')"></div>
           <div class="v54-field"><label>ราคาขาย</label><input id="v54-clear-price" type="number" min="0" step="0.01" value="${esc(product.price || 0)}"></div>
-          <div class="v54-field"><label>สต็อกที่เหลือจริง *</label><input id="v54-clear-stock" type="number" min="0" step="0.0001" value="${esc(product.stock || 0)}"></div>
+          <div class="v54-field"><label>สต็อกคงเหลือจริงหลังขาย *</label><input id="v54-clear-stock" type="number" min="0" step="0.0001" value="${esc(product.stock || 0)}"></div>
           <div class="v54-field"><label>สต็อกขั้นต่ำ</label><input id="v54-clear-min" type="number" min="0" step="0.0001" value="${esc(product.min_stock || 0)}"></div>
           <div class="v54-field"><label>หน่วย</label><input id="v54-clear-unit" value="${esc(product.unit || 'ชิ้น')}"></div>
           <div class="v54-field"><label>URL รูปภาพ</label><input id="v54-clear-img" value="${esc(product.img_url || '')}"></div>
@@ -485,7 +503,7 @@
           stock_before: 0,
           stock_after: data.stock,
           staff_name: staffName(),
-          note: `ตั้งสต็อกคงเหลือจริง ไม่หักยอดที่ขายไปแล้ว | ต้นทุนย้อนหลัง ${fmt(summary.qty)} ชิ้น x ฿${fmt(data.cost)}`
+          note: `ตั้งสต็อกเป็นจำนวนคงเหลือจริงหลังขาย ไม่ใช่จำนวนก่อนขาย | ต้นทุนย้อนหลัง ${fmt(summary.qty)} ชิ้น x ฿${fmt(data.cost)}`
         });
       } catch (logErr) {
         console.warn('[v54] stock movement warn:', logErr);
@@ -512,6 +530,68 @@
       toast?.('เคลียร์สินค้าไม่สำเร็จ: ' + (e.message || e), 'error');
     }
   }
+
+  window.v54DeletePendingProduct = async function (productId) {
+    const product = productList().find(p => String(p.id) === String(productId));
+    if (!product || !isPendingProduct(product)) return;
+    if (!canManagePendingStock()) {
+      denyPendingDelete();
+      return;
+    }
+
+    let summary = { rows: 0, qty: 0, revenue: 0 };
+    try {
+      summary = await pendingSaleSummary(productId);
+    } catch (e) {
+      console.error('[v54] delete pending check:', e);
+      toast?.('ตรวจรายการในบิลไม่สำเร็จ จึงยังไม่ลบสินค้า', 'error');
+      return;
+    }
+
+    if (summary.rows > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ลบไม่ได้',
+        html: `สินค้านี้ถูกใช้ในบิลแล้ว ${fmt(summary.rows)} รายการ<br>ขายไป ${fmt(summary.qty)} ${esc(product.unit || 'ชิ้น')} · ยอดขาย ฿${fmt(summary.revenue)}<br><b>ให้ใช้การเคลียร์สินค้าแทนการลบ</b>`,
+        confirmButtonColor: '#dc2626'
+      });
+      return;
+    }
+
+    const inCart = activeCart().some(item => String(item.id) === String(productId));
+    if (inCart) {
+      toast?.('สินค้านี้ยังอยู่ในตะกร้า กรุณานำออกจากตะกร้าก่อนลบ', 'warning');
+      return;
+    }
+
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: `ลบ "${product.name}"?`,
+      text: 'ลบได้เฉพาะสินค้ารอเคลียร์ที่ยังไม่เคยอยู่ในบิลเท่านั้น',
+      showCancelButton: true,
+      confirmButtonText: 'ลบรายการ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626'
+    });
+    if (!r.isConfirmed) return;
+
+    try {
+      const { error } = await db.from(PRODUCT_TABLE).delete().eq('id', productId);
+      if (error) throw error;
+      try {
+        if (typeof logActivity === 'function') {
+          await logActivity('ลบสินค้าด่วนรอเคลียร์', product.name, product.id, PRODUCT_TABLE);
+        }
+      } catch (_) { }
+      await loadProducts?.();
+      await renderInventory?.();
+      installV38PendingChip();
+      toast?.('ลบสินค้ารอเคลียร์แล้ว', 'success');
+    } catch (e) {
+      console.error('[v54] delete pending:', e);
+      toast?.('ลบสินค้าไม่สำเร็จ: ' + (e.message || e), 'error');
+    }
+  };
 
   function renderPendingPanel() {
     injectStyle();
@@ -563,6 +643,7 @@
         <td class="center"><span class="v38-stock warn">รอจัดการ</span></td>
         <td class="right"><div class="v38-actions">
           <button onclick="v54ClearPendingProduct('${js(product.id)}')" title="เคลียร์สินค้า"><i class="material-icons-round">edit_note</i></button>
+          <button onclick="v54DeletePendingProduct('${js(product.id)}')" title="ลบสินค้ารอเคลียร์"><i class="material-icons-round">delete</i></button>
         </div></td>
       </tr>
     `).join('') : '<tr><td colspan="8"><div class="v38-empty">ยังไม่มีสินค้ารอเคลียร์</div></td></tr>';
@@ -594,13 +675,16 @@
           </div>
           <div class="v54-quick-body">
             ${list.length ? list.map(product => `
-              <div class="v54-pending-row" style="grid-template-columns:1fr auto;margin-bottom:10px">
+              <div class="v54-pending-row" style="grid-template-columns:1fr auto auto;margin-bottom:10px">
                 <div>
                   <div class="v54-pending-name">${esc(product.name)}</div>
                   <div class="v54-pending-meta">ราคาขาย ฿${fmt(product.price)} · หน่วย ${esc(product.unit || 'ชิ้น')}</div>
                 </div>
                 <button class="v54-mini" onclick="Swal.close();v54ClearPendingProduct('${js(product.id)}')">
                   <i class="material-icons-round" style="font-size:16px">edit_note</i>เคลียร์
+                </button>
+                <button class="v54-mini danger" onclick="Swal.close();v54DeletePendingProduct('${js(product.id)}')">
+                  <i class="material-icons-round" style="font-size:16px">delete</i>ลบ
                 </button>
               </div>
             `).join('') : `<div style="padding:22px;text-align:center;color:#64748b;font-weight:900;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px">ยังไม่มีสินค้ารอเคลียร์</div>`}
