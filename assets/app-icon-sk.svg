@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SK POS">
+  <defs>
+    <linearGradient id="bg" x1="88" y1="40" x2="424" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff5252"/>
+      <stop offset=".54" stop-color="#dc2626"/>
+      <stop offset="1" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="112" y1="66" x2="398" y2="410" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".30"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-18%" y="-18%" width="136%" height="136%">
+      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#7f1d1d" flood-opacity=".38"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="48" y="48" width="416" height="416" rx="92" fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="12"/>
+  <path d="M94 76h214c-74 35-134 91-178 168-21 37-35 73-42 108V104c0-16 10-28 6-28z" fill="url(#glass)"/>
+
+  <g filter="url(#shadow)">
+    <path d="M132 190 256 96l124 94" fill="none" stroke="#fff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    <text
+      x="256"
+      y="287"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      font-family="Arial Black, Arial, Helvetica, sans-serif"
+      font-size="154"
+      font-weight="900"
+      letter-spacing="-12"
+      fill="#fff">SK</text>
+  </g>
+</svg>

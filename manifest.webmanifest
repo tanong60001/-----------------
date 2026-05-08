@@ -10,7 +10,7 @@
   "theme_color": "#dc2626",
   "icons": [
     {
-      "src": "assets/app-icon.svg",
+      "src": "assets/app-icon-sk.svg?v=4",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
