@@ -159,6 +159,16 @@
     return /stock|purchase|po|inventory|สต็อก|สต๊อก|เข้าคลัง|ซื้อสินค้า|รับสินค้า|ซื้อสต็อก|ซื้อรอบ|สินค้าเข้าคลัง/.test(text);
   };
 
+  const isProjectBill = (bill) => {
+    const text = [
+      bill?.project_id,
+      bill?.customer_name,
+      bill?.method,
+      bill?.status
+    ].filter(Boolean).join(' ');
+    return !!bill?.project_id || /\[โครงการ\]|โครงการ|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ|project/i.test(text);
+  };
+
   const generateSkeletons = (count, height = '60px') => {
     return Array.from({ length: count }).map(() => `<div class="dash-v3-skeleton mb-3" style="height: ${height}; width: 100%; margin-bottom: 12px;"></div>`).join('');
   };
@@ -329,7 +339,7 @@
 
       // Parallel Queries
       const [bR, pR, eR, salR, advR, debtPaymentR, payrollR, projExpR, projMsR] = await Promise.all([
-        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(billLimit),
+        db.from('บิลขาย').select('id, bill_no, total, method, status, date, return_info, project_id, customer_name').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(billLimit),
         db.from('purchase_order').select('total, method, date, status').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
         db.from('รายจ่าย').select('amount, category, description, date').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').order('date', { ascending: false }).limit(otherLimit),
         db.from('เช็คชื่อ').select('employee_id, status, date, deduction, note').gte('date', startStr + 'T00:00:00').lte('date', endStr + 'T23:59:59').limit(otherLimit),
@@ -345,9 +355,10 @@
       const paidBills = allBills.filter(b => b.status === 'สำเร็จ' || b.status === 'คืนบางส่วน');
       // For double-checking Method:
       const actualPaidBills = paidBills.filter(b => b.method !== 'ค้างชำระ' && b.method !== 'เครดิต');
+      const storePaidBills = actualPaidBills.filter(b => !isProjectBill(b));
 
       // Cash-basis COGS follows bills that are counted as received revenue in this period.
-      const validBillsForCOGS = actualPaidBills;
+      const validBillsForCOGS = storePaidBills;
       const allValidBillIds = validBillsForCOGS.map(b => b.id);
       
       // Fetch Bill Items for COGS based on ALL valid bills (to deduct stock cost immediately)
@@ -395,7 +406,7 @@
       // ─── ACCOUNTING LOGIC (CASH BASIS) ───────────────────────────
 
       // 1. REVENUE
-      const sumPaidBills = actualPaidBills.reduce((s, b) => s + effectiveBillTotal(b), 0);
+      const sumPaidBills = storePaidBills.reduce((s, b) => s + effectiveBillTotal(b), 0);
       const sumDebtPayments = debtPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
       const actualRevenue = sumPaidBills + sumDebtPayments + sumProjMilestones;
 
@@ -404,7 +415,7 @@
       // Deduct returned items
       let returnedCogs = 0;
       const returnedItemsMap = {}; // Tracker for Top Products
-      actualPaidBills.forEach(b => {
+      storePaidBills.forEach(b => {
         const returnInfo = parseReturnInfo(b.return_info);
         if (b.status === 'คืนบางส่วน' && returnInfo?.return_items) {
           returnInfo.return_items.forEach(ret => {
@@ -446,8 +457,11 @@
       const sumPurchases = purchases.reduce((s, p) => s + parseFloat(p.total || 0), 0);
 
       // P&L
-      const grossProfit = actualRevenue - actualCOGS;
-      const netProfit = grossProfit - totalOpexPL;
+      const storeGrossProfit = (sumPaidBills + sumDebtPayments) - actualCOGS;
+      const storeNetProfit = storeGrossProfit - sumStoreExpenses - sumStoreSalariesAccrued - sumAdvances;
+      const projectNetProfit = sumProjMilestones - sumProjExpenses - sumProjectSalariesAccrued;
+      const grossProfit = storeGrossProfit + sumProjMilestones;
+      const netProfit = storeNetProfit + projectNetProfit;
       const netMargin = actualRevenue > 0 ? Math.round((netProfit / actualRevenue) * 100) : 0;
 
       // CASH FLOW
@@ -563,6 +577,19 @@
             <div class="pl-line-val" style="color:#8b5cf6;">-฿${formatNum(Math.round(sumProjectSalariesAccrued))}</div>
           </div>
 
+          <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0;">
+            <div style="border:1px solid #fecaca; background:#fff7f7; border-radius:14px; padding:14px 16px;">
+              <div style="font-size:12px; font-weight:900; color:#991b1b; margin-bottom:4px;">กำไรหน้าร้าน</div>
+              <div style="font-size:22px; font-weight:950; color:${storeNetProfit >= 0 ? '#047857' : '#b91c1c'};">${storeNetProfit < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(storeNetProfit)))}</div>
+              <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-top:2px;">ขายหน้าร้าน + รับชำระหนี้ - ต้นทุน - ค่าใช้จ่ายร้าน</div>
+            </div>
+            <div style="border:1px solid #ddd6fe; background:#f5f3ff; border-radius:14px; padding:14px 16px;">
+              <div style="font-size:12px; font-weight:900; color:#5b21b6; margin-bottom:4px;">กำไรโครงการ</div>
+              <div style="font-size:22px; font-weight:950; color:${projectNetProfit >= 0 ? '#047857' : '#b91c1c'};">${projectNetProfit < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(projectNetProfit)))}</div>
+              <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-top:2px;">เงินงวดโครงการ - รายจ่ายโครงการ - ค่าแรงโครงการ</div>
+            </div>
+          </div>
+
           <div class="dash-v3-net-box" style="--card-bg-sub: ${netProfit >= 0 ? '#10b981' : '#ef4444'}">
             <div style="position:relative; z-index:2;">
               <div style="font-size:14px; font-weight:800; color:rgba(255,255,255,0.8); text-transform:uppercase;">กำไรสุทธิ</div>
@@ -642,7 +669,7 @@
         const dStr = getLocalDateString(d); // YYYY-MM-DD local
         
         // Sales for this day
-        const daySales = actualPaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + effectiveBillTotal(b), 0);
+        const daySales = storePaidBills.filter(b => isSameLocalDay(b.date, dStr)).reduce((s, b) => s + effectiveBillTotal(b), 0);
         const dayDebtIn = debtPayments.filter(p => isSameLocalDay(p.date, dStr)).reduce((s, p) => s + parseFloat(p.amount||0), 0);
         const dayProjMs = projMilestones.filter(m => isSameLocalDay(m.billed_at, dStr)).reduce((s, m) => s + parseFloat(m.amount||0), 0);
         const dayCashIn = daySales + dayDebtIn + dayProjMs;

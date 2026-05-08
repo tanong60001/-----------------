@@ -909,6 +909,7 @@ console.log('[v38] Category dashboard loaded');
         <div class="v38-chips">
           <button type="button" onclick="v38SetInvCategory('${ALL_CATEGORY}')" class="v38-chip ${state.category === ALL_CATEGORY ? 'active' : ''}">ทั้งหมด <b>${fmt(total)}</b></button>
           ${catStats.map(categoryChip).join('')}
+          ${typeof window.v54InventoryPendingChipHtml === 'function' ? window.v54InventoryPendingChipHtml() : ''}
         </div>
         <div class="v38-table-wrap">
           <table class="v38-table">

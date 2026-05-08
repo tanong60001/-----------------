@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -14,27 +14,35 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon.svg">
 
+  <style id="critical-login-style">
+    .hidden{display:none!important}
+    body{margin:0;background:#fff;font-family:Prompt,Arial,sans-serif}
+    #login-screen:not(.hidden){position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fef2f2 0%,#fff 50%,#fee2e2 100%)}
+    #login-screen:not(.hidden) .login-card{position:relative;width:min(472px,calc(100vw - 32px));min-height:520px;background:#fff;border-radius:28px;padding:48px;text-align:center;box-shadow:0 24px 70px rgba(15,23,42,.18);display:flex;flex-direction:column;align-items:center;justify-content:center}
+  </style>
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
+    rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'"
     href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  >
+  <link rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  </noscript>
 
   <!-- Libraries -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-additions.css">
 </head>
 
 <body>
+  <script>
+    document.documentElement.dataset.skBoot = 'html-ready';
+  </script>
 
   <!-- ═══════════════════════════════════════════════════════════════
        LOGIN SCREEN — หน้าล็อกอิน Premium
@@ -65,6 +73,9 @@
       <div class="login-footer">SK POS v2.0 — Powered by Supabase</div>
     </div>
   </div>
+  <script>
+    document.getElementById('login-screen')?.classList.remove('hidden');
+  </script>
 
   <!-- ═══════════════════════════════════════════════════════════════
        APP LAYOUT — โครงสร้างหลัก
@@ -320,6 +331,13 @@
                     <i class="material-icons-round">qr_code_scanner</i>
                   </button>
                 </div>
+                <button type="button" id="v54-quick-inline-btn" class="v54-quick-btn v54-quick-toolbar-btn"
+                  title="เพิ่มสินค้าด่วน"
+                  onclick="window.v54OpenQuickProductModal ? window.v54OpenQuickProductModal() : alert('ระบบสินค้าด่วนยังโหลดไม่ครบ กรุณารีเฟรชหน้าอีกครั้ง')"
+                  style="height:52px;min-width:52px;border:0;border-radius:12px;background:#0f766e;color:#fff;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 14px;box-shadow:0 8px 18px rgba(15,118,110,.18);cursor:pointer;white-space:nowrap;align-self:stretch;">
+                  <i class="material-icons-round" style="font-size:19px">add_shopping_cart</i>
+                  <span style="font-size:13px;line-height:1">สินค้าด่วน</span>
+                </button>
                 <div class="view-toggle">
                   <button class="view-btn active" data-view="grid" title="Grid View">
                     <i class="material-icons-round">grid_view</i>
@@ -743,61 +761,72 @@
   </div>
 
   <!-- Scripts -->
-  <script src="config.js"></script>
-  <script src="app.js?v=2"></script>
-  <script src="modules.js"></script>
-  <script src="modules-v2.js?v=2"></script>
-  <script src="dashboard-v3.js?v=2"></script>
-  <script src="modules-v2-patch.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <script src="modules-v3.js"></script>
-  <script src="modules-v4-8.js"></script>
-  <script src="modules-v9.js?v=4"></script>
-  <script src="modules-v10.js?v=3"></script>
-  <script src="modules-v11.js"></script>
-  <script src="modules-v12.js?v=7"></script>
-  <script src="modules-v13.js"></script>
-  <script src="modules-v14.js"></script>
-  <script src="modules-v15.js"></script>
-  <script src="modules-v16.js"></script>
-  <script src="modules-v17.js"></script>
-  <script src="modules-v18.js"></script>
-  <script src="modules-v19.js"></script>
-  <script src="modules-v20.js"></script>
-  <script src="modules-v21.js"></script>
-  <script src="modules-v22.js"></script>
-  <script src="modules-v23.js"></script>
-  <script src="modules-v24-print.js?v=8"></script>
-  <script src="modules-v24-display.js"></script>
-  <script src="modules-v25-quotation.js"></script>
-  <script src="modules-v26-hr.js?v=53"></script>
-  <script src="modules-v27.js"></script>
-  <script src="modules-v28.js?v=3"></script>
-  <script src="modules-v29-inbox.js"></script>
-  <script src="modules-v23-projectui.js"></script>
-  <script src="modules-v30-fastsale.js?v=2"></script>
-  <script src="modules-v31-payrollui.js?v=3"></script>
-  <script src="modules-v32-cashui.js"></script>
-  <script src="modules-v34-ui.js?v=4"></script>
-  <script src="modules-v33-fixes.js"></script>
-  <script src="modules-v35-grand-ui.js"></script>
-  <script src="modules-v36-usage-safety.js?v=59"></script>
-  <script src="modules-v37-daily-cash-print.js?v=13"></script>
-  <script src="modules-v38-category-dashboard.js?v=8"></script>
-  <script src="modules-v39-sales-polish.js?v=2"></script>
-  <script src="modules-v40-mobile-ui.js?v=2"></script>
-  <script src="scanner.js?v=2"></script>
-  <script src="modules-v41-payroll-hotfix.js?v=4"></script>
-  <script src="modules-v42-product-actions.js?v=3"></script>
-  <script src="modules-v43-checkout-polish.js?v=3"></script>
-  <script src="modules-v45-polished-popups.js?v=3"></script>
-  <script src="modules-v46-multidevice-scanner-payroll.js?v=2"></script>
-  <script src="modules-v47-pos-project-polish.js?v=1"></script>
-  <script src="modules-v48-final-staff-sales.js?v=1"></script>
-  <script src="modules-v49-admin-commission-audit.js?v=1"></script>
-  <script src="modules-v50-final-pos-admin-project.js?v=8"></script>
-  <script src="modules-v51-attendance-workplace.js?v=53"></script>
-
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="app.js?v=2"></script>
+  <script defer src="modules.js"></script>
+  <script defer src="modules-v2.js?v=2"></script>
+  <script defer src="dashboard-v3.js?v=3"></script>
+  <script defer src="modules-v2-patch.js"></script>
+  <script defer src="modules-v3.js"></script>
+  <script defer src="modules-v4-8.js"></script>
+  <script defer src="modules-v9.js?v=4"></script>
+  <script defer src="modules-v10.js?v=3"></script>
+  <script defer src="modules-v11.js"></script>
+  <script defer src="modules-v12.js?v=7"></script>
+  <script defer src="modules-v13.js"></script>
+  <script defer src="modules-v14.js"></script>
+  <script defer src="modules-v15.js"></script>
+  <script defer src="modules-v16.js"></script>
+  <script defer src="modules-v17.js"></script>
+  <script defer src="modules-v18.js"></script>
+  <script defer src="modules-v19.js"></script>
+  <script defer src="modules-v20.js"></script>
+  <script defer src="modules-v21.js"></script>
+  <script defer src="modules-v22.js"></script>
+  <script defer src="modules-v23.js"></script>
+  <script defer src="modules-v24-print.js?v=8"></script>
+  <script defer src="modules-v24-display.js"></script>
+  <script defer src="modules-v25-quotation.js"></script>
+  <script defer src="modules-v26-hr.js?v=53"></script>
+  <script defer src="modules-v27.js"></script>
+  <script defer src="modules-v28.js?v=3"></script>
+  <script defer src="modules-v29-inbox.js"></script>
+  <script defer src="modules-v23-projectui.js"></script>
+  <script defer src="modules-v30-fastsale.js?v=2"></script>
+  <script defer src="modules-v31-payrollui.js?v=3"></script>
+  <script defer src="modules-v32-cashui.js"></script>
+  <script defer src="modules-v34-ui.js?v=4"></script>
+  <script defer src="modules-v33-fixes.js"></script>
+  <script defer src="modules-v35-grand-ui.js"></script>
+  <script defer src="modules-v36-usage-safety.js?v=59"></script>
+  <script defer src="modules-v37-daily-cash-print.js?v=13"></script>
+  <script defer src="modules-v38-category-dashboard.js?v=9"></script>
+  <script defer src="modules-v39-sales-polish.js?v=2"></script>
+  <script defer src="modules-v40-mobile-ui.js?v=2"></script>
+  <script defer src="scanner.js?v=2"></script>
+  <script defer src="modules-v41-payroll-hotfix.js?v=4"></script>
+  <script defer src="modules-v42-product-actions.js?v=3"></script>
+  <script defer src="modules-v43-checkout-polish.js?v=3"></script>
+  <script defer src="modules-v45-polished-popups.js?v=3"></script>
+  <script defer src="modules-v46-multidevice-scanner-payroll.js?v=2"></script>
+  <script defer src="modules-v47-pos-project-polish.js?v=1"></script>
+  <script defer src="modules-v48-final-staff-sales.js?v=1"></script>
+  <script defer src="modules-v49-admin-commission-audit.js?v=1"></script>
+  <script defer src="modules-v50-final-pos-admin-project.js?v=8"></script>
+  <script defer src="modules-v51-attendance-workplace.js?v=53"></script>
+  <script defer src="modules-v52-stock-permission-login-fix.js?v=1"></script>
+  <script defer src="modules-v53-admin-pin-fix.js"></script>
+  <script defer src="modules-v54-quick-pending-products.js?v=10"></script>
+  <script defer src="modules-v55-smart-scanner.js?v=2"></script>
+  <script defer src="modules-v56-hr-admin-stability.js?v=4"></script>
+  <script defer src="modules-v57-dashboard-profit-calendar.js?v=2"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <!-- Service Worker: Product Image Cache (ลด bandwidth 90%+) -->
   <script>
     if ('serviceWorker' in navigator) {
