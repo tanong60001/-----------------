@@ -137,7 +137,10 @@
   }
 
   function looksLikePinDialogText(value) {
-    return /(แก้\s*pin|แก้\s*รหัส|เปลี่ยน\s*pin|เปลี่ยน\s*รหัส|pin|พิน|รหัส|ผู้ใช้|ผู้ใช้งาน|สิทธิ์|admin|แอดมิน)/i.test(String(value || ''));
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return false;
+    if (/(รหัสสินค้า|บาร์โค้ด|barcode|สินค้า|ตะกร้า|สต็อก|ราคา|ลูกค้า|ใบเสร็จ|ชำระ|โปรโมชั่น|หมวดหมู่)/i.test(text)) return false;
+    return /(แก้\s*pin|เปลี่ยน\s*pin|pin\s*ใหม่|new\s*pin|edit\s*pin|change\s*pin|ตั้ง\s*pin|รหัส\s*pin|pin\s*4\s*หลัก)/i.test(text);
   }
 
   function getDbClient() {
@@ -165,8 +168,8 @@
     return (
       inputs.find(i => i.id === 'v53-final-pin-input') ||
       inputs.find(i => i.classList.contains('swal2-input')) ||
-      inputs.find(i => /pin|รหัส|pass|password/i.test(`${i.id} ${i.name} ${i.placeholder} ${i.type} ${i.className}`)) ||
-      inputs[inputs.length - 1]
+      inputs.find(i => /pin|password/i.test(`${i.id} ${i.name} ${i.placeholder} ${i.className}`)) ||
+      null
     );
   }
 
