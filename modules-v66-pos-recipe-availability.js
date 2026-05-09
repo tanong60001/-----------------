@@ -8,6 +8,7 @@
   const CACHE_MS = 30000;
   const POS_LIMIT = 60;
   const RECIPE_TIMEOUT_MS = 3500;
+  const UNIT_TIMEOUT_MS = 4500;
 
   const state = {
     recipes: [],
@@ -41,6 +42,20 @@
     const n = Number(value || 0);
     return Number.isFinite(n) ? n : 0;
   };
+  const unitConv = unit => num(unit?.conv_rate ?? unit?.conversion_rate ?? unit?.rate ?? 1);
+  const unitPrice = unit => num(unit?.price_per_unit ?? unit?.price ?? unit?.unit_price ?? 0);
+  const normalizeSellUnit = unit => {
+    const conv = Math.max(0.000001, unitConv(unit));
+    const price = unitPrice(unit);
+    return {
+      ...unit,
+      unit_name: unit?.unit_name || unit?.name || unit?.unit || '',
+      conv_rate: conv,
+      conversion_rate: conv,
+      price_per_unit: price,
+      price,
+    };
+  };
   const fmt = value => {
     const n = num(value);
     return typeof formatNum === 'function'
@@ -48,6 +63,17 @@
       : n.toLocaleString('th-TH', { maximumFractionDigits: 4 });
   };
   const money = value => `฿${fmt(value)}`;
+
+  function withTimeout(promise, ms, fallback, label) {
+    let timer;
+    const timeout = new Promise(resolve => {
+      timer = setTimeout(() => {
+        console.warn(`[v66] ${label || 'request'} timeout`);
+        resolve(fallback);
+      }, ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
 
   function setGlobal(name, fn) {
     window[name] = fn;
@@ -330,19 +356,31 @@
 
   async function getSellUnits(product) {
     if (typeof db === 'undefined') return [];
-    const { data, error } = await db.from(UNIT_TABLE)
-      .select('*')
-      .eq('product_id', product.id)
-      .order('created_at', { ascending: true });
+    const { data, error, timedOut } = await withTimeout(
+      db.from(UNIT_TABLE)
+        .select('*')
+        .eq('product_id', product.id),
+      UNIT_TIMEOUT_MS,
+      { data: null, error: null, timedOut: true },
+      'product_units'
+    );
+    if (timedOut) {
+      typeof toast === 'function' && toast('โหลดหน่วยขายช้าเกินไป กรุณาลองอีกครั้ง', 'error');
+      return null;
+    }
     if (error) {
       console.warn('[v66] cannot load product units:', error);
       return [];
     }
-    return (data || []).filter(unit => num(unit.conversion_rate) > 0);
+    return (data || [])
+      .map(normalizeSellUnit)
+      .filter(unit => unitConv(unit) > 0)
+      .sort((a, b) => unitConv(a) - unitConv(b));
   }
 
   function addRecipeLine(product, unit, qty = 1) {
-    const conv = Math.max(0.000001, num(unit?.conversion_rate || 1));
+    const normalizedUnit = normalizeSellUnit(unit || {});
+    const conv = Math.max(0.000001, unitConv(normalizedUnit));
     const neededBase = num(qty) * conv;
     const remaining = remainingRecipeBaseQty(product.id);
     if (remaining === null || neededBase > remaining + 0.000001) {
@@ -351,8 +389,8 @@
     }
 
     const list = cartList();
-    const unitName = unit?.unit_name || product.unit || 'หน่วย';
-    const price = num(unit?.price || product.price);
+    const unitName = normalizedUnit.unit_name || product.unit || 'หน่วย';
+    const price = unitPrice(normalizedUnit) || num(product.price);
     const existing = list.find(item =>
       item.recipe_product &&
       String(item.id) === String(product.id) &&
@@ -385,6 +423,24 @@
     return true;
   }
 
+  async function addNormalProductLine(product) {
+    const units = await getSellUnits(product);
+    if (units === null) return;
+    const sellUnits = units.filter(unit => !unit.is_base);
+    if (sellUnits.length && typeof window.v9ShowUnitPopup === 'function') {
+      return window.v9ShowUnitPopup(product, sellUnits);
+    }
+    const isMto = isRecipeManagedProduct(product);
+    if (!isMto && num(product.stock) <= 0) {
+      typeof toast === 'function' && toast('สินค้าหมดสต็อก', 'error');
+      return;
+    }
+    if (typeof window.v9PushToCart === 'function') {
+      return window.v9PushToCart(product, num(product.price), product.unit || 'ชิ้น', 1, 1);
+    }
+    return state.originalAddToCart?.(product.id);
+  }
+
   async function addToCartV66(productId) {
     const product = productsList().find(item => String(item.id) === String(productId));
     if (!product) return;
@@ -392,12 +448,12 @@
     const needsRecipeCheck = isRecipeManagedProduct(product) || hasRecipe(product.id);
     if (!needsRecipeCheck) {
       if (!state.loadedAt) loadRecipes(false).then(syncRecipeFields);
-      return state.originalAddToCart?.(productId);
+      return addNormalProductLine(product);
     }
 
     await loadRecipes(false);
     syncRecipeFields();
-    if (!hasRecipe(product.id)) return state.originalAddToCart?.(productId);
+    if (!hasRecipe(product.id)) return addNormalProductLine(product);
 
     if (remainingRecipeBaseQty(product.id) <= 0) {
       typeof toast === 'function' && toast('วัตถุดิบในสูตรไม่พอ', 'error');
@@ -405,6 +461,7 @@
     }
 
     const units = await getSellUnits(product);
+    if (units === null) return;
     if (units.length && typeof window.v9ShowUnitPopup === 'function') {
       const patchedProduct = { ...product, stock: Math.max(1, Math.floor(remainingRecipeBaseQty(product.id))) };
       window.__v66PendingRecipeProduct = patchedProduct;
@@ -424,12 +481,25 @@
     if (!originalConfirm || originalConfirm.__v66RecipeConfirm) return;
 
     const wrapped = function (productId, unitName, convRate, price, quantity) {
-      const product = productsList().find(item => String(item.id) === String(productId));
+      const popupProduct = window._v64UnitPopupProd || window._v9UnitPopupProd;
+      const popupSelection = window._v64UnitPopupSel || window._v9UnitPopupSel;
+      const resolvedProductId = productId ?? popupProduct?.id;
+      const product = productsList().find(item => String(item.id) === String(resolvedProductId)) || popupProduct;
       if (product && hasRecipe(product.id)) {
+        if (productId == null && popupSelection) {
+          const qty = Math.max(0.001, num(document.getElementById('v64-unit-qty')?.value || quantity || 1));
+          if (typeof closeModal === 'function') closeModal();
+          document.querySelector('.modal-box')?.classList.remove('v64-unit-modal');
+          return addRecipeLine(product, {
+            unit_name: popupSelection.unitName,
+            conv_rate: popupSelection.conv,
+            price_per_unit: popupSelection.price,
+          }, qty);
+        }
         return addRecipeLine(product, {
           unit_name: unitName,
-          conversion_rate: convRate,
-          price,
+          conv_rate: convRate,
+          price_per_unit: price,
         }, quantity || 1);
       }
       return originalConfirm.apply(this, arguments);
@@ -440,12 +510,29 @@
   }
 
   function updateCartQtyV66(index, delta) {
-    const item = cartList()[index];
-    if (!item?.recipe_product) return state.originalUpdateCartQty?.(index, delta);
+    const args = arguments;
+    const list = cartList();
+    const unitName = args[2];
+    let itemIndex = -1;
+    let item = null;
+
+    if (unitName == null && Number.isInteger(Number(index)) && list[Number(index)]?.recipe_product) {
+      itemIndex = Number(index);
+      item = list[itemIndex];
+    } else {
+      itemIndex = list.findIndex(row =>
+        row?.recipe_product &&
+        String(row.id) === String(index) &&
+        (unitName == null || String(row.unit_name || row.unit) === String(unitName))
+      );
+      item = itemIndex >= 0 ? list[itemIndex] : null;
+    }
+
+    if (!item?.recipe_product) return state.originalUpdateCartQty?.apply(this, args);
     const nextQty = Math.max(0, num(item.qty) + num(delta));
     if (nextQty === 0) {
-      const next = cartList().slice();
-      next.splice(index, 1);
+      const next = list.slice();
+      next.splice(itemIndex, 1);
       setCart(next);
       window.renderCart?.();
       setTimeout(enhanceCartControls, 0);
