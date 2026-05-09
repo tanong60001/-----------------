@@ -200,7 +200,7 @@ window.loadInboxActivities = async function (forceRefresh = false) {
       .from('log_กิจกรรม')
       .select('*')
       .order('time', { ascending: false })
-      .limit(150);
+      .limit(80);
 
     _inboxItems = data || [];
 

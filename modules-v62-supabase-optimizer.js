@@ -2,8 +2,8 @@
 (function () {
   'use strict';
 
-  const PRODUCT_TABLE = 'สินค้า';
-  const RECIPE_TABLE = 'สูตรสินค้า';
+  const PRODUCT_TABLE = '\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32';
+  const RECIPE_TABLE = '\u0e2a\u0e39\u0e15\u0e23\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32';
   const RECIPE_CACHE_MS = 60 * 1000;
 
   const recipeCache = new Map();

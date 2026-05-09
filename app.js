@@ -86,6 +86,11 @@ function closeModal() {
 
 async function logActivity(type, details, refId = null, refTable = null) {
   try {
+    const eventType = String(type || '').trim();
+    if (
+      eventType === '\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a' ||
+      eventType === '\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e23\u0e30\u0e1a\u0e1a'
+    ) return;
     await db.from('log_กิจกรรม').insert({ type, details, ref_id: refId, ref_table: refTable, username: USER?.username || 'system', time: new Date().toISOString() });
   } catch (e) { console.error('Log error:', e); }
 }
