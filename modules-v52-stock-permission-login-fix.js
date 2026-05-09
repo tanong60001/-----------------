@@ -5,8 +5,7 @@
   const EXTRA_PERM_KEY = 'sk_pos_extra_permissions_v1';
 
   function readExtraPerms() {
-    try { return JSON.parse(localStorage.getItem(EXTRA_PERM_KEY) || '{}') || {}; }
-    catch (_) { return {}; }
+    return {};
   }
 
   function currentPerm(key) {
@@ -17,7 +16,7 @@
   }
 
   function canAdjustStockV52() {
-    return currentPerm('can_adjust_stock') || currentPerm('can_manage') || currentPerm('can_inv');
+    return currentPerm('can_adjust_stock') || currentPerm('can_manage');
   }
 
   function canPromotionV52() {
@@ -26,11 +25,7 @@
 
   function runWithAdminRole(fn, args) {
     if (typeof fn !== 'function') return undefined;
-    if (typeof USER === 'undefined' || !USER || USER.role === 'admin') return fn.apply(this, args);
-    const oldRole = USER.role;
-    USER.role = 'admin';
-    try { return fn.apply(this, args); }
-    finally { USER.role = oldRole; }
+    return fn.apply(this, args);
   }
 
   function denyStock() {
@@ -60,9 +55,6 @@
     if (typeof window.go === 'function' && !window.go.__v52StockPerm) {
       const originalGo = window.go;
       window.go = function (page) {
-        if (page === 'inv' && canAdjustStockV52() && typeof USER_PERMS !== 'undefined') {
-          USER_PERMS = { ...(USER_PERMS || {}), can_inv: true };
-        }
         return originalGo.apply(this, arguments);
       };
       window.go.__v52StockPerm = true;
