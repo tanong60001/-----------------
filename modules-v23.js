@@ -298,6 +298,123 @@ function _v23ConvRate(su, pid, um, bm) {
   return parseFloat(um[pid]?.[su]) || 1;
 }
 
+function _v23RecipeNameKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s\-_/.]+/g, '');
+}
+
+function _v23IsMto(product) {
+  const type = String(product?.product_type || '').trim().toLowerCase();
+  return type === 'ตามบิล' || type.includes('ตามบิล') || type.includes('make to order') || type.includes('mto');
+}
+
+async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
+  const plan = { byIndex: new Map(), deductions: new Map(), errors: [] };
+  if (!cartArr?.length) return plan;
+
+  const [{ data: productRows, error: productError }, { data: recipeRows, error: recipeError }] = await Promise.all([
+    db.from('สินค้า').select('id,name,stock,cost,unit,product_type'),
+    db.from('สูตรสินค้า').select('id,product_id,material_id,quantity,unit'),
+  ]);
+  if (productError) throw productError;
+  if (recipeError) throw recipeError;
+
+  const productsById = new Map((productRows || []).map(product => [String(product.id), product]));
+  const recipesByProduct = new Map();
+  (recipeRows || []).forEach(recipe => {
+    const productId = String(recipe.product_id || '');
+    if (!productId) return;
+    if (!recipesByProduct.has(productId)) recipesByProduct.set(productId, []);
+    recipesByProduct.get(productId).push(recipe);
+  });
+
+  const recipeProductByName = new Map();
+  productsById.forEach(product => {
+    if (!recipesByProduct.has(String(product.id))) return;
+    const key = _v23RecipeNameKey(product.name);
+    if (key && !recipeProductByName.has(key)) recipeProductByName.set(key, product);
+  });
+
+  const addDeduction = (material, qty, label) => {
+    const id = String(material.id);
+    const current = plan.deductions.get(id) || { material, qty: 0, labels: [] };
+    current.qty = Number((current.qty + qty).toFixed(6));
+    current.labels.push(label);
+    plan.deductions.set(id, current);
+  };
+
+  cartArr.forEach((item, index) => {
+    if (!item?.id || item.is_extra_charge || String(item.id).startsWith('extra-')) return;
+    const cartProduct = productsById.get(String(item.id)) || item;
+    const recipeProduct = recipesByProduct.has(String(item.id))
+      ? cartProduct
+      : recipeProductByName.get(_v23RecipeNameKey(item.name || cartProduct.name));
+    const recipeRowsForProduct = recipeProduct ? (recipesByProduct.get(String(recipeProduct.id)) || []) : [];
+    const isRecipeCandidate = !!recipeRowsForProduct.length || _v23IsMto(cartProduct) || _v23IsMto(item);
+    if (!isRecipeCandidate) return;
+    if (!recipeRowsForProduct.length) {
+      plan.errors.push(`${item.name || cartProduct.name || item.id}: สินค้าตามบิลยังไม่มีสูตร`);
+      return;
+    }
+
+    const modes = (itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
+    const takeQty = Number(modes.take || 0);
+    const sellUnit = item.unit || recipeProduct.unit || cartProduct.unit || 'ชิ้น';
+    const baseQty = _v23BaseQty(takeQty, sellUnit, item.id, um, bm);
+    const oneBaseQty = _v23BaseQty(1, sellUnit, item.id, um, bm);
+    let costPerUnit = 0;
+    const lines = [];
+
+    recipeRowsForProduct.forEach(recipe => {
+      const material = productsById.get(String(recipe.material_id));
+      const recipeQty = Number(recipe.quantity || 0);
+      if (!material || recipeQty <= 0) {
+        plan.errors.push(`${item.name || recipeProduct.name}: สูตรมีวัตถุดิบไม่ครบ`);
+        return;
+      }
+      const needed = Number((recipeQty * baseQty).toFixed(6));
+      const unitCost = Number(material.cost || 0);
+      costPerUnit += recipeQty * oneBaseQty * unitCost;
+      lines.push({ recipe, material, needed });
+      if (needed > 0) addDeduction(material, needed, `${item.name || recipeProduct.name} x ${takeQty} ${sellUnit}`);
+    });
+
+    plan.byIndex.set(index, {
+      product: recipeProduct,
+      rows: recipeRowsForProduct,
+      lines,
+      costPerUnit: Number(costPerUnit.toFixed(6)),
+      baseQty,
+    });
+  });
+
+  plan.deductions.forEach(row => {
+    const before = Number(row.material?.stock || 0);
+    if (row.qty > before + 0.000001) {
+      plan.errors.push(`${row.material?.name || row.material?.id}: วัตถุดิบไม่พอ มี ${_v23f(before)} ต้องใช้ ${_v23f(row.qty)}`);
+    }
+  });
+
+  return plan;
+}
+
+async function _v23ShowRecipeBlocked(errors) {
+  if (typeof Swal !== 'undefined' && Swal.fire) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'ยังออกบิลไม่ได้',
+      html: `<div style="text-align:left;line-height:1.7;color:#475569;font-weight:700">
+        <div style="margin-bottom:8px">ระบบตรวจสูตรก่อนสร้างบิลแล้วพบปัญหา:</div>
+        <ul style="margin:0;padding-left:20px">${(errors || []).slice(0, 8).map(error => `<li>${String(error)}</li>`).join('')}</ul>
+        <div style="margin-top:10px;color:#b91c1c;font-weight:900">ไม่มีการสร้างบิล และไม่มีการตัดสต็อก</div>
+      </div>`,
+      confirmButtonText: 'รับทราบ',
+      confirmButtonColor: '#dc2626',
+    });
+    return;
+  }
+  if (typeof toast === 'function') toast((errors || ['วัตถุดิบไม่พอ'])[0], 'error');
+}
+
 
 window.v12CompletePayment = async function() {
   // ── Guard: ป้องกันกดซ้ำ ──
@@ -367,6 +484,11 @@ window.v12CompletePayment = async function() {
     /* ── Unit info ── */
     const ids = [...new Set(cartArr.map(i => i.id).filter(Boolean))];
     const { um, bm, cm } = await _v23FetchUnits(ids);
+    const recipePlan = await _v23BuildRecipePlan(cartArr, v12State.itemModes || {}, um, bm);
+    if (recipePlan.errors.length) {
+      await _v23ShowRecipeBlocked(recipePlan.errors);
+      return;
+    }
 
     /* ── Insert bill ── */
     const billData = {
@@ -398,18 +520,58 @@ window.v12CompletePayment = async function() {
 
     /* ── Bill items + STOCK DEDUCTION ── */
     let projCostTotal = 0;
-    for (const item of cartArr) {
+    for (let itemIndex = 0; itemIndex < cartArr.length; itemIndex++) {
+      const item = cartArr[itemIndex];
+      const recipeItem = recipePlan.byIndex.get(itemIndex);
       const modes = (v12State.itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
       const su = item.unit || 'ชิ้น';
       const cr = _v23ConvRate(su, item.id, um, bm);
-      const costPerUnit = (cm[item.id] || item.cost || 0) * cr;
+      const costPerUnit = recipeItem ? recipeItem.costPerUnit : (cm[item.id] || item.cost || 0) * cr;
 
       await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: recipeItem?.product?.id || item.id, name: item.name,
         qty: item.qty, price: item.price, cost: costPerUnit,
         total: item.price * item.qty, unit: su,
         take_qty: modes.take, deliver_qty: modes.deliver,
       });
+
+      if (recipeItem) {
+        if (modes.take > 0) {
+          for (const line of recipeItem.lines) {
+            if (line.needed <= 0) continue;
+            const stockBefore = parseFloat(line.material.stock || 0);
+            const stockAfter = parseFloat((stockBefore - line.needed).toFixed(6));
+            line.material.stock = stockAfter;
+            const { error: stockErr } = await db.from('สินค้า')
+              .update({ stock: stockAfter, updated_at: new Date().toISOString() })
+              .eq('id', line.material.id);
+            if (stockErr) {
+              console.error('[v23] ❌ Recipe material update FAILED for', line.material.name, stockErr);
+            } else {
+              console.log(`[v23] ✅ Recipe material deducted: ${line.material.name} | ${stockBefore} → ${stockAfter} (−${line.needed})`);
+            }
+            try {
+              await db.from('stock_movement').insert({
+                product_id: line.material.id, product_name: line.material.name,
+                type: isProj ? 'จ่ายของให้โครงการ(สูตร)' : 'ใช้ผลิต(ขาย)',
+                direction: 'out', qty: line.needed,
+                stock_before: stockBefore, stock_after: stockAfter,
+                ref_id: bill.id, ref_table: 'บิลขาย', staff_name: _v23staff(),
+                note: `บิล #${bill.bill_no || bill.id}: ${item.name} x ${modes.take} ${su}`,
+              });
+            } catch(e) { console.warn('[v23] recipe stock_movement:', e.message); }
+            try {
+              if (typeof products !== 'undefined') {
+                const prod = products.find(p => String(p.id) === String(line.material.id));
+                if (prod) prod.stock = stockAfter;
+              }
+            } catch(_) {}
+          }
+          if (isProj) projCostTotal += costPerUnit * modes.take;
+        }
+        console.log(`[v23] ✅ Recipe sale handled: ${item.name} (no finished product stock deduction)`);
+        continue;
+      }
 
       /* ─── ตัดสต็อก (ถ้า take > 0) ─── */
       if (modes.take > 0) {

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -16,22 +16,53 @@
   <link rel="apple-touch-icon" href="assets/app-icon-sk-192.png?v=3">
 
   <style id="critical-login-style">
-    .hidden{display:none!important}
-    body{margin:0;background:#fff;font-family:Prompt,Arial,sans-serif}
-    #login-screen:not(.hidden){position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fef2f2 0%,#fff 50%,#fee2e2 100%)}
-    #login-screen:not(.hidden) .login-card{position:relative;width:min(472px,calc(100vw - 32px));min-height:520px;background:#fff;border-radius:28px;padding:48px;text-align:center;box-shadow:0 24px 70px rgba(15,23,42,.18);display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .hidden {
+      display: none !important
+    }
+
+    body {
+      margin: 0;
+      background: #fff;
+      font-family: Prompt, Arial, sans-serif
+    }
+
+    #login-screen:not(.hidden) {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #fef2f2 0%, #fff 50%, #fee2e2 100%)
+    }
+
+    #login-screen:not(.hidden) .login-card {
+      position: relative;
+      width: min(472px, calc(100vw - 32px));
+      min-height: 520px;
+      background: #fff;
+      border-radius: 28px;
+      padding: 48px;
+      text-align: center;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, .18);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center
+    }
   </style>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'"
-    href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-  >
-  <link rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round">
+  <link rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'"
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'"
+    href="https://fonts.googleapis.com/icon?family=Material+Icons+Round">
   <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   </noscript>
 
@@ -212,7 +243,8 @@
             style="position:relative;width:40px;height:40px;border-radius:50%;border:none;background:var(--bg-hover);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:all .2s;flex-shrink:0;"
             title="ประวัติกิจกรรม">
             <i class="material-icons-round" style="font-size:20px;">notifications</i>
-            <span id="inbox-badge" style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;border-radius:8px;background:#EF4444;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 3px;font-family:var(--font-display);">0</span>
+            <span id="inbox-badge"
+              style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;border-radius:8px;background:#EF4444;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 3px;font-family:var(--font-display);">0</span>
           </button>
           <button id="mobile-page-actions-btn" class="btn btn-icon hidden-desktop"
             style="background:transparent;border:none;color:var(--text-primary);padding:8px;">
@@ -653,18 +685,82 @@
        GENERIC MODAL
        ═══════════════════════════════════════════════════════════════ -->
   <style id="v36-checkout-force-style">
-    #checkout-overlay .checkout-modal.v36-checkout-modal{background:#f8fafc!important;border:1px solid #dbe3ec!important;box-shadow:0 28px 70px rgba(15,23,42,.22)!important;color:#0f172a!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal::before,#checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-summary{background:#f1f5f9!important;border-right:1px solid #dbe3ec!important;color:#0f172a!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-item{background:#fff!important;border:1px solid #e2e8f0!important;color:#0f172a!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-total strong,#checkout-overlay .checkout-modal.v36-checkout-modal .amount-value{color:#334155!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .checkout-progress,#checkout-overlay .checkout-modal.v36-checkout-modal .checkout-footer,#checkout-overlay .checkout-modal.v36-checkout-modal .checkout-content{background:#fff!important;border-color:#e2e8f0!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .step-num{background:#eef2f6!important;border-color:#dbe3ec!important;color:#64748b!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active .step-num,#checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.completed .step-num{background:#64748b!important;border-color:#64748b!important;color:#fff!important;box-shadow:0 0 0 5px #e2e8f0!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active span{color:#475569!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn{background:#fff!important;border:1.5px solid #d7dee7!important;box-shadow:0 10px 24px rgba(15,23,42,.04)!important;color:#0f172a!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected{background:#f8fafc!important;border-color:#64748b!important;box-shadow:0 0 0 3px #e2e8f0!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected .customer-type-icon,#checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected i{background:#64748b!important;color:#fff!important}
-    #checkout-overlay .checkout-modal.v36-checkout-modal #checkout-next{background:#475569!important;border-color:#475569!important;color:#fff!important}
+    #checkout-overlay .checkout-modal.v36-checkout-modal {
+      background: #f8fafc !important;
+      border: 1px solid #dbe3ec !important;
+      box-shadow: 0 28px 70px rgba(15, 23, 42, .22) !important;
+      color: #0f172a !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal::before,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-summary {
+      background: #f1f5f9 !important;
+      border-right: 1px solid #dbe3ec !important;
+      color: #0f172a !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-item {
+      background: #fff !important;
+      border: 1px solid #e2e8f0 !important;
+      color: #0f172a !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .v36-checkout-total strong,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .amount-value {
+      color: #334155 !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .checkout-progress,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .checkout-footer,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .checkout-content {
+      background: #fff !important;
+      border-color: #e2e8f0 !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .step-num {
+      background: #eef2f6 !important;
+      border-color: #dbe3ec !important;
+      color: #64748b !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active .step-num,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.completed .step-num {
+      background: #64748b !important;
+      border-color: #64748b !important;
+      color: #fff !important;
+      box-shadow: 0 0 0 5px #e2e8f0 !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .progress-step.active span {
+      color: #475569 !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn {
+      background: #fff !important;
+      border: 1.5px solid #d7dee7 !important;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .04) !important;
+      color: #0f172a !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected {
+      background: #f8fafc !important;
+      border-color: #64748b !important;
+      box-shadow: 0 0 0 3px #e2e8f0 !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal .customer-type-btn.selected .customer-type-icon,
+    #checkout-overlay .checkout-modal.v36-checkout-modal .payment-method-btn.selected i {
+      background: #64748b !important;
+      color: #fff !important
+    }
+
+    #checkout-overlay .checkout-modal.v36-checkout-modal #checkout-next {
+      background: #475569 !important;
+      border-color: #475569 !important;
+      color: #fff !important
+    }
   </style>
 
   <div id="modal-overlay" class="modal-overlay hidden">
@@ -686,10 +782,10 @@
        ACTIVITY INBOX DRAWER (Right Side Panel)
        ═══════════════════════════════════════════════════════════════ -->
   <div id="inbox-backdrop" onclick="closeActivityInbox()"
-    style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);"></div>
+    style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);">
+  </div>
 
-  <div id="inbox-drawer"
-    style="position:fixed;top:0;right:0;bottom:0;z-index:10001;width:400px;max-width:100vw;
+  <div id="inbox-drawer" style="position:fixed;top:0;right:0;bottom:0;z-index:10001;width:400px;max-width:100vw;
            background:var(--bg-surface);display:flex;flex-direction:column;
            box-shadow:-8px 0 40px rgba(0,0,0,.18);
            transform:translateX(100%);transition:transform .32s cubic-bezier(0.16,1,0.3,1);
@@ -700,7 +796,8 @@
       <div style="padding:18px 20px 14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;">
+            <div
+              style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;">
               <i class="material-icons-round" style="color:#fff;font-size:20px;">notifications</i>
             </div>
             <div>
@@ -714,12 +811,11 @@
           </button>
         </div>
         <!-- Search Bar -->
-        <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;">
+        <div
+          style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;">
           <i class="material-icons-round" style="color:rgba(255,255,255,.5);font-size:16px;">search</i>
-          <input id="inbox-search" type="text" placeholder="ค้นหากิจกรรม..."
-            oninput="filterInboxItems(this.value)"
-            style="flex:1;border:none;background:none;outline:none;color:#fff;font-family:var(--font-thai);font-size:13px;"
-          >
+          <input id="inbox-search" type="text" placeholder="ค้นหากิจกรรม..." oninput="filterInboxItems(this.value)"
+            style="flex:1;border:none;background:none;outline:none;color:#fff;font-family:var(--font-thai);font-size:13px;">
         </div>
       </div>
       <!-- Category Tabs -->
@@ -736,7 +832,8 @@
     </div>
 
     <!-- Drawer Footer -->
-    <div style="padding:12px 16px;border-top:1px solid var(--border-light);background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+    <div
+      style="padding:12px 16px;border-top:1px solid var(--border-light);background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
       <span style="font-size:12px;color:var(--text-tertiary);" id="inbox-count-label">—</span>
       <button onclick="loadInboxActivities(true)"
         style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;font-family:var(--font-thai);display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:6px;font-weight:600;">
@@ -768,7 +865,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script defer
+    src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <script defer src="config.js"></script>
   <script defer src="app.js?v=5"></script>
   <script defer src="modules.js"></script>
@@ -791,7 +889,7 @@
   <script defer src="modules-v20.js"></script>
   <script defer src="modules-v21.js"></script>
   <script defer src="modules-v22.js"></script>
-  <script defer src="modules-v23.js"></script>
+  <script defer src="modules-v23.js?v=2"></script>
   <script defer src="modules-v24-print.js?v=8"></script>
   <script defer src="modules-v24-display.js"></script>
   <script defer src="modules-v25-quotation.js"></script>
@@ -806,7 +904,7 @@
   <script defer src="modules-v34-ui.js?v=4"></script>
   <script defer src="modules-v33-fixes.js"></script>
   <script defer src="modules-v35-grand-ui.js"></script>
-  <script defer src="modules-v36-usage-safety.js?v=59"></script>
+  <script defer src="modules-v36-usage-safety.js?v=65"></script>
   <script defer src="modules-v37-daily-cash-print.js?v=14"></script>
   <script defer src="modules-v38-category-dashboard.js?v=9"></script>
   <script defer src="modules-v39-sales-polish.js?v=2"></script>
@@ -835,8 +933,8 @@
   <script defer src="modules-v62-supabase-optimizer.js?v=3"></script>
   <script defer src="modules-v63-batch-production.js?v=6"></script>
   <script defer src="modules-v64-pos-unit-scanner-polish.js?v=2"></script>
-  <script defer src="modules-v65-recipe-profit-capacity.js?v=7"></script>
-  <script defer src="modules-v66-pos-recipe-availability.js?v=20"></script>
+  <script defer src="modules-v65-recipe-profit-capacity.js?v=9"></script>
+  <script defer src="modules-v66-pos-recipe-availability.js?v=29"></script>
   <!-- Service Worker: Product Image Cache (ลด bandwidth 90%+) -->
   <script>
     if ('serviceWorker' in navigator) {

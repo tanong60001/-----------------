@@ -69,6 +69,15 @@ console.log('[v36] Usage safety patch loaded');
     return ({ cash: txt.cash, transfer: txt.transfer, credit: txt.credit, debt: txt.debt })[method] || txt.cash;
   }
 
+  function isRecipeSaleType(product) {
+    const type = String(product?.product_type || '').trim().toLowerCase();
+    return type === 'ตามบิล' ||
+      type.includes('ตามบิล') ||
+      type.includes('เธ•เธฒเธกเธเธดเธฅ') ||
+      type.includes('make to order') ||
+      type.includes('mto');
+  }
+
   function htmlAttr(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({
       '&': '&amp;',
@@ -139,6 +148,24 @@ console.log('[v36] Usage safety patch loaded');
     const stockMap = {};
     (productRows || []).forEach(p => { stockMap[p.id] = p; });
 
+    const recipeMap = {};
+    const recipeProductIds = [...new Set((cartSnapshot || [])
+      .filter(item => item && !item.is_extra_charge && !String(item.id || '').startsWith('extra-'))
+      .map(item => item.id)
+      .filter(Boolean))];
+    if (recipeProductIds.length) {
+      const { data: recipeRows, error: recipeError } = await db.from('สูตรสินค้า')
+        .select('id,product_id,material_id,quantity,unit')
+        .in('product_id', recipeProductIds);
+      if (recipeError) throw recipeError;
+      (recipeRows || []).forEach(recipe => {
+        const productId = String(recipe.product_id || '');
+        if (!productId) return;
+        if (!recipeMap[productId]) recipeMap[productId] = [];
+        recipeMap[productId].push(recipe);
+      });
+    }
+
     const billItems = [];
     const movements = [];
     const now = new Date().toISOString();
@@ -153,6 +180,21 @@ console.log('[v36] Usage safety patch loaded');
     };
 
     for (const item of cartSnapshot) {
+      // ── v66 extra charge items: บันทึกเป็นรายการในบิลแต่ไม่ต้องตัดสต็อก ──
+      if (item.is_extra_charge || String(item.id || '').startsWith('extra-')) {
+        billItems.push({
+          bill_id: bill.id,
+          product_id: null,
+          name: item.name || 'รายการเพิ่มเติม',
+          qty: Number(item.qty || 1),
+          price: Number(item.price || 0),
+          cost: 0,
+          total: Number((Number(item.price || 0) * Number(item.qty || 1)).toFixed(2)),
+          unit: item.unit || 'รายการ',
+        });
+        continue;
+      }
+
       const fresh = stockMap[item.id];
       if (!fresh) throw new Error('ไม่พบสินค้าในคลัง: ' + (item.name || item.id));
 
@@ -161,13 +203,14 @@ console.log('[v36] Usage safety patch loaded');
       const price = Number(item.price || 0);
       const baseQty = Number((qty * convRate).toFixed(6));
       const sellUnit = item.unit || fresh.unit || 'ชิ้น';
-      const isMto = !!(item.is_mto || fresh.product_type === 'ตามบิล');
+      const recipes = recipeMap[String(item.id)] || [];
+      const isRecipeSale = !!(item.__v66_recipe_sale || item.recipe_sale || item.recipe_product || recipes.length || item.is_mto || isRecipeSaleType(fresh) || isRecipeSaleType(item));
       const costPerBase = Number(fresh.cost || item.cost || 0);
 
       if (!qty || qty <= 0) throw new Error('จำนวนสินค้าไม่ถูกต้อง: ' + (item.name || fresh.name));
       if (price < 0) throw new Error('ราคาสินค้าติดลบ: ' + (item.name || fresh.name));
 
-      billItems.push({
+      const billItem = {
         bill_id: bill.id,
         product_id: item.id,
         name: item.name || fresh.name,
@@ -176,22 +219,26 @@ console.log('[v36] Usage safety patch loaded');
         cost: Number((costPerBase * convRate).toFixed(6)),
         total: Number((price * qty).toFixed(2)),
         unit: sellUnit,
-      });
+      };
+      billItems.push(billItem);
 
-      if (isMto) {
-        const { data: recipes, error: recipeError } = await db.from('สูตรสินค้า')
-          .select('*')
-          .eq('product_id', item.id);
-        if (recipeError) throw recipeError;
+      if (isRecipeSale) {
+        const validRecipes = recipes.filter(recipe => recipe.material_id && Number(recipe.quantity || 0) > 0);
+        if (!validRecipes.length) {
+          throw new Error('สินค้าตามสูตรยังไม่มีรายการวัตถุดิบ: ' + (item.name || fresh.name));
+        }
 
-        for (const recipe of (recipes || [])) {
+        let recipeCostPerSellUnit = 0;
+        for (const recipe of validRecipes) {
           const mat = stockMap[recipe.material_id];
           if (!mat) throw new Error('ไม่พบวัตถุดิบของสูตร: ' + (recipe.material_id || 'unknown'));
-          const needed = Number((Number(recipe.quantity || 0) * qty).toFixed(6));
+          const recipeQty = Number(recipe.quantity || 0);
+          const needed = Number((recipeQty * baseQty).toFixed(6));
           const matBefore = Number(mat.stock || 0);
           if (matBefore < needed) {
             throw new Error(`วัตถุดิบไม่พอ: ${mat.name || recipe.material_id} มี ${fmt(matBefore)} ต้องใช้ ${fmt(needed)}`);
           }
+          recipeCostPerSellUnit += recipeQty * Number(mat.cost || 0) * convRate;
           const matAfter = Number((matBefore - needed).toFixed(6));
           mat.stock = matAfter;
           queueStockUpdate(recipe.material_id, matBefore, matAfter);
@@ -206,9 +253,10 @@ console.log('[v36] Usage safety patch loaded');
             ref_id: bill.id,
             ref_table: txt.bill,
             staff_name: userName(),
-            note: `บิล #${bill.bill_no || bill.id}: ${item.name || fresh.name} x ${qty} ${sellUnit}`,
+            note: `บิล #${bill.bill_no || bill.id}: ${item.name || fresh.name} x ${qty} ${sellUnit} (${baseQty} ${fresh.unit || ''})`,
           });
         }
+        billItem.cost = Number(recipeCostPerSellUnit.toFixed(6));
         continue;
       }
 
@@ -301,6 +349,9 @@ console.log('[v36] Usage safety patch loaded');
           }
         } catch (_) { }
       }
+
+      // ตรวจสต็อกและสูตรก่อนสร้างบิลจริง เพื่อไม่ให้มีบิลค้างเมื่อวัตถุดิบไม่พอ
+      await buildSaleRows({ id: 'precheck', bill_no: 'precheck' }, cartSnapshot);
 
       const billRes = await must(db.from(txt.bill).insert({
         date: new Date().toISOString(),
@@ -3586,6 +3637,7 @@ console.log('[v36] Usage safety patch loaded');
         window.v36PosLimit = 16;
       }
       const all = (typeof products !== 'undefined' ? products : []).filter(p => {
+        if (typeof window.v66ShouldHideProductInPos === 'function' && window.v66ShouldHideProductInPos(p)) return false;
         const matchSearch = productSmartMatchV36(p, searchTerm);
         const matchCategory = cat === 'ทั้งหมด' || cat === 'เธ—เธฑเนเธเธซเธกเธ”' || p.category === cat;
         const catText = String(cat || '');
@@ -3604,20 +3656,32 @@ console.log('[v36] Usage safety patch loaded');
       if (countEl) countEl.textContent = `แสดง ${shown.length} จาก ${all.length} รายการ (ทั้งหมด ${products.length})`;
       const renderCard = p => {
         const inCart = (typeof cart !== 'undefined' ? cart : []).find(c => c.id === p.id);
-        const isLow = Number(p.stock || 0) <= Number(p.min_stock || 0) && Number(p.stock || 0) > 0;
-        const isOut = Number(p.stock || 0) <= 0;
+        const isRecipe = (typeof window.v66HasRecipe === 'function' && window.v66HasRecipe(p.id))
+          || (typeof window.v66RecipeShouldHandleProduct === 'function' && window.v66RecipeShouldHandleProduct(p));
+        const recipeRemaining = isRecipe && typeof window.v66RecipeRemaining === 'function' ? window.v66RecipeRemaining(p.id) : null;
+        const recipeStockText = isRecipe && typeof window.v66RecipeStockText === 'function' ? window.v66RecipeStockText(p.id) : '';
+        const isLow = !isRecipe && Number(p.stock || 0) <= Number(p.min_stock || 0) && Number(p.stock || 0) > 0;
+        const isOut = isRecipe ? Number(recipeRemaining || 0) <= 0 : Number(p.stock || 0) <= 0;
+        const clickAction = isRecipe ? `v66RecipeAddToCart('${jsString(p.id)}')` : `addToCart('${jsString(p.id)}')`;
+        const recipeAttrs = isRecipe ? `data-v66-product-id="${htmlAttr(p.id)}" data-v66-recipe="1"` : '';
+        const recipeBadge = isRecipe ? '<span class="v66-recipe-badge">ขายตามสูตร</span>' : bestSellerBadgeV36(p);
+        const stockLabel = isRecipe ? recipeStockText : (isOut ? 'หมด' : fmt(p.stock));
+        const stockClass = `${isLow ? 'low' : ''} ${isOut ? 'out' : ''}`;
+        const recipeCapacityValue = isRecipe && recipeRemaining > 0 ? Number(Math.floor(Number(recipeRemaining || 0))).toLocaleString('th-TH') : '0';
+        const recipeCapacityHtml = isRecipe ? `<div class="v66-recipe-capacity ${isOut ? 'bad' : ''}"><span>ผลิตได้</span><b>${htmlAttr(recipeCapacityValue)} ${htmlAttr(p.unit || '')}</b></div>` : '';
+        const recipeCapacityCompact = isRecipe ? `<div class="v66-recipe-capacity compact ${isOut ? 'bad' : ''}"><span>ผลิตได้</span><b>${htmlAttr(recipeCapacityValue)} ${htmlAttr(p.unit || '')}</b></div>` : '';
         if (viewMode === 'list') {
-          return `<div class="product-list-item ${isOut ? 'out-of-stock' : ''}" style="position:relative;overflow:hidden" onclick="addToCart('${jsString(p.id)}')">
-            ${bestSellerBadgeV36(p)}
+          return `<div class="product-list-item ${isRecipe ? 'v66-recipe-sale-card' : ''} ${isOut ? 'out-of-stock' : ''}" ${recipeAttrs} style="position:relative;overflow:hidden" onclick="${clickAction}">
+            ${recipeBadge}
             <div class="product-list-img">${p.img_url ? `<img src="${htmlAttr(p.img_url)}" alt="${htmlAttr(p.name)}" loading="lazy">` : `<i class="material-icons-round">inventory_2</i>`}</div>
-            <div class="product-list-info"><div class="product-name">${htmlAttr(p.name || '')}</div><div class="product-sku">${htmlAttr(p.barcode || '-')}</div></div>
-            <div class="product-list-right"><span class="product-price">฿${fmt(p.price)}</span><span class="product-stock ${isLow ? 'low' : ''} ${isOut ? 'out' : ''}">${isOut ? 'หมด' : fmt(p.stock)}</span>${inCart ? `<span class="product-badge">${inCart.qty}</span>` : ''}</div>
+            <div class="product-list-info"><div class="product-name">${htmlAttr(p.name || '')}</div><div class="product-sku">${htmlAttr(p.barcode || '-')}</div>${recipeCapacityCompact}</div>
+            <div class="product-list-right"><span class="product-price">฿${fmt(p.price)}</span><span class="product-stock ${stockClass}">${htmlAttr(stockLabel)}</span>${inCart ? `<span class="product-badge">${inCart.qty}</span>` : ''}</div>
           </div>`;
         }
-        return `<div class="product-card ${isOut ? 'out-of-stock' : ''}" style="position:relative;overflow:hidden" onclick="addToCart('${jsString(p.id)}')">
-          ${bestSellerBadgeV36(p)}
+        return `<div class="product-card ${isRecipe ? 'v66-recipe-sale-card' : ''} ${isOut ? 'out-of-stock' : ''}" ${recipeAttrs} style="position:relative;overflow:hidden" onclick="${clickAction}">
+          ${recipeBadge}
           <div class="product-img">${p.img_url ? `<img src="${htmlAttr(p.img_url)}" alt="${htmlAttr(p.name)}" loading="lazy">` : `<i class="material-icons-round">inventory_2</i>`}${inCart ? `<span class="product-badge">${inCart.qty}</span>` : ''}</div>
-          <div class="product-info"><div class="product-name">${htmlAttr(p.name || '')}</div><div class="product-sku">${htmlAttr(p.barcode || '-')}</div><div class="product-footer"><span class="product-price">฿${fmt(p.price)}</span><span class="product-stock ${isLow ? 'low' : ''} ${isOut ? 'out' : ''}">${isOut ? 'หมด' : fmt(p.stock)}</span></div></div>
+          <div class="product-info"><div class="product-name">${htmlAttr(p.name || '')}</div><div class="product-sku">${htmlAttr(p.barcode || '-')}</div>${recipeCapacityHtml}<div class="product-footer"><span class="product-price">฿${fmt(p.price)}</span><span class="product-stock ${stockClass}">${htmlAttr(stockLabel)}</span></div></div>
         </div>`;
       };
       container.className = viewMode === 'list' ? 'product-list' : 'product-grid';
@@ -3755,6 +3819,9 @@ console.log('[v36] Usage safety patch loaded');
     window.addToCart = async function (productId) {
       const product = activeProducts().find(p => String(p.id) === String(productId));
       if (!product) return;
+      if (typeof window.v66RecipeShouldHandleProduct === 'function' && window.v66RecipeShouldHandleProduct(product) && typeof window.v66RecipeAwareAddToCart === 'function') {
+        return window.v66RecipeAwareAddToCart.call(this, productId);
+      }
       if (typeof originalAddToCart === 'function' && await hasUnitAwareSale(product)) {
         return originalAddToCart.apply(this, arguments);
       }
@@ -3779,6 +3846,9 @@ console.log('[v36] Usage safety patch loaded');
       let list = activeCart();
       const item = list.find(c => String(c.id) === String(productId));
       if (!item) return;
+      if ((item.__v66_recipe_sale || item.recipe_product || item.recipe_sale) && typeof window.v66RecipeAwareUpdateCartQty === 'function') {
+        return window.v66RecipeAwareUpdateCartQty.apply(this, arguments);
+      }
       if (Number(item.conv_rate || 1) !== 1 && typeof originalUpdateCartQty === 'function') {
         return originalUpdateCartQty.call(this, productId, delta, item.unit);
       }

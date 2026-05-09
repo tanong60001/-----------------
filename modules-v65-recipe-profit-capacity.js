@@ -22,6 +22,7 @@
     const n = num(value);
     return Number.isInteger(n) ? n.toLocaleString('th-TH') : Number(n.toFixed(4)).toLocaleString('th-TH');
   };
+  const fmtWhole = value => Math.max(0, Math.floor(num(value))).toLocaleString('th-TH');
   const baht = value => `฿${num(value).toLocaleString('th-TH', { maximumFractionDigits: 2 })}`;
 
   function productsList() {
@@ -32,6 +33,20 @@
       if (Array.isArray(products)) return products;
     } catch (_) {}
     return Array.isArray(window.products) ? window.products : [];
+  }
+
+  function recipeNameKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/[\s\-_/.]+/g, '');
+  }
+
+  function findReusableRecipeProduct(name) {
+    const key = recipeNameKey(name);
+    if (!key) return null;
+    const list = productsList();
+    return list.find(product => recipeNameKey(product?.name) === key && String(product?.product_type || '').includes('\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25'))
+      || list.find(product => recipeNameKey(product?.name) === key && num(product?.stock) <= 0)
+      || list.find(product => recipeNameKey(product?.name) === key)
+      || null;
   }
 
   function productMap(products) {
@@ -240,7 +255,7 @@
           </div>
           <div class="v65-capacity">
             <span>ผลิตได้จากสต็อก</span>
-            <b>${fmt(Math.floor(stats.capacity * 10000) / 10000)}</b>
+            <b>${fmtWhole(stats.capacity)}</b>
             <span>${esc(product.unit || 'หน่วย')}</span>
           </div>
         </header>
@@ -271,7 +286,7 @@
           <div class="v65-line-sub">
             ใช้ ${fmt(line.qty)} ${esc(line.row.unit || line.mat?.unit || '')} / ${esc(product.unit || 'หน่วย')}
             · คงเหลือ ${fmt(line.stock)} ${esc(line.mat?.unit || line.row.unit || '')}
-            · ผลิตได้ ${low ? '0' : fmt(line.canMake)} ${esc(product.unit || '')}
+            · ผลิตได้ ${low ? '0' : fmtWhole(line.canMake)} ${esc(product.unit || '')}
           </div>
         </div>
         <div class="v65-line-cost">
@@ -693,7 +708,7 @@
       <div class="v65-box"><span>ต้นทุนสูตร</span><b>${baht(cost)}</b></div>
       <div class="v65-box ${profit >= 0 ? 'good' : 'bad'}"><span>กำไรต่อหน่วย</span><b>${baht(profit)}</b></div>
       <div class="v65-box"><span>กำไร</span><b>${fmt(margin)}%</b></div>
-      <div class="v65-box good"><span>ผลิตได้จากสต็อก</span><b>${fmt(Math.max(0, capacity))} ${esc(unit)}</b></div>
+      <div class="v65-box good"><span>ผลิตได้จากสต็อก</span><b>${fmtWhole(capacity)} ${esc(unit)}</b></div>
     `;
   };
 
@@ -719,6 +734,10 @@
       };
 
       let productId = value.productId;
+      if (!productId) {
+        const reusable = findReusableRecipeProduct(value.name);
+        if (reusable?.id) productId = reusable.id;
+      }
       if (productId) {
         const { error: productError } = await db.from(PRODUCT_TABLE).update(productPayload).eq('id', productId);
         if (productError) throw new Error(productError.message);
@@ -744,6 +763,7 @@
         if (error) throw new Error(error.message);
       }
       if (typeof loadProducts === 'function') await loadProducts();
+      if (typeof window.v66ReloadRecipes === 'function') await window.v66ReloadRecipes();
       try { if (typeof products !== 'undefined') window._v9ProductsCache = products; } catch (_) {}
       typeof toast === 'function' && toast('บันทึกสูตรสำเร็จ', 'success');
       await refreshRecipePage();

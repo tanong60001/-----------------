@@ -9,6 +9,7 @@
   const POS_LIMIT = 60;
   const RECIPE_TIMEOUT_MS = 3500;
   const UNIT_TIMEOUT_MS = 4500;
+  const SALE_TIMEOUT_MS = 8000;
 
   const state = {
     recipes: [],
@@ -27,6 +28,8 @@
     renderingGrid: false,
     protectingInventory: false,
     extraOpeningAt: 0,
+    decoratingCards: false,
+    cardObserver: null,
   };
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -62,6 +65,8 @@
       ? formatNum(n)
       : n.toLocaleString('th-TH', { maximumFractionDigits: 4 });
   };
+  const whole = value => Math.max(0, Math.floor(num(value)));
+  const fmtWhole = value => whole(value).toLocaleString('th-TH');
   const money = value => `฿${fmt(value)}`;
 
   function withTimeout(promise, ms, fallback, label) {
@@ -110,11 +115,24 @@
     return String(value || '').trim().toLowerCase();
   }
 
+  function recipeIdentity(product) {
+    return normalizedText(product?.name).replace(/\s+/g, ' ');
+  }
+
+  function compactRecipeIdentity(product) {
+    return normalizedText(product?.name).replace(/[\s\-_/.]+/g, '');
+  }
+
   function isRecipeManagedProduct(product) {
     if (!product) return false;
     if (product.__v66_recipe_product || hasRecipe(product.id)) return true;
+    return false;
+  }
+
+  function isMadeToOrderType(product) {
+    if (!product) return false;
     const type = normalizedText(product.product_type);
-    return type === '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' || type.includes('\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25') || type.includes('make to order') || type.includes('mto');
+    return type === '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' || type.includes('\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25') || type.includes('เธ•เธฒเธกเธเธดเธฅ') || type.includes('make to order') || type.includes('mto');
   }
 
   function rebuildRecipeMap(rows) {
@@ -145,6 +163,11 @@
           recipeProductIds: [...state.recipeMap.keys()],
           loadedAt: new Date(state.loadedAt).toISOString(),
         };
+        setTimeout(() => {
+          syncRecipeFields();
+          window.renderProductGrid?.();
+          setTimeout(protectRecipeInventoryRows, 0);
+        }, 0);
         return state.recipes;
       })
       .catch(error => {
@@ -171,6 +194,19 @@
 
   function hasRecipe(productId) {
     return recipeRows(productId).length > 0;
+  }
+
+  function recipeProductFor(productOrId) {
+    const product = typeof productOrId === 'object' ? productOrId : productById(productOrId);
+    if (product && hasRecipe(product.id)) return product;
+    const key = compactRecipeIdentity(product);
+    if (!key) return null;
+    return productsList().find(row => row && hasRecipe(row.id) && compactRecipeIdentity(row) === key) || null;
+  }
+
+  function recipeProductIdFor(productOrId) {
+    const recipeProduct = recipeProductFor(productOrId);
+    return recipeProduct?.id || (hasRecipe(productOrId) ? productOrId : null);
   }
 
   function recipeCost(productId) {
@@ -213,6 +249,31 @@
       product.__v66_recipe_capacity = recipeCapacity(product.id);
       product.__v66_recipe_remaining = remainingRecipeBaseQty(product.id);
     });
+  }
+
+  function recipeProductNameSet() {
+    const names = new Set();
+    productsList().forEach(product => {
+      if (hasRecipe(product.id)) {
+        const key = compactRecipeIdentity(product);
+        if (key) names.add(key);
+      }
+    });
+    return names;
+  }
+
+  function isRecipeShadowProduct(product, recipeNames) {
+    if (!product || hasRecipe(product.id)) return false;
+    const key = compactRecipeIdentity(product);
+    return !!key && recipeNames.has(key);
+  }
+
+  function shouldHideProductInPos(product) {
+    return isRawOnlyProduct(product) || isRecipeShadowProduct(product, recipeProductNameSet());
+  }
+
+  function shouldRecipeHandleProduct(product) {
+    return !!recipeProductFor(product) || isRecipeManagedProduct(product) || isMadeToOrderType(product) || hasRecipe(product?.id);
   }
 
   function activeCategoryText() {
@@ -266,10 +327,122 @@
   function stockText(product) {
     if (hasRecipe(product.id)) {
       const remaining = remainingRecipeBaseQty(product.id);
-      if (remaining > 0) return `ผลิตได้ ${fmt(Math.floor(remaining * 1000) / 1000)} ${product.unit || ''}`;
+      if (remaining > 0) return `ผลิตได้ ${fmtWhole(remaining)} ${product.unit || ''}`;
       return 'วัตถุดิบไม่พอ';
     }
     return num(product.stock) > 0 ? fmt(product.stock) : 'หมด';
+  }
+
+  function recipeCapacityHtml(product, compact = false) {
+    if (!hasRecipe(product.id)) return '';
+    const remaining = remainingRecipeBaseQty(product.id);
+    const display = remaining > 0 ? fmtWhole(remaining) : '0';
+    const unit = esc(product.unit || '');
+    return `<div class="v66-recipe-capacity ${remaining > 0 ? '' : 'bad'} ${compact ? 'compact' : ''}">
+      <span>ผลิตได้</span><b>${display} ${unit}</b>
+    </div>`;
+  }
+
+  function productIdFromCard(card) {
+    const dataId = card?.dataset?.v66ProductId;
+    if (dataId) return dataId;
+    const click = card?.getAttribute?.('onclick') || '';
+    const match = click.match(/(?:addToCart|v66RecipeAddToCart)\(['"]([^'"]+)['"]\)/);
+    return match?.[1] || '';
+  }
+
+  function productFromCard(card) {
+    const id = productIdFromCard(card);
+    const byId = id ? productById(id) : null;
+    if (byId) return byId;
+    const name = card?.querySelector?.('.product-name')?.textContent || '';
+    return name ? productsList().find(product => compactRecipeIdentity(product) === compactRecipeIdentity({ name })) : null;
+  }
+
+  function decorateRecipeCard(card) {
+    const product = productFromCard(card);
+    const recipeProduct = recipeProductFor(product) || product;
+    if (!recipeProduct || !hasRecipe(recipeProduct.id)) return;
+
+    const remaining = remainingRecipeBaseQty(recipeProduct.id);
+    const out = remaining <= 0;
+    const display = remaining > 0 ? fmtWhole(remaining) : '0';
+    const unit = recipeProduct.unit || '';
+    card.classList.add('v66-recipe-sale-card');
+    card.classList.toggle('out-of-stock', out);
+    card.dataset.v66ProductId = recipeProduct.id;
+    card.dataset.v66Recipe = '1';
+    card.setAttribute('onclick', `v66RecipeAddToCart('${js(recipeProduct.id)}')`);
+
+    if (!card.querySelector('.v66-recipe-badge')) {
+      card.insertAdjacentHTML('afterbegin', '<span class="v66-recipe-badge">ขายตามสูตร</span>');
+    }
+
+    const stock = card.querySelector('.product-stock');
+    if (stock) {
+      const nextText = out ? 'วัตถุดิบไม่พอ' : `ผลิตได้ ${display} ${unit}`;
+      if (stock.textContent !== nextText) stock.textContent = nextText;
+      stock.classList.toggle('out', out);
+      stock.classList.toggle('low', false);
+    }
+
+    let cap = card.querySelector('.v66-recipe-capacity');
+    if (!cap) {
+      const compact = card.classList.contains('product-list-item');
+      const target = card.querySelector('.product-sku') || card.querySelector('.product-name') || card.querySelector('.product-info') || card;
+      target.insertAdjacentHTML('afterend', recipeCapacityHtml(recipeProduct, compact));
+      cap = card.querySelector('.v66-recipe-capacity');
+    }
+    if (cap) {
+      cap.classList.toggle('bad', out);
+      const label = cap.querySelector('span');
+      const value = cap.querySelector('b');
+      if (label && label.textContent !== 'ผลิตได้') label.textContent = 'ผลิตได้';
+      const nextValue = `${display} ${unit}`;
+      if (value && value.textContent !== nextValue) value.textContent = nextValue;
+    }
+
+    const inCart = cartItemFor(recipeProduct.id);
+    const badgeHost = card.querySelector('.product-img') || card.querySelector('.product-list-right') || card;
+    let qtyBadge = card.querySelector('.product-badge');
+    if (inCart && !qtyBadge) {
+      qtyBadge = document.createElement('span');
+      qtyBadge.className = 'product-badge';
+      badgeHost.appendChild(qtyBadge);
+    }
+    if (qtyBadge) {
+      if (inCart) qtyBadge.textContent = fmt(inCart.qty);
+      else qtyBadge.remove();
+    }
+  }
+
+  function decorateRecipeCards() {
+    if (state.decoratingCards) return;
+    state.decoratingCards = true;
+    try {
+      const grid = document.getElementById('pos-product-grid') || document.getElementById('productGrid');
+      if (!grid) return;
+      grid.querySelectorAll('.product-card,.product-list-item').forEach(decorateRecipeCard);
+    } finally {
+      state.decoratingCards = false;
+    }
+  }
+
+  function scheduleRecipeCardDecorate() {
+    requestAnimationFrame(() => {
+      syncRecipeFields();
+      decorateRecipeCards();
+    });
+  }
+
+  function installRecipeCardObserver() {
+    const grid = document.getElementById('pos-product-grid') || document.getElementById('productGrid');
+    if (!grid || state.cardObserver?.__v66Target === grid) return;
+    state.cardObserver?.disconnect?.();
+    state.cardObserver = new MutationObserver(() => scheduleRecipeCardDecorate());
+    state.cardObserver.__v66Target = grid;
+    state.cardObserver.observe(grid, { childList: true, subtree: true });
+    scheduleRecipeCardDecorate();
   }
 
   function renderCard(product, mode) {
@@ -277,21 +450,25 @@
     const out = isProductOut(product);
     const low = !recipe && num(product.stock) > 0 && num(product.stock) <= num(product.min_stock);
     const inCart = cartItemFor(product.id);
-    const badge = recipe ? '<span class="v66-recipe-badge">สูตรผลิต</span>' : '';
+    const badge = recipe ? '<span class="v66-recipe-badge">ขายตามสูตร</span>' : '';
     const stockStyle = recipe && !out ? 'style="color:#047857"' : '';
     const sku = recipe ? `สูตร • ต้นทุน ${money(recipeCost(product.id))}` : esc(product.barcode || '-');
+    const capacity = recipeCapacityHtml(product);
+    const listCapacity = recipeCapacityHtml(product, true);
     const attrs = `data-v66-product-id="${esc(product.id)}" data-v66-recipe="${recipe ? '1' : '0'}"`;
+    const click = recipe ? `v66RecipeAddToCart('${js(product.id)}')` : `addToCart('${js(product.id)}')`;
     const image = product.img_url
       ? `<img src="${esc(product.img_url)}" alt="${esc(product.name)}" loading="lazy">`
       : '<i class="material-icons-round">inventory_2</i>';
 
     if (mode === 'list') {
-      return `<div class="product-list-item ${out ? 'out-of-stock' : ''}" ${attrs} onclick="addToCart('${js(product.id)}')">
+      return `<div class="product-list-item ${recipe ? 'v66-recipe-sale-card' : ''} ${out ? 'out-of-stock' : ''}" ${attrs} onclick="${click}">
         ${badge}
         <div class="product-list-img">${image}</div>
         <div class="product-list-info">
           <div class="product-name">${esc(product.name)}</div>
           <div class="product-sku">${sku}</div>
+          ${listCapacity}
         </div>
         <div class="product-list-right">
           <span class="product-price">${money(product.price)}</span>
@@ -301,12 +478,13 @@
       </div>`;
     }
 
-    return `<div class="product-card ${out ? 'out-of-stock' : ''}" ${attrs} onclick="addToCart('${js(product.id)}')">
+    return `<div class="product-card ${recipe ? 'v66-recipe-sale-card' : ''} ${out ? 'out-of-stock' : ''}" ${attrs} onclick="${click}">
       ${badge}
       <div class="product-img">${image}${inCart ? `<span class="product-badge">${fmt(inCart.qty)}</span>` : ''}</div>
       <div class="product-info">
         <div class="product-name">${esc(product.name)}</div>
         <div class="product-sku">${sku}</div>
+        ${capacity}
         <div class="product-footer">
           <span class="product-price">${money(product.price)}</span>
           <span class="product-stock ${low ? 'low' : ''} ${out ? 'out' : ''}" ${stockStyle}>${esc(stockText(product))}</span>
@@ -320,14 +498,16 @@
     state.renderingGrid = true;
     try {
       syncRecipeFields();
-      const grid = document.getElementById('productGrid');
+      const grid = document.getElementById('pos-product-grid') || document.getElementById('productGrid');
       if (!grid) return state.originalRenderProductGrid?.();
 
       const category = activeCategoryText();
       const search = searchText();
       const mode = currentViewMode();
+      const recipeNames = recipeProductNameSet();
       const visible = productsList()
         .filter(product => product && !isRawOnlyProduct(product))
+        .filter(product => !isRecipeShadowProduct(product, recipeNames))
         .filter(product => isAllCategory(category) || String(product.category || '') === category)
         .filter(product => productMatches(product, search))
         .sort((a, b) => {
@@ -342,8 +522,9 @@
         ? visible.map(product => renderCard(product, mode)).join('')
         : '<div class="empty-state"><i class="material-icons-round">inventory_2</i><h3>ไม่พบสินค้า</h3><p>ลองค้นหาหรือเลือกหมวดหมู่อื่น</p></div>';
 
-      const footer = grid.parentElement?.querySelector('.product-count, .items-count, .grid-count');
+      const footer = document.getElementById('products-count') || grid.parentElement?.querySelector('.product-count, .items-count, .grid-count');
       if (footer) footer.textContent = `แสดง ${visible.length} จาก ${visible.length} รายการ`;
+      scheduleRecipeCardDecorate();
     } catch (error) {
       console.error('[v66] renderProductGrid failed, fallback to original:', error);
       if (state.originalRenderProductGrid && state.originalRenderProductGrid !== renderProductGridV66) {
@@ -412,6 +593,9 @@
         stock: Math.max(1, Math.floor((remaining || 0) / conv)),
         is_mto: true,
         recipe_product: true,
+        recipe_sale: true,
+        __v66_recipe_sale: true,
+        recipe_product_id: product.id,
         recipe_capacity: recipeCapacity(product.id),
       });
     }
@@ -419,6 +603,7 @@
     window.renderCart?.();
     setTimeout(enhanceCartControls, 0);
     window.renderProductGrid?.();
+    scheduleRecipeCardDecorate();
     typeof toast === 'function' && toast(`เพิ่ม ${product.name} แล้ว`, 'success');
     return true;
   }
@@ -430,7 +615,7 @@
     if (sellUnits.length && typeof window.v9ShowUnitPopup === 'function') {
       return window.v9ShowUnitPopup(product, sellUnits);
     }
-    const isMto = isRecipeManagedProduct(product);
+    const isMto = isMadeToOrderType(product);
     if (!isMto && num(product.stock) <= 0) {
       typeof toast === 'function' && toast('สินค้าหมดสต็อก', 'error');
       return;
@@ -442,10 +627,11 @@
   }
 
   async function addToCartV66(productId) {
-    const product = productsList().find(item => String(item.id) === String(productId));
+    const clickedProduct = productsList().find(item => String(item.id) === String(productId));
+    const product = recipeProductFor(clickedProduct) || clickedProduct;
     if (!product) return;
 
-    const needsRecipeCheck = isRecipeManagedProduct(product) || hasRecipe(product.id);
+    const needsRecipeCheck = isRecipeManagedProduct(product) || isMadeToOrderType(product) || hasRecipe(product.id);
     if (!needsRecipeCheck) {
       if (!state.loadedAt) loadRecipes(false).then(syncRecipeFields);
       return addNormalProductLine(product);
@@ -453,7 +639,13 @@
 
     await loadRecipes(false);
     syncRecipeFields();
-    if (!hasRecipe(product.id)) return addNormalProductLine(product);
+    if (!hasRecipe(product.id)) {
+      if (isMadeToOrderType(product)) {
+        typeof toast === 'function' && toast('สินค้าตามบิลยังไม่มีสูตรสินค้า กรุณาสร้างสูตรก่อนขาย', 'error');
+        return;
+      }
+      return addNormalProductLine(product);
+    }
 
     if (remainingRecipeBaseQty(product.id) <= 0) {
       typeof toast === 'function' && toast('วัตถุดิบในสูตรไม่พอ', 'error');
@@ -463,7 +655,7 @@
     const units = await getSellUnits(product);
     if (units === null) return;
     if (units.length && typeof window.v9ShowUnitPopup === 'function') {
-      const patchedProduct = { ...product, stock: Math.max(1, Math.floor(remainingRecipeBaseQty(product.id))) };
+      const patchedProduct = { ...product, stock: Math.max(0, remainingRecipeBaseQty(product.id)) };
       window.__v66PendingRecipeProduct = patchedProduct;
       window.__v66PendingRecipeUnits = units;
       return window.v9ShowUnitPopup(patchedProduct, units);
@@ -476,6 +668,17 @@
     }, 1);
   }
 
+  async function recipeAddToCartV66(productId) {
+    await loadRecipes(false);
+    syncRecipeFields();
+    const product = recipeProductFor(productId) || productById(productId);
+    if (!product || !hasRecipe(product.id)) {
+      typeof toast === 'function' && toast('ไม่พบสูตรของสินค้านี้', 'error');
+      return;
+    }
+    return addToCartV66(product.id);
+  }
+
   function patchUnitConfirm() {
     const originalConfirm = window.v64ConfirmUnitAdd || window.v9ConfirmUnitAdd;
     if (!originalConfirm || originalConfirm.__v66RecipeConfirm) return;
@@ -484,7 +687,8 @@
       const popupProduct = window._v64UnitPopupProd || window._v9UnitPopupProd;
       const popupSelection = window._v64UnitPopupSel || window._v9UnitPopupSel;
       const resolvedProductId = productId ?? popupProduct?.id;
-      const product = productsList().find(item => String(item.id) === String(resolvedProductId)) || popupProduct;
+      const rawProduct = productsList().find(item => String(item.id) === String(resolvedProductId)) || popupProduct;
+      const product = recipeProductFor(rawProduct) || rawProduct;
       if (product && hasRecipe(product.id)) {
         if (productId == null && popupSelection) {
           const qty = Math.max(0.001, num(document.getElementById('v64-unit-qty')?.value || quantity || 1));
@@ -537,6 +741,7 @@
       window.renderCart?.();
       setTimeout(enhanceCartControls, 0);
       window.renderProductGrid?.();
+      scheduleRecipeCardDecorate();
       return;
     }
     const needed = nextQty * Math.max(0.000001, num(item.conv_rate || 1));
@@ -550,6 +755,7 @@
     window.renderCart?.();
     setTimeout(enhanceCartControls, 0);
     window.renderProductGrid?.();
+    scheduleRecipeCardDecorate();
   }
 
   function addExtraCharge(name, amount) {
@@ -783,15 +989,8 @@
         const row = button.closest('tr');
         if (!row || row.dataset.v66RecipeLocked === '1') return;
         row.dataset.v66RecipeLocked = '1';
-        row.classList.add('v66-recipe-inventory-row');
-        const nameCell = row.children?.[1];
-        if (nameCell && !nameCell.querySelector('.v66-recipe-lock-badge')) {
-          nameCell.insertAdjacentHTML('beforeend', '<small class="v66-recipe-lock-badge"><i class="material-icons-round">lock</i> จัดการที่หน้าสูตร</small>');
-        }
-        const actions = button.closest('.v38-actions') || button.parentElement;
-        if (actions) {
-          actions.innerHTML = `<button type="button" class="v66-recipe-inventory-btn" data-v66-open-recipe="${esc(product.id)}" title="เปิดหน้าสูตร"><i class="material-icons-round">science</i><span>สูตร</span></button>`;
-        }
+        row.style.display = 'none';
+        row.dataset.v66RecipeHiddenFromInventory = '1';
       });
     } finally {
       state.protectingInventory = false;
@@ -824,12 +1023,32 @@
 
     if (window.editProduct && !window.editProduct.__v66RecipeGuard) {
       state.originalEditProduct = window.editProduct;
-      const wrappedEdit = function (productId) {
+      const wrappedEdit = async function (productId) {
         const product = productById(productId);
         if (isRecipeManagedProduct(product)) return showRecipeManagedNotice(product);
-        return state.originalEditProduct.apply(this, arguments);
+        // ── fallback ที่เชื่อถือได้: ลองเรียก original ก่อน ถ้าไม่ได้ให้เปิด modal โดยตรง ──
+        try {
+          if (typeof state.originalEditProduct === 'function' && !state.originalEditProduct.__v66RecipeGuard) {
+            return state.originalEditProduct.apply(this, arguments);
+          }
+        } catch (e) { console.warn('[v66] originalEditProduct failed, using fallback:', e); }
+        // fallback: โหลดสินค้าแล้วเปิด showAddProductModal โดยตรง
+        try {
+          const p = product || productsList().find(x => String(x.id) === String(productId));
+          if (p) { window.showAddProductModal?.(p); return; }
+          if (typeof db !== 'undefined') {
+            const { data } = await db.from('สินค้า').select('*').eq('id', productId).maybeSingle();
+            if (data) { window.showAddProductModal?.(data); return; }
+          }
+          typeof toast === 'function' && toast('ไม่พบข้อมูลสินค้า', 'error');
+        } catch (e2) {
+          console.error('[v66] editProduct fallback failed:', e2);
+          typeof toast === 'function' && toast('เกิดข้อผิดพลาดในการแก้ไขสินค้า', 'error');
+        }
       };
       wrappedEdit.__v66RecipeGuard = true;
+      // preserve v58 access guard flag เพื่อไม่ให้ v58 re-wrap ซ้ำ
+      try { Object.defineProperty(wrappedEdit, '__v58Guarded', { value: true }); } catch (_) {}
       setGlobal('editProduct', wrappedEdit);
     }
 
@@ -844,6 +1063,8 @@
         return original.apply(this, arguments);
       };
       wrapped.__v66RecipeGuard = true;
+      // preserve v58 access guard flag
+      try { Object.defineProperty(wrapped, '__v58Guarded', { value: true }); } catch (_) {}
       setGlobal(name, wrapped);
     });
   }
@@ -860,9 +1081,471 @@
     });
   }
 
-  async function saleV66() {
+  const methodTH = {
+    cash: 'เงินสด',
+    transfer: 'โอนเงิน',
+    credit: 'บัตรเครดิต',
+    debt: 'ค้างชำระ',
+    project: 'จ่ายของให้โครงการ',
+  };
+
+  function checkout() {
+    try { return checkoutState || window.checkoutState || {}; } catch (_) { return window.checkoutState || {}; }
+  }
+
+  function staffName() {
+    try { if (typeof v9Staff === 'function') return v9Staff(); } catch (_) {}
+    try { return USER?.username || ''; } catch (_) { return ''; }
+  }
+
+  function currentBillDiscount() {
+    const state = checkout();
+    const input = document.getElementById('pos-discount');
+    return num(state.manual_discount ?? input?.value ?? state.discount ?? 0);
+  }
+
+  function saleReturnInfo(items) {
+    const itemDiscounts = (items || [])
+      .map(item => {
+        const qty = num(item.qty);
+        const original = num(item.original_price ?? item.price);
+        const price = num(item.price);
+        const perUnit = Math.max(0, num(item.promo_discount ?? (original - price)));
+        return {
+          product_id: item.is_extra_charge ? null : item.id,
+          name: item.name,
+          unit: item.unit || item.unit_name || 'ชิ้น',
+          qty,
+          original_price: original,
+          discount_per_unit: perUnit,
+          discount_total: perUnit * qty,
+          promo_percent: num(item.promo_percent || 0),
+        };
+      })
+      .filter(item => item.discount_total > 0);
+    const state = checkout();
+    const promoDiscount = num(state.promo_discount ?? itemDiscounts.reduce((sum, item) => sum + item.discount_total, 0));
+    return {
+      ...(state.return_info && typeof state.return_info === 'object' ? state.return_info : {}),
+      item_discounts: itemDiscounts,
+      promo_discount: Number(promoDiscount.toFixed(2)),
+      manual_discount: Number(currentBillDiscount().toFixed(2)),
+    };
+  }
+
+  async function dbData(query, label) {
+    const result = await withTimeout(query, SALE_TIMEOUT_MS, { timedOut: true }, label);
+    if (result?.timedOut) throw new Error(`${label || 'คำสั่งฐานข้อมูล'} ช้าเกินไป กรุณาลองใหม่`);
+    if (result?.error) throw new Error(`${label || 'คำสั่งฐานข้อมูล'}: ${result.error.message}`);
+    return result?.data;
+  }
+
+  async function fetchProductsByIds(ids) {
+    const unique = [...new Set((ids || []).filter(Boolean).map(String))];
+    if (!unique.length) return new Map();
+    const data = await dbData(
+      db.from('สินค้า').select('id,name,stock,product_type,unit,cost').in('id', unique),
+      'โหลดข้อมูลสินค้า'
+    );
+    const map = new Map();
+    (data || []).forEach(product => map.set(String(product.id), product));
+    return map;
+  }
+
+  async function fetchRecipesForSale(productIds) {
+    const unique = [...new Set((productIds || []).filter(Boolean).map(String))];
+    if (!unique.length) return new Map();
+    const data = await dbData(
+      db.from(RECIPE_TABLE).select('id,product_id,material_id,quantity,unit').in('product_id', unique),
+      'โหลดสูตรสินค้า'
+    );
+    const map = new Map();
+    (data || []).forEach(row => {
+      const pid = String(row.product_id || '');
+      if (!pid) return;
+      if (!map.has(pid)) map.set(pid, []);
+      map.get(pid).push(row);
+    });
+    return map;
+  }
+
+  function addDeduction(map, product, qty, type, label) {
+    const id = String(product?.id || '');
+    if (!id || qty <= 0) return;
+    if (!map.has(id)) {
+      map.set(id, { product, qty: 0, labels: [], hasSale: false, hasRecipe: false });
+    }
+    const row = map.get(id);
+    row.product = row.product || product;
+    row.qty += qty;
+    row.labels.push(label);
+    if (type === 'sale') row.hasSale = true;
+    if (type === 'recipe') row.hasRecipe = true;
+  }
+
+  function movementType(row) {
+    if (row.hasSale && row.hasRecipe) return 'ขาย/ใช้ผลิต';
+    return row.hasRecipe ? 'ใช้ผลิต(ขาย)' : 'ขาย';
+  }
+
+  async function buildRecipeSalePlan(items) {
+    const sellItems = (items || []).filter(item => item && !item.is_extra_charge);
+    const productIds = sellItems.map(item => item.id).filter(Boolean);
+    const [stockMap, recipeMapForSale] = await Promise.all([
+      fetchProductsByIds(productIds),
+      fetchRecipesForSale(productIds),
+    ]);
+
+    const materialIds = [];
+    recipeMapForSale.forEach(rows => rows.forEach(row => {
+      if (row.material_id) materialIds.push(row.material_id);
+    }));
+    const materialMap = await fetchProductsByIds(materialIds);
+    materialMap.forEach((value, key) => stockMap.set(key, value));
+
+    const billItems = [];
+    const deductions = new Map();
+    const errors = [];
+
+    (items || []).forEach(item => {
+      const qty = num(item.qty);
+      const conv = Math.max(0.000001, num(item.conv_rate || 1));
+      const baseQty = Number((qty * conv).toFixed(6));
+      const sellUnit = item.unit || item.unit_name || 'ชิ้น';
+
+      if (item.is_extra_charge) {
+        billItems.push({
+          bill_id: null,
+          product_id: null,
+          name: item.name,
+          qty,
+          price: num(item.price),
+          cost: 0,
+          total: Number((num(item.price) * qty).toFixed(2)),
+          unit: sellUnit,
+        });
+        return;
+      }
+
+      const fresh = stockMap.get(String(item.id)) || productById(item.id) || item;
+      const rows = recipeMapForSale.get(String(item.id)) || [];
+      const positiveRows = rows.filter(row => num(row.quantity) > 0 && row.material_id);
+      const requiresRecipe = !!(item.__v66_recipe_sale || item.recipe_sale || item.recipe_product || rows.length || isMadeToOrderType(item) || isMadeToOrderType(fresh));
+
+      if (requiresRecipe) {
+        if (!positiveRows.length) {
+          errors.push(`${item.name || fresh.name || item.id}: ยังไม่มีสูตรสินค้าสำหรับตัดวัตถุดิบ`);
+          return;
+        }
+
+        let costPerSellUnit = 0;
+        positiveRows.forEach(row => {
+          const material = stockMap.get(String(row.material_id));
+          const perBase = num(row.quantity);
+          const needed = Number((perBase * baseQty).toFixed(6));
+          if (!material) {
+            errors.push(`${item.name}: ไม่พบวัตถุดิบ ${row.material_id}`);
+            return;
+          }
+          costPerSellUnit += perBase * num(material.cost) * conv;
+          addDeduction(
+            deductions,
+            material,
+            needed,
+            'recipe',
+            `${item.name || fresh.name} ${fmt(qty)} ${sellUnit}`
+          );
+        });
+
+        billItems.push({
+          bill_id: null,
+          product_id: item.id,
+          name: item.name || fresh.name,
+          qty,
+          price: num(item.price),
+          cost: Number(costPerSellUnit.toFixed(6)),
+          total: Number((num(item.price) * qty).toFixed(2)),
+          unit: sellUnit,
+        });
+        return;
+      }
+
+      if (!fresh?.id) {
+        errors.push(`${item.name || item.id}: ไม่พบข้อมูลสินค้า`);
+        return;
+      }
+      addDeduction(
+        deductions,
+        fresh,
+        baseQty,
+        'sale',
+        `${item.name || fresh.name} ${fmt(qty)} ${sellUnit}`
+      );
+      billItems.push({
+        bill_id: null,
+        product_id: item.id,
+        name: item.name || fresh.name,
+        qty,
+        price: num(item.price),
+        cost: Number((num(fresh.cost || item.cost) * conv).toFixed(6)),
+        total: Number((num(item.price) * qty).toFixed(2)),
+        unit: sellUnit,
+      });
+    });
+
+    deductions.forEach(row => {
+      const before = num(row.product?.stock);
+      if (row.qty > before + 0.000001) {
+        errors.push(`${row.product?.name || row.product?.id}: ต้องใช้ ${fmt(row.qty)} ${row.product?.unit || ''} แต่เหลือ ${fmt(before)} ${row.product?.unit || ''}`);
+      }
+    });
+
+    return { billItems, deductions: [...deductions.values()], errors };
+  }
+
+  function recipeSaleBlockError(errors) {
+    const error = new Error('วัตถุดิบไม่พอหรือสูตรไม่ครบ');
+    error.__v66SaleBlocked = true;
+    error.details = errors || [];
+    return error;
+  }
+
+  async function showSaleBlocked(errors) {
+    const rows = (errors || []).slice(0, 8).map(row => `<li>${esc(row)}</li>`).join('');
+    if (typeof Swal !== 'undefined' && Swal.fire) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'ยังออกบิลไม่ได้',
+        html: `<div style="text-align:left;color:#475569;font-weight:750;line-height:1.65">
+          <div style="margin-bottom:10px">ระบบตรวจสูตรก่อนบันทึกบิลแล้วพบปัญหา:</div>
+          <ul style="margin:0;padding-left:20px">${rows}</ul>
+          <div style="margin-top:12px;color:#b91c1c;font-weight:900">ไม่มีการสร้างบิล และไม่มีการตัดสต็อก</div>
+        </div>`,
+        confirmButtonText: 'รับทราบ',
+        confirmButtonColor: '#dc2626',
+      });
+      return;
+    }
+    typeof toast === 'function' && toast((errors || ['วัตถุดิบไม่พอ'])[0], 'error');
+  }
+
+  async function insertSaleBill(info) {
+    const state = checkout();
+    const payload = {
+      date: new Date().toISOString(),
+      method: methodTH[state.method] || 'เงินสด',
+      total: num(state.total),
+      discount: num(state.discount),
+      received: num(state.received),
+      change: num(state.change),
+      customer_name: state.customer?.name || null,
+      customer_id: state.customer?.id || null,
+      customer_address: state.customer?.address || null,
+      customer_phone: state.customer?.phone || null,
+      staff_name: staffName(),
+      status: state.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
+    };
+    const basicPayload = { ...payload };
+    delete basicPayload.customer_address;
+    delete basicPayload.customer_phone;
+    const attempts = [
+      { ...payload, return_info: info },
+      payload,
+      { ...basicPayload, return_info: info },
+      basicPayload,
+    ];
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        const bill = await dbData(db.from('บิลขาย').insert(attempt).select().single(), 'บันทึกบิล');
+        if (!('return_info' in attempt)) {
+          try { await db.from('บิลขาย').update({ return_info: info }).eq('id', bill.id); } catch (_) {}
+        }
+        return bill;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error('บันทึกบิลไม่สำเร็จ');
+  }
+
+  async function applyStockDeduction(row, bill) {
+    const before = num(row.product?.stock);
+    const after = Number((before - row.qty).toFixed(6));
+    if (after < -0.000001) throw new Error(`${row.product?.name || row.product?.id}: สต็อกไม่พอ`);
+    const updated = await dbData(
+      db.from('สินค้า')
+        .update({ stock: Math.max(0, after), updated_at: new Date().toISOString() })
+        .eq('id', row.product.id)
+        .eq('stock', before)
+        .select('id'),
+      `ตัดสต็อก ${row.product?.name || row.product?.id}`
+    );
+    if (!updated?.length) {
+      throw new Error(`${row.product?.name || row.product?.id}: สต็อกถูกเปลี่ยนจากเครื่องอื่น กรุณาลองใหม่`);
+    }
+    await dbData(db.from('stock_movement').insert({
+      product_id: row.product.id,
+      product_name: row.product.name || row.product.id,
+      type: movementType(row),
+      direction: 'out',
+      qty: Number(row.qty.toFixed(6)),
+      stock_before: before,
+      stock_after: Math.max(0, after),
+      ref_id: bill.id,
+      ref_table: 'บิลขาย',
+      staff_name: staffName(),
+      note: `บิล #${bill.bill_no || bill.id}: ${row.labels.slice(0, 4).join(', ')}`,
+    }), `บันทึกประวัติสต็อก ${row.product?.name || row.product?.id}`);
+  }
+
+  async function saleV66RecipeAware(originalSale, self, args) {
     sanitizeExtraChargesBeforeSale();
-    return state.originalSale?.apply(this, arguments);
+    const snapshot = cartList().map(item => ({ ...item }));
+    const hasRecipeCandidate = snapshot.some(item => {
+      if (!item || item.is_extra_charge) return false;
+      const product = productById(item.id);
+      return !!(item.__v66_recipe_sale || item.recipe_sale || item.recipe_product || hasRecipe(item.id) || isMadeToOrderType(item) || isMadeToOrderType(product));
+    });
+    if (!hasRecipeCandidate) return originalSale?.apply(self, args);
+
+    if (window.isProcessingPayment) return;
+    window.isProcessingPayment = true;
+    let bill = null;
+    try {
+      if (!snapshot.length) throw new Error('ไม่มีสินค้าในตะกร้า');
+      if (typeof v9ShowOverlay === 'function') v9ShowOverlay('กำลังตรวจสูตรและตัดสต็อก...', 'ตรวจวัตถุดิบก่อนออกบิล');
+      const state = checkout();
+      const session = await dbData(
+        db.from('cash_session').select('*').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle(),
+        'โหลดรอบเงินสด'
+      );
+      if (state.customer?.id) {
+        try {
+          const customer = await dbData(db.from('customer').select('address,phone').eq('id', state.customer.id).maybeSingle(), 'โหลดข้อมูลลูกค้า');
+          if (customer) {
+            state.customer.address = customer.address || state.customer.address || '';
+            state.customer.phone = customer.phone || state.customer.phone || '';
+          }
+        } catch (_) {}
+      }
+
+      const plan = await buildRecipeSalePlan(snapshot);
+      if (plan.errors.length) throw recipeSaleBlockError(plan.errors);
+
+      const info = saleReturnInfo(snapshot);
+      bill = await insertSaleBill(info);
+      const billRows = plan.billItems.map(item => ({ ...item, bill_id: bill.id }));
+      if (billRows.length) await dbData(db.from('รายการในบิล').insert(billRows), 'บันทึกรายการในบิล');
+      for (const row of plan.deductions) {
+        await applyStockDeduction(row, bill);
+      }
+
+      if (state.method === 'cash' && session && typeof window.recordCashTx === 'function') {
+        let changeDenoms = state.changeDenominations || {};
+        if (!Object.values(changeDenoms || {}).some(v => Number(v) > 0) && num(state.change) > 0 && typeof calcChangeDenominations === 'function') {
+          changeDenoms = calcChangeDenominations(num(state.change));
+        }
+        await window.recordCashTx({
+          sessionId: session.id,
+          type: 'ขาย',
+          direction: 'in',
+          amount: num(state.received),
+          changeAmt: num(state.change),
+          netAmount: num(state.total),
+          refId: bill.id,
+          refTable: 'บิลขาย',
+          denominations: state.receivedDenominations || null,
+          changeDenominations: changeDenoms || null,
+          note: null,
+        });
+      }
+
+      if (state.customer?.id) {
+        const customer = await dbData(db.from('customer').select('total_purchase,visit_count,debt_amount').eq('id', state.customer.id).maybeSingle(), 'โหลดข้อมูลลูกค้า');
+        await dbData(db.from('customer').update({
+          total_purchase: num(customer?.total_purchase) + num(state.total),
+          visit_count: num(customer?.visit_count) + 1,
+          debt_amount: state.method === 'debt'
+            ? num(customer?.debt_amount) + num(state.total)
+            : num(customer?.debt_amount),
+        }).eq('id', state.customer.id), 'อัปเดตข้อมูลลูกค้า');
+      }
+
+      typeof logActivity === 'function' && logActivity('ขายสินค้า', `บิล #${bill.bill_no || bill.id} ฿${fmt(state.total)}`, bill.id, 'บิลขาย');
+      typeof sendToDisplay === 'function' && sendToDisplay({ type: 'thanks', billNo: bill.bill_no, total: state.total });
+      const bItems = await dbData(db.from('รายการในบิล').select('*').eq('bill_id', bill.id), 'โหลดรายการในบิล');
+      setCart([]);
+      await loadProducts?.();
+      window.renderCart?.();
+      window.renderProductGrid?.();
+      updateHomeStats?.();
+      if (typeof v9HideOverlay === 'function') v9HideOverlay();
+      typeof closeCheckout === 'function' && closeCheckout();
+
+      const { value: printChoice } = typeof Swal !== 'undefined' && Swal.fire
+        ? await Swal.fire({
+          icon: 'success',
+          title: `บิล #${bill.bill_no || ''} สำเร็จ`,
+          html: `<div style="font-size:28px;font-weight:950;color:#16a34a;margin:8px 0">฿${fmt(bill.total)}</div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+              <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='80mm'" style="padding:14px 18px;border-radius:12px;border:2px solid #dc2626;background:#fff5f5;color:#dc2626;font-weight:900;cursor:pointer">80mm</button>
+              <button onclick="Swal.getConfirmButton().click();window._v9PrintFmt='A4'" style="padding:14px 18px;border-radius:12px;border:2px solid #2563eb;background:#eff6ff;color:#2563eb;font-weight:900;cursor:pointer">A4</button>
+              <button onclick="Swal.getDenyButton().click()" style="padding:14px 18px;border-radius:12px;border:2px solid #d1d5db;background:#f9fafb;color:#64748b;font-weight:900;cursor:pointer">ข้าม</button>
+            </div>`,
+          showConfirmButton: true,
+          showDenyButton: true,
+          showCancelButton: false,
+          confirmButtonText: '',
+          denyButtonText: '',
+          didOpen: () => {
+            document.querySelectorAll('.swal2-confirm,.swal2-deny').forEach(button => { button.style.display = 'none'; });
+            window._v9PrintFmt = null;
+          },
+          timer: 15000,
+          timerProgressBar: true,
+        })
+        : {};
+      const printFmt = window._v9PrintFmt || (printChoice || null);
+      if (printFmt && typeof printReceipt === 'function') printReceipt(bill, bItems || [], printFmt);
+      window._v9PrintFmt = null;
+      return bill;
+    } catch (error) {
+      if (typeof v9HideOverlay === 'function') v9HideOverlay();
+      if (error?.__v66SaleBlocked) {
+        await showSaleBlocked(error.details);
+      } else {
+        console.error('[v66 recipe sale]', error);
+        if (bill?.id) {
+          try {
+            await db.from('บิลขาย').update({
+              status: 'รอตรวจสอบ',
+              note: 'บันทึกไม่ครบ: ' + (error.message || error),
+            }).eq('id', bill.id);
+          } catch (_) {}
+        }
+        typeof toast === 'function' && toast('บันทึกขายไม่สำเร็จ: ' + (error.message || error), 'error');
+      }
+    } finally {
+      window.isProcessingPayment = false;
+    }
+  }
+
+  async function saleV66() {
+    return saleV66RecipeAware(state.originalSale, this, arguments);
+  }
+
+  function wrapSaleFunction(name) {
+    const original = window[name];
+    if (typeof original !== 'function' || original.__v66RecipeSaleWrapper) return;
+    const wrapped = async function () {
+      return saleV66RecipeAware(original, this, arguments);
+    };
+    wrapped.__v66RecipeSaleWrapper = true;
+    wrapped.__v66ExtraSale = true;
+    wrapped.__v36safe = original.__v36safe;
+    try { Object.defineProperty(wrapped, '__v58Guarded', { value: true }); } catch (_) {}
+    setGlobal(name, wrapped);
   }
 
   function installStyles() {
@@ -871,9 +1554,19 @@
     style.id = 'v66-pos-recipe-style';
     style.textContent = `
       .product-card,.product-list-item{position:relative}
-      .v66-recipe-badge{position:absolute;left:8px;top:8px;z-index:5;border:1px solid #a7f3d0;background:#ecfdf5;color:#047857;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:950;box-shadow:0 10px 22px rgba(4,120,87,.13)}
-      .product-card[data-v66-recipe="1"]:not(.out-of-stock){border-color:#a7f3d0;box-shadow:0 8px 22px rgba(4,120,87,.08)}
+      .v66-recipe-badge{position:absolute;left:8px;top:8px;z-index:5;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:900;box-shadow:none}
+      .product-card[data-v66-recipe="1"]:not(.out-of-stock){border-color:#dbeafe;box-shadow:0 8px 20px rgba(15,23,42,.05);background:#fff}
+      .product-list-item[data-v66-recipe="1"]:not(.out-of-stock){border-color:#dbeafe;background:#fff}
       .product-card[data-v66-recipe="1"] .product-sku{color:#94a3b8;font-weight:750;font-size:11px}
+      .v66-recipe-capacity{margin:7px 0 6px;border:1px solid #dbeafe;background:#f8fafc;border-radius:10px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:none}
+      .v66-recipe-capacity span{font-size:10px;line-height:1;color:#64748b;font-weight:900;letter-spacing:0;text-transform:none}
+      .v66-recipe-capacity b{font-size:14px;line-height:1.1;color:#0f766e;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v66-recipe-capacity.compact{display:inline-flex;margin:5px 0 0;min-width:120px;padding:5px 8px;border-radius:999px;align-items:center;gap:7px}
+      .v66-recipe-capacity.compact b{font-size:12px}
+      .v66-recipe-capacity.bad{border-color:#fecaca;background:#fff7f7}
+      .v66-recipe-capacity.bad span,.v66-recipe-capacity.bad b{color:#b91c1c}
+      .product-card[data-v66-recipe="1"] .product-stock:not(.out),.product-list-item[data-v66-recipe="1"] .product-stock:not(.out){display:inline-flex;align-items:center;border:1px solid #86efac;background:#f0fdf4;color:#047857!important;border-radius:999px;padding:3px 8px;font-weight:950}
+      .product-card[data-v66-recipe="1"].out-of-stock .product-stock,.product-list-item[data-v66-recipe="1"].out-of-stock .product-stock{display:inline-flex;align-items:center;border:1px solid #fecaca;background:#fff1f2;color:#b91c1c!important;border-radius:999px;padding:3px 8px;font-weight:950}
       .v66-extra-btn{width:38px;height:38px;border:0;border-radius:12px;background:#fff;color:#dc2626;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
       .v66-extra-btn:hover{background:#fff1f2}
       .v66-extra-modal{display:grid;gap:16px;text-align:left}
@@ -896,45 +1589,53 @@
       .v66-recipe-inventory-btn{height:38px;border:1px solid #99f6e4;background:#f0fdfa;color:#0f766e;border-radius:12px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font:900 12px var(--font-thai,'Prompt'),sans-serif;cursor:pointer}
       .v66-recipe-inventory-btn:hover{background:#ccfbf1}
       .v66-recipe-inventory-btn i{font-size:18px}
+      .v66-recipe-stock-pill{display:inline-flex;align-items:center;justify-content:center;min-height:28px;border:1px solid #86efac;background:#f0fdf4;color:#047857;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:950;white-space:nowrap}
+      .v66-recipe-stock-pill.bad{border-color:#fecaca;background:#fff1f2;color:#b91c1c}
     `;
     document.head.appendChild(style);
   }
 
   function installCore() {
     installStyles();
-    if (!window.renderProductGrid?.__v66RecipeGrid) {
-      if (window.renderProductGrid && !window.renderProductGrid.__v66RecipeGrid) state.originalRenderProductGrid = window.renderProductGrid;
+    if (window.renderProductGrid !== renderProductGridV66) {
+      if (window.renderProductGrid && window.renderProductGrid !== renderProductGridV66) state.originalRenderProductGrid = window.renderProductGrid;
       renderProductGridV66.__v66RecipeGrid = true;
       try {
         Object.defineProperty(renderProductGridV66, '__v50PromoCat', { value: true, configurable: true });
         Object.defineProperty(renderProductGridV66, '__v59PromoGuarded', { value: true, configurable: true });
+        Object.defineProperty(renderProductGridV66, '__v36limited', { value: true, configurable: true });
+        Object.defineProperty(renderProductGridV66, '__v36bw', { value: true, configurable: true });
       } catch (_) {}
       setGlobal('renderProductGrid', renderProductGridV66);
     }
-    if (!window.addToCart?.__v66RecipeAdd) {
-      if (window.addToCart && !window.addToCart.__v66RecipeAdd) state.originalAddToCart = window.addToCart;
+    if (window.addToCart !== addToCartV66) {
+      if (window.addToCart && window.addToCart !== addToCartV66) state.originalAddToCart = window.addToCart;
       addToCartV66.__v66RecipeAdd = true;
+      addToCartV66.__v36instant = true;
       setGlobal('addToCart', addToCartV66);
     }
-    if (!window.updateCartQty?.__v66RecipeQty) {
-      if (window.updateCartQty && !window.updateCartQty.__v66RecipeQty) state.originalUpdateCartQty = window.updateCartQty;
+    if (window.updateCartQty !== updateCartQtyV66) {
+      if (window.updateCartQty && window.updateCartQty !== updateCartQtyV66) state.originalUpdateCartQty = window.updateCartQty;
       updateCartQtyV66.__v66RecipeQty = true;
+      updateCartQtyV66.__v36instant = true;
       setGlobal('updateCartQty', updateCartQtyV66);
     }
-    if (window.completeSale && !window.completeSale.__v66ExtraSale) {
-      state.originalSale = window.completeSale;
-      saleV66.__v66ExtraSale = true;
-      setGlobal('completeSale', saleV66);
-    }
+    wrapSaleFunction('completeSale');
+    wrapSaleFunction('completePayment');
+    wrapSaleFunction('v4CompletePayment');
+    wrapSaleFunction('v9Sale');
     patchUnitConfirm();
     patchInventoryGuards();
     enhanceCartControls();
+    installRecipeCardObserver();
+    scheduleRecipeCardDecorate();
     setTimeout(protectRecipeInventoryRows, 0);
     setGlobal('v66ReloadRecipes', async () => {
       state.loadedAt = 0;
       await loadRecipes(true);
       syncRecipeFields();
       window.renderProductGrid?.();
+      scheduleRecipeCardDecorate();
       return state.recipes;
     });
     setGlobal('v66SaveExtraCharge', () => addExtraCharge(
@@ -942,6 +1643,22 @@
       document.getElementById('v66ExtraAmount')?.value
     ));
     setGlobal('v66ShowExtraChargeModal', showExtraChargeModal);
+    setGlobal('v66RecipeAddToCart', recipeAddToCartV66);
+    setGlobal('v66RecipeAwareAddToCart', addToCartV66);
+    setGlobal('v66RecipeAwareUpdateCartQty', updateCartQtyV66);
+    setGlobal('v66HasRecipe', productId => !!recipeProductIdFor(productId));
+    setGlobal('v66RecipeRemaining', productId => {
+      const id = recipeProductIdFor(productId);
+      return id ? remainingRecipeBaseQty(id) : 0;
+    });
+    setGlobal('v66RecipeStockText', productId => {
+      const product = recipeProductFor(productId) || productById(productId);
+      if (!product) return '';
+      if (hasRecipe(product.id)) return stockText(product);
+      return shouldRecipeHandleProduct(product) ? 'สูตรไม่ครบ' : stockText(product);
+    });
+    setGlobal('v66RecipeShouldHandleProduct', shouldRecipeHandleProduct);
+    setGlobal('v66ShouldHideProductInPos', shouldHideProductInPos);
   }
 
   async function boot() {
@@ -949,11 +1666,14 @@
     syncRecipeFields();
     window.renderProductGrid?.();
     setTimeout(enhanceCartControls, 0);
+    setTimeout(installRecipeCardObserver, 0);
+    scheduleRecipeCardDecorate();
     loadRecipes(true).then(() => {
       syncRecipeFields();
       window.renderProductGrid?.();
       setTimeout(enhanceCartControls, 0);
       setTimeout(protectRecipeInventoryRows, 0);
+      scheduleRecipeCardDecorate();
     });
   }
 
@@ -977,12 +1697,14 @@
     if (!card) return;
     event.preventDefault();
     event.stopPropagation();
-    addToCartV66(card.dataset.v66ProductId);
+    recipeAddToCartV66(card.dataset.v66ProductId);
   }, true);
 
   boot();
   [500, 1500, 3000].forEach(delay => setTimeout(() => {
     installCore();
     setTimeout(enhanceCartControls, 0);
+    setTimeout(installRecipeCardObserver, 0);
+    scheduleRecipeCardDecorate();
   }, delay));
 })();
