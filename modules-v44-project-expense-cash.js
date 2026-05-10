@@ -123,6 +123,154 @@
     const panel = document.getElementById('v44-cash-panel');
     if (panel) panel.style.display = method === 'เงินสด' ? '' : 'none';
     window.v44UpdateExpenseCash();
+    if (method === 'เงินสด' && num(document.getElementById('v44-exp-amt')?.value) > 0) {
+      setTimeout(() => window.v44OpenExpenseCashCounter?.(), 50);
+    }
+  };
+
+  window.v44ResetExpenseCashCount = function () {
+    DENOMS.forEach(d => {
+      const input = document.getElementById('v44-denom-' + d.value);
+      if (input) input.value = 0;
+    });
+    window._v44ExpenseCashStack = [];
+    window.v44UpdateExpenseCashCounter?.();
+    window.v44UpdateExpenseCash();
+  };
+
+  window.v44OpenExpenseCashCounter = async function () {
+    const amount = num(document.getElementById('v44-exp-amt')?.value);
+    if (amount <= 0) {
+      toast?.('กรุณากรอกยอดรายจ่ายก่อนนับเงินสด', 'warning');
+      document.getElementById('v44-exp-amt')?.focus();
+      return;
+    }
+    try {
+      const session = await getOpenSession();
+      if (!session) {
+        toast?.('ยังไม่ได้เปิดลิ้นชักเงินสด', 'warning');
+        return;
+      }
+    } catch (error) {
+      toast?.('ตรวจสอบลิ้นชักเงินสดไม่สำเร็จ: ' + error.message, 'error');
+      return;
+    }
+
+    document.getElementById('v44-count-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'v44-count-modal';
+    modal.className = 'v67-count-modal';
+    modal.innerHTML = `
+      <div class="v67-count-card">
+        <div class="v67-count-top">
+          <div>
+            <div class="v67-count-title"><i class="material-icons-round">point_of_sale</i>นับเงินสดรายจ่าย</div>
+            <div class="v67-count-sub">กดแบงค์/เหรียญที่จะหยิบออกจากลิ้นชัก ระบบจะไม่ให้เกินยอดรายจ่าย</div>
+          </div>
+          <div class="v67-count-target">ยอดรายจ่าย<b>฿${fmt(amount)}</b></div>
+        </div>
+        <div class="v67-count-section">
+          <h4><i class="material-icons-round" style="font-size:17px;color:#16a34a">payments</i>ธนบัตรที่จ่าย</h4>
+          <div class="v67-count-grid">
+            ${DENOMS.filter(d => d.type === 'bill').map(d => `
+              <button type="button" class="v67-count-btn" data-value="${d.value}" onclick="v44ExpenseCashAdd(${d.value})">
+                <span class="v67-count-badge" id="v44-count-badge-${d.value}">0</span>
+                <div class="v67-count-note" style="background:${d.color}">${d.label}</div>
+                <span class="v67-count-label">฿${d.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="v67-count-section">
+          <h4><i class="material-icons-round" style="font-size:17px;color:#f59e0b">monetization_on</i>เหรียญที่จ่าย</h4>
+          <div class="v67-count-grid coin">
+            ${DENOMS.filter(d => d.type === 'coin').map(d => `
+              <button type="button" class="v67-count-btn" data-value="${d.value}" onclick="v44ExpenseCashAdd(${d.value})">
+                <span class="v67-count-badge" id="v44-count-badge-${d.value}">0</span>
+                <div class="v67-count-coin" style="background:${d.color}">${d.label}</div>
+                <span class="v67-count-label">฿${d.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="v67-count-sum">
+          <div><span>นับแล้ว</span><b id="v44-popup-count-total">฿0</b></div>
+          <div id="v44-popup-count-diff" class="bad" style="text-align:right"><span>ยังขาด</span><b>฿${fmt(amount)}</b></div>
+        </div>
+        <div class="v67-count-actions">
+          <button type="button" class="v67-btn" onclick="document.getElementById('v44-count-modal')?.remove()"><i class="material-icons-round" style="font-size:17px">close</i>ยกเลิก</button>
+          <button type="button" class="v67-btn" onclick="v44ExpenseCashUndo()"><i class="material-icons-round" style="font-size:17px">undo</i>ย้อน 1 ครั้ง</button>
+          <button type="button" class="v67-btn danger" onclick="v44ResetExpenseCashCount()"><i class="material-icons-round" style="font-size:17px">restart_alt</i>ล้าง</button>
+          <button id="v44-count-confirm" type="button" class="v67-btn good" onclick="v44ConfirmExpenseCashCount()" disabled><i class="material-icons-round" style="font-size:17px">check</i>ยืนยันยอดเงินสด</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', event => {
+      if (event.target === modal) modal.remove();
+    });
+    window.v44UpdateExpenseCashCounter();
+  };
+
+  window.v44ExpenseCashAdd = function (value) {
+    const target = num(document.getElementById('v44-exp-amt')?.value);
+    const current = countTotal();
+    if (current + value > target) {
+      toast?.('ยอดเงินสดจะเกินยอดรายจ่าย กดแบงค์/เหรียญมูลค่าน้อยลงครับ', 'warning');
+      return;
+    }
+    const input = document.getElementById('v44-denom-' + value);
+    if (input) input.value = num(input.value) + 1;
+    window._v44ExpenseCashStack = (window._v44ExpenseCashStack || []).concat(value);
+    window.v44UpdateExpenseCashCounter();
+  };
+
+  window.v44ExpenseCashUndo = function () {
+    const stack = window._v44ExpenseCashStack || [];
+    const last = stack.pop();
+    if (!last) return;
+    const input = document.getElementById('v44-denom-' + last);
+    if (input) input.value = Math.max(0, num(input.value) - 1);
+    window._v44ExpenseCashStack = stack;
+    window.v44UpdateExpenseCashCounter();
+  };
+
+  window.v44UpdateExpenseCashCounter = function () {
+    const target = num(document.getElementById('v44-exp-amt')?.value);
+    const counts = getCounts();
+    const total = countTotal(counts);
+    const totalEl = document.getElementById('v44-popup-count-total');
+    if (totalEl) totalEl.textContent = `฿${fmt(total)}`;
+    DENOMS.forEach(d => {
+      const badge = document.getElementById(`v44-count-badge-${d.value}`);
+      const btn = document.querySelector(`#v44-count-modal .v67-count-btn[data-value="${d.value}"]`);
+      if (badge) badge.textContent = String(counts[d.value] || 0);
+      if (btn) {
+        btn.classList.toggle('has', num(counts[d.value]) > 0);
+        btn.disabled = target > 0 && total + d.value > target;
+      }
+    });
+    const diff = Math.max(0, target - total);
+    const diffEl = document.getElementById('v44-popup-count-diff');
+    if (diffEl) {
+      diffEl.className = diff === 0 ? 'ok' : 'bad';
+      diffEl.innerHTML = diff === 0 ? '<span>ครบยอด</span><b>พอดี</b>' : `<span>ยังขาด</span><b>฿${fmt(diff)}</b>`;
+    }
+    const confirm = document.getElementById('v44-count-confirm');
+    if (confirm) confirm.disabled = target <= 0 || total !== target;
+    window.v44UpdateExpenseCash();
+  };
+
+  window.v44ConfirmExpenseCashCount = function () {
+    const amount = num(document.getElementById('v44-exp-amt')?.value);
+    const total = countTotal();
+    if (amount <= 0 || total !== amount) {
+      toast?.('ยอดเงินสดต้องตรงกับยอดรายจ่าย ห้ามขาดหรือเกิน', 'warning');
+      return;
+    }
+    document.getElementById('v44-count-modal')?.remove();
+    toast?.('ยืนยันยอดเงินสดครบพอดีแล้ว', 'success');
+    window.v44UpdateExpenseCash();
   };
 
   window.v44UpdateExpenseCash = function () {
@@ -142,13 +290,13 @@
         diffEl.textContent = 'วิธีนี้ไม่หักลิ้นชักเงินสด';
       } else if (amount <= 0) {
         diffEl.className = 'v44-status warn';
-        diffEl.textContent = 'กรอกยอดรายจ่ายก่อน แล้วนับแบงค์/เหรียญที่จะหยิบออกจากลิ้นชัก';
+        diffEl.textContent = 'กรอกยอดรายจ่ายก่อน แล้วเปิดหน้านับเงินสด';
       } else if (diff === 0) {
         diffEl.className = 'v44-status ok';
         diffEl.textContent = 'ยอดนับตรงกับรายจ่าย พร้อมหักออกจากลิ้นชัก';
       } else {
         diffEl.className = 'v44-status warn';
-        diffEl.textContent = diff > 0 ? `นับเกิน ฿${fmt(diff)}` : `ยังขาด ฿${fmt(Math.abs(diff))}`;
+        diffEl.textContent = 'กดนับเงินสดให้ตรงยอดรายจ่าย ห้ามขาดหรือเกิน';
       }
     }
     if (cashSum) cashSum.textContent = method === 'เงินสด' ? 'หักลิ้นชักทันที' : 'ไม่หักลิ้นชัก';
@@ -214,9 +362,11 @@
               <div class="v44-cash-panel" id="v44-cash-panel">
                 <div class="v44-cash-top">
                   <div><span>ยอดที่นับได้</span><b id="v44-count-total">฿0</b></div>
-                  <span>กรอกจำนวนใบ/เหรียญ</span>
+                  <button type="button" class="v44-btn" style="height:36px;padding:0 12px" onclick="v44OpenExpenseCashCounter()">
+                    <i class="material-icons-round" style="font-size:16px;vertical-align:middle">point_of_sale</i> นับเงินสด
+                  </button>
                 </div>
-                <div class="v44-denom-grid">
+                <div class="v44-denom-grid" style="display:none">
                   ${DENOMS.map(d => `
                     <div class="v44-denom">
                       <div class="v44-denom-face" style="background:${d.bg};color:${d.color}">
@@ -241,6 +391,7 @@
     requestAnimationFrame(() => document.getElementById('v44-expense-box')?.classList.add('open'));
     el.addEventListener('click', e => { if (e.target === el) el.remove(); });
     document.getElementById('v44-exp-amt')?.addEventListener('input', () => {
+      window.v44ResetExpenseCashCount?.();
       const amount = num(document.getElementById('v44-exp-amt')?.value);
       const sum = document.getElementById('v44-summary-amount');
       if (sum) sum.textContent = '฿' + fmt(amount);
@@ -261,6 +412,7 @@
     if (amount <= 0) { toast?.('กรุณากรอกจำนวนเงิน', 'warning'); return; }
     if (method === 'เงินสด' && denomTotal !== amount) {
       toast?.('ยอดนับแบงค์/เหรียญต้องตรงกับยอดรายจ่าย', 'warning');
+      window.v44OpenExpenseCashCounter?.();
       return;
     }
 

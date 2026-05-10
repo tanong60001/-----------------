@@ -285,9 +285,11 @@
       const remain    = Math.max(0, budget - billed);
       const totalCost = parseFloat(proj.total_goods_cost || 0) + parseFloat(proj.total_expenses || 0);
       const profit    = billed - totalCost;
+      const netProfit = budget - totalCost;
       const billPct   = budget > 0 ? Math.min(100, Math.round(billed / budget * 100)) : 0;
       const progClr   = billPct >= 90 ? '#34D399' : billPct >= 50 ? '#FBBF24' : '#60A5FA';
       const profClr   = profit >= 0 ? '#6EE7B7' : '#FCA5A5';
+      const netClr    = netProfit >= 0 ? '#FDE68A' : '#FCA5A5';
       const billTotal = bills.reduce((s, b) => s + (b.total || 0), 0);
       const expTotal  = exps.reduce((s, e) => s + (e.amount || 0), 0);
 
@@ -346,10 +348,10 @@
               <div class="v23-m-sub">${billPct}% ของงบ</div>
             </div>
             <div class="v23-m ca">
-              <i class="material-icons-round v23-m-ic">hourglass_top</i>
-              <div class="v23-m-lbl">คงเหลือเบิก</div>
-              <div class="v23-m-val">฿${pFmt(remain)}</div>
-              <div class="v23-m-sub">${100 - billPct}% ค้างอยู่</div>
+              <i class="material-icons-round v23-m-ic">${netProfit >= 0 ? 'savings' : 'trending_down'}</i>
+              <div class="v23-m-lbl">ยอดกำไรสุทธิ</div>
+              <div class="v23-m-val" style="color:${netClr}">฿${pFmt(Math.abs(netProfit))}</div>
+              <div class="v23-m-sub">หลังหักต้นทุนรวม</div>
             </div>
             <div class="v23-m cr">
               <i class="material-icons-round v23-m-ic">receipt_long</i>
@@ -525,9 +527,6 @@
         (!done && !isBilled
           ? '<div class="v23-ms-btns">' +
               '<button class="v23-bill-btn" onclick="v22BillSpecificMilestone(\'' + m.id + '\',\'' + projId + '\')">เบิกเงิน</button>' +
-              '<button class="v23-del-btn" onclick="v22DeleteMilestone(\'' + m.id + '\',\'' + projId + '\',' + m.amount + ')">' +
-                '<i class="material-icons-round">delete_outline</i>' +
-              '</button>' +
             '</div>'
           : '') +
       '</div>';
@@ -561,11 +560,6 @@
         '<div class="v23-exp-right">' +
           '<div class="v23-exp-amt" style="color:' + aClr + '">฿' + pFmt(ex.amount) + '</div>' +
         '</div>' +
-        (!done && !isGoods
-          ? '<button class="v23-del-btn" onclick="v22DeleteExpense(\'' + ex.id + '\',\'' + projId + '\',' + ex.amount + ',false)" style="margin-left:8px;">' +
-              '<i class="material-icons-round">delete_outline</i>' +
-            '</button>'
-          : '') +
       '</div>';
     }).join('');
   }

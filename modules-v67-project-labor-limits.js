@@ -22,6 +22,22 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[ch]));
   const uid = () => `lab_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const DENOMS = [
+    { value: 1000, label: '1,000', type: 'bill', color: '#8B5E3C', bg: '#F5E7DA' },
+    { value: 500, label: '500', type: 'bill', color: '#6B21A8', bg: '#F3E8FF' },
+    { value: 100, label: '100', type: 'bill', color: '#BE123C', bg: '#FFE4E6' },
+    { value: 50, label: '50', type: 'bill', color: '#1D4ED8', bg: '#DBEAFE' },
+    { value: 20, label: '20', type: 'bill', color: '#15803D', bg: '#DCFCE7' },
+    { value: 10, label: '10', type: 'coin', color: '#92400E', bg: '#FEF3C7' },
+    { value: 5, label: '5', type: 'coin', color: '#334155', bg: '#E2E8F0' },
+    { value: 2, label: '2', type: 'coin', color: '#475569', bg: '#F1F5F9' },
+    { value: 1, label: '1', type: 'coin', color: '#475569', bg: '#F8FAFC' },
+  ];
+
+  const staff = () => {
+    try { return localStorage.getItem('current_staff_name') || localStorage.getItem('staff_name') || 'System'; }
+    catch (_) { return 'System'; }
+  };
 
   function injectStyle() {
     if (document.getElementById('v67-project-labor-style')) return;
@@ -71,7 +87,69 @@
       .v67-guard.ok{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
       .v67-guard.warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
       .v67-guard.bad{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+      .v67-pay-modal{position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:99999;display:grid;place-items:center;padding:22px}
+      .v67-pay-card{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:24px;box-shadow:0 30px 80px rgba(15,23,42,.28);border:1px solid #e2e8f0}
+      .v67-pay-head{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start;padding:22px 24px;border-bottom:1px solid #e2e8f0}
+      .v67-pay-kicker{color:#2563eb;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}
+      .v67-pay-title{margin-top:5px;color:#0f172a;font-size:26px;font-weight:950;line-height:1.15}
+      .v67-pay-sub{margin-top:6px;color:#64748b;font-size:13px;font-weight:850}
+      .v67-pay-close{width:38px;height:38px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;color:#94a3b8;display:grid;place-items:center;cursor:pointer}
+      .v67-pay-body{padding:20px 24px;display:grid;gap:16px}
+      .v67-pay-hero{border:1px solid #bbf7d0;background:linear-gradient(135deg,#ecfdf5,#f8fafc);border-radius:18px;padding:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .v67-pay-metric{background:rgba(255,255,255,.82);border:1px solid #dbeafe;border-radius:14px;padding:12px}
+      .v67-pay-metric span{display:block;color:#64748b;font-size:11px;font-weight:950}
+      .v67-pay-metric b{display:block;margin-top:3px;color:#0f172a;font-size:21px;font-weight:950}
+      .v67-pay-metric.good b{color:#059669}.v67-pay-metric.warn b{color:#dc2626}
+      .v67-pay-fields{display:grid;grid-template-columns:1fr 220px;gap:12px}
+      .v67-field{display:grid;gap:6px}
+      .v67-field label{color:#475569;font-size:12px;font-weight:950}
+      .v67-field input,.v67-field textarea{width:100%;border:1.5px solid #cbd5e1;border-radius:13px;padding:12px 13px;font:900 14px var(--font-thai,'Prompt'),sans-serif;color:#0f172a;background:#fff;outline:none}
+      .v67-field textarea{min-height:76px;resize:vertical}
+      .v67-field input:focus,.v67-field textarea:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+      .v67-pay-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .v67-pay-method{height:48px;border-radius:14px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font:950 13px var(--font-thai,'Prompt'),sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+      .v67-pay-method.on{background:#eff6ff;border-color:#2563eb;color:#1d4ed8;box-shadow:0 10px 20px rgba(37,99,235,.1)}
+      .v67-cash-panel{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}
+      .v67-cash-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;color:#475569;font-weight:950}
+      .v67-cash-head b{color:#0f172a;font-size:18px}
+      .v67-denom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+      .v67-denom{display:grid;grid-template-columns:1fr 58px;gap:7px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:8px}
+      .v67-denom-face{height:44px;border-radius:10px;display:grid;place-items:center;text-align:center}
+      .v67-denom-face strong{font-size:13px}.v67-denom-face small{display:block;font-size:9px;font-weight:900;opacity:.75}
+      .v67-denom input{height:44px;border:1px solid #cbd5e1;border-radius:10px;text-align:center;font-weight:950;color:#0f172a}
+      .v67-cash-summary{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px}
+      .v67-cash-summary span{display:block;color:#64748b;font-size:11px;font-weight:950}
+      .v67-cash-summary b{display:block;margin-top:2px;color:#0f172a;font-size:20px;font-weight:950}
+      .v67-count-modal{position:fixed;inset:0;background:rgba(15,23,42,.58);z-index:100000;display:grid;place-items:center;padding:18px}
+      .v67-count-card{width:min(920px,100%);max-height:92vh;overflow:auto;background:#f7f3ef;border:5px solid #3b1f17;border-radius:28px;box-shadow:0 30px 90px rgba(15,23,42,.35);padding:24px}
+      .v67-count-top{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;margin-bottom:18px}
+      .v67-count-title{display:flex;align-items:center;gap:10px;color:#3b2721;font-size:26px;font-weight:950}
+      .v67-count-sub{margin-top:5px;color:#7c6259;font-size:13px;font-weight:850}
+      .v67-count-target{text-align:right;color:#7c6259;font-weight:950}
+      .v67-count-target b{display:block;color:#3b2721;font-size:32px;line-height:1.05}
+      .v67-count-section{margin-top:12px}
+      .v67-count-section h4{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:#5a4038;font-size:14px;font-weight:950}
+      .v67-count-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+      .v67-count-grid.coin{grid-template-columns:repeat(4,minmax(120px,1fr))}
+      .v67-count-btn{position:relative;min-height:118px;border:0;border-radius:18px;background:#fff;color:#3b2721;box-shadow:0 8px 0 rgba(59,31,23,.22),0 18px 38px rgba(59,31,23,.1);cursor:pointer;padding:10px;font:950 15px var(--font-thai,'Prompt'),sans-serif}
+      .v67-count-btn:hover{transform:translateY(-1px)}
+      .v67-count-btn:disabled{opacity:.42;cursor:not-allowed;transform:none}
+      .v67-count-note{height:78px;border-radius:14px;display:grid;place-items:center;color:#fff;font-size:24px;font-weight:950;border:4px solid rgba(255,255,255,.42)}
+      .v67-count-coin{width:70px;height:70px;margin:auto;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:23px;font-weight:950;border:4px solid rgba(255,255,255,.75);box-shadow:0 10px 22px rgba(15,23,42,.18)}
+      .v67-count-label{margin-top:9px;display:block;color:#5a4038}
+      .v67-count-badge{position:absolute;top:8px;right:8px;min-width:28px;height:28px;border-radius:999px;background:#ef4444;color:#fff;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:950}
+      .v67-count-btn.has .v67-count-badge{display:flex}
+      .v67-count-sum{margin-top:18px;background:#fff;border:2px solid #e7d9d1;border-radius:18px;padding:16px;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+      .v67-count-sum span{display:block;color:#7c6259;font-size:13px;font-weight:950}.v67-count-sum b{display:block;color:#3b2721;font-size:30px;font-weight:950}
+      .v67-count-sum .bad b{color:#ef4444}.v67-count-sum .ok b{color:#059669}
+      .v67-count-actions{margin-top:18px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+      .v67-pay-foot{padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #e2e8f0}
+      .v67-exp-searchbar{padding:14px 18px;border-top:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#fbfdff;display:flex;gap:10px;align-items:center}
+      .v67-exp-searchbar label{color:#475569;font-size:12px;font-weight:950;white-space:nowrap}
+      .v67-exp-search{flex:1;min-width:180px;border:1.5px solid #cbd5e1;border-radius:13px;padding:11px 13px;font:850 13px var(--font-thai,'Prompt'),sans-serif;outline:none}
+      .v67-exp-search:focus{border-color:#4f46e5;box-shadow:0 0 0 4px rgba(79,70,229,.08)}
       @media(max-width:760px){.v67-labor-head,.v67-labor-summary{grid-template-columns:1fr}.v67-labor-actions{justify-content:stretch}.v67-btn{width:100%}.v67-worker-money{grid-template-columns:1fr}}
+      @media(max-width:760px){.v67-pay-modal{padding:10px}.v67-pay-head,.v67-pay-body,.v67-pay-foot{padding-left:16px;padding-right:16px}.v67-pay-hero,.v67-pay-fields,.v67-pay-methods,.v67-cash-summary{grid-template-columns:1fr}.v67-pay-foot{display:grid}.v67-exp-searchbar{display:grid}.v67-count-card{padding:16px;border-width:3px}.v67-count-top,.v67-count-sum{grid-template-columns:1fr;text-align:left}.v67-count-target{text-align:left}.v67-count-grid,.v67-count-grid.coin{grid-template-columns:repeat(2,minmax(0,1fr))}}
     `;
     document.head.appendChild(style);
   }
@@ -176,8 +254,17 @@
     catch (error) { console.warn('[v67] delete remote labor budget:', error); }
   }
 
-  function noteHasPay(row, budgetId) {
-    return String(row?.notes || '').includes(`${PAY_MARK}${budgetId}`);
+  function noteHasPay(row, budget) {
+    const id = String(budget?.id || budget || '');
+    const note = String(row?.notes || '');
+    if (id && note.includes(`${PAY_MARK}${id}`)) return true;
+
+    // Backward compatible fallback for rows created before the dedicated labor modal:
+    // count only rows that clearly mention both the worker and labor context.
+    const name = String(budget?.name || '').trim().toLowerCase();
+    if (!name) return false;
+    const hay = `${row?.description || ''} ${row?.category || ''} ${note}`.toLowerCase();
+    return hay.includes(name) && (hay.includes('ค่าแรง') || hay.includes('labor'));
   }
 
   async function projectExpenses(projectId) {
@@ -195,7 +282,7 @@
   }
 
   function budgetStats(budget, expenses) {
-    const paid = (expenses || []).filter(row => noteHasPay(row, budget.id)).reduce((sum, row) => sum + num(row.amount), 0);
+    const paid = (expenses || []).filter(row => noteHasPay(row, budget)).reduce((sum, row) => sum + num(row.amount), 0);
     const limit = num(budget.budget);
     const remaining = Math.max(0, limit - paid);
     const pct = limit > 0 ? Math.min(100, Math.round((paid / limit) * 100)) : 0;
@@ -215,6 +302,35 @@
     };
   }
 
+  async function getOpenSession() {
+    const { data, error } = await db.from('cash_session')
+      .select('*').eq('status', 'open')
+      .order('opened_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  function getLaborPayCounts() {
+    const source = window._v67LaborCashCounts || {};
+    const counts = {};
+    DENOMS.forEach(d => { counts[d.value] = Math.max(0, Math.floor(num(source[d.value]))); });
+    return counts;
+  }
+
+  function laborPayCountTotal(counts = getLaborPayCounts()) {
+    return DENOMS.reduce((sum, d) => sum + (num(counts[d.value]) * d.value), 0);
+  }
+
+  function laborPayMethod() {
+    return document.getElementById('v67-pay-method')?.value || 'เงินสด';
+  }
+
+  function laborPayNote(budgetId, workerName, notes) {
+    const cleanNote = String(notes || '').trim();
+    const meta = `${PAY_MARK}${budgetId} | ช่าง:${workerName}`;
+    return cleanNote ? `${meta} | ${cleanNote}` : meta;
+  }
+
   function hideBudgetExpenseRows() {
     let visible = 0;
     document.querySelectorAll('#page-projects .v23-exp-row,.v14-expense-row').forEach(row => {
@@ -232,11 +348,39 @@
     if (v22Count) v22Count.textContent = String(visible);
   }
 
+  function installExpenseSearch() {
+    const area = document.querySelector('#page-projects #v23c-exp')
+      || document.querySelector('#page-projects #v22content-exp')
+      || document.querySelector('#page-projects .v14-expense-list')?.parentElement;
+    if (!area || area.querySelector('#v67-exp-search')) return;
+    const bar = document.createElement('div');
+    bar.className = 'v67-exp-searchbar';
+    bar.innerHTML = `
+      <label for="v67-exp-search"><i class="material-icons-round" style="font-size:16px;vertical-align:middle">search</i> ค้นหารายจ่าย</label>
+      <input id="v67-exp-search" class="v67-exp-search" type="search" placeholder="ค้นหาชื่อช่าง / รายการ / หมวดหมู่..." oninput="v67FilterProjectExpenses()">
+    `;
+    const anchor = area.querySelector('.v23-abar') || area.firstElementChild;
+    if (anchor) anchor.insertAdjacentElement('afterend', bar);
+    else area.prepend(bar);
+  }
+
+  window.v67FilterProjectExpenses = function () {
+    const q = String(document.getElementById('v67-exp-search')?.value || '').trim().toLowerCase();
+    document.querySelectorAll('#page-projects .v23-exp-row,#page-projects .v14-expense-row').forEach(row => {
+      if (row.dataset.v67LaborBudgetRow === '1') {
+        row.style.display = 'none';
+        return;
+      }
+      row.style.display = !q || (row.textContent || '').toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+
   async function decorateProjectPage(projectId) {
     injectStyle();
     const root = document.querySelector('#page-projects .v23-wrap') || document.querySelector('#page-projects .v14-proj-container');
     if (!root) return;
     hideBudgetExpenseRows();
+    installExpenseSearch();
     document.getElementById('v67-labor-panel')?.remove();
 
     const summary = await laborSummary(projectId);
@@ -250,7 +394,7 @@
               <div class="v67-worker-chip">วงเงินเหมา</div>
             </div>
             <button class="v67-btn good" type="button" onclick="v67OpenLaborPay('${esc(projectId)}','${esc(row.budget.id)}')">
-              <i class="material-icons-round" style="font-size:16px">payments</i>จ่าย
+              <i class="material-icons-round" style="font-size:16px">payments</i>จ่ายค่าแรง
             </button>
           </div>
           <div class="v67-worker-money">
@@ -262,7 +406,6 @@
           <div class="v67-bar"><span style="width:${row.pct}%;background:${danger ? '#dc2626' : 'linear-gradient(90deg,#22c55e,#2563eb)'}"></span></div>
           <div class="v67-worker-actions">
             <button class="v67-btn" type="button" onclick="v67OpenLaborLimitModal('${esc(projectId)}','${esc(row.budget.id)}')"><i class="material-icons-round" style="font-size:16px">edit</i>แก้ไข</button>
-            <button class="v67-btn danger" type="button" onclick="v67DeleteLaborLimit('${esc(projectId)}','${esc(row.budget.id)}')"><i class="material-icons-round" style="font-size:16px">delete</i>ลบ</button>
           </div>
         </article>
       `;
@@ -386,8 +529,407 @@
   };
 
   window.v67OpenLaborPay = async function (projectId, budgetId) {
-    if (typeof window.v14AddExpense === 'function') {
-      await window.v14AddExpense(projectId, { laborId: budgetId });
+    injectStyle();
+    const summary = await laborSummary(projectId);
+    const row = summary.stats.find(item => String(item.budget.id) === String(budgetId));
+    if (!row) {
+      toast?.('ไม่พบวงเงินค่าแรงเหมาช่างที่เลือก', 'error');
+      return;
+    }
+    if (row.remaining <= 0) {
+      toast?.(`${row.budget.name} ใช้วงเงินค่าแรงครบแล้ว`, 'warning');
+      return;
+    }
+
+    document.getElementById('v67-labor-pay-modal')?.remove();
+    window._v67LaborPayContext = { projectId, budgetId, row };
+    window._v67LaborCashCounts = {};
+    window._v67LaborCashStack = [];
+    const defaultDesc = `ค่าแรงเหมา - ${row.budget.name}`;
+    const modal = document.createElement('div');
+    modal.id = 'v67-labor-pay-modal';
+    modal.className = 'v67-pay-modal';
+    modal.innerHTML = `
+      <div id="v67-labor-pay-box" class="v67-pay-card">
+        <div class="v67-pay-head">
+          <div>
+            <div class="v67-pay-kicker">LABOR PAYMENT</div>
+            <div class="v67-pay-title">จ่ายค่าแรง ${esc(row.budget.name)}</div>
+            <div class="v67-pay-sub">บันทึกเป็นรายจ่ายโครงการพร้อมหักวงเงินเหมาของช่างคนนี้โดยตรง</div>
+          </div>
+          <button class="v67-pay-close" type="button" onclick="document.getElementById('v67-labor-pay-modal')?.remove()">
+            <i class="material-icons-round">close</i>
+          </button>
+        </div>
+        <div class="v67-pay-body">
+          <div class="v67-pay-hero">
+            <div class="v67-pay-metric"><span>วงเงินตั้งไว้</span><b>฿${fmt(row.limit)}</b></div>
+            <div class="v67-pay-metric warn"><span>จ่ายแล้ว</span><b>฿${fmt(row.paid)}</b></div>
+            <div class="v67-pay-metric good"><span>คงเหลือจ่ายได้</span><b id="v67-pay-remain">฿${fmt(row.remaining)}</b></div>
+          </div>
+
+          <div class="v67-pay-fields">
+            <div class="v67-field">
+              <label>รายการรายจ่าย</label>
+              <input id="v67-labor-desc" value="${esc(defaultDesc)}" placeholder="ค่าแรงเหมา - ชื่อช่าง">
+            </div>
+            <div class="v67-field">
+              <label>จำนวนเงิน</label>
+              <input id="v67-labor-amount" type="number" min="1" max="${row.remaining}" step="1" placeholder="0" oninput="v67ResetLaborCashCount(true);v67UpdateLaborPay()">
+            </div>
+          </div>
+
+          <div class="v67-field">
+            <label>วิธีจ่ายเงิน</label>
+            <input id="v67-pay-method" type="hidden" value="เงินสด">
+            <div class="v67-pay-methods">
+              <button type="button" class="v67-pay-method on" data-method="เงินสด" onclick="v67SetLaborPayMethod('เงินสด')"><i class="material-icons-round">payments</i>เงินสด</button>
+              <button type="button" class="v67-pay-method" data-method="โอน" onclick="v67SetLaborPayMethod('โอน')"><i class="material-icons-round">account_balance</i>โอน</button>
+              <button type="button" class="v67-pay-method" data-method="อื่นๆ" onclick="v67SetLaborPayMethod('อื่นๆ')"><i class="material-icons-round">more_horiz</i>อื่นๆ</button>
+            </div>
+          </div>
+
+          <div id="v67-cash-panel" class="v67-cash-panel">
+            <div class="v67-cash-summary">
+              <div>
+                <span>ยอดเงินสดที่นับแล้ว</span>
+                <b id="v67-denom-total">฿0</b>
+                <small id="v67-cash-picked" style="display:block;margin-top:3px;color:#64748b;font-weight:850">ยังไม่ได้นับเงินสด</small>
+              </div>
+              <button type="button" class="v67-btn primary" onclick="v67OpenLaborCashCounter()">
+                <i class="material-icons-round" style="font-size:17px">point_of_sale</i>เปิดหน้านับเงินสด
+              </button>
+            </div>
+          </div>
+
+          <div class="v67-field">
+            <label>หมายเหตุ</label>
+            <textarea id="v67-labor-notes" placeholder="เช่น งวดงาน / รายละเอียดงาน / ผู้รับเงิน"></textarea>
+          </div>
+          <div id="v67-labor-pay-guard" class="v67-guard warn">กรอกยอดจ่าย และถ้าเป็นเงินสดให้นับแบงค์/เหรียญให้ตรงยอด</div>
+        </div>
+        <div class="v67-pay-foot">
+          <button type="button" class="v67-btn" onclick="document.getElementById('v67-labor-pay-modal')?.remove()">ยกเลิก</button>
+          <button id="v67-pay-confirm" type="button" class="v67-btn good" onclick="v67ConfirmLaborPay('${esc(projectId)}','${esc(budgetId)}')" disabled>
+            <i class="material-icons-round" style="font-size:17px">save</i>บันทึกจ่ายค่าแรง
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', event => {
+      if (event.target === modal) modal.remove();
+    });
+    document.getElementById('v67-labor-amount')?.focus();
+    window.v67UpdateLaborPay();
+  };
+
+  window.v67SetLaborPayMethod = function (method) {
+    const select = document.getElementById('v67-pay-method');
+    if (select) select.value = method;
+    document.querySelectorAll('.v67-pay-method').forEach(btn => btn.classList.toggle('on', btn.dataset.method === method));
+    const panel = document.getElementById('v67-cash-panel');
+    if (panel) panel.style.display = method === 'เงินสด' ? '' : 'none';
+    window.v67UpdateLaborPay();
+    if (method === 'เงินสด' && num(document.getElementById('v67-labor-amount')?.value) > 0) {
+      setTimeout(() => window.v67OpenLaborCashCounter?.(), 50);
+    }
+  };
+
+  window.v67ResetLaborCashCount = function (silent = false) {
+    window._v67LaborCashCounts = {};
+    window._v67LaborCashStack = [];
+    if (!silent) toast?.('ล้างยอดนับเงินสดแล้ว', 'info');
+    window.v67UpdateLaborCashCounter?.();
+  };
+
+  window.v67OpenLaborCashCounter = async function () {
+    const ctx = window._v67LaborPayContext;
+    const amount = num(document.getElementById('v67-labor-amount')?.value);
+    if (!ctx) return;
+    if (amount <= 0) {
+      toast?.('กรุณากรอกยอดจ่ายก่อนเปิดหน้านับเงินสด', 'warning');
+      document.getElementById('v67-labor-amount')?.focus();
+      return;
+    }
+    if (amount > ctx.row.remaining) {
+      toast?.(`ยอดจ่ายเกินวงเงินของ ${ctx.row.budget.name}`, 'error');
+      return;
+    }
+    try {
+      const session = await getOpenSession();
+      if (!session) {
+        toast?.('ยังไม่ได้เปิดลิ้นชักเงินสด', 'warning');
+        return;
+      }
+    } catch (error) {
+      toast?.('ตรวจสอบลิ้นชักเงินสดไม่สำเร็จ: ' + error.message, 'error');
+      return;
+    }
+
+    document.getElementById('v67-count-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'v67-count-modal';
+    modal.className = 'v67-count-modal';
+    modal.innerHTML = `
+      <div class="v67-count-card">
+        <div class="v67-count-top">
+          <div>
+            <div class="v67-count-title"><i class="material-icons-round">point_of_sale</i>นับเงินสดจ่ายค่าแรง</div>
+            <div class="v67-count-sub">กดที่แบงค์/เหรียญเพื่อบวกยอด ระบบจะไม่ให้กดเกินยอดที่จะจ่าย</div>
+          </div>
+          <div class="v67-count-target">
+            ยอดที่จะจ่าย
+            <b>฿${fmt(amount)}</b>
+          </div>
+        </div>
+
+        <div class="v67-count-section">
+          <h4><i class="material-icons-round" style="font-size:17px;color:#16a34a">payments</i>ธนบัตรที่จ่าย</h4>
+          <div class="v67-count-grid">
+            ${DENOMS.filter(d => d.type === 'bill').map(d => `
+              <button type="button" class="v67-count-btn" data-value="${d.value}" onclick="v67LaborCashAdd(${d.value})">
+                <span class="v67-count-badge" id="v67-count-badge-${d.value}">0</span>
+                <div class="v67-count-note" style="background:${d.color}">${d.label}</div>
+                <span class="v67-count-label">฿${d.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="v67-count-section">
+          <h4><i class="material-icons-round" style="font-size:17px;color:#f59e0b">monetization_on</i>เหรียญที่จ่าย</h4>
+          <div class="v67-count-grid coin">
+            ${DENOMS.filter(d => d.type === 'coin').map(d => `
+              <button type="button" class="v67-count-btn" data-value="${d.value}" onclick="v67LaborCashAdd(${d.value})">
+                <span class="v67-count-badge" id="v67-count-badge-${d.value}">0</span>
+                <div class="v67-count-coin" style="background:${d.color}">${d.label}</div>
+                <span class="v67-count-label">฿${d.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="v67-count-sum">
+          <div>
+            <span>นับแล้ว</span>
+            <b id="v67-count-total">฿0</b>
+          </div>
+          <div id="v67-count-diff" class="bad" style="text-align:right">
+            <span>ยังขาด</span>
+            <b>฿${fmt(amount)}</b>
+          </div>
+        </div>
+
+        <div class="v67-count-actions">
+          <button type="button" class="v67-btn" onclick="document.getElementById('v67-count-modal')?.remove()"><i class="material-icons-round" style="font-size:17px">close</i>ยกเลิก</button>
+          <button type="button" class="v67-btn" onclick="v67LaborCashUndo()"><i class="material-icons-round" style="font-size:17px">undo</i>ย้อน 1 ครั้ง</button>
+          <button type="button" class="v67-btn danger" onclick="v67ResetLaborCashCount()"><i class="material-icons-round" style="font-size:17px">restart_alt</i>ล้าง</button>
+          <button id="v67-count-confirm" type="button" class="v67-btn good" onclick="v67ConfirmLaborCashCount()" disabled><i class="material-icons-round" style="font-size:17px">check</i>ยืนยันยอดเงินสด</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', event => {
+      if (event.target === modal) modal.remove();
+    });
+    window.v67UpdateLaborCashCounter();
+  };
+
+  window.v67LaborCashAdd = function (value) {
+    const target = num(document.getElementById('v67-labor-amount')?.value);
+    const counts = window._v67LaborCashCounts || {};
+    const current = laborPayCountTotal(counts);
+    if (current + value > target) {
+      toast?.('ยอดเงินสดจะเกินยอดจ่าย กดแบงค์/เหรียญมูลค่าน้อยลงครับ', 'warning');
+      return;
+    }
+    counts[value] = num(counts[value]) + 1;
+    window._v67LaborCashCounts = counts;
+    window._v67LaborCashStack = (window._v67LaborCashStack || []).concat(value);
+    window.v67UpdateLaborCashCounter();
+  };
+
+  window.v67LaborCashUndo = function () {
+    const stack = window._v67LaborCashStack || [];
+    const last = stack.pop();
+    if (!last) return;
+    const counts = window._v67LaborCashCounts || {};
+    counts[last] = Math.max(0, num(counts[last]) - 1);
+    window._v67LaborCashStack = stack;
+    window._v67LaborCashCounts = counts;
+    window.v67UpdateLaborCashCounter();
+  };
+
+  window.v67UpdateLaborCashCounter = function () {
+    const target = num(document.getElementById('v67-labor-amount')?.value);
+    const counts = getLaborPayCounts();
+    const total = laborPayCountTotal(counts);
+    const totalEl = document.getElementById('v67-count-total');
+    if (totalEl) totalEl.textContent = `฿${fmt(total)}`;
+    DENOMS.forEach(d => {
+      const badge = document.getElementById(`v67-count-badge-${d.value}`);
+      const btn = document.querySelector(`#v67-count-modal .v67-count-btn[data-value="${d.value}"]`);
+      if (badge) badge.textContent = String(counts[d.value] || 0);
+      if (btn) {
+        btn.classList.toggle('has', num(counts[d.value]) > 0);
+        btn.disabled = target > 0 && total + d.value > target;
+      }
+    });
+    const diff = Math.max(0, target - total);
+    const diffEl = document.getElementById('v67-count-diff');
+    if (diffEl) {
+      diffEl.className = diff === 0 ? 'ok' : 'bad';
+      diffEl.innerHTML = diff === 0
+        ? `<span>ครบยอด</span><b>พอดี</b>`
+        : `<span>ยังขาด</span><b>฿${fmt(diff)}</b>`;
+    }
+    const confirm = document.getElementById('v67-count-confirm');
+    if (confirm) confirm.disabled = target <= 0 || total !== target;
+    window.v67UpdateLaborPay?.();
+  };
+
+  window.v67ConfirmLaborCashCount = function () {
+    const target = num(document.getElementById('v67-labor-amount')?.value);
+    const total = laborPayCountTotal();
+    if (target <= 0 || total !== target) {
+      toast?.('ยอดเงินสดต้องตรงกับยอดจ่าย ห้ามขาดหรือเกิน', 'warning');
+      return;
+    }
+    document.getElementById('v67-count-modal')?.remove();
+    toast?.('ยืนยันยอดเงินสดครบพอดีแล้ว', 'success');
+    window.v67UpdateLaborPay();
+  };
+
+  window.v67UpdateLaborPay = function () {
+    const ctx = window._v67LaborPayContext;
+    const guard = document.getElementById('v67-labor-pay-guard');
+    const confirm = document.getElementById('v67-pay-confirm');
+    if (!ctx || !guard || !confirm) return;
+    const amount = num(document.getElementById('v67-labor-amount')?.value);
+    const method = laborPayMethod();
+    const denomTotal = laborPayCountTotal();
+    const denomEl = document.getElementById('v67-denom-total');
+    if (denomEl) denomEl.textContent = `฿${fmt(denomTotal)}`;
+    const picked = document.getElementById('v67-cash-picked');
+    if (picked) {
+      picked.textContent = denomTotal > 0
+        ? (denomTotal === amount ? 'นับเงินสดครบพอดีแล้ว' : `นับแล้ว ฿${fmt(denomTotal)} จากยอด ฿${fmt(amount)}`)
+        : 'ยังไม่ได้นับเงินสด';
+      picked.style.color = denomTotal === amount && amount > 0 ? '#059669' : '#64748b';
+    }
+    confirm.disabled = true;
+
+    if (amount <= 0) {
+      guard.className = 'v67-guard warn';
+      guard.textContent = `กรอกยอดจ่ายได้ไม่เกิน ฿${fmt(ctx.row.remaining)} สำหรับ ${ctx.row.budget.name}`;
+      return;
+    }
+    if (amount > ctx.row.remaining) {
+      guard.className = 'v67-guard bad';
+      guard.textContent = `จ่ายเกินวงเงินของ ${ctx.row.budget.name}: คงเหลือ ฿${fmt(ctx.row.remaining)} แต่กำลังจ่าย ฿${fmt(amount)}`;
+      return;
+    }
+    if (method === 'เงินสด' && denomTotal !== amount) {
+      guard.className = 'v67-guard warn';
+      guard.textContent = `กดเปิดหน้านับเงินสด และนับให้ตรงยอด ฿${fmt(amount)} ห้ามขาดหรือเกิน`;
+      return;
+    }
+    guard.className = 'v67-guard ok';
+    guard.textContent = `บันทึกได้ หลังจ่ายจะเหลือวงเงินของ ${ctx.row.budget.name} ฿${fmt(ctx.row.remaining - amount)}`;
+    confirm.disabled = false;
+  };
+
+  window.v67ConfirmLaborPay = async function (projectId, budgetId) {
+    const fresh = await laborSummary(projectId);
+    const row = fresh.stats.find(item => String(item.budget.id) === String(budgetId));
+    const amount = num(document.getElementById('v67-labor-amount')?.value);
+    const method = laborPayMethod();
+    const counts = getLaborPayCounts();
+    const denomTotal = laborPayCountTotal(counts);
+    const workerName = row?.budget.name || '';
+    let desc = document.getElementById('v67-labor-desc')?.value.trim() || `ค่าแรงเหมา - ${workerName}`;
+    const notes = document.getElementById('v67-labor-notes')?.value.trim();
+
+    if (!row) { toast?.('ไม่พบวงเงินค่าแรงเหมาช่างที่เลือก', 'error'); return; }
+    if (!desc.includes(workerName)) desc = `ค่าแรงเหมา - ${workerName} - ${desc}`;
+    if (amount <= 0) { toast?.('กรุณากรอกจำนวนเงินค่าแรง', 'warning'); return; }
+    if (amount > row.remaining) {
+      toast?.(`จ่ายเกินวงเงินของ ${workerName} คงเหลือ ฿${fmt(row.remaining)}`, 'error');
+      window._v67LaborPayContext = { projectId, budgetId, row };
+      window.v67UpdateLaborPay();
+      return;
+    }
+    if (method === 'เงินสด' && denomTotal !== amount) {
+      toast?.('ยอดนับแบงค์/เหรียญต้องตรงกับยอดจ่ายค่าแรง', 'warning');
+      window.v67OpenLaborCashCounter?.();
+      return;
+    }
+
+    const btn = document.getElementById('v67-pay-confirm');
+    if (btn) { btn.disabled = true; btn.innerHTML = 'กำลังบันทึก...'; }
+
+    try {
+      let cashTxId = null;
+      const isCash = method === 'เงินสด';
+      if (isCash) {
+        const session = await getOpenSession();
+        if (!session) throw new Error('ยังไม่ได้เปิดลิ้นชักเงินสด');
+        const balance = typeof getLiveCashBalance === 'function' ? await getLiveCashBalance() : 0;
+        const after = Math.max(0, balance - amount);
+        const { data: tx, error: txErr } = await db.from('cash_transaction').insert({
+          session_id: session.id,
+          type: PROJECT_EXPENSE_TABLE,
+          direction: 'out',
+          amount,
+          change_amt: 0,
+          net_amount: amount,
+          balance_after: after,
+          ref_table: PROJECT_EXPENSE_TABLE,
+          staff_name: staff(),
+          note: `${desc} [โครงการ]`,
+          denominations: counts
+        }).select('id').single();
+        if (txErr) throw txErr;
+        cashTxId = tx?.id || null;
+        const balEl = document.getElementById('global-cash-balance');
+        if (balEl) balEl.textContent = '฿' + fmt(after);
+      }
+
+      const { data: exp, error: expErr } = await db.from(PROJECT_EXPENSE_TABLE).insert({
+        project_id: projectId,
+        description: desc,
+        category: LABOR_CATEGORY,
+        amount,
+        type: 'labor',
+        notes: laborPayNote(budgetId, workerName, notes),
+        cash_tx_id: cashTxId,
+        paid_at: new Date().toISOString()
+      }).select('id').single();
+      if (expErr) throw expErr;
+
+      if (cashTxId && exp?.id) {
+        await db.from('cash_transaction').update({ ref_id: exp.id }).eq('id', cashTxId);
+      }
+
+      const { data: project } = await db.from('โครงการ').select('total_expenses').eq('id', projectId).maybeSingle();
+      await db.from('โครงการ').update({
+        total_expenses: num(project?.total_expenses) + amount
+      }).eq('id', projectId);
+
+      logActivity?.(PROJECT_EXPENSE_TABLE, `${desc} ฿${fmt(amount)}${isCash ? ' (เงินสด)' : ''}`, exp?.id, PROJECT_EXPENSE_TABLE);
+      document.getElementById('v67-labor-pay-modal')?.remove();
+      toast?.(`บันทึกค่าแรง ${workerName} ฿${fmt(amount)} และหักวงเงินช่างแล้ว`, 'success');
+      if (typeof renderCashDrawer === 'function') renderCashDrawer();
+      if (typeof loadCashBalance === 'function') loadCashBalance();
+      window.v14OpenProject?.(projectId);
+    } catch (error) {
+      console.error('[v67] labor payment:', error);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="material-icons-round" style="font-size:17px">save</i>บันทึกจ่ายค่าแรง';
+      }
+      toast?.('บันทึกค่าแรงไม่สำเร็จ: ' + error.message, 'error');
     }
   };
 
@@ -492,7 +1034,10 @@
 
     window.v14AddExpense = async function (projectId, options = {}) {
       const result = await originalOpen.apply(this, [projectId]);
-      setTimeout(() => decorateExpenseModal(projectId, options).catch(error => console.warn('[v67] decorate expense modal:', error)), 60);
+      window._v67ExpenseContext = null;
+      if (options?.laborId || options?.showLaborPicker) {
+        setTimeout(() => decorateExpenseModal(projectId, options).catch(error => console.warn('[v67] decorate expense modal:', error)), 60);
+      }
       return result;
     };
     try { v14AddExpense = window.v14AddExpense; } catch (_) {}
