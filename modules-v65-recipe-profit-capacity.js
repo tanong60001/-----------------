@@ -49,6 +49,26 @@
       || null;
   }
 
+  function recipeNameExists(name, list = productsList(), ignoreId = null) {
+    const key = recipeNameKey(name);
+    if (!key) return false;
+    return (list || []).some(product => {
+      if (ignoreId != null && String(product?.id) === String(ignoreId)) return false;
+      return recipeNameKey(product?.name) === key;
+    });
+  }
+
+  function uniqueCopyRecipeName(baseName, list = productsList()) {
+    const base = String(baseName || 'สูตรสินค้า').trim() || 'สูตรสินค้า';
+    const first = `${base} สำเนา`;
+    if (!recipeNameExists(first, list)) return first;
+    for (let i = 2; i < 1000; i += 1) {
+      const candidate = `${first} ${i}`;
+      if (!recipeNameExists(candidate, list)) return candidate;
+    }
+    return `${first} ${Date.now().toString().slice(-5)}`;
+  }
+
   function productMap(products) {
     const map = {};
     (products || []).forEach(product => { map[product.id] = product; });
@@ -105,6 +125,7 @@
       .v65-recipe-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
       .v65-btn{height:44px;border-radius:14px;border:1px solid #cbd5e1;background:#fff;color:#334155;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:900;cursor:pointer;font-family:var(--font-thai,'Prompt'),sans-serif}
       .v65-btn.primary{background:#ef4444;color:#fff;border-color:#ef4444;box-shadow:0 12px 24px rgba(239,68,68,.18)}
+      .v65-btn.copy{background:#eef6ff;color:#2563eb;border-color:#bfdbfe}
       .v65-btn.danger{background:#fff;color:#dc2626;border-color:#fecaca}
       .v65-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
       .v65-card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;overflow:hidden;box-shadow:0 10px 28px rgba(15,23,42,.05)}
@@ -270,6 +291,7 @@
           </div>
         </div>
         <footer class="v65-card-foot">
+          <button type="button" class="v65-btn copy" data-v65-copy-recipe="${esc(product.id)}"><i class="material-icons-round">content_copy</i> คัดลอกสูตร</button>
           <button type="button" class="v65-btn" data-v65-edit-recipe="${esc(product.id)}"><i class="material-icons-round">edit</i> แก้ไขสูตร</button>
           <button type="button" class="v65-btn danger" data-v65-delete-recipe="${esc(product.id)}" data-v65-product-name="${esc(product.name)}"><i class="material-icons-round">delete</i> ลบสูตร</button>
         </footer>
@@ -466,7 +488,7 @@
     }, true);
   }
 
-  window.v9RecipeEditProduct = window.v9RecipeEditFull = async function (productId) {
+  window.v9RecipeEditProduct = window.v9RecipeEditFull = async function (productId, options = {}) {
     installStyles();
     let products = [], recipes = [], map = {};
     try {
@@ -476,11 +498,19 @@
       return;
     }
 
-    const isCreate = !productId || !map[productId];
+    const copyMode = !!options?.copy;
+    const sourceProduct = productId ? map[productId] : null;
+    if (copyMode && !sourceProduct) {
+      typeof toast === 'function' && toast('ไม่พบสูตรต้นฉบับสำหรับคัดลอก', 'error');
+      return;
+    }
+    const isCreate = copyMode || !productId || !map[productId];
     const product = isCreate
-      ? { id: '', name: '', price: 0, unit: '', category: '\u0e04\u0e2d\u0e19\u0e01\u0e23\u0e35\u0e15\u0e1c\u0e2a\u0e21\u0e40\u0e2a\u0e23\u0e47\u0e08', img_url: '', product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' }
+      ? (copyMode
+        ? { ...sourceProduct, id: '', name: uniqueCopyRecipeName(sourceProduct.name, products), stock: 0, product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' }
+        : { id: '', name: '', price: 0, unit: '', category: '\u0e04\u0e2d\u0e19\u0e01\u0e23\u0e35\u0e15\u0e1c\u0e2a\u0e21\u0e40\u0e2a\u0e23\u0e47\u0e08', img_url: '', product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' })
       : map[productId];
-    const rows = isCreate ? [] : recipeRowsFor(recipes, productId);
+    const rows = copyMode ? recipeRowsFor(recipes, productId) : (isCreate ? [] : recipeRowsFor(recipes, productId));
 
     const rowHtml = (row = {}) => {
       const mat = map[row.material_id] || {};
@@ -512,7 +542,7 @@
       width: '1120px',
       showCancelButton: true,
       showDenyButton: !isCreate,
-      confirmButtonText: 'บันทึกสูตร',
+      confirmButtonText: copyMode ? 'บันทึกเป็นสูตรใหม่' : 'บันทึกสูตร',
       cancelButtonText: 'ยกเลิก',
       denyButtonText: 'ลบสูตรนี้',
       confirmButtonColor: '#ef4444',
@@ -524,7 +554,7 @@
             <div class="v65-form-icon"><i class="material-icons-round">science</i></div>
             <div>
               <div class="v65-form-kicker">BOM RECIPE</div>
-              <div class="v65-form-title">${isCreate ? 'สร้างสูตรสินค้าใหม่' : 'แก้ไขสูตรสินค้า'}</div>
+              <div class="v65-form-title">${copyMode ? 'คัดลอกสูตรสินค้า' : (isCreate ? 'สร้างสูตรสินค้าใหม่' : 'แก้ไขสูตรสินค้า')}</div>
               <div class="v65-form-desc">กำหนดสินค้าที่ขาย ราคา หน่วย หมวด รูปภาพ และวัตถุดิบที่ต้องตัดสต็อกต่อ 1 หน่วยขาย</div>
             </div>
             <div class="v65-form-pill">ผลิตตามบิล • ไม่แก้สต็อกจากคลัง</div>
@@ -579,7 +609,7 @@
         </div>
       `,
       didOpen: () => {
-        window._v65RecipeEditContext = { products, map, productId, isCreate, rowHtml };
+        window._v65RecipeEditContext = { products, map, productId: isCreate ? null : productId, sourceProductId: copyMode ? productId : null, isCreate, copyMode, rowHtml };
         installRecipeImagePaste(product);
         window.v65WireMaterialSearch();
         window.v65RecipeRecalcModal();
@@ -663,6 +693,7 @@
   }, true);
 
   function collectRecipeEditValues(productId) {
+    const ctx = window._v65RecipeEditContext || {};
     const name = document.getElementById('v65-prod-name')?.value?.trim();
     const price = num(document.getElementById('v65-prod-price')?.value);
     const unit = document.getElementById('v65-prod-unit')?.value?.trim() || '\u0e0a\u0e34\u0e49\u0e19';
@@ -681,11 +712,15 @@
       Swal.showValidationMessage('กรุณากรอกชื่อสินค้า');
       return false;
     }
+    if (ctx.copyMode && recipeNameExists(name, ctx.products || productsList())) {
+      Swal.showValidationMessage('ชื่อสูตรที่คัดลอกต้องไม่ซ้ำกับสินค้า/สูตรเดิม กรุณาเปลี่ยนชื่อก่อนบันทึก');
+      return false;
+    }
     if (!rows.length) {
       Swal.showValidationMessage('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');
       return false;
     }
-    return { productId, name, price, unit, category, imgUrl, rows };
+    return { productId, name, price, unit, category, imgUrl, rows, copyMode: !!ctx.copyMode };
   }
 
   window.v65RecipeRecalcModal = function () {
@@ -735,6 +770,9 @@
 
       let productId = value.productId;
       if (!productId) {
+        if (value.copyMode && findReusableRecipeProduct(value.name)?.id) {
+          throw new Error('ชื่อสูตรที่คัดลอกซ้ำกับสินค้า/สูตรเดิม กรุณาเปลี่ยนชื่อก่อนบันทึก');
+        }
         const reusable = findReusableRecipeProduct(value.name);
         if (reusable?.id) productId = reusable.id;
       }
@@ -854,6 +892,14 @@
         event.preventDefault();
         event.stopPropagation();
         window.v9RecipeEditProduct?.(editBtn.dataset.v65EditRecipe);
+        return;
+      }
+
+      const copyBtn = event.target?.closest?.('[data-v65-copy-recipe]');
+      if (copyBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.v9RecipeEditProduct?.(copyBtn.dataset.v65CopyRecipe, { copy: true });
         return;
       }
 

@@ -71,7 +71,7 @@
     const style = document.createElement('style');
     style.id = 'v54-quick-pending-style';
     style.textContent = `
-      .v54-quick-btn{background:linear-gradient(135deg,#0f766e,#14b8a6)!important;color:#fff!important;border:0!important;border-radius:8px!important;padding:8px 14px!important;font-weight:800!important;display:inline-flex!important;align-items:center!important;gap:7px!important;box-shadow:0 10px 24px rgba(15,118,110,.22)!important;cursor:pointer!important;white-space:nowrap!important}
+      .v54-quick-btn{background:linear-gradient(135deg,#ef4444,#dc2626)!important;color:#fff!important;border:0!important;border-radius:8px!important;padding:8px 14px!important;font-weight:800!important;display:inline-flex!important;align-items:center!important;gap:7px!important;box-shadow:0 10px 24px rgba(239,68,68,.24)!important;cursor:pointer!important;white-space:nowrap!important}
       .v54-quick-toolbar-btn{height:52px!important;min-width:52px!important;padding:0 14px!important;border-radius:12px!important;align-self:stretch!important;justify-content:center!important}
       .v54-quick-toolbar-btn span{font-size:13px!important;line-height:1!important}
       .v54-pending-cat{border-color:#fed7aa!important;background:#fff7ed!important;color:#c2410c!important}
