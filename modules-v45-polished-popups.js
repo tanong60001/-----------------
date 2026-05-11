@@ -246,20 +246,65 @@
         e.preventDefault();
         const amount = money(document.getElementById('exp-amount')?.value);
         const desc = document.getElementById('exp-desc')?.value?.trim();
+        const cat = document.getElementById('exp-cat')?.value;
+        const method = document.getElementById('exp-method')?.value;
+        const dt = new Date(document.getElementById('exp-datetime')?.value).toISOString();
+        const note = document.getElementById('exp-note')?.value;
+
         if (!desc) { toast?.('กรุณากรอกรายการ', 'warning'); return; }
         if (amount <= 0) { toast?.('กรุณากรอกจำนวนเงิน', 'warning'); return; }
-        await db.from('รายจ่าย').insert({
-          description: desc,
-          amount,
-          category: document.getElementById('exp-cat')?.value,
-          method: document.getElementById('exp-method')?.value,
-          date: new Date(document.getElementById('exp-datetime')?.value).toISOString(),
-          note: document.getElementById('exp-note')?.value,
-          staff_name: USER?.username
-        });
-        toast?.('บันทึกรายจ่ายสำเร็จ', 'success');
-        closeModalById('v45-expense-modal');
-        loadExpenseData?.();
+
+        if (method === 'เงินสด' && typeof window.v28ExpenseWiz === 'function') {
+          let drawer = {};
+          if (typeof loadDrawer === 'function') drawer = await loadDrawer().catch(() => ({}));
+          
+          window.v28ExpenseWiz(amount, drawer, async (res) => {
+            try {
+              const { data: exp } = await db.from('รายจ่าย').insert({
+                description: desc, amount: amount, category: cat, method: method, date: dt, note: note, staff_name: USER?.username
+              }).select().single();
+              
+              const { data: session } = await db.from('cash_session').select('id').eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
+              if (session) {
+                await db.from('cash_transaction').insert({
+                  session_id: session.id,
+                  type: 'รายจ่าย: ' + desc,
+                  direction: 'out',
+                  amount: res.outTotal,
+                  change_amt: res.inTotal,
+                  net_amount: amount,
+                  balance_after: 0,
+                  ref_id: exp?.id,
+                  ref_table: 'รายจ่าย',
+                  staff_name: USER?.username,
+                  denominations: res.out,
+                  change_denominations: res.in
+                });
+              }
+              toast?.('บันทึกรายจ่ายเงินสดและอัปเดตลิ้นชักสำเร็จ', 'success');
+              closeModalById('v45-expense-modal');
+              loadExpenseData?.();
+              if (typeof loadCashBalance === 'function') loadCashBalance();
+              if (typeof renderCashDrawer === 'function') renderCashDrawer();
+            } catch (err) {
+              console.error(err);
+              toast?.('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, 'error');
+            }
+          });
+        } else {
+          await db.from('รายจ่าย').insert({
+            description: desc,
+            amount,
+            category: cat,
+            method,
+            date: dt,
+            note,
+            staff_name: USER?.username
+          });
+          toast?.('บันทึกรายจ่ายสำเร็จ', 'success');
+          closeModalById('v45-expense-modal');
+          loadExpenseData?.();
+        }
       };
     };
   }
