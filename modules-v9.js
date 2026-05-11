@@ -190,7 +190,7 @@ window.v4CompletePayment = async function () {
       const stockAfter = stockBefore - item.qty;
 
       await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
         qty: item.qty, price: item.price, cost: item.cost || 0,
         total: item.price * item.qty,
       });
@@ -2443,11 +2443,23 @@ window.v4CompletePayment = async function () {
     if (billError) throw billError;
 
     for (const item of cart) {
+      const isExtra = item.is_extra_charge || String(item.id || '').startsWith('extra-');
       const prod = (window.products || []).find(p => p.id === item.id);
-      const stockAfter = (prod?.stock || 0) - item.qty;
-      await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost || 0, total: item.price * item.qty });
-      await db.from('สินค้า').update({ stock: stockAfter }).eq('id', item.id);
-      await db.from('stock_movement').insert({ product_id: item.id, product_name: item.name, type: 'ขาย', direction: 'out', qty: item.qty, stock_before: prod?.stock || 0, stock_after: stockAfter, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: v9Staff() });
+      
+      const resItem = await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: isExtra ? null : item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost || 0, total: item.price * item.qty });
+      if (isExtra) {
+        alert('Extra Charge Insert Result: ' + JSON.stringify(resItem));
+      }
+      if (resItem.error) {
+        alert('DB Error (insert): ' + resItem.error.message);
+        console.error('Insert error details:', resItem.error);
+      }
+
+      if (!isExtra) {
+        const stockAfter = (prod?.stock || 0) - item.qty;
+        await db.from('สินค้า').update({ stock: stockAfter }).eq('id', item.id);
+        await db.from('stock_movement').insert({ product_id: item.id, product_name: item.name, type: 'ขาย', direction: 'out', qty: item.qty, stock_before: prod?.stock || 0, stock_after: stockAfter, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: v9Staff() });
+      }
     }
 
     if (checkoutState.method === 'cash' && session) {
@@ -8551,7 +8563,7 @@ window.v4CompletePayment = async function () {
       const stockAfter = prod?.product_type === 'ตามบิล' ? (prod?.stock || 0) : (prod?.stock || 0) - baseQty;
 
       await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
         qty: item.qty, price: item.price, cost: item.cost || 0,
         total: item.price * item.qty, unit: item.unit || 'ชิ้น'
       });
@@ -10810,7 +10822,7 @@ window.v4CompletePayment = async function () {
       // บันทึกรายการในบิล — qty = จำนวนหน่วยที่ขาย, unit = หน่วยที่เลือก
       await db.from('รายการในบิล').insert({
         bill_id: bill.id,
-        product_id: item.id,
+        product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id,
         name: item.name,
         qty: item.qty,          // เช่น 1 (คิว)
         price: item.price,
@@ -11544,7 +11556,7 @@ window.v4CompletePayment = (function () {
         const sellUnit = item.unit || prod?.unit || 'ชิ้น';
 
         await db.from('รายการในบิล').insert({
-          bill_id: bill.id, product_id: item.id, name: item.name,
+          bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
           qty: item.qty, price: item.price,
           cost: parseFloat(item.cost || 0),
           total: item.price * item.qty,
@@ -11828,9 +11840,9 @@ window.v4CompletePayment = async function v9Sale() {
       console.log(`[v9Sale] ${item.name}: qty=${item.qty} ${sellUnit} × conv=${convRate} = ${baseQty} ${fresh.unit || ''}`);
 
       // บันทึกรายการในบิล
-      await db.from('รายการในบิล').insert({
+      const resItem = await db.from('รายการในบิล').insert({
         bill_id: bill.id,
-        product_id: item.id,
+        product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id,
         name: item.name,
         qty: item.qty,
         price: item.price,
@@ -11838,6 +11850,7 @@ window.v4CompletePayment = async function v9Sale() {
         total: parseFloat((item.price * item.qty).toFixed(2)),
         unit: sellUnit,
       });
+      if (resItem.error) throw new Error('DB Error รายการในบิล: ' + resItem.error.message);
 
       if (!isMTO) {
         // ── ตัดสต็อก base qty ──
@@ -12086,7 +12099,7 @@ window.v9Sale = async function () {
       // บันทึกรายการในบิล
       await db.from('รายการในบิล').insert({
         bill_id: bill.id,
-        product_id: item.id,
+        product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id,
         name: item.name,
         qty: item.qty,
         price: parseFloat(item.price || 0),
@@ -12378,7 +12391,7 @@ window.v9Sale = async function () {
       const isMTO = !!(item.is_mto || fresh.product_type === 'ตามบิล');
 
       await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
         qty: item.qty, price: parseFloat(item.price || 0),
         cost: parseFloat(item.cost || 0),
         total: parseFloat((item.price * item.qty).toFixed(2)),
@@ -13569,7 +13582,7 @@ window.v9Sale = async function () {
       const costPerSellUnit = parseFloat((costPerBase * convRate).toFixed(6));
 
       await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
         qty: item.qty,
         price: parseFloat(item.price || 0),
         cost: costPerSellUnit,          // ← แก้ตรงนี้: cost/หน่วยขาย
@@ -18391,7 +18404,7 @@ window.renderPayables = async function () {
     const paid = parseFloat(r.paid_amount || 0);
     const pct = amount > 0 ? Math.round(paid / amount * 100) : 0;
     const initial = (supp.name || r.supplier_id || 'U').charAt(0).toUpperCase();
-    
+
     return `
       <tr style="${isOverdue ? 'background:#fff5f5;' : ''}">
         <td>
@@ -19109,7 +19122,7 @@ console.info(
 );
 
 // ── FIX: Auto-update debt bill statuses upon payment ─────────────────
-window.v9AutoUpdateBillStatus = async function(customerId) {
+window.v9AutoUpdateBillStatus = async function (customerId) {
   if (!customerId) return;
   try {
     // 1. Get total paid amount from 'ชำระหนี้' table
@@ -19123,7 +19136,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
       .eq('method', 'ค้างชำระ')
       .neq('status', 'ยกเลิก')
       .order('date', { ascending: true });
-      
+
     if (!bills || bills.length === 0) return;
 
     // 3. Distribute totalPaid across bills sequentially
@@ -19133,22 +19146,22 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
       if (typeof retInfo === 'string') {
         try { retInfo = JSON.parse(retInfo); } catch (e) { retInfo = {}; }
       }
-      
+
       let paidForThisBill = 0;
       if (totalPaid > 0) {
         paidForThisBill = Math.min(totalPaid, billTotal);
         totalPaid -= paidForThisBill;
       }
-      
+
       let newStatus = 'ค้างชำระ';
       if (paidForThisBill >= billTotal) {
         newStatus = 'สำเร็จ';
       } else if (paidForThisBill > 0) {
         newStatus = 'จ่ายแล้วบางส่วน';
       }
-      
+
       const currentPaid = parseFloat(retInfo.paid_amount || 0);
-      
+
       // Update only if status or paid amount changed
       if (bill.status !== newStatus || currentPaid !== paidForThisBill) {
         retInfo.paid_amount = paidForThisBill;
@@ -19625,7 +19638,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     if (!isAdmin()) { denyAdmin(); return; }
     return await prevAdjust?.apply(this, arguments);
   };
-  try { adjustStock = window.adjustStock; } catch (_) {}
+  try { adjustStock = window.adjustStock; } catch (_) { }
   injectStyle();
   setInterval(removePosButton, 800);
   if (window.v9PromoWorkspaceApi) {
@@ -19679,7 +19692,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
       }
       return await runAsAdmin(oldAdjust, arguments);
     };
-    try { adjustStock = window.adjustStock; } catch (_) {}
+    try { adjustStock = window.adjustStock; } catch (_) { }
     const addPromoButton = () => {
       const pa = document.getElementById('page-actions');
       if (!pa || document.getElementById('v9promo-inv-btn') || !window.v9CanPromotion()) return;
@@ -20384,7 +20397,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     if (!isAdmin()) { denyAdmin(); return; }
     return await prevAdjust?.apply(this, arguments);
   };
-  try { adjustStock = window.adjustStock; } catch (_) {}
+  try { adjustStock = window.adjustStock; } catch (_) { }
 
   injectStyle();
   setInterval(removePosButton, 800);
@@ -20578,7 +20591,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     if (!isAdmin()) { denyAdmin(); return; }
     return await prevAdjust?.apply(this, arguments);
   };
-  try { adjustStock = window.adjustStock; } catch (_) {}
+  try { adjustStock = window.adjustStock; } catch (_) { }
 
   const prevOpenProduct = window.showAddProductModal;
   window.showAddProductModal = function () {
@@ -20978,7 +20991,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
         }).select().single();
         if (res.error) throw new Error(res.error.message);
         bill = res.data;
-        try { await db.from('บิลขาย').update({ return_info: info }).eq('id', bill.id); bill.return_info = info; } catch (_) {}
+        try { await db.from('บิลขาย').update({ return_info: info }).eq('id', bill.id); bill.return_info = info; } catch (_) { }
       }
 
       const { data: freshProds } = await db.from('สินค้า').select('id,name,stock,product_type,unit,cost');
@@ -20991,11 +21004,12 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
         const sellUnit = item.unit || fresh.unit || 'ชิ้น';
         const isMTO = !!(item.is_mto || fresh.product_type === 'ตามบิล' || fresh.product_type === 'เธ•เธฒเธกเธเธดเธฅ');
         const costPerSellUnit = parseFloat(((parseFloat(fresh.cost || item.cost || 0)) * convRate).toFixed(6));
-        await db.from('รายการในบิล').insert({
-          bill_id: bill.id, product_id: item.id, name: item.name,
+        const resItem = await db.from('รายการในบิล').insert({
+          bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
           qty: item.qty, price: parseFloat(item.price || 0), cost: costPerSellUnit,
           total: parseFloat((item.price * item.qty).toFixed(2)), unit: sellUnit,
         });
+        if (resItem.error) throw new Error('DB Error รายการในบิล: ' + resItem.error.message);
         if (!isMTO) {
           const stockBefore = parseFloat(fresh.stock || 0);
           const stockAfter = parseFloat(Math.max(0, stockBefore - baseQty).toFixed(6));
@@ -21235,7 +21249,7 @@ window.v9AutoUpdateBillStatus = async function(customerId) {
     if (!isAdmin()) { denyAdmin(); return; }
     return await prevAdjust?.apply(this, arguments);
   };
-  try { adjustStock = window.adjustStock; } catch (_) {}
+  try { adjustStock = window.adjustStock; } catch (_) { }
   injectStyle();
   setInterval(removePosButton, 800);
   if (window.v9PromoWorkspaceApi) {

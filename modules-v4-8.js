@@ -364,7 +364,7 @@ async function v4CompletePayment() {
 
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
-      await db.from('รายการในบิล').insert({ bill_id:bill.id, product_id:item.id, name:item.name, qty:item.qty, price:item.price, cost:item.cost, total:item.price*item.qty });
+      await db.from('รายการในบิล').insert({ bill_id:bill.id, product_id:item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name:item.name, qty:item.qty, price:item.price, cost:item.cost, total:item.price*item.qty });
       await db.from('สินค้า').update({ stock:(prod?.stock||0)-item.qty }).eq('id',item.id);
       await db.from('stock_movement').insert({ product_id:item.id, product_name:item.name, type:'ขาย', direction:'out', qty:item.qty, stock_before:prod?.stock||0, stock_after:(prod?.stock||0)-item.qty, ref_id:bill.id, ref_table:'บิลขาย', staff_name:USER?.username });
     }
@@ -2918,7 +2918,7 @@ async function v6CompleteSale() {
 
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
-      await db.from('รายการในบิล').insert({ bill_id:bill.id, product_id:item.id, name:item.name, qty:item.qty, price:item.price, cost:item.cost||0, total:item.price*item.qty });
+      await db.from('รายการในบิล').insert({ bill_id:bill.id, product_id:item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name:item.name, qty:item.qty, price:item.price, cost:item.cost||0, total:item.price*item.qty });
       await db.from('สินค้า').update({ stock:(prod?.stock||0)-item.qty }).eq('id',item.id);
       await db.from('stock_movement').insert({ product_id:item.id, product_name:item.name, type:'ขาย', direction:'out', qty:item.qty, stock_before:prod?.stock||0, stock_after:(prod?.stock||0)-item.qty, ref_id:bill.id, ref_table:'บิลขาย', staff_name:USER?.username });
     }
@@ -3820,7 +3820,7 @@ window.v4CompletePayment = async function () {
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
       const { error: itemErr } = await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: item.id, name: item.name,
+        bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name,
         qty: item.qty, price: item.price, cost: item.cost || 0,
         total: item.price * item.qty
       });

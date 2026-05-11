@@ -528,12 +528,18 @@ window.v12CompletePayment = async function() {
       const cr = _v23ConvRate(su, item.id, um, bm);
       const costPerUnit = recipeItem ? recipeItem.costPerUnit : (cm[item.id] || item.cost || 0) * cr;
 
-      await db.from('รายการในบิล').insert({
-        bill_id: bill.id, product_id: recipeItem?.product?.id || item.id, name: item.name,
+      const isExtra = item.is_extra_charge || String(item.id || '').startsWith('extra-');
+      
+      const resItem = await db.from('รายการในบิล').insert({
+        bill_id: bill.id, product_id: isExtra ? null : (recipeItem?.product?.id || item.id), name: item.name,
         qty: item.qty, price: item.price, cost: costPerUnit,
         total: item.price * item.qty, unit: su,
         take_qty: modes.take, deliver_qty: modes.deliver,
       });
+      if (resItem.error) {
+        console.error('[v23] รายการในบิล error:', resItem.error);
+        if (isExtra) alert('ระบบไม่สามารถบันทึกรายการพิเศษได้ (รายการในบิล): ' + resItem.error.message);
+      }
 
       if (recipeItem) {
         if (modes.take > 0) {
@@ -570,6 +576,10 @@ window.v12CompletePayment = async function() {
           if (isProj) projCostTotal += costPerUnit * modes.take;
         }
         console.log(`[v23] ✅ Recipe sale handled: ${item.name} (no finished product stock deduction)`);
+        continue;
+      } else if (isExtra) {
+        // ข้ามการตัดสต็อกสำหรับรายการพิเศษ
+        console.log(`[v23] ✅ Extra charge handled: ${item.name} (no stock deduction)`);
         continue;
       }
 

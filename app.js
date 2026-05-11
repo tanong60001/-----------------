@@ -935,7 +935,7 @@ async function completePayment() {
     // [UNCHANGED] ลูปบันทึกรายการสินค้า + ตัดสต็อกทันทีทุกกรณี
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
-      await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, total: item.price * item.qty });
+      await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, total: item.price * item.qty });
       // ตัดสต็อกทันที ไม่ว่าจะเป็น method ไหนก็ตาม
       await db.from('สินค้า').update({ stock: (prod?.stock || 0) - item.qty }).eq('id', item.id);
       // [UPDATED] stock_movement type แยกตาม method
