@@ -727,7 +727,10 @@
       if (fn) {
         fn.call(el, { navigationUI: 'hide' })
           .then(_hideFsOverlay)
-          .catch(_hideFsOverlay);
+          .catch((err) => {
+            console.warn('Auto fullscreen blocked:', err);
+            _showFsOverlay();
+          });
       } else {
         _hideFsOverlay();
       }
@@ -743,7 +746,8 @@
 
     // Show overlay automatically when opened from POS (window.opener exists)
     if (window.opener) {
-      _showFsOverlay();
+      // Try to enter fullscreen automatically (Browsers with Window Management permission allow this without tap)
+      _enterFullscreen();
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>

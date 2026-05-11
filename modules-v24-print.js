@@ -301,7 +301,8 @@ async function v24ShowDocSelector(billId) {
   const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
   if (!bill) { typeof toast === 'function' && toast('ไม่พบบิล', 'error'); return; }
   const hasDel = bill.delivery_mode === 'deliver' || bill.delivery_mode === 'partial';
-  const isDep = +(bill.deposit_amount || 0) > 0, isDebt = bill.status === 'ค้างชำระ';
+  const isClosed = ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(bill.status);
+  const isDep = !isClosed && +(bill.deposit_amount || 0) > 0, isDebt = bill.status === 'ค้างชำระ';
   const opts = [
     { key: 'receipt', lbl: '📄 ใบเสร็จรับเงิน / ใบกำกับภาษี', sub: 'Receipt / Tax Invoice', show: true },
     { key: 'payment', lbl: '💰 ใบรับเงิน', sub: 'Payment Receipt', show: isDep || isDebt },

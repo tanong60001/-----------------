@@ -5075,7 +5075,8 @@ console.log('[v36] Usage safety patch loaded');
       const { data: items } = await db.from('รายการในบิล').select('*').eq('bill_id', billId);
       if (!bill) { toastV36('ไม่พบบิล', 'error'); return; }
       const hasDel = bill.delivery_mode === 'deliver' || bill.delivery_mode === 'partial';
-      const isDep = money(bill.deposit_amount) > 0 || bill.status === txt.debt;
+      const isClosed = ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(bill.status);
+      const isDep = (!isClosed && money(bill.deposit_amount) > 0) || bill.status === txt.debt;
       const opts = [
         { key: 'receipt', lbl: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', sub: 'Receipt / Tax Invoice', show: true },
         { key: 'payment', lbl: 'ใบรับเงิน', sub: 'Payment Receipt', show: isDep },

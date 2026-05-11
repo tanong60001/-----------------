@@ -111,29 +111,43 @@ function calcChangeDenominations(amount) {
 }
 
 // Open customer display — จอที่ 2 + fullscreen อัตโนมัติ
-async function openCustomerDisplay() {
+async function openCustomerDisplay(autoDetect = false) {
   if (customerDisplayWindow && !customerDisplayWindow.closed) {
-    customerDisplayWindow.focus();
-    customerDisplayWindow.postMessage({ type: 'fullscreen' }, '*');
+    if (!autoDetect) {
+      customerDisplayWindow.focus();
+      customerDisplayWindow.postMessage({ type: 'fullscreen' }, '*');
+    }
     return;
   }
 
   let left = 0, top = 0, w = 1920, h = 1080;
+  let hasMultipleScreens = false;
 
   try {
     // Window Management API (Chrome 100+ / Edge 100+) — ตรวจจอที่ 2 โดยตรง
     if ('getScreenDetails' in window) {
       const sd = await window.getScreenDetails();
+      hasMultipleScreens = sd.screens.length > 1;
+      
+      // ถ้าเป็นการเปิดแบบอัตโนมัติ (ตอนล็อกอิน) แต่มีแค่จอเดียว ให้ยกเลิกการเปิดจอทันที
+      if (autoDetect && !hasMultipleScreens) {
+        console.log('พบเพียงหน้าจอเดียว ข้ามการเปิดจอลูกค้าอัตโนมัติ');
+        return;
+      }
+
       const sec = sd.screens.find(s => !s.isPrimary) ?? sd.screens[sd.screens.length - 1];
       left = sec.left   ?? sec.availLeft ?? 0;
       top  = sec.top    ?? sec.availTop  ?? 0;
       w    = sec.width  || sec.availWidth  || 1920;
       h    = sec.height || sec.availHeight || 1080;
     } else {
+      // ถ้าเบราว์เซอร์ไม่รองรับ API เช็คจำนวนหน้าจอ และเป็นการตั้งค่าเปิดออโต้ ให้ยกเลิกป้องกันจอเด้งทับจอหลัก
+      if (autoDetect) return;
       throw new Error('api unavailable');
     }
   } catch (_) {
-    // Fallback: ดันหน้าต่างออกไปทางขวาของจอปัจจุบัน (จะขึ้นจอ 2 อัตโนมัติ)
+    if (autoDetect) return; // ยกเลิกเปิดออโต้ถ้ามี Error
+    // Fallback: ดันหน้าต่างออกไปทางขวาของจอปัจจุบัน (จะขึ้นจอ 2 อัตโนมัติถ้าต่อแบบ Extend)
     left = (window.screen.availLeft || 0) + window.screen.width;
     top  = window.screen.availTop  || 0;
     w    = window.screen.width;
@@ -225,6 +239,10 @@ async function checkLogin() {
     document.getElementById('user-display-role').textContent = data.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
     applyNavPermissions();
     await initApp();
+    
+    // Auto-open customer display if multiple screens detected
+    openCustomerDisplay(true);
+    
     toast(`ยินดีต้อนรับ ${data.username}`, 'success');
     logActivity('เข้าสู่ระบบ', data.username);
   } catch (e) { console.error('Login error:', e); toast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error'); }
@@ -246,6 +264,13 @@ function logout() {
     }
   });
 }
+
+// Auto-close customer display when POS window is refreshed or closed
+window.addEventListener('beforeunload', () => {
+  if (customerDisplayWindow && !customerDisplayWindow.closed) {
+    customerDisplayWindow.close();
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 // 4. INITIALIZATION

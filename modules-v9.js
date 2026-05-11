@@ -9121,10 +9121,14 @@ window.v9Pur24NewForm = function () {
     <!-- ข้อมูลสินค้า -->
     <div class="v9p24-section">
       <div class="v9p24-sec-lbl">ข้อมูลสินค้า</div>
-      <div class="v9p24-g2" style="margin-bottom:10px;">
+      <div class="v9p24-g3" style="margin-bottom:10px;">
         <div class="v9p24-field" style="margin:0;">
           <div class="v9p24-lbl">ชื่อสินค้า *</div>
           <input class="v9p24-fi" id="v9p24-new-name" placeholder="เช่น สีเบส เหลือง D-400">
+        </div>
+        <div class="v9p24-field" style="margin:0;">
+          <div class="v9p24-lbl">ราคาขาย (฿) *</div>
+          <input class="v9p24-fi" type="number" id="v9p24-new-price" placeholder="0" min="0">
         </div>
         <div class="v9p24-field" style="margin:0;">
           <div class="v9p24-lbl">หน่วยเก็บสต็อก *</div>
@@ -9415,7 +9419,7 @@ window.v9Pur24SelMethod = function (el, method) {
 window.v9Pur24AddItemToList = async function (mode) {
   const isNew = mode === 'new';
 
-  let prodId = '', prodName = '', baseUnit = '', qty = 0, cost = 0, kgPer = 1, isRaw = false;
+  let prodId = '', prodName = '', baseUnit = '', qty = 0, cost = 0, kgPer = 1, isRaw = false, basePrice = 0;
 
   if (!isNew) {
     const prod = window._v9Pur.selectedProd;
@@ -9430,6 +9434,7 @@ window.v9Pur24AddItemToList = async function (mode) {
   } else {
     prodName = document.getElementById('v9p24-new-name')?.value?.trim();
     baseUnit = document.getElementById('v9p24-new-baseunit')?.value?.trim() || 'ชิ้น';
+    basePrice = Number(document.getElementById('v9p24-new-price')?.value || 0);
     qty = Number(document.getElementById('v9p24-new-qty')?.value || 0);
     cost = Number(document.getElementById('v9p24-new-cost')?.value || 0);
     kgPer = Number(document.getElementById('v9p24-new-kgper')?.value || 1);
@@ -9462,7 +9467,7 @@ window.v9Pur24AddItemToList = async function (mode) {
       const typeVal = typeSel?.dataset?.type || 'sale';
       const { data: np, error: ne } = await db.from('สินค้า').insert({
         name: prodName, unit: baseUnit,
-        price: sellUnits.length > 0 ? (sellUnits[0].price_per_unit || 0) : 0,
+        price: basePrice > 0 ? basePrice : (sellUnits.length > 0 ? (sellUnits[0].price_per_unit || 0) : 0),
         cost: parseFloat(costBase.toFixed(6)), stock: 0,
         is_raw: typeVal === 'raw',  // both → is_raw=false แต่ product_type='both'
         product_type: typeVal === 'both' ? 'both' : (typeVal === 'raw' ? 'ปกติ' : 'ปกติ'),
@@ -21261,4 +21266,208 @@ window.v9AutoUpdateBillStatus = async function (customerId) {
     window.v9PromoRemoveSelected = window.v9PromoWorkspaceApi.remove;
   }
   if (typeof window.v9InstallPermissionPromoGuards === 'function') window.v9InstallPermissionPromoGuards();
+})();
+
+
+// ══════════════════════════════════════════════════════════════════
+// FIX-CASH-PUR — รับสินค้าเข้า จ่ายเงินสด → บังคับนับแบงค์ก่อนบันทึก
+// ══════════════════════════════════════════════════════════════════
+(function v9PurCashDenomPatch() {
+  'use strict';
+  const _origPur24Save = window.v9Pur24Save;
+
+  window.v9Pur24Save = async function () {
+    const items = window._v9Pur?.items || [];
+    if (!items.length) { typeof toast === 'function' && toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'error'); return; }
+
+    const method = document.querySelector('.v9p24-mbtn.on')?.textContent?.trim() || 'เงินสด';
+    const total = items.reduce((s, i) => s + i.qty * i.cost, 0);
+
+    // ถ้าไม่ใช่เงินสด → ดำเนินการปกติ
+    if (method !== 'เงินสด') {
+      return _origPur24Save?.apply(this, arguments);
+    }
+
+    // ตรวจว่าเปิดรอบเงินสดแล้วหรือยัง
+    const { data: openSess } = await db.from('cash_session').select('id')
+      .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
+    if (!openSess) {
+      typeof toast === 'function' && toast('กรุณาเปิดรอบเงินสดก่อนจ่ายเงินสด', 'warning');
+      return;
+    }
+
+    // เงินสด → เปิด v28ExpenseWiz (2-step: หยิตเงินออก → นับเงินทอนเข้า)
+    if (typeof window.v28ExpenseWiz !== 'function') {
+      // fallback ถ้าไม่มี wizard → ทำงานปกติโดยไม่นับแบงค์
+      console.warn('[v9PurCash] v28ExpenseWiz not available, skipping denomination counting');
+      const result = await _origPur24Save?.apply(this, arguments);
+      // บันทึก cash_transaction แบบไม่มี denominations
+      try {
+        await db.from('cash_transaction').insert({
+          session_id: openSess.id,
+          type: 'รับสินค้าเข้า',
+          direction: 'out',
+          amount: total,
+          net_amount: total,
+          balance_after: 0,
+          ref_table: 'purchase_order',
+          staff_name: typeof v9Staff === 'function' ? v9Staff() : (window.USER?.username || '-'),
+          note: `จ่ายค่าสินค้า ฿${typeof formatNum === 'function' ? formatNum(total) : total}`
+        });
+      } catch (e) { console.error('[v9PurCash] fallback cash_transaction error:', e); }
+      return result;
+    }
+
+    // มี v28ExpenseWiz → เปิด wizard นับแบงค์
+    return new Promise((resolve) => {
+      // ต้อง load drawer ก่อน
+      const loadDrw = typeof window.loadDrawer === 'function'
+        ? window.loadDrawer
+        : (typeof loadDrawer === 'function' ? loadDrawer : null);
+
+      const openWizard = (drawer) => {
+        window.v28ExpenseWiz(total, drawer || {}, async (res) => {
+          try {
+            // res = { out: {...}, outTotal: N, in: {...}, inTotal: N }
+            // เรียก original save
+            await _origPur24Save?.apply(this, arguments);
+
+            // บันทึก cash_transaction พร้อม denominations
+            try {
+              await db.from('cash_transaction').insert({
+                session_id: openSess.id,
+                type: 'รับสินค้าเข้า',
+                direction: 'out',
+                amount: res.outTotal,
+                change_amt: res.inTotal,
+                net_amount: total,
+                balance_after: 0,
+                ref_table: 'purchase_order',
+                staff_name: typeof v9Staff === 'function' ? v9Staff() : (window.USER?.username || '-'),
+                denominations: res.out,
+                change_denominations: res.in,
+                note: `จ่ายค่าสินค้า ฿${typeof formatNum === 'function' ? formatNum(total) : total}`
+              });
+            } catch (e) { console.error('[v9PurCash] cash_transaction insert error:', e); }
+
+            // อัปเดต UI
+            if (typeof loadCashBalance === 'function') loadCashBalance();
+            if (typeof getLiveCashBalance === 'function') {
+              try {
+                const nb = await getLiveCashBalance();
+                ['cash-current-balance', 'global-cash-balance'].forEach(id => {
+                  const el = document.getElementById(id);
+                  if (el) el.textContent = '฿' + (typeof formatNum === 'function' ? formatNum(nb) : nb);
+                });
+              } catch (_) {}
+            }
+            resolve();
+          } catch (e) {
+            console.error('[v9PurCash] save after wizard error:', e);
+            resolve();
+          }
+        });
+      };
+
+      // โหลด drawer แล้วเปิด wizard
+      if (loadDrw) {
+        const result = loadDrw();
+        if (result && typeof result.then === 'function') {
+          result.then(openWizard).catch(() => openWizard({}));
+        } else {
+          openWizard(result || {});
+        }
+      } else {
+        // ไม่มี loadDrawer → ลองโหลดจาก cash_session เอง
+        (async () => {
+          try {
+            const { data: sess } = await db.from('cash_session').select('*')
+              .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
+            const drawer = {};
+            [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(v => drawer[v] = 0);
+            if (sess) {
+              const od = sess.opening_denominations || sess.denominations || {};
+              Object.keys(od).forEach(k => { const n = Number(k); if (drawer[n] !== undefined) drawer[n] += Number(od[k]) || 0; });
+              const { data: txs } = await db.from('cash_transaction').select('direction,denominations,change_denominations,change_amt')
+                .eq('session_id', sess.id);
+              (txs || []).forEach(tx => {
+                const dir = tx.direction === 'in' ? 1 : -1;
+                const den = tx.denominations || {}, chg = tx.change_denominations || {};
+                [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(v => {
+                  drawer[v] += dir * (Number(den[v] || 0));
+                  if (tx.direction === 'in') drawer[v] -= Number(chg[v] || 0);
+                  else drawer[v] += Number(chg[v] || 0);
+                });
+              });
+              [1000, 500, 100, 50, 20, 10, 5, 2, 1].forEach(v => { if (drawer[v] < 0) drawer[v] = 0; });
+            }
+            openWizard(drawer);
+          } catch (e) {
+            console.error('[v9PurCash] drawer load error:', e);
+            openWizard({});
+          }
+        })();
+      }
+    });
+  };
+
+  const _origP23Save = window.v9P23Save;
+  window.v9P23Save = async function () {
+    const items = window._v9PurItems || [];
+    if (!items.length) return;
+    const method = document.getElementById('v9p23-method')?.value || 'เงินสด';
+    const total = items.reduce((s, i) => s + i.qty * i.cost, 0);
+
+    if (method !== 'เงินสด') {
+      return _origP23Save?.apply(this, arguments);
+    }
+
+    const { data: openSess } = await db.from('cash_session').select('id')
+      .eq('status', 'open').order('opened_at', { ascending: false }).limit(1).maybeSingle();
+    if (!openSess) { typeof toast === 'function' && toast('กรุณาเปิดรอบเงินสดก่อน', 'warning'); return; }
+
+    if (typeof window.v28ExpenseWiz !== 'function') {
+      const res = await _origP23Save?.apply(this, arguments);
+      try {
+        await db.from('cash_transaction').insert({
+          session_id: openSess.id, type: 'รับสินค้าเข้า', direction: 'out',
+          amount: total, net_amount: total, balance_after: 0, ref_table: 'purchase_order',
+          staff_name: typeof v9Staff === 'function' ? v9Staff() : (window.USER?.username || '-'),
+          note: `จ่ายค่าสินค้า (P23) ฿${typeof formatNum === 'function' ? formatNum(total) : total}`
+        });
+      } catch (e) { }
+      return res;
+    }
+
+    return new Promise((resolve) => {
+      const loadDrw = typeof window.loadDrawer === 'function' ? window.loadDrawer : null;
+      const openWizard = (drawer) => {
+        window.v28ExpenseWiz(total, drawer || {}, async (res) => {
+          try {
+            await _origP23Save?.apply(this, arguments);
+            try {
+              await db.from('cash_transaction').insert({
+                session_id: openSess.id, type: 'รับสินค้าเข้า', direction: 'out',
+                amount: res.outTotal, change_amt: res.inTotal, net_amount: total,
+                balance_after: 0, ref_table: 'purchase_order',
+                staff_name: typeof v9Staff === 'function' ? v9Staff() : (window.USER?.username || '-'),
+                denominations: res.out, change_denominations: res.in,
+                note: `จ่ายค่าสินค้า (P23) ฿${typeof formatNum === 'function' ? formatNum(total) : total}`
+              });
+            } catch (e) { }
+            if (typeof loadCashBalance === 'function') loadCashBalance();
+            resolve();
+          } catch (e) { resolve(); }
+        });
+      };
+      if (loadDrw) loadDrw().then(openWizard).catch(() => openWizard({}));
+      else openWizard({});
+    });
+  };
+
+  // sync aliases
+  window.savePurchaseOrder = window.v9Pur24Save;
+  window.submitPurchaseOrder = window.v9Pur24Save;
+
+  console.log('%c[v9PurCash] ✅ Purchase cash denomination counting enabled (v24 & v23)', 'color:#16a34a;font-weight:800');
 })();

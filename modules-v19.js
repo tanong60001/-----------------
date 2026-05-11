@@ -540,14 +540,19 @@ window.v12PrintDeposit      = async (id) => { try { await v19PrintA4(id, 'deposi
 window.v12DQPrintNote = (id) => v19PrintA4(id, 'delivery');
 
 /* History page: add unified print function */
-window.v19PrintMenu = function(billId, hasDel) {
+window.v19PrintMenu = async function(billId, hasDel) {
   if (typeof Swal === 'undefined') { v12PrintReceipt80mm(billId); return; }
+  let isClosed = false;
+  try {
+    const { data: b } = await db.from('บิลขาย').select('status').eq('id', billId).maybeSingle();
+    if (b) isClosed = ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(b.status);
+  } catch (_) {}
   const opts = [
     { icon:'🧾', label:'ใบเสร็จ 80mm',  fn:()=>v12PrintReceipt80mm(billId) },
     { icon:'📄', label:'ใบเสร็จ A4',    fn:()=>v12PrintReceiptA4(billId) },
   ];
   if (hasDel) opts.push({ icon:'🚚', label:'ใบส่งของ', fn:()=>v12PrintDeliveryNote(billId) });
-  opts.push({ icon:'💰', label:'ใบมัดจำ', fn:()=>v12PrintDeposit(billId) });
+  if (!isClosed) opts.push({ icon:'💰', label:'ใบมัดจำ', fn:()=>v12PrintDeposit(billId) });
 
   Swal.fire({
     title: 'เลือกประเภทเอกสาร',

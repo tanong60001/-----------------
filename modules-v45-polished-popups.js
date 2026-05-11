@@ -427,38 +427,84 @@
           const paidAmt = Math.max(0, Math.min(money(document.getElementById('v45-debt-amount')?.value), debt));
           const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
           const note = document.getElementById('v45-debt-note')?.value?.trim();
+
           if (paidAmt <= 0) { toast?.('กรุณากรอกยอดรับชำระ', 'warning'); return; }
           if (paidAmt > debt) { toast?.('ยอดรับชำระมากกว่ายอดหนี้', 'warning'); return; }
-          const session = method === 'เงินสด' ? await getOpenCashSession() : null;
-          if (method === 'เงินสด' && !session) { toast?.('กรุณาเปิดรอบลิ้นชักเงินสดก่อนรับเงินสด', 'warning'); return; }
-          const newDebt = Math.max(0, debt - paidAmt);
-          const upd = await db.from('customer').update({ debt_amount: newDebt }).eq('id', customerId);
-          if (upd.error) throw upd.error;
-          const { data: pay, error: payError } = await db.from('ชำระหนี้').insert({
-            customer_id: customerId,
-            amount: paidAmt,
-            method,
-            staff_name: debtStaffName(),
-          }).select('id').maybeSingle();
-          if (payError) throw payError;
-          if (method === 'เงินสด' && session && typeof window.recordCashTx === 'function') {
-            await window.recordCashTx({
-              sessionId: session.id,
-              type: 'รับชำระหนี้',
-              direction: 'in',
+
+          if (method === 'เงินสด') {
+            const session = await getOpenCashSession();
+            if (!session) { toast?.('กรุณาเปิดรอบลิ้นชักเงินสดก่อนรับเงินสด', 'warning'); return; }
+
+            if (typeof window.v28DebtPayWiz !== 'function') {
+              toast?.('ระบบนับเงินไม่พร้อมใช้งาน (v28)', 'error');
+              return;
+            }
+
+            // เปิดหน้าจอนับเงินแบบ รับมา-ทอนไป
+            window.v28DebtPayWiz(customerId, customerName, paidAmt, async (finalPaid, recvTotal, chgTotal, recvDs, chgDs) => {
+              try {
+                // 1. อัปเดตยอดหนี้ลูกค้า
+                const newDebt = Math.max(0, debt - finalPaid);
+                const upd = await db.from('customer').update({ debt_amount: newDebt }).eq('id', customerId);
+                if (upd.error) throw upd.error;
+
+                // 2. บันทึกประวัติชำระหนี้
+                const { data: pay, error: payError } = await db.from('ชำระหนี้').insert({
+                  customer_id: customerId,
+                  amount: finalPaid,
+                  method,
+                  staff_name: debtStaffName(),
+                }).select('id').maybeSingle();
+                if (payError) throw payError;
+
+                // 3. บันทึกเงินสดลงลิ้นชัก (พร้อมข้อมูลแบงค์)
+                if (typeof window.recordCashTx === 'function') {
+                  await window.recordCashTx({
+                    sessionId: session.id,
+                    type: 'รับชำระหนี้',
+                    direction: 'in',
+                    amount: recvTotal,
+                    change_amt: chgTotal,
+                    netAmount: finalPaid,
+                    refId: pay?.id || null,
+                    refTable: 'ชำระหนี้',
+                    denominations: recvDs,
+                    change_denominations: chgDs,
+                    note: `${customerName} ชำระหนี้${note ? ' - ' + note : ''}`,
+                  });
+                }
+
+                // 4. สรุปผล
+                try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(finalPaid)}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
+                toast?.(`รับชำระสำเร็จ ฿${fmt(finalPaid)}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
+                
+                closeModalById('v45-debt-modal');
+                await refreshDebtViews(customerId);
+              } catch (err) {
+                console.error('[v45] debt payment wizard error:', err);
+                toast?.('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+              }
+            }, true); // true = cashOnly (ให้ v45 จัดการ DB เอง)
+          } else {
+            // วิธีอื่นๆ (โอน/บัตร)
+            const newDebt = Math.max(0, debt - paidAmt);
+            const upd = await db.from('customer').update({ debt_amount: newDebt }).eq('id', customerId);
+            if (upd.error) throw upd.error;
+
+            const { error: payError } = await db.from('ชำระหนี้').insert({
+              customer_id: customerId,
               amount: paidAmt,
-              netAmount: paidAmt,
-              refId: pay?.id || null,
-              refTable: 'ชำระหนี้',
-              denominations: {},
-              changeDenominations: {},
-              note: `${customerName} ชำระหนี้${note ? ' - ' + note : ''}`,
+              method,
+              staff_name: debtStaffName(),
             });
+            if (payError) throw payError;
+
+            try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
+            toast?.(`รับชำระสำเร็จ ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
+            
+            closeModalById('v45-debt-modal');
+            await refreshDebtViews(customerId);
           }
-          try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
-          toast?.(`รับชำระสำเร็จ ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
-          closeModalById('v45-debt-modal');
-          await refreshDebtViews(customerId);
         };
       } catch (err) {
         console.error('[v45] debt payment:', err);
