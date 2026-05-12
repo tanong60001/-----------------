@@ -9,6 +9,7 @@ console.log('[v36] Usage safety patch loaded');
 
   const txt = {
     product: 'สินค้า',
+    recipe: 'สูตรสินค้า',
     bill: 'บิลขาย',
     billItem: 'รายการในบิล',
     sale: 'ขาย',
@@ -2225,14 +2226,7 @@ console.log('[v36] Usage safety patch loaded');
   async function settleDeliveryStockOnce(billId, items) {
     const deliverItems = (items || []).filter(i => money(i.deliver_qty) > 0 && i.product_id);
     for (const it of deliverItems) {
-      const existed = await queryOne('stock_movement', 'id', [
-        ['ref_id', billId],
-        ['product_id', it.product_id],
-        ['type', txt.deliveryMove],
-      ]);
-      if (existed) continue;
-
-      const prod = await queryOne(txt.product, 'id,name,stock,unit', [['id', it.product_id]]);
+      const prod = await queryOne(txt.product, 'id,name,stock,unit,product_type', [['id', it.product_id]]);
       if (!prod) throw new Error('ไม่พบสินค้า: ' + (it.name || it.product_id));
 
       let deducted = money(it.deliver_qty);
@@ -2240,6 +2234,80 @@ console.log('[v36] Usage safety patch loaded');
         const conv = await _v20FetchConv([it.product_id]);
         deducted = _v20BaseQty(deducted, it.unit || prod.unit || 'ชิ้น', it.product_id, conv.um || {}, conv.bm || {});
       }
+
+      if (isRecipeSaleType(prod)) {
+        const recipeRes = await db.from(txt.recipe)
+          .select('id,product_id,material_id,quantity,unit')
+          .eq('product_id', it.product_id);
+        if (recipeRes.error) throw recipeRes.error;
+
+        const recipes = (recipeRes.data || []).filter(row => row.material_id && money(row.quantity) > 0);
+        if (!recipes.length) throw new Error(`สินค้าตามบิลยังไม่มีสูตรสินค้า: ${it.name || prod.name}`);
+
+        const materialNeeds = new Map();
+        recipes.forEach(recipe => {
+          const key = String(recipe.material_id || '');
+          if (!key) return;
+          materialNeeds.set(key, money(materialNeeds.get(key)) + Number((money(recipe.quantity) * deducted).toFixed(6)));
+        });
+
+        const materialIds = [...materialNeeds.keys()];
+        const materialRes = await db.from(txt.product)
+          .select('id,name,stock,unit')
+          .in('id', materialIds);
+        if (materialRes.error) throw materialRes.error;
+
+        const materialMap = new Map((materialRes.data || []).map(row => [String(row.id), row]));
+        for (const [materialId, needed] of materialNeeds) {
+          const mat = materialMap.get(String(materialId));
+          if (!mat) throw new Error(`ไม่พบวัตถุดิบของ ${it.name || prod.name}: ${materialId}`);
+          const before = money(mat.stock);
+          if (before < needed) {
+            throw new Error(`สต็อกวัตถุดิบไม่พอสำหรับจัดส่ง: ${mat.name || materialId} มี ${fmt(before)} ต้องใช้ ${fmt(needed)} (${it.name || prod.name})`);
+          }
+        }
+
+        for (const [materialId, needed] of materialNeeds) {
+          const mat = materialMap.get(String(materialId));
+
+          const moveType = 'ใช้ผลิต(จัดส่ง)';
+          const existed = await queryOne('stock_movement', 'id', [
+            ['ref_id', billId],
+            ['product_id', materialId],
+            ['type', moveType],
+          ]);
+          if (existed) continue;
+
+          const before = money(mat.stock);
+          const after = Number((before - needed).toFixed(6));
+          await must(db.from(txt.product).update({ stock: after, updated_at: new Date().toISOString() }).eq('id', materialId), 'ตัดสต็อกวัตถุดิบจัดส่ง');
+          await must(db.from('stock_movement').insert({
+            product_id: materialId,
+            product_name: mat.name || materialId,
+            type: moveType,
+            direction: 'out',
+            qty: needed,
+            stock_before: before,
+            stock_after: after,
+            ref_id: billId,
+            ref_table: txt.bill,
+            staff_name: userName(),
+            note: `จัดส่ง ${it.name || prod.name} x ${fmt(it.deliver_qty)} ${it.unit || prod.unit || ''}`,
+          }), 'บันทึกประวัติสต็อกวัตถุดิบจัดส่ง');
+
+          const cachedMat = (typeof products !== 'undefined' ? products : window.products || [])
+            .find?.(p => String(p.id) === String(materialId));
+          if (cachedMat) cachedMat.stock = after;
+        }
+        continue;
+      }
+
+      const existed = await queryOne('stock_movement', 'id', [
+        ['ref_id', billId],
+        ['product_id', it.product_id],
+        ['type', txt.deliveryMove],
+      ]);
+      if (existed) continue;
 
       const before = money(prod.stock);
       if (before < deducted) {

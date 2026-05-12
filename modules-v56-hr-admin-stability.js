@@ -355,6 +355,7 @@
       .v56-cal-title{display:flex;align-items:center;gap:12px;min-width:0}.v56-cal-avatar{width:46px;height:46px;border-radius:14px;background:#dc2626;display:grid;place-items:center;font-weight:950;box-shadow:0 12px 24px rgba(220,38,38,.26)}
       .v56-cal-title h3{margin:0;font-size:20px;color:#fff;font-weight:950;line-height:1.2}.v56-cal-title p{margin:4px 0 0;color:rgba(255,255,255,.72);font-size:12px;font-weight:800}
       .v56-cal-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.v56-cal-nav button{height:38px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;border-radius:10px;padding:0 12px;font:inherit;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+      .v56-cal-nav button.v56-export-btn{background:#10b981;border-color:#10b981;color:#fff;box-shadow:0 12px 24px rgba(16,185,129,.22)}
       .v56-cal-body{padding:18px 22px 22px;overflow:auto;background:#f8fafc}.v56-cal-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.v56-legend{display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:7px 10px;color:#475569;font-size:12px;font-weight:900}.v56-legend i{width:10px;height:10px;border-radius:999px;display:block}
       .v56-cal-grid{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:9px}.v56-cal-dow{padding:9px 4px;text-align:center;color:#64748b;font-size:12px;font-weight:950}
       .v56-cal-day{min-height:126px;border:1px solid #e2e8f0;background:#fff;border-radius:13px;padding:10px;display:flex;flex-direction:column;gap:7px;box-shadow:0 8px 18px rgba(15,23,42,.035)}
@@ -624,6 +625,7 @@
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',${info.offset - 1})"><i class="material-icons-round">chevron_left</i>เดือนก่อน</button>
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',0)">เดือนนี้</button>
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',${info.offset + 1})">เดือนถัดไป<i class="material-icons-round">chevron_right</i></button>
+            <button class="v56-export-btn" type="button" onclick="v56ExportEmployeeCalendarExcel('${js(empId)}','${js(empName)}',${info.offset})"><i class="material-icons-round">grid_on</i>Excel</button>
             <button type="button" onclick="document.getElementById('v56-cal-modal')?.remove()"><i class="material-icons-round">close</i></button>
           </div>
         </div>
@@ -636,6 +638,106 @@
     document.body.appendChild(modal);
     return info;
   }
+
+  function safeFileName(value) {
+    return String(value || 'export').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_').slice(0, 80);
+  }
+
+  function downloadExcelHtml(fileName, html) {
+    const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 0);
+  }
+
+  function calendarExcelHtml(empName, info, data) {
+    const dows = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
+    const monthName = info.first.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+    const rows = [];
+    let week = new Array(7).fill('<td class="blank"></td>');
+    let dayOfWeek = info.first.getDay();
+    for (let day = 1; day <= info.last.getDate(); day++) {
+      const date = new Date(info.first.getFullYear(), info.first.getMonth(), day);
+      const key = date.toISOString().split('T')[0];
+      const att = data.attendance[key] || null;
+      const status = att?.status || 'ยังไม่ลง';
+      const adv = money(data.advances[key]);
+      const paid = money(data.payments[key]);
+      const note = String(att?.note || '').trim();
+      const cls = statusClass(status).replace('st-', 'xls-');
+      week[dayOfWeek] = `<td class="${cls}">
+        <div class="day">${day}</div>
+        <div class="pill">${esc(status)}</div>
+        <div class="line"><span>เบิก</span><b>${adv ? '฿' + fmt(adv) : '-'}</b></div>
+        <div class="line"><span>จ่าย</span><b>${paid ? '฿' + fmt(paid) : '-'}</b></div>
+        <div class="note">${note ? esc(note) : '&nbsp;'}</div>
+      </td>`;
+      if (dayOfWeek === 6 || day === info.last.getDate()) {
+        rows.push(`<tr>${week.join('')}</tr>`);
+        week = new Array(7).fill('<td class="blank"></td>');
+      }
+      dayOfWeek = (dayOfWeek + 1) % 7;
+    }
+    const presentCount = Object.values(data.attendance || {}).filter(row => row?.status && row.status !== 'ขาด').length;
+    const absentCount = Object.values(data.attendance || {}).filter(row => row?.status === 'ขาด').length;
+    const totalAdvance = Object.values(data.advances || {}).reduce((sum, value) => sum + money(value), 0);
+    const totalPaid = Object.values(data.payments || {}).reduce((sum, value) => sum + money(value), 0);
+    return `<!doctype html><html><head><meta charset="utf-8">
+      <style>
+        @page{size:A4 landscape;margin:8mm}
+        body{font-family:Tahoma,'Prompt',sans-serif;color:#0f172a}
+        table{border-collapse:collapse;width:100%}
+        .title{background:#111827;color:#fff}
+        .title td{padding:14px 16px;border:1px solid #111827}
+        .title h1{margin:0;font-size:22px}.title p{margin:4px 0 0;color:#cbd5e1;font-size:12px}
+        .summary td{border:1px solid #cbd5e1;padding:8px 10px;background:#f8fafc;font-weight:700}
+        .dow th{background:#334155;color:#fff;border:1px solid #334155;padding:8px;font-size:12px}
+        .cal td{width:14.285%;height:98px;vertical-align:top;border:1px solid #cbd5e1;padding:7px;background:#fff}
+        .cal td.blank{background:#f1f5f9}
+        .day{font-size:15px;font-weight:900;float:left}.pill{float:right;border-radius:14px;background:#e2e8f0;color:#475569;padding:3px 7px;font-size:10px;font-weight:900}
+        .line{clear:both;margin-top:18px;display:flex;justify-content:space-between;font-size:11px}.line+ .line{margin-top:5px}.line span{color:#64748b;font-weight:700}.line b{color:#0f172a}
+        .note{margin-top:7px;color:#475569;font-size:10px;line-height:1.3}
+        .xls-work{background:#ecfdf5!important}.xls-work .pill{background:#bbf7d0;color:#047857}
+        .xls-absent{background:#fff1f2!important}.xls-absent .pill{background:#fecaca;color:#b91c1c}
+        .xls-leave{background:#f5f3ff!important}.xls-leave .pill{background:#ddd6fe;color:#6d28d9}
+        .xls-late{background:#fff7ed!important}.xls-late .pill{background:#fed7aa;color:#c2410c}
+        .xls-half{background:#f0f9ff!important}.xls-half .pill{background:#bae6fd;color:#0369a1}
+      </style></head><body>
+      <table>
+        <tr class="title"><td colspan="7"><h1>ปฏิทินพนักงาน: ${esc(empName)}</h1><p>${esc(monthName)} · ส่งออกเมื่อ ${new Date().toLocaleString('th-TH')}</p></td></tr>
+        <tr class="summary">
+          <td colspan="2">วันทำงาน/ลงเวลา: ${presentCount}</td>
+          <td>ขาด: ${absentCount}</td>
+          <td colspan="2">เบิกรวม: ฿${fmt(totalAdvance)}</td>
+          <td colspan="2">จ่ายรวม: ฿${fmt(totalPaid)}</td>
+        </tr>
+        <tr class="dow">${dows.map(day => `<th>${day}</th>`).join('')}</tr>
+      </table>
+      <table class="cal">${rows.join('')}</table>
+      </body></html>`;
+  }
+
+  window.v56ExportEmployeeCalendarExcel = async function (empId, empName, offset = 0) {
+    try {
+      const info = monthInfo(offset);
+      const data = await loadEmployeeMonth(empId, info);
+      const monthName = info.first.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+      downloadExcelHtml(
+        `ปฏิทิน_${safeFileName(empName)}_${safeFileName(monthName)}.xls`,
+        calendarExcelHtml(empName, info, data)
+      );
+      toast?.('ส่งออก Excel ปฏิทินสำเร็จ', 'success');
+    } catch (error) {
+      console.error('[v56] export calendar:', error);
+      toast?.('ส่งออก Excel ไม่สำเร็จ: ' + (error.message || error), 'error');
+    }
+  };
 
   window.v56OpenEmployeeCalendar = async function (empId, empName, offset = 0) {
     const info = renderCalendarShell(empId, empName, offset, '<div class="v56-cal-loading">กำลังโหลดรายละเอียดรายเดือน...</div>');
