@@ -63,7 +63,7 @@ const _v24js = v => String(v ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /* ═══ DOC TYPES — ALL RED/WHITE ═══ */
 const V24_TYPES = {
-  receipt: { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE', sk: 'receipt_a4', sig: ['ผู้รับของ / Received By', 'ผู้อนุมัติ / Authorized'] },
+  receipt: { th: 'ใบเสร็จรับเงิน', en: 'RECEIPT', sk: 'receipt_a4', sig: ['ผู้รับของ / Received By', 'ผู้อนุมัติ / Authorized'] },
   payment: { th: 'ใบรับเงิน', en: 'PAYMENT RECEIPT', sk: 'payment_receipt', sig: ['ผู้จ่ายเงิน / Payer', 'ผู้รับเงิน / Receiver'] },
   delivery: { th: 'ใบส่งของ / ใบกำกับสินค้า', en: 'DELIVERY NOTE', sk: 'receipt_a4', sig: ['ผู้ส่งสินค้า / Delivered By', 'ผู้รับสินค้า / Received By'] },
   quotation: { th: 'ใบเสนอราคา', en: 'QUOTATION', sk: 'quotation', sig: ['ผู้เสนอราคา / Offered By', 'ผู้อนุมัติ / Approved By'] },
@@ -304,7 +304,7 @@ async function v24ShowDocSelector(billId) {
   const isClosed = ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(bill.status);
   const isDep = !isClosed && +(bill.deposit_amount || 0) > 0, isDebt = bill.status === 'ค้างชำระ';
   const opts = [
-    { key: 'receipt', lbl: '📄 ใบเสร็จรับเงิน / ใบกำกับภาษี', sub: 'Receipt / Tax Invoice', show: true },
+    { key: 'receipt', lbl: '📄 ใบเสร็จรับเงิน', sub: 'Receipt', show: true },
     { key: 'payment', lbl: '💰 ใบรับเงิน', sub: 'Payment Receipt', show: isDep || isDebt },
     { key: 'delivery', lbl: '🚚 ใบส่งของ', sub: 'Delivery Note', show: hasDel },
   ].filter(o => o.show);

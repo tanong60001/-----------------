@@ -7,6 +7,15 @@
 // ══════════════════════════════════════════════════════════════════
 console.log('[v26-HR] Loading modules-v26-hr.js v2...');
 
+function v26LocalDateKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // ══════════════════════════════════════
 // SECTION 1: CSS
 // ══════════════════════════════════════
@@ -480,7 +489,7 @@ let v26Att = {};
 window.renderAttendance = async function () {
   const sec = document.getElementById('page-att');
   if (!sec) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = v26LocalDateKey();
   const emps = await loadEmployees();
   const active = emps.filter(e => e.status === 'ทำงาน');
   const { data: rows } = await db.from('เช็คชื่อ').select('*').eq('date', today);
@@ -628,8 +637,8 @@ window.renderPayroll = window.renderPayrollV26 = async function () {
   const sec = document.getElementById('page-att');
   if (!sec) return;
   const now = new Date();
-  const ms = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const me = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const ms = v26LocalDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+  const me = v26LocalDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   const ml = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
   const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
@@ -904,7 +913,7 @@ window.v26DoPay = async function (eid) {
 
   const processPayrollSave = async () => {
     const now = new Date();
-    const ms = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const ms = v26LocalDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const noteDetails = [];
     if (debt > 0) noteDetails.push(`หักหนี้ ฿${debt}`);
@@ -1305,7 +1314,7 @@ window.v26ShowCSVExport = function () {
 async function v26CSVData() {
   const mv = document.getElementById('v26cm')?.value; if (!mv) return null;
   const [y, m] = mv.split('-');
-  const ms = `${y}-${m}-01`, me = new Date(+y, +m, 0).toISOString().split('T')[0];
+  const ms = `${y}-${m}-01`, me = v26LocalDateKey(new Date(+y, +m, 0));
   const ml = new Date(+y, +m - 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
   const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
   const { data: at } = await db.from('เช็คชื่อ').select('*').gte('date', ms).lte('date', me);

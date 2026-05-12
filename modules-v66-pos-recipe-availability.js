@@ -1340,14 +1340,14 @@
       change: num(state.change),
       customer_name: state.customer?.name || null,
       customer_id: state.customer?.id || null,
-      customer_address: state.customer?.address || null,
-      customer_phone: state.customer?.phone || null,
+      delivery_address: state.customer?.address || null,
+      delivery_phone: state.customer?.phone || null,
       staff_name: staffName(),
       status: state.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
     };
     const basicPayload = { ...payload };
-    delete basicPayload.customer_address;
-    delete basicPayload.customer_phone;
+    delete basicPayload.delivery_address;
+    delete basicPayload.delivery_phone;
     const attempts = [
       { ...payload, return_info: info },
       payload,

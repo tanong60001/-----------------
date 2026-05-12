@@ -355,6 +355,7 @@
 
   <script>
     let currentCustomer = { name:'', type:'' };
+    let currentCartCount = 0;
     const DENOM_COLORS = {1000:'#8B5E3C',500:'#6B3FA0',100:'#C8102E',50:'#0066CC',20:'#1A7A3C',10:'#B8860B',5:'#B8860B',2:'#B8860B',1:'#B8860B'};
     const DENOM_LABELS = {1000:'1,000',500:'500',100:'100',50:'50',20:'20',10:'10',5:'5',2:'2',1:'1'};
     const fmt = n => Number(n||0).toLocaleString('th-TH');
@@ -492,9 +493,154 @@
       document.getElementById('cust-banner').classList.remove('show');
       document.getElementById('main-content').classList.remove('with-banner');
       currentCustomer={name:'',type:''};
+      hideCustomerDraft();
     }
 
+    function hideCustomerDraft() {
+      const el=document.getElementById('customer-draft-panel');
+      if(el)el.remove();
+      document.getElementById('screen-items')?.classList.remove('with-cust-strip');
+    }
+
+    function ensureCustomerPanelStyle() {
+      if (document.getElementById('cust-panel-style-v69')) return;
+      const s = document.createElement('style');
+      s.id = 'cust-panel-style-v69';
+      s.textContent = `
+        /* ── Bottom customer strip (lives just above .tot-bar inside #screen-items) ── */
+        #customer-draft-panel{
+          width:100%;
+          background:linear-gradient(135deg,#fff7f7 0%,#ffffff 55%,#fff1f2 100%);
+          border-top:3px solid #fecaca;border-bottom:1px solid #fee2e2;
+          padding:20px 40px;
+          display:flex;justify-content:center;align-items:stretch;
+          font-family:var(--font);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+          animation:cd-strip-in .35s cubic-bezier(.34,1.56,.64,1);
+        }
+        #customer-draft-panel.draft{
+          background:linear-gradient(135deg,#fff7ed 0%,#ffffff 55%,#ffedd5 100%);
+          border-top-color:#fed7aa;border-bottom-color:#ffedd5;
+        }
+        @keyframes cd-strip-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+        .cd-inner{
+          width:100%;max-width:1480px;margin:0 auto;
+          display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+          gap:24px;align-items:stretch;
+        }
+        .cd-cell{
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:8px 18px;min-width:0;text-align:center;
+          border-right:1px solid rgba(220,38,38,.10);
+        }
+        .cd-cell:last-child{border-right:none}
+        #customer-draft-panel.draft .cd-cell{border-right-color:rgba(234,88,12,.10)}
+
+        .cd-label{
+          display:inline-flex;align-items:center;gap:6px;justify-content:center;
+          font-size:13px;color:#94a3b8;font-weight:900;
+          text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;
+        }
+        .cd-label i{font-size:16px;color:#cbd5e1}
+        .cd-val{
+          font-size:26px;font-weight:950;color:#0f172a;
+          line-height:1.22;letter-spacing:-.2px;
+          width:100%;max-width:100%;
+          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+          overflow:hidden;word-break:break-word;
+        }
+        .cd-val.single{
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:1;
+        }
+        .cd-muted{color:#cbd5e1;font-style:italic;font-weight:700}
+
+        .cd-status-tag{
+          position:absolute;top:10px;left:50%;transform:translateX(-50%);
+          display:inline-flex;align-items:center;gap:6px;
+          background:rgba(16,185,129,.10);color:#059669;
+          border:1px solid rgba(16,185,129,.30);
+          border-radius:999px;padding:3px 12px;
+          font-size:11px;font-weight:900;letter-spacing:.4px;
+        }
+        #customer-draft-panel.draft .cd-status-tag{
+          background:rgba(234,88,12,.10);color:#c2410c;border-color:rgba(234,88,12,.30);
+        }
+        .cd-status-tag i{font-size:13px}
+        #customer-draft-panel{position:relative}
+
+        body.thanks-mode #customer-draft-panel{display:none!important}
+        #screen-items.with-cust-strip .items-wrap{padding-bottom:6px}
+        #screen-items.with-cust-strip .tot-bar{padding:14px 40px}
+
+        @media(max-width:1100px){
+          .cd-inner{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+          .cd-val{font-size:22px}
+        }
+        @media(max-width:780px){
+          #customer-draft-panel{padding:14px 18px}
+          .cd-inner{grid-template-columns:1fr;gap:10px}
+          .cd-cell{border-right:none;border-bottom:1px solid rgba(220,38,38,.10);padding:6px 0}
+          .cd-cell:last-child{border-bottom:none}
+          .cd-val{font-size:20px;-webkit-line-clamp:3}
+        }
+      `;
+      document.head.appendChild(s);
+    }
+
+    function renderCustomerPanel(data,mode) {
+      ensureCustomerPanelStyle();
+      const name=(data?.name||'').trim();
+      const phone=(data?.phone||'').trim();
+      const address=(data?.address||'').trim();
+      const safe=v=>String(v||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      const draft=mode==='draft';
+      showCustomer(name||(draft?'กำลังเพิ่มลูกค้าใหม่':'ลูกค้าประจำ'),draft?'new':(data?.customerType||'member'));
+      let el=document.getElementById('customer-draft-panel');
+      const itemsScreen=document.getElementById('screen-items');
+      const totBar=itemsScreen?.querySelector('.tot-bar');
+      if(!el){
+        el=document.createElement('div');
+        el.id='customer-draft-panel';
+      }
+      if(itemsScreen && totBar && el.parentElement!==itemsScreen){
+        itemsScreen.insertBefore(el, totBar);
+      } else if(!el.parentElement){
+        document.body.appendChild(el);
+      }
+      itemsScreen?.classList.add('with-cust-strip');
+      el.className=draft?'draft':'';
+      el.innerHTML=`
+        <div class="cd-inner">
+          <div class="cd-cell">
+            <div class="cd-label"><i class="material-icons-round">person</i> ลูกค้า</div>
+            <div class="cd-val single">${safe(name)||'<span class="cd-muted">ยังไม่ระบุ</span>'}</div>
+          </div>
+          <div class="cd-cell">
+            <div class="cd-label"><i class="material-icons-round">call</i> เบอร์โทร</div>
+            <div class="cd-val single">${safe(phone)||'<span class="cd-muted">—</span>'}</div>
+          </div>
+          <div class="cd-cell">
+            <div class="cd-label"><i class="material-icons-round">location_on</i> ที่อยู่</div>
+            <div class="cd-val${address?'':' cd-muted'}">${safe(address)||'ไม่มีข้อมูลที่อยู่'}</div>
+          </div>
+        </div>
+      `;
+      showScreen(currentCartCount>0?'items':'idle');
+      setStep(2);
+    }
+
+    function detachCustomerPanel(){
+      const el=document.getElementById('customer-draft-panel');
+      el?.remove();
+      document.getElementById('screen-items')?.classList.remove('with-cust-strip');
+    }
+
+    function showCustomerDraft(data) { renderCustomerPanel(data,'draft'); }
+    function showCustomerFull(data) { renderCustomerPanel(data,'selected'); }
+
     function showPaymentMethod(method,total,extra) {
+      hideCustomerDraft();
       document.getElementById('pay-amount').textContent=`฿${fmt(total)}`;
       document.getElementById('pay-box').className='pay-box '+(METHOD_BG[method]||'cash-bg');
       document.getElementById('method-chip').innerHTML=`<i class="material-icons-round">${METHOD_ICONS[method]||'payments'}</i><span>${METHOD_MAP[method]||'เงินสด'}</span>`;
@@ -596,6 +742,110 @@
       }
     }
 
+    /* ── Smooth, diff-based cart renderer ───────────────────────────
+       Keys rows by `${id}|${unit}` so existing rows are kept and only
+       qty/price/total update. Truly new rows fade-in, removed rows
+       fade-out. No more whole-list re-animation on every cart push.    */
+    function ensureCartDiffStyle(){
+      if(document.getElementById('cart-diff-style'))return;
+      const s=document.createElement('style');
+      s.id='cart-diff-style';
+      s.textContent=`
+        .items-list{transition:padding .25s ease}
+        .it-row{display:flex;align-items:center;justify-content:space-between;background:var(--white);border-radius:var(--r-md);border:1px solid var(--g100);min-height:0;
+          transition:background-color .22s ease,box-shadow .22s ease,transform .22s ease,opacity .22s ease,padding .25s ease,margin .25s ease}
+        .it-row.enter{opacity:0;transform:translateX(-14px)}
+        .it-row.entered{opacity:1;transform:translateX(0);animation:none}
+        .it-row.leaving{opacity:0;transform:scale(.92);pointer-events:none}
+        .it-row.bump{animation:row-bump .35s cubic-bezier(.34,1.56,.64,1)}
+        @keyframes row-bump{0%{transform:scale(1)}40%{transform:scale(1.025);background:#fff5f5}100%{transform:scale(1)}}
+        .it-meta,.it-name,.it-price,.it-num{transition:font-size .2s ease}
+        .it-price{transition:font-size .2s ease,color .25s ease}
+        .it-price.changed{color:var(--red-600)}
+        #total-display{transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+        #total-display.tot-flash{transform:scale(1.04)}
+      `;
+      document.head.appendChild(s);
+    }
+    function _cartSizing(n){
+      return n<=4?{p:'18px 24px',mb:'12px',fn:'24px',fm:'16px',fp:'32px',num:'42px',numF:'16px',gap:'18px',br:'var(--r-md)'}
+            :n<=7?{p:'14px 20px',mb:'9px',fn:'20px',fm:'14px',fp:'26px',num:'36px',numF:'14px',gap:'14px',br:'var(--r-md)'}
+            :n<=12?{p:'10px 18px',mb:'6px',fn:'17px',fm:'12px',fp:'22px',num:'30px',numF:'13px',gap:'12px',br:'var(--r-md)'}
+            :n<=20?{p:'7px 14px',mb:'4px',fn:'14px',fm:'10px',fp:'18px',num:'24px',numF:'11px',gap:'10px',br:'10px'}
+            :n<=30?{p:'5px 12px',mb:'3px',fn:'12px',fm:'9px',fp:'15px',num:'20px',numF:'10px',gap:'8px',br:'8px'}
+            :{p:'3px 10px',mb:'2px',fn:'11px',fm:'8px',fp:'13px',num:'16px',numF:'9px',gap:'6px',br:'6px'};
+    }
+    function cartItemKey(item){
+      return String(item?.id||'')+'|'+String(item?.unit||'');
+    }
+    function renderCartDiff(cart){
+      ensureCartDiffStyle();
+      const list=document.getElementById('items-list');
+      if(!list)return;
+      const n=cart.length;
+      const sz=_cartSizing(n);
+      const existing=new Map();
+      list.querySelectorAll('.it-row').forEach(el=>{
+        if(el.dataset.key)existing.set(el.dataset.key,el);
+      });
+      const seen=new Set();
+      let prevEl=null;
+      cart.forEach((item,i)=>{
+        const key=cartItemKey(item);
+        seen.add(key);
+        let el=existing.get(key);
+        const isNew=!el;
+        if(isNew){
+          el=document.createElement('div');
+          el.className='it-row enter';
+          el.dataset.key=key;
+          el.innerHTML=`
+            <div class="it-left"><div class="it-num"></div><div><div class="it-name"></div><div class="it-meta"></div></div></div>
+            <div class="it-price"></div>`;
+          if(prevEl)prevEl.after(el);else list.prepend(el);
+          requestAnimationFrame(()=>{el.classList.add('entered');});
+        } else if(el.parentElement===list){
+          // Ensure ordering matches cart order without animation flicker
+          const nextSibling=prevEl?prevEl.nextSibling:list.firstChild;
+          if(nextSibling!==el)list.insertBefore(el,nextSibling);
+        }
+        // Update styles for current row count (size buckets)
+        Object.assign(el.style,{padding:sz.p,marginBottom:sz.mb,borderRadius:sz.br});
+        const left=el.querySelector('.it-left');if(left)left.style.gap=sz.gap;
+        const numEl=el.querySelector('.it-num');
+        if(numEl){numEl.style.width=sz.num;numEl.style.height=sz.num;numEl.style.fontSize=sz.numF;numEl.textContent=String(i+1);}
+        const nameEl=el.querySelector('.it-name');
+        if(nameEl){nameEl.style.fontSize=sz.fn;if(nameEl.textContent!==(item.name||''))nameEl.textContent=item.name||'';}
+        const metaEl=el.querySelector('.it-meta');
+        if(metaEl){
+          metaEl.style.fontSize=sz.fm;
+          const txt=`฿${fmt(item.price)} × ${item.qty} ${item.unit||'ชิ้น'}`;
+          if(metaEl.textContent!==txt)metaEl.textContent=txt;
+        }
+        const priceEl=el.querySelector('.it-price');
+        if(priceEl){
+          priceEl.style.fontSize=sz.fp;
+          const newPrice=`฿${fmt(item.price*item.qty)}`;
+          if(priceEl.textContent!==newPrice){
+            priceEl.textContent=newPrice;
+            if(!isNew){
+              priceEl.classList.remove('changed');void priceEl.offsetWidth;priceEl.classList.add('changed');
+              el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+              setTimeout(()=>priceEl.classList.remove('changed'),350);
+            }
+          }
+        }
+        prevEl=el;
+      });
+      // Remove vanished items with a fade-out
+      existing.forEach((el,key)=>{
+        if(!seen.has(key)){
+          el.classList.add('leaving');
+          setTimeout(()=>{el.parentElement&&el.parentElement.removeChild(el);},220);
+        }
+      });
+    }
+
     function tick() {
       const now=new Date();
       document.getElementById('clock').textContent=now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -611,31 +861,32 @@
         case 'cart': {
           const cart=data.cart||[],total=data.total||0;
           const qty=cart.reduce((s,c)=>s+c.qty,0);
+          currentCartCount=qty;
           document.getElementById('items-count').textContent=`${qty} รายการ`;
-          // Dynamic sizing: shrink items to fit without scrolling
-          const n=cart.length;
-          const sz=n<=4?{p:'18px 24px',mb:'12px',fn:'24px',fm:'16px',fp:'32px',num:'42px',numF:'16px',gap:'18px'}
-                  :n<=7?{p:'14px 20px',mb:'9px',fn:'20px',fm:'14px',fp:'26px',num:'36px',numF:'14px',gap:'14px'}
-                  :n<=12?{p:'10px 18px',mb:'6px',fn:'17px',fm:'12px',fp:'22px',num:'30px',numF:'13px',gap:'12px'}
-                  :n<=20?{p:'7px 14px',mb:'4px',fn:'14px',fm:'10px',fp:'18px',num:'24px',numF:'11px',gap:'10px'}
-                  :n<=30?{p:'5px 12px',mb:'3px',fn:'12px',fm:'9px',fp:'15px',num:'20px',numF:'10px',gap:'8px'}
-                  :{p:'3px 10px',mb:'2px',fn:'11px',fm:'8px',fp:'13px',num:'16px',numF:'9px',gap:'6px'};
-          document.getElementById('items-list').innerHTML=cart.map((item,i)=>`
-            <div class="it-row" style="animation-delay:${Math.min(i*.03,.3)}s;padding:${sz.p};margin-bottom:${sz.mb};border-radius:${n>20?'6px':'var(--r-md)'}">
-              <div class="it-left" style="gap:${sz.gap}"><div class="it-num" style="width:${sz.num};height:${sz.num};font-size:${sz.numF}">${i+1}</div><div><div class="it-name" style="font-size:${sz.fn}">${item.name}</div><div class="it-meta" style="font-size:${sz.fm}">฿${fmt(item.price)} × ${item.qty} ${item.unit||'ชิ้น'}</div></div></div>
-              <div class="it-price" style="font-size:${sz.fp}">฿${fmt(item.price*item.qty)}</div>
-            </div>`).join('');
-          document.getElementById('total-display').textContent=`฿${fmt(total)}`;
+          renderCartDiff(cart);
+          const totEl=document.getElementById('total-display');
+          const newTotal=`฿${fmt(total)}`;
+          if(totEl.textContent!==newTotal){
+            totEl.textContent=newTotal;
+            totEl.classList.remove('tot-flash');void totEl.offsetWidth;totEl.classList.add('tot-flash');
+          }
           if(cart.length>0){showScreen('items');setStep(1)} else {showScreen('idle');setStep(0);hideCustomer()}
           break;
         }
 
         case 'customer': {
           showCustomer(data.name||'ลูกค้าทั่วไป',data.customerType||'member');
+          if((data.name||'')&&data.name!=='ลูกค้าทั่วไป') showCustomerFull(data);
+          else hideCustomerDraft();
           // Keep on items screen but show customer banner
           if(document.querySelector('.sc-items.active')||document.querySelector('.sc-idle.active')){
             /* stay on current screen */ setStep(2);
           }
+          break;
+        }
+
+        case 'customer_draft': {
+          showCustomerDraft(data);
           break;
         }
 
@@ -685,6 +936,7 @@
         }
 
         case 'thanks': {
+          hideCustomerDraft();
           document.getElementById('thanks-bill').innerHTML=data.billNo?`บิล #<strong>${data.billNo}</strong> — ฿${fmt(data.total)}`:'';
           showScreen('thanks');setStep(4);
           setTimeout(()=>{showScreen('idle');setStep(0);hideCustomer()},6000);
@@ -749,6 +1001,27 @@
       // Try to enter fullscreen automatically (Browsers with Window Management permission allow this without tap)
       _enterFullscreen();
     }
+
+    /* ── Handshake: ask POS to re-send latest cart + customer state ── */
+    function requestStateFromOpener(){
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type:'cd_request_state', at: Date.now() }, '*');
+        }
+      } catch(_) {}
+    }
+    requestStateFromOpener();
+    // Re-request periodically until we receive a non-empty cart or customer, then taper off
+    let cdHandshakeTicks = 0;
+    const cdHandshakeTimer = setInterval(()=>{
+      cdHandshakeTicks++;
+      if (currentCartCount > 0 || currentCustomer?.name) {
+        if (cdHandshakeTicks > 6) clearInterval(cdHandshakeTimer);
+      }
+      requestStateFromOpener();
+      if (cdHandshakeTicks > 12) clearInterval(cdHandshakeTimer);
+    }, 800);
+    window.addEventListener('focus', requestStateFromOpener);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </body>

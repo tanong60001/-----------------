@@ -363,8 +363,8 @@ console.log('[v36] Usage safety patch loaded');
         change: money(checkoutState.change),
         customer_name: checkoutState.customer?.name || null,
         customer_id: checkoutState.customer?.id || null,
-        customer_address: checkoutState.customer?.address || null,
-        customer_phone: checkoutState.customer?.phone || null,
+        delivery_address: checkoutState.customer?.address || null,
+        delivery_phone: checkoutState.customer?.phone || null,
         staff_name: typeof v9Staff === 'function' ? v9Staff() : userName(),
         status: checkoutState.method === 'debt' ? txt.debt : txt.success,
         return_info: salePromoInfoV36(cartSnapshot),
@@ -5038,8 +5038,8 @@ console.log('[v36] Usage safety patch loaded');
     const paymentBlock = qr
       ? receiptQrBlockV36(qr, qrAmount)
       : (suppressQr && !isBillingDoc ? `<div class="paid-note">ชำระแล้ว<small>ขอบคุณที่ใช้บริการ</small></div>` : '');
-    const title = isBillingDoc ? 'ใบวางบิล' : (docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน / ใบกำกับภาษี'));
-    const titleEn = isBillingDoc ? 'BILLING NOTE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT / TAX INVOICE'));
+    const title = isBillingDoc ? 'ใบวางบิล' : (docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน'));
+    const titleEn = isBillingDoc ? 'BILLING NOTE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT'));
     const promoInfo = (() => {
       try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
     })();
@@ -5146,7 +5146,7 @@ console.log('[v36] Usage safety patch loaded');
       const isClosed = ['ยกเลิก', 'คืนสินค้า', 'คืนบางส่วน'].includes(bill.status);
       const isDep = (!isClosed && money(bill.deposit_amount) > 0) || bill.status === txt.debt;
       const opts = [
-        { key: 'receipt', lbl: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', sub: 'Receipt / Tax Invoice', show: true },
+        { key: 'receipt', lbl: 'ใบเสร็จรับเงิน', sub: 'Receipt', show: true },
         { key: 'payment', lbl: 'ใบรับเงิน', sub: 'Payment Receipt', show: isDep },
         { key: 'delivery', lbl: 'ใบส่งของ', sub: 'Delivery Note', show: hasDel },
       ].filter(o => o.show);

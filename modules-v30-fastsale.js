@@ -66,8 +66,8 @@ function _v30PatchSale(attempt) {
         change: checkoutState.change || 0,
         customer_name: checkoutState.customer?.name || null,
         customer_id: checkoutState.customer?.id || null,
-        customer_address: checkoutState.customer?.address || null,
-        customer_phone: checkoutState.customer?.phone || null,
+        delivery_address: checkoutState.customer?.address || null,
+        delivery_phone: checkoutState.customer?.phone || null,
         staff_name: v9Staff(),
         status: checkoutState.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
       }).select().single();

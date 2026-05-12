@@ -1924,10 +1924,19 @@ async function receivePurchase(orderId) {
 // ══════════════════════════════════════════════════════════════════
 // 19. ATTENDANCE (พนักงาน/ลงเวลา)
 // ══════════════════════════════════════════════════════════════════
+function appLocalDateKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 async function renderAttendance() {
   const section = document.getElementById('page-att');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
 
   const { data: employees } = await db.from('พนักงาน').select('*').eq('status', 'ทำงาน').order('name');
   const { data: todayAttRes } = await db.from('เช็คชื่อ').select('*').eq('date', today);
@@ -2041,7 +2050,7 @@ async function renderAttendance() {
 
 async function checkIn(employeeId) {
   const now = new Date();
-  await db.from('เช็คชื่อ').insert({ employee_id: employeeId, date: now.toISOString().split('T')[0], status: 'มา', time_in: now.toTimeString().slice(0, 5), staff_name: USER?.username });
+  await db.from('เช็คชื่อ').insert({ employee_id: employeeId, date: appLocalDateKey(now), status: 'มา', time_in: now.toTimeString().slice(0, 5), staff_name: USER?.username });
   toast('บันทึกเวลาเข้างานสำเร็จ', 'success'); renderAttendance();
 }
 

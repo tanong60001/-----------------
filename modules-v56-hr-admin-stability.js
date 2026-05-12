@@ -507,15 +507,27 @@
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth() + Number(offset || 0), 1);
     const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
-    const start = first.toISOString().split('T')[0];
-    const end = last.toISOString().split('T')[0];
+    const start = localDateKey(first);
+    const end = localDateKey(last);
     const monthKey = start;
     return { first, last, start, end, monthKey, offset: Number(offset || 0) };
   }
 
+  function localDateKey(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   function dateKey(value) {
     if (!value) return '';
-    return String(value).slice(0, 10);
+    if (value instanceof Date) return localDateKey(value);
+    const raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? raw.slice(0, 10) : localDateKey(date);
   }
 
   function addAmount(map, key, amount) {
@@ -581,7 +593,7 @@
 
     for (let day = 1; day <= info.last.getDate(); day++) {
       const date = new Date(info.first.getFullYear(), info.first.getMonth(), day);
-      const key = date.toISOString().split('T')[0];
+      const key = localDateKey(date);
       const att = data.attendance[key] || null;
       const status = att?.status || 'ยังไม่ลง';
       const adv = money(data.advances[key]);
@@ -664,7 +676,7 @@
     let dayOfWeek = info.first.getDay();
     for (let day = 1; day <= info.last.getDate(); day++) {
       const date = new Date(info.first.getFullYear(), info.first.getMonth(), day);
-      const key = date.toISOString().split('T')[0];
+      const key = localDateKey(date);
       const att = data.attendance[key] || null;
       const status = att?.status || 'ยังไม่ลง';
       const adv = money(data.advances[key]);

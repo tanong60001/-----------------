@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('c:/Users/OMEN/Desktop/โปรแกรมร้าน/modules-v69-customer-display-debt-polish.js','utf8'\\)\\);console.log\\('v69 OK'\\);\")",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('c:/Users/OMEN/Desktop/โปรแกรมร้าน/modules-v70-checkout-polish-deposit.js','utf8'\\)\\);console.log\\('v70 OK'\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const html=fs.readFileSync\\('c:/Users/OMEN/Desktop/โปรแกรมร้าน/customer-display.html','utf8'\\);const re=/<script\\(?![^>]*\\\\bsrc=\\)[^>]*>\\([\\\\s\\\\S]*?\\)<\\\\/script>/g;let m,body='',i=0;while\\(m=re.exec\\(html\\)\\){i++;body+=m[1]+'\\\\n';}try{new Function\\(body\\);console.log\\('display OK bytes:',body.length\\);}catch\\(e\\){console.error\\('ERR:',e.message\\);console.error\\(e.stack.split\\('\\\\n'\\).slice\\(0,4\\).join\\('\\\\n'\\)\\);}\")"
+    ]
+  }
+}
