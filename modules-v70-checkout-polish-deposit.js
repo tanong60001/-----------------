@@ -231,11 +231,20 @@
     document.head.appendChild(s);
   }
 
+  function isProjectBillV70(b) {
+    if (!b) return false;
+    if (b.project_id) return true;
+    const text = `${b.customer_name || ''} ${b.method || ''} ${b.status || ''} ${b.note || ''}`;
+    return /\[โครงการ\]|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ|project/i.test(text);
+  }
+
   function isDepositPendingBill(b) {
+    if (isProjectBillV70(b)) return false;
     const dep = num(b?.deposit_amount);
     const status = String(b?.status || '');
     const delivery = String(b?.delivery_status || '');
     const total = num(b?.total);
+    if (/ยกเลิก|คืน/i.test(status)) return false;
     const debtLike = /ค้าง|บางส่วน/.test(status) || (dep > 0 && dep < total);
     const pending = /รอ|จัดส่ง/.test(delivery);
     return dep > 0 && (debtLike || pending);
@@ -243,11 +252,10 @@
 
   async function fetchDepositBills() {
     try {
-      const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+      // Always fetch broad — deposit bills should be shown regardless of date.
+      // Date picker only filters the default "all" history view, not this list.
       const search = (document.getElementById('history-search')?.value || '').toLowerCase();
-      let q = db.from('บิลขาย').select('*').order('date', { ascending: false });
-      if (search) q = q.range(0, 4999);
-      else q = q.gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59');
+      const q = db.from('บิลขาย').select('*').order('date', { ascending: false }).range(0, 4999);
       const { data } = await q;
       return data || [];
     } catch (e) {
@@ -312,14 +320,10 @@
     const depTotal = depBills.reduce((s, b) => s + num(b.deposit_amount), 0);
     injectDepositChip(depBills.length, fmt(depTotal));
 
-    // If user activated the depositPending filter, override tbody contents
-    if (window.v68HistoryFilter === 'depositPending') {
-      const tbody = document.getElementById('history-tbody');
-      if (tbody && typeof window.v39LoadHistoryData === 'function') {
-        // Replace rows by rendering only deposit bills using a recursive replay
-        renderDepositOnlyRows(depBills, tbody);
-      }
-    }
+    // Note: v39 now owns the row filtering for depositPending — we no longer
+    // overwrite the tbody here, which used to cause rows to flicker (v39 paints
+    // its rows, then this code repainted with a different format). v39's chip
+    // bar handles the filter directly via isDepositOpenBillV39().
     patchHistoryRowStatusPills();
   }
 

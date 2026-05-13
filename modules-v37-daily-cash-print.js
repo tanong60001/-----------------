@@ -499,7 +499,8 @@
     const remaining = payState.due;
     const isBilling = docType === 'billing';
     const isPaymentDoc = docType === 'payment';
-    const isDebtDoc = isPaymentDoc && remaining > 0 && deposit <= 0;
+    const isDebtNotice = docType === 'debt_notice';
+    const isInvoiceDoc = !isDebtNotice && isPaymentDoc && remaining > 0 && deposit <= 0;
     const billingOriginal = money(bill?.billing_original_total || total);
     const billingPaid = money(bill?.billing_paid_total || 0);
     const paidRow = payState.paid > 0 && remaining > 0
@@ -524,8 +525,18 @@
     const dueWords = typeof v24NumberToThaiWords === 'function' && remaining > 0
       ? v24NumberToThaiWords(remaining)
       : '';
-    const title = isBilling ? 'ใบวางบิล' : (docType === 'delivery' ? 'ใบส่งของ' : (isDebtDoc ? 'ใบแจ้งยอดค้างชำระ' : (docType === 'payment' ? 'ใบรับเงินมัดจำ' : 'ใบเสร็จรับเงิน')));
-    const titleEn = isBilling ? 'BILLING NOTE' : (docType === 'delivery' ? 'DELIVERY NOTE' : (isDebtDoc ? 'BALANCE DUE NOTICE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : 'RECEIPT')));
+    const title = isBilling ? 'ใบวางบิล'
+      : isDebtNotice ? 'ใบแจ้งยอดค้างชำระ'
+      : docType === 'delivery' ? 'ใบส่งของ'
+      : isInvoiceDoc ? 'ใบส่งของ/ใบกำกับ'
+      : docType === 'payment' ? 'ใบรับเงินมัดจำ'
+      : 'ใบเสร็จรับเงิน';
+    const titleEn = isBilling ? 'BILLING NOTE'
+      : isDebtNotice ? 'BALANCE DUE NOTICE'
+      : docType === 'delivery' ? 'DELIVERY NOTE'
+      : isInvoiceDoc ? 'DELIVERY/INVOICE'
+      : docType === 'payment' ? 'PAYMENT RECEIPT'
+      : 'RECEIPT';
     const showDeliveryCols = rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || ''));
     const itemCount = rows.length;
     const compact = itemCount > 10;
@@ -628,7 +639,12 @@
       const rc = await loadShopConfig();
       if (typeof window.print80mmv2 === 'function') return window.print80mmv2(bill, items || [], rc);
     }
-    if (choice === 'A4') return printA4Detailed(bill, items || [], 'receipt', a4Win);
+    if (choice === 'A4') {
+      const mode = String(bill?.delivery_mode || '').toLowerCase();
+      const hasDeliveryQty = (items || []).some(it => money(it.deliver_qty) > 0);
+      const saleDocType = (mode === 'deliver' || mode === 'partial' || hasDeliveryQty) ? 'delivery' : 'receipt';
+      return printA4Detailed(bill, items || [], saleDocType, a4Win);
+    }
   };
 
   async function loadBillForPrintV37(billId) {

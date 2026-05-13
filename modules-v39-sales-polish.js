@@ -75,6 +75,17 @@
       .v39-action i{font-size:18px}.v39-action:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(15,23,42,.09)}
       .v39-action.view{color:#2563eb;border-color:#bfdbfe;background:#eff6ff}.v39-action.print{color:#0f766e;border-color:#99f6e4;background:#f0fdfa}.v39-action.pay{color:#059669;border-color:#bbf7d0;background:#ecfdf5}.v39-action.return{color:#d97706;border-color:#fed7aa;background:#fff7ed}.v39-action.cancel{color:#dc2626;border-color:#fecaca;background:#fef2f2}
       .v39-empty{padding:54px;text-align:center;color:#94a3b8}.v39-empty i{font-size:46px;color:#cbd5e1}
+      .v39-filter-bar{display:flex;flex-wrap:wrap;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;box-shadow:0 8px 20px rgba(15,23,42,.04)}
+      .v39-filter-bar .v39-filter-label{display:inline-flex;align-items:center;gap:6px;color:#64748b;font-weight:900;font-size:12px;margin-right:6px;padding:6px 0}
+      .v39-filter-bar .v39-filter-label i{font-size:18px;color:#94a3b8}
+      .v39-chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#475569;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:900;cursor:pointer;transition:.15s;white-space:nowrap}
+      .v39-chip:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(15,23,42,.06)}
+      .v39-chip.active{background:#dc2626;border-color:#dc2626;color:#fff;box-shadow:0 8px 18px rgba(220,38,38,.22)}
+      .v39-chip.active.warn{background:#d97706;border-color:#d97706}
+      .v39-chip.active.info{background:#2563eb;border-color:#2563eb}
+      .v39-chip.active.danger{background:#b91c1c;border-color:#b91c1c}
+      .v39-chip .count{background:rgba(15,23,42,.08);color:inherit;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:900}
+      .v39-chip.active .count{background:rgba(255,255,255,.22);color:#fff}
       @media(max-width:1100px){.v39-history-hero{grid-template-columns:1fr}.v39-history-filters{justify-content:flex-start}.v39-stats{grid-template-columns:repeat(2,1fr)}.v39-search{min-width:220px}}
       @media(max-width:720px){.v39-stats{grid-template-columns:1fr}.v39-sales-table{min-width:980px}.v39-table-wrap{overflow:auto}.v39-history-hero{padding:16px}.v39-history-filters{display:grid;grid-template-columns:1fr}.v39-search{min-width:0}.v39-export{justify-content:center}.v39-actions{position:static;min-width:0;margin-top:8px}}
     `;
@@ -164,6 +175,66 @@
     return /ค้าง|บางส่วน/.test(String(b?.status || '')) || money(b?.deposit_amount) > 0 && money(b?.deposit_amount) < money(b?.total);
   }
 
+  function isCancelledBill(b) {
+    return /ยกเลิก|คืนสินค้า|คืนบางส่วน/.test(String(b?.status || ''));
+  }
+
+  function isProjectBillV39(b) {
+    if (!b) return false;
+    if (b.project_id) return true;
+    const text = `${b.customer_name || ''} ${b.method || ''} ${b.status || ''} ${b.note || ''}`;
+    return /\[โครงการ\]|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ|project/i.test(text);
+  }
+
+  function isUnshippedBill(b) {
+    if (isCancelledBill(b) || isProjectBillV39(b)) return false;
+    const mode = String(b?.delivery_mode || '').toLowerCase();
+    const dstatus = String(b?.delivery_status || '');
+    if (mode === 'deliver' || mode === 'partial') {
+      return !/สำเร็จ|delivered/i.test(dstatus);
+    }
+    return /รอจัดส่ง/.test(dstatus) || /รอจัดส่ง/.test(String(b?.status || ''));
+  }
+
+  function isUnpaidBill(b) {
+    if (isCancelledBill(b) || isProjectBillV39(b)) return false;
+    const total = money(b?.total);
+    const paid = money(b?.deposit_amount);
+    if (paid >= total && total > 0) return false;
+    const status = String(b?.status || '');
+    const method = String(b?.method || '');
+    return paid <= 0 && /ค้าง|debt/i.test(status + ' ' + method);
+  }
+
+  function isPartialPaidBill(b) {
+    if (isCancelledBill(b) || isProjectBillV39(b)) return false;
+    const total = money(b?.total);
+    const paid = money(b?.deposit_amount);
+    return paid > 0 && paid < total;
+  }
+
+  function isIncompleteBill(b) {
+    return isUnshippedBill(b) || isUnpaidBill(b) || isPartialPaidBill(b);
+  }
+
+  function isDepositOpenBillV39(b) {
+    if (isCancelledBill(b) || isProjectBillV39(b)) return false;
+    const dep = money(b?.deposit_amount);
+    const total = money(b?.total);
+    if (dep <= 0) return false;
+    const status = String(b?.status || '');
+    const dstatus = String(b?.delivery_status || '');
+    const debtLike = /ค้าง|บางส่วน/.test(status) || dep < total;
+    const pending = /รอ|จัดส่ง/.test(dstatus);
+    return debtLike || pending;
+  }
+
+  window.v39HistoryFilter = window.v39HistoryFilter || 'all';
+  window.v39SetHistoryFilter = function (key) {
+    window.v39HistoryFilter = key || 'all';
+    window.v39LoadHistoryData?.();
+  };
+
   window.v39ToggleHistoryActions = function (billId, ev) {
     ev?.stopPropagation?.();
     const target = document.querySelector(`[data-v39-actions="${billId}"]`);
@@ -213,8 +284,11 @@
   window.v39LoadHistoryData = async function () {
     const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
     const search = (document.getElementById('history-search')?.value || '').toLowerCase();
+    const activeFilter = window.v39HistoryFilter || 'all';
+    const depositFilterOn = window.v68HistoryFilter === 'depositPending';
+    const broaden = !!search || activeFilter !== 'all' || depositFilterOn;
     let query = db.from('บิลขาย').select('*').order('date', { ascending: false });
-    if (search) {
+    if (broaden) {
       query = query.range(0, 4999);
     } else {
       query = query.gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59');
@@ -224,11 +298,22 @@
       if (typeof toast === 'function') toast('โหลดประวัติการขายไม่สำเร็จ', 'error');
       return;
     }
-    const scopedBills = search ? (bills || []) : (bills || []).filter(b => String(b.date || '').slice(0, 10) === date);
-    const filtered = scopedBills.filter(b => {
+    const scopedBills = broaden ? (bills || []) : (bills || []).filter(b => String(b.date || '').slice(0, 10) === date);
+    let filtered = scopedBills.filter(b => {
       const hay = `${b.bill_no || ''} ${b.customer_name || ''} ${b.staff_name || ''} ${b.method || ''} ${b.status || ''}`.toLowerCase();
       return !search || hay.includes(search);
     });
+    const filterCounts = {
+      incomplete: filtered.filter(isIncompleteBill).length,
+      unshipped: filtered.filter(isUnshippedBill).length,
+      unpaid: filtered.filter(isUnpaidBill).length,
+      partial: filtered.filter(isPartialPaidBill).length,
+    };
+    if (depositFilterOn) filtered = filtered.filter(isDepositOpenBillV39);
+    else if (activeFilter === 'incomplete') filtered = filtered.filter(isIncompleteBill);
+    else if (activeFilter === 'unshipped') filtered = filtered.filter(isUnshippedBill);
+    else if (activeFilter === 'unpaid') filtered = filtered.filter(isUnpaidBill);
+    else if (activeFilter === 'partial') filtered = filtered.filter(isPartialPaidBill);
     const valid = filtered.filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
     const totalSales = valid.reduce((s, b) => s + money(b.total), 0);
     const totalDiscount = filtered.reduce((s, b) => s + money(b.discount), 0);
@@ -241,6 +326,19 @@
     ];
     const statsEl = document.getElementById('history-stats');
     if (statsEl) statsEl.innerHTML = stats.map(s => `<div class="v39-stat"><div class="dot" style="background:${s[0]}"><i class="material-icons-round">${s[1]}</i></div><div><b>${esc(s[2])}</b><span>${esc(s[3])}</span></div></div>`).join('');
+
+    const filterBar = document.getElementById('history-filter-bar');
+    if (filterBar) {
+      const chips = [
+        { key: 'all', label: 'ทั้งหมด', icon: 'list_alt', count: null, tone: '' },
+        { key: 'incomplete', label: 'ยังไม่สำเร็จ', icon: 'pending_actions', count: filterCounts.incomplete, tone: 'warn' },
+        { key: 'unshipped', label: 'ยังไม่ส่ง', icon: 'local_shipping', count: filterCounts.unshipped, tone: 'info' },
+        { key: 'unpaid', label: 'ยังไม่ชำระ', icon: 'money_off', count: filterCounts.unpaid, tone: 'danger' },
+        { key: 'partial', label: 'ชำระไม่ครบ', icon: 'price_change', count: filterCounts.partial, tone: 'warn' },
+      ];
+      filterBar.innerHTML = `<span class="v39-filter-label"><i class="material-icons-round">filter_alt</i>หมวดบิล:</span>`
+        + chips.map(c => `<button type="button" class="v39-chip ${activeFilter === c.key ? 'active ' + c.tone : ''}" onclick="v39SetHistoryFilter('${c.key}')"><i class="material-icons-round" style="font-size:15px">${c.icon}</i>${esc(c.label)}${c.count != null ? `<span class="count">${c.count}</span>` : ''}</button>`).join('');
+    }
 
     const tbody = document.getElementById('history-tbody');
     if (!tbody) return;

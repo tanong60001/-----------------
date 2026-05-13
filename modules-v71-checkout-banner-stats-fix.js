@@ -189,20 +189,18 @@
     s.textContent = `
       #history-stats.v39-stats{
         display:grid!important;
-        grid-template-columns:repeat(6,minmax(0,1fr))!important;
-        gap:10px!important;
+        grid-template-columns:repeat(5,minmax(0,1fr))!important;
+        gap:12px!important;
       }
       #history-stats .v39-stat{
-        padding:14px 14px!important;min-height:78px!important;
-        gap:10px!important;min-width:0!important;
+        padding:16px!important;min-height:82px!important;
+        gap:12px!important;min-width:0!important;
       }
-      #history-stats .v39-stat b{font-size:19px!important;white-space:nowrap}
-      #history-stats .v39-stat span{font-size:11.5px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      #history-stats .v39-stat .dot{width:36px!important;height:36px!important;flex-shrink:0}
-      #history-stats .v39-stat .dot i{font-size:18px}
-      .v71-stat-deposit{flex:0 1 auto}
-      .v71-stat-deposit .dot{background:#ea580c!important}
-      @media(max-width:1200px){
+      #history-stats .v39-stat b{font-size:20px!important;white-space:nowrap}
+      #history-stats .v39-stat span{font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      #history-stats .v39-stat .dot{width:40px!important;height:40px!important;flex-shrink:0}
+      #history-stats .v39-stat .dot i{font-size:20px}
+      @media(max-width:1100px){
         #history-stats.v39-stats{grid-template-columns:repeat(3,minmax(0,1fr))!important}
       }
       @media(max-width:680px){
@@ -239,19 +237,30 @@
     // (dep ≥ total) are considered fully paid and should show "สำเร็จ" only.
     return dep < total - 0.009;
   }
+  function isProjectBillV71(b) {
+    if (!b) return false;
+    if (b.project_id) return true;
+    const text = `${b.customer_name || ''} ${b.method || ''} ${b.status || ''} ${b.note || ''}`;
+    return /\[โครงการ\]|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ|project/i.test(text);
+  }
+
   function isDepositOpenBill(b) {
     // Counted into the "ใบติดมัดจำ" chip when there's deposit + remaining
-    // payment OR deposit + still pending delivery.
+    // payment OR deposit + still pending delivery. Project bills excluded.
+    if (isProjectBillV71(b)) return false;
     if (/ยกเลิก|คืน/.test(String(b?.status || ''))) return false;
     return depositOutstanding(b) || (num(b?.deposit_amount) > 0 && deliveryPending(b) && /ค้าง|บางส่วน/.test(String(b?.status || '')));
   }
 
   async function fetchHistoryBills() {
     try {
-      const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
       const search = (document.getElementById('history-search')?.value || '').toLowerCase();
+      const depositOn = window.v68HistoryFilter === 'depositPending';
+      const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
       let q = db.from('บิลขาย').select('*').order('date', { ascending: false });
-      if (search) q = q.range(0, 4999);
+      // When deposit filter is active, ignore the date picker so the user
+      // sees every outstanding-deposit bill, not just today's.
+      if (search || depositOn) q = q.range(0, 4999);
       else q = q.gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59');
       const { data } = await q;
       return data || [];
@@ -362,24 +371,17 @@
       });
     }
 
-    const depBills = bills.filter(isDepositOpenBill);
-    const depTotal = depBills.reduce((s, b) => s + num(b.deposit_amount), 0);
+    // Deposit stat chip removed by user request — only the per-row "มัดจำ"
+    // sub-pill remains (rendered by patchHistoryRowPills below). This keeps
+    // the stats grid at its original symmetric 5-column layout.
     const stats = document.getElementById('history-stats');
     if (stats) {
-      const all = stats.querySelectorAll('.v70-stat-deposit, .v71-stat-deposit');
-      let chip = all[0] || null;
-      for (let i = 1; i < all.length; i++) all[i].remove();
-      if (!chip) {
-        chip = document.createElement('div');
-        chip.className = 'v39-stat v68-click-stat v71-stat-deposit';
-        chip.onclick = () => {
-          window.v68HistoryFilter = window.v68HistoryFilter === 'depositPending' ? 'all' : 'depositPending';
-          if (typeof window.v39LoadHistoryData === 'function') window.v39LoadHistoryData();
-        };
-        stats.appendChild(chip);
-      }
-      chip.classList.toggle('active', window.v68HistoryFilter === 'depositPending');
-      chip.innerHTML = `<div class="dot" style="background:#ea580c"><i class="material-icons-round">savings</i></div><div><b>${esc(depBills.length)}</b><span>ใบติดมัดจำ ฿${esc(fmt(depTotal))}</span></div>`;
+      stats.querySelectorAll('.v70-stat-deposit, .v71-stat-deposit').forEach(el => el.remove());
+    }
+    // If the legacy depositPending filter is still set, clear it so the
+    // user isn't trapped in an invisible filter after the chip is removed.
+    if (window.v68HistoryFilter === 'depositPending') {
+      window.v68HistoryFilter = 'all';
     }
     patchHistoryRowPills();
     patchTotalsCellDepositInfo();

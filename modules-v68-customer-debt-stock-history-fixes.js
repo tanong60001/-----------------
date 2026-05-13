@@ -44,8 +44,10 @@
   }
 
   function isProjectBill(bill) {
-    const text = `${bill?.status || ''} ${bill?.method || ''}`;
-    return /จ่ายของให้โครงการ/.test(text) || !!bill?.project_id;
+    if (!bill) return false;
+    if (bill.project_id) return true;
+    const text = `${bill.status || ''} ${bill.method || ''} ${bill.customer_name || ''} ${bill.note || ''}`;
+    return /\[โครงการ\]|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ/.test(text);
   }
 
   function shouldCountPurchase(bill) {
@@ -551,12 +553,32 @@
       const bills = await loadHistoryBills();
       const filter = window.v68HistoryFilter || 'all';
       const valid = bills.filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
+      let incompleteAll = [];
+      try {
+        const { data: allIncompleteRows, error: incompleteErr } = await db.from(BILL_TABLE)
+          .select('*')
+          .order('date', { ascending: false })
+          .range(0, 9999);
+        if (incompleteErr) throw incompleteErr;
+        incompleteAll = (allIncompleteRows || []).filter(b =>
+          !/สำเร็จ/.test(String(b.status || ''))
+          && !isProjectBill(b)
+          && !isTerminalBill(b)
+        );
+      } catch (incompleteErr) {
+        console.warn('[v68] incomplete history fallback:', incompleteErr);
+        incompleteAll = bills.filter(b =>
+          !/สำเร็จ/.test(String(b.status || ''))
+          && !isProjectBill(b)
+          && !isTerminalBill(b)
+        );
+      }
       const stats = [
         ['all', '#dc2626', 'receipt_long', bills.length, 'บิลทั้งหมด'],
         ['valid', '#16a34a', 'payments', '฿' + fmt(valid.reduce((s, b) => s + num(b.total), 0)), 'ยอดขายสุทธิ'],
         ['transfer', '#2563eb', 'qr_code_2', bills.filter(b => /โอน|พร้อมเพย์/.test(String(b.method || ''))).length, 'โอนเงิน'],
         ['delivery', '#f59e0b', 'local_shipping', bills.filter(b => /รอ|จัดส่ง/.test(deliveryText(b))).length, 'งานจัดส่ง'],
-        ['discount', '#7c3aed', 'sell', '฿' + fmt(bills.reduce((s, b) => s + num(b.discount), 0)), 'ส่วนลดรวม'],
+        ['incomplete', '#ea580c', 'pending_actions', incompleteAll.length, 'บิลที่ยังไม่สำเร็จ'],
       ];
       const statsEl = document.getElementById('history-stats');
       if (statsEl) statsEl.innerHTML = stats.map(s => `<div class="v39-stat v68-click-stat ${filter === s[0] ? 'active' : ''}" onclick="v68SetHistoryFilter('${s[0]}')"><div class="dot" style="background:${s[1]}"><i class="material-icons-round">${s[2]}</i></div><div><b>${esc(s[3])}</b><span>${esc(s[4])}</span></div></div>`).join('');
@@ -565,7 +587,7 @@
       if (filter === 'valid') filtered = valid;
       else if (filter === 'transfer') filtered = bills.filter(b => /โอน|พร้อมเพย์/.test(String(b.method || '')));
       else if (filter === 'delivery') filtered = bills.filter(b => /รอ|จัดส่ง/.test(deliveryText(b)));
-      else if (filter === 'discount') filtered = bills.filter(b => num(b.discount) > 0);
+      else if (filter === 'incomplete') filtered = incompleteAll;
 
       const tbody = document.getElementById('history-tbody');
       if (!tbody) return;
