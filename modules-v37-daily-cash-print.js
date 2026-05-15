@@ -35,6 +35,53 @@
       });
     } catch (_) { return '-'; }
   };
+  const denoms = [
+    [1000, '1,000', 'ใบ'], [500, '500', 'ใบ'], [100, '100', 'ใบ'], [50, '50', 'ใบ'], [20, '20', 'ใบ'],
+    [10, '10', 'เหรียญ'], [5, '5', 'เหรียญ'], [2, '2', 'เหรียญ'], [1, '1', 'เหรียญ'],
+  ];
+  const parseJson = value => {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch (_) { return {}; }
+  };
+  const denomTotal = value => {
+    const obj = parseJson(value);
+    return denoms.reduce((sum, [v]) => sum + v * money(obj[v] ?? obj[String(v)]), 0);
+  };
+  const denomChips = (value, empty = 'ไม่มีข้อมูลแบงค์/เหรียญ') => {
+    const obj = parseJson(value);
+    const html = denoms.map(([v, label, unit]) => {
+      const qty = money(obj[v] ?? obj[String(v)]);
+      if (qty <= 0) return '';
+      const isCoin = v < 20;
+      return `<span class="v37den-chip ${isCoin ? 'coin' : 'bill'}"><b>฿${label}</b><em>x${intFmt(qty)} ${unit}</em><small>฿${intFmt(v * qty)}</small></span>`;
+    }).join('');
+    return html || `<span class="v37den-empty">${esc(empty)}</span>`;
+  };
+  const cleanCashNote = note => String(note || '')
+    .split('|')
+    .map(s => s.trim())
+    .filter(s => s && !/^รายการแบงค์\/เหรียญ/i.test(s))
+    .join(' | ');
+  const txDenomDetail = tx => {
+    const den = tx?.denominations || {};
+    const chg = tx?.change_denominations || {};
+    const hasChange = denomTotal(chg) > 0 || money(tx?.change_amt) > 0;
+    const rows = tx?.direction === 'in'
+      ? [
+          ['south_west', 'รับเข้า', den, 'ไม่มีข้อมูลแบงค์รับเข้า'],
+          ...(hasChange ? [['reply', `ทอนออก${money(tx?.change_amt) ? ` ฿${fmt(tx.change_amt)}` : ''}`, chg, 'ไม่มีข้อมูลแบงค์ทอน']] : []),
+        ]
+      : [
+          ['north_east', 'จ่ายออก', den, 'ไม่มีข้อมูลแบงค์จ่ายออก'],
+          ...(denomTotal(chg) > 0 ? [['undo', 'รับกลับ', chg, 'ไม่มีข้อมูลแบงค์รับกลับ']] : []),
+        ];
+    return `<div class="v37den-detail">${rows.map(([icon, title, data, empty]) => `
+      <div class="v37den-row">
+        <div class="v37den-title"><i class="material-icons-round">${icon}</i>${esc(title)}</div>
+        <div class="v37den-list">${denomChips(data, empty)}</div>
+      </div>`).join('')}</div>`;
+  };
 
   async function must(res) {
     const out = await res;
@@ -147,6 +194,18 @@
         .v37hist-money{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;font-weight:800}
         .v37hist-money span{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:4px 9px}
         .v37mini{border:none;border-radius:10px;background:#334155;color:#fff;padding:8px 11px;font-weight:800;cursor:pointer}
+        .v37den-panel{grid-column:1 / -1;border:1px solid #e7d9d1;background:#fff;border-radius:13px;padding:10px 12px;margin-top:2px}
+        .v37den-panel-title{font-size:11px;font-weight:950;color:#6d4c41;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+        .v37den-list{display:flex;flex-wrap:wrap;gap:6px}
+        .v37den-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #eadbd2;background:#fff7ed;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;white-space:nowrap}
+        .v37den-chip.coin{background:#f8fafc}.v37den-chip b{color:#3e2723}.v37den-chip em{font-style:normal;color:#795548}.v37den-chip small{color:#64748b;font-weight:850}
+        .v37den-empty{font-size:11px;font-weight:850;color:#94a3b8}
+        .v37den-detail{margin-top:10px;border:1px solid #eadbd2;background:#fffaf7;border-radius:14px;padding:10px 12px;display:grid;gap:9px}
+        .v37den-row{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;align-items:start}
+        .v37den-title{font-size:11px;font-weight:950;color:#6d4c41;display:flex;align-items:center;gap:5px;padding-top:5px}.v37den-title i{font-size:14px}
+        .v37tx-item{padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:left}.v37tx-item:last-child{border-bottom:0}
+        .v37tx-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}.v37tx-head b{font-size:15px;color:#374151}.v37tx-amt{font-size:15px;font-weight:950}
+        @media(max-width:640px){.v37den-row{grid-template-columns:1fr}.v37hist-card{grid-template-columns:1fr}.v37mini{width:100%}}
       `;
       document.head.appendChild(st);
     }
@@ -214,9 +273,17 @@
               ${counted > 0 ? `<span style="color:#0f766e">นับจริง ฿${fmt(counted)}</span>` : ''}
               ${diff !== null ? `<span style="color:${Math.abs(diff) < 0.01 ? '#059669' : '#dc2626'}">ส่วนต่าง ฿${fmt(diff)}</span>` : ''}
             </div>
-            ${s.note ? `<div class="v37hist-sub">หมายเหตุ: ${esc(s.note)}</div>` : ''}
+            ${cleanCashNote(s.note) ? `<div class="v37hist-sub">หมายเหตุ: ${esc(cleanCashNote(s.note))}</div>` : ''}
           </div>
           <button class="v37mini" onclick="window.v37ShowCashSessionTx('${esc(s.id)}')">ดูรายการ</button>
+          <div class="v37den-panel">
+            <div class="v37den-panel-title"><span>ยอดเปิดรอบตามจำนวนแบงค์/เหรียญ</span><b>รวม ฿${fmt(denomTotal(s.opening_denominations || s.denominations || {}))}</b></div>
+            <div class="v37den-list">${denomChips(s.opening_denominations || s.denominations || {}, 'ไม่มีข้อมูลแบงค์ยอดเปิด')}</div>
+          </div>
+          ${(s.closing_denominations && denomTotal(s.closing_denominations) > 0) ? `<div class="v37den-panel">
+            <div class="v37den-panel-title"><span>ยอดปิดรอบที่นับจริง</span><b>รวม ฿${fmt(denomTotal(s.closing_denominations))}</b></div>
+            <div class="v37den-list">${denomChips(s.closing_denominations, 'ไม่มีข้อมูลแบงค์ยอดปิด')}</div>
+          </div>` : ''}
         </div>`;
       }).join('');
     } catch (e) {
@@ -229,13 +296,16 @@
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const html = list.length ? list.map(tx => {
       const isIn = tx.direction === 'in';
-      return `<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #e5e7eb;text-align:left">
-        <div><b>${esc(tx.type || '-')}</b><div style="font-size:12px;color:#64748b">${esc(dateTime(tx.created_at))} · ${esc(tx.staff_name || '-')}</div>${tx.note ? `<div style="font-size:12px;color:#64748b">${esc(tx.note)}</div>` : ''}</div>
-        <b style="color:${isIn ? '#059669' : '#dc2626'}">${isIn ? '+' : '-'}฿${fmt(tx.net_amount ?? tx.amount)}</b>
+      return `<div class="v37tx-item">
+        <div class="v37tx-head">
+          <div><b>${esc(tx.type || '-')}</b><div style="font-size:12px;color:#64748b">${esc(dateTime(tx.created_at))} · ${esc(tx.staff_name || '-')}</div>${tx.note ? `<div style="font-size:12px;color:#64748b">${esc(tx.note)}</div>` : ''}</div>
+          <div class="v37tx-amt" style="color:${isIn ? '#059669' : '#dc2626'}">${isIn ? '+' : '-'}฿${fmt(tx.net_amount ?? tx.amount)}</div>
+        </div>
+        ${txDenomDetail(tx)}
       </div>`;
     }).join('') : '<div style="color:#94a3b8;text-align:center;padding:18px">ไม่มีรายการในรอบนี้</div>';
     if (window.Swal) {
-      await Swal.fire({ title: 'รายการในรอบลิ้นชัก', html, width: 620, confirmButtonText: 'ปิด' });
+      await Swal.fire({ title: 'รายการในรอบลิ้นชัก', html: `<div style="max-height:70vh;overflow:auto">${html}</div>`, width: 820, confirmButtonText: 'ปิด' });
     }
   };
 
@@ -892,20 +962,7 @@
           dayClose.disabled = !session || localDateKey(session.opened_at) !== localDateKey();
           dayClose.onclick = closeTodayDrawer;
         }
-        const txCard = document.querySelector('.v32txc');
-        if (txCard && !document.getElementById('v37-cash-history-wrap')) {
-          txCard.insertAdjacentHTML('afterend', `<div class="v37hist" id="v37-cash-history-wrap">
-            <div class="v37hist-h">
-              <span><i class="material-icons-round" style="font-size:18px;vertical-align:middle">history</i> ประวัติลิ้นชักย้อนหลัง</span>
-              <div class="v37hist-picker">
-                <input type="date" id="v37-cash-history-date">
-                <button class="v37mini" onclick="window.v37RenderCashHistory()">แสดงประวัติ</button>
-              </div>
-            </div>
-            <div class="v37hist-list" id="v37-cash-history"></div>
-          </div>`);
-        }
-        await renderCashHistory();
+        document.getElementById('v37-cash-history-wrap')?.remove();
         return out;
       };
       try { renderCashDrawer = window.renderCashDrawer; } catch (_) {}

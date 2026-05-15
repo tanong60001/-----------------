@@ -29,9 +29,23 @@
   /* ─── Helpers ─── */
   var _f    = function (n) { return typeof formatNum === 'function' ? formatNum(n) : Number(n || 0).toLocaleString('th-TH'); };
   var _fdt  = function (s) { return typeof formatDateTime === 'function' ? formatDateTime(s) : s; };
-  var _today = function () { return new Date().toISOString().split('T')[0]; };
+  var _dateKey = function (date) {
+    var d = date || new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  };
+  var _today = function () { return _dateKey(new Date()); };
+  var _nextDateKey = function (value) {
+    var parts = String(value || _today()).split('-').map(Number);
+    var d = new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+    d.setDate(d.getDate() + 1);
+    return _dateKey(d);
+  };
   var _now   = function () { return new Date().toISOString(); };
   var _user  = function () { return (typeof USER !== 'undefined' && USER && USER.username) ? USER.username : 'ระบบ'; };
+  var _money = function (v) { var n = Number(v || 0); return Number.isFinite(n) ? n : 0; };
 
   /* ─── CSS injection ─── */
   (function () {
@@ -152,6 +166,43 @@
       'padding:3px 10px;border-radius:99px;}',
       '.v32txc .transactions-list{max-height:420px;overflow-y:auto;padding:12px 16px;}',
       '.transaction-note{font-size:11px;color:#9e9e9e;margin-top:1px;}',
+      '.v32tx-detail{grid-column:1 / -1;margin:10px 0 2px 50px;border:1px solid #eee0d7;background:#fffaf7;border-radius:14px;padding:10px 12px;display:grid;gap:9px;}',
+      '.v32tx-row{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;align-items:start;}',
+      '.v32tx-row-title{font-size:11px;font-weight:950;color:#6d4c41;display:flex;align-items:center;gap:5px;padding-top:5px;}',
+      '.v32tx-denoms{display:flex;flex-wrap:wrap;gap:6px;}',
+      '.v32tx-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;border:1px solid #ead9cf;background:#fff;white-space:nowrap;}',
+      '.v32tx-chip .v{font-weight:950;color:#3e2723}.v32tx-chip .q{color:#795548}.v32tx-chip .s{color:#8d6e63;font-weight:800;}',
+      '.v32tx-chip.bill{background:#fff7ed}.v32tx-chip.coin{background:#f8fafc}.v32tx-empty{font-size:11px;font-weight:800;color:#9ca3af;padding:5px 0;}',
+      '.transaction-item{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;}',
+      '.v32hist{background:#fff;border-radius:20px;border:2px solid #ede0d8;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.07);}',
+      '.v32hist-hdr{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:2px solid #f5ede8;font-weight:800;color:#4e342e;gap:12px;}',
+      '.v32hist-hdr small{display:block;font-size:11px;color:#9b8176;font-weight:800;margin-top:2px;}',
+      '.v32hist-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}',
+      '.v32hist-picker input{height:38px;border:1px solid #d7ccc8;border-radius:11px;padding:0 11px;font:inherit;font-weight:900;color:#3e2723;background:#fff;}',
+      '.v32hist-picker button{height:38px;border:0;border-radius:11px;background:#3e2723;color:#fff;padding:0 13px;font:inherit;font-size:12px;font-weight:950;cursor:pointer;}',
+      '.v32hist-body{padding:14px 16px;display:grid;gap:12px;}',
+      '.v32sess{border:1px solid #eadbd2;border-radius:16px;background:#fffdfb;overflow:hidden;}',
+      '.v32sess-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;background:#fbf7f4;border-bottom:1px solid #eadbd2;}',
+      '.v32sess-title{font-size:13px;font-weight:950;color:#3e2723}.v32sess-meta{font-size:11px;color:#8d6e63;font-weight:800;margin-top:3px;}',
+      '.v32sess-sum{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.v32sess-pill{font-size:11px;font-weight:950;border-radius:999px;padding:5px 9px;background:#efebe9;color:#5d4037;}',
+      '.v32sess-pill.good{color:#047857;background:#ecfdf5}.v32sess-pill.bad{color:#b91c1c;background:#fef2f2}.v32sess-pill.warn{color:#92400e;background:#fffbeb;}',
+      '.v32sess-content{padding:12px 14px;display:grid;gap:10px;}',
+      '.v32sess-open{border:1px dashed #d7ccc8;border-radius:12px;padding:10px;background:#fff;}',
+      '.v32sess-close{border:1px solid #dbeafe;border-radius:14px;padding:11px;background:linear-gradient(135deg,#eff6ff,#fff);display:grid;gap:8px;}',
+      '.v32sess-close.good{border-color:#bbf7d0;background:linear-gradient(135deg,#ecfdf5,#fff)}',
+      '.v32sess-close.bad{border-color:#fecaca;background:linear-gradient(135deg,#fff1f2,#fff)}',
+      '.v32sess-close-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;font-size:12px;font-weight:950;color:#334155;}',
+      '.v32sess-close-head small{display:block;margin-top:2px;color:#64748b;font-size:10px;font-weight:850;}',
+      '.v32sess-close-money{text-align:right;font-size:12px;color:#64748b;font-weight:850;white-space:nowrap}.v32sess-close-money b{display:block;font-size:18px;color:#0f172a;}',
+      '.v32sess-close-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}',
+      '.v32sess-close-stat{border:1px solid #e2e8f0;background:#fff;border-radius:11px;padding:8px 10px;min-width:0;}',
+      '.v32sess-close-stat span{display:block;font-size:10px;color:#64748b;font-weight:900}.v32sess-close-stat b{font-size:14px;color:#0f172a}.v32sess-close-stat.good b{color:#047857}.v32sess-close-stat.bad b{color:#b91c1c}',
+      '.v32sess-open-title{font-size:11px;font-weight:950;color:#6d4c41;margin-bottom:8px;display:flex;justify-content:space-between;}',
+      '.v32sess-tx{border-top:1px solid #f1e7e0;padding-top:10px;display:grid;gap:8px;}',
+      '.v32sess-tx-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:12px;font-weight:900;color:#4b5563;}',
+      '.v32sess-tx-head b{color:#111827}.v32sess-tx-head .pos{color:#059669}.v32sess-tx-head .neg{color:#dc2626}',
+      '.v32sess-tx .v32tx-detail{margin:0;padding:9px 10px;}',
+      '@media(max-width:640px){.v32tx-detail{margin-left:0}.v32tx-row{grid-template-columns:1fr}.v32hist-hdr{align-items:flex-start;flex-direction:column}.v32hist-picker,.v32hist-picker input,.v32hist-picker button{width:100%}.v32sess-top{grid-template-columns:1fr}.v32sess-sum{justify-content:flex-start}.v32sess-close-grid{grid-template-columns:1fr}.v32sess-close-head{flex-direction:column}.v32sess-close-money{text-align:left}}',
     ].join('');
     document.head.appendChild(s);
   })();
@@ -245,6 +296,240 @@
       '</div>' +
       '<div id="v32sub' + v + '" class="v32-sub">' + (cnt > 0 ? '฿' + _f(cnt * v) : '') + '</div>';
     return '<div class="v32-cell">' + card + row + '</div>';
+  }
+
+  function _asObj(value) {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch (_) { return {}; }
+  }
+
+  function _denomTotal(obj) {
+    obj = _asObj(obj);
+    return ALL.reduce(function (s, d) { return s + d.v * (Number(obj[d.v] || obj[String(d.v)] || 0) || 0); }, 0);
+  }
+
+  function _numFromNote(text, label) {
+    var re = new RegExp(label + '\\s*฿\\s*([\\-\\d,.]+)');
+    var m = String(text || '').match(re);
+    return m ? _money(String(m[1]).replace(/,/g, '')) : null;
+  }
+
+  function _closeFallback(sess) {
+    var note = String(sess && sess.note || '');
+    var den = {};
+    var dm = note.match(/รายการแบงค์\/เหรียญ\s+(\{[^|]+\})/);
+    if (dm) {
+      try { den = JSON.parse(dm[1]); } catch (_) { den = {}; }
+    }
+    return {
+      expected: _numFromNote(note, 'ยอดตามระบบ'),
+      counted: _numFromNote(note, 'ยอดที่นับจริง'),
+      diff: _numFromNote(note, 'ส่วนต่าง'),
+      denoms: den
+    };
+  }
+
+  function _denomChips(obj, emptyText) {
+    obj = _asObj(obj);
+    var html = ALL.map(function (d) {
+      var qty = Number(obj[d.v] || obj[String(d.v)] || 0) || 0;
+      if (qty <= 0) return '';
+      var isCoin = d.v < 20;
+      var bg = isCoin ? d.bg : d.bg;
+      var fg = d.v === 1000 || isCoin ? '#3e2723' : '#fff';
+      var border = isCoin ? (d.bdr || '1px solid #d1d5db') : '1px solid rgba(0,0,0,.08)';
+      return '<span class="v32tx-chip ' + (isCoin ? 'coin' : 'bill') + '" style="background:' + bg + ';border:' + border + ';color:' + fg + ';">' +
+        '<span class="v" style="color:' + fg + ';">฿' + d.l + '</span>' +
+        '<span class="q" style="color:' + fg + ';opacity:.9">x' + qty + (isCoin ? ' เหรียญ' : ' ใบ') + '</span>' +
+        '<span class="s" style="color:' + fg + ';opacity:.82">฿' + _f(d.v * qty) + '</span>' +
+      '</span>';
+    }).join('');
+    return html || '<span class="v32tx-empty">' + (emptyText || 'ไม่มีข้อมูลจำนวนแบงค์') + '</span>';
+  }
+
+  function _txDenomDetail(tx) {
+    var den = _asObj(tx.denominations);
+    var chg = _asObj(tx.change_denominations);
+    var denTotal = _denomTotal(den);
+    var chgTotal = _denomTotal(chg);
+    var rows = [];
+    if (tx.direction === 'in') {
+      rows.push({
+        icon: 'south_west',
+        title: 'รับเข้าลิ้นชัก',
+        data: den,
+        empty: denTotal > 0 ? '' : 'รายการนี้ไม่มีข้อมูลแบงค์รับเข้า'
+      });
+      if (chgTotal > 0 || Number(tx.change_amt || 0) > 0) {
+        rows.push({
+          icon: 'reply',
+          title: 'ทอนออก',
+          data: chg,
+          empty: 'มีเงินทอน ฿' + _f(tx.change_amt || 0) + ' แต่ไม่มีรายละเอียดแบงค์ทอน'
+        });
+      }
+    } else {
+      rows.push({
+        icon: 'north_east',
+        title: 'จ่ายออก',
+        data: den,
+        empty: denTotal > 0 ? '' : 'รายการนี้ไม่มีข้อมูลแบงค์ที่จ่ายออก'
+      });
+      if (chgTotal > 0) {
+        rows.push({ icon: 'undo', title: 'รับกลับ', data: chg, empty: '' });
+      }
+    }
+    return '<div class="v32tx-detail">' + rows.map(function (row) {
+      return '<div class="v32tx-row">' +
+        '<div class="v32tx-row-title"><i class="material-icons-round" style="font-size:14px">' + row.icon + '</i>' + row.title + '</div>' +
+        '<div class="v32tx-denoms">' + _denomChips(row.data, row.empty) + '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function _txCardHtml(tx, compact) {
+    var isIn  = tx.direction === 'in';
+    var isExc = tx.type === 'แลกเงินออก' || tx.type === 'แลกเงินเข้า';
+    var icon  = isExc ? 'currency_exchange' : (isIn ? 'add' : 'remove');
+    if (compact) {
+      return '<div class="v32sess-tx">' +
+        '<div class="v32sess-tx-head">' +
+          '<div><b>' + escHtml(tx.type || '-') + '</b><div style="font-size:11px;color:#8d6e63;margin-top:2px;">' + _fdt(tx.created_at) + ' · ' + escHtml(tx.staff_name || '-') + '</div>' + (tx.note ? '<div class="transaction-note">' + escHtml(tx.note) + '</div>' : '') + '</div>' +
+          '<div class="' + (isIn ? 'pos' : 'neg') + '">' + (isIn ? '+' : '−') + '฿' + _f(tx.net_amount) + '</div>' +
+        '</div>' +
+        _txDenomDetail(tx) +
+      '</div>';
+    }
+    return '<div class="transaction-item">' +
+      '<div class="transaction-icon ' + tx.direction + '"><i class="material-icons-round">' + icon + '</i></div>' +
+      '<div class="transaction-info">' +
+        '<div class="transaction-title">' + escHtml(tx.type || '') + '</div>' +
+        '<div class="transaction-time">' + _fdt(tx.created_at) + ' — ' + escHtml(tx.staff_name || '') + '</div>' +
+        (tx.note ? '<div class="transaction-note">' + escHtml(tx.note) + '</div>' : '') +
+      '</div>' +
+      '<div class="transaction-amount ' + (isIn ? 'positive' : 'negative') + '">' +
+        (isIn ? '+' : '−') + '฿' + _f(tx.net_amount) +
+      '</div>' +
+      _txDenomDetail(tx) +
+    '</div>';
+  }
+
+  function escHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
+
+  function _historyDateValue() {
+    var el = document.getElementById('v32-session-history-date');
+    return el && el.value ? el.value : _today();
+  }
+
+  async function _renderSessionHistory(currentSessionId) {
+    var page = document.querySelector('#page-cash .v32pg');
+    if (!page) return;
+    var box = document.getElementById('v32-session-history');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'v32-session-history';
+      box.className = 'v32hist';
+      page.appendChild(box);
+    }
+    var selectedDate = _historyDateValue();
+    var header = function (sub, count) {
+      return '<div class="v32hist-hdr">' +
+        '<div><i class="material-icons-round" style="vertical-align:-4px;margin-right:6px">manage_history</i>ประวัติลิ้นชักตามวันที่<small>' + sub + '</small></div>' +
+        '<div class="v32hist-picker">' +
+          '<input type="date" id="v32-session-history-date" value="' + selectedDate + '">' +
+          '<button type="button" onclick="window.v32RenderSessionHistory?.()">แสดงประวัติ</button>' +
+          (count !== undefined ? '<span class="v32txc-count">' + count + ' รอบ</span>' : '') +
+        '</div>' +
+      '</div>';
+    };
+    box.innerHTML = header('กำลังโหลดข้อมูลแบงค์และรายการเข้าออก...', undefined);
+
+    try {
+      var start = selectedDate + 'T00:00:00';
+      var end = _nextDateKey(selectedDate) + 'T00:00:00';
+      var sr = await db.from('cash_session').select('*').gte('opened_at', start).lt('opened_at', end).order('opened_at', { ascending: false }).limit(20);
+      if (sr.error) throw sr.error;
+      var sessions = sr.data || [];
+      if (!sessions.length) {
+        box.innerHTML = header('ไม่พบประวัติลิ้นชักในวันที่เลือก', 0) +
+          '<div class="v32hist-body"><div class="v32tx-empty" style="text-align:center;padding:22px">เลือกวันที่อื่นเพื่อดูประวัติย้อนหลัง</div></div>';
+        return;
+      }
+      var ids = sessions.map(function (s) { return s.id; }).filter(Boolean);
+      var txBySession = {};
+      if (ids.length) {
+        var tr = await db.from('cash_transaction').select('*').in('session_id', ids).order('created_at', { ascending: false }).limit(1000);
+        if (tr.error) throw tr.error;
+        (tr.data || []).forEach(function (tx) {
+          if (!txBySession[tx.session_id]) txBySession[tx.session_id] = [];
+          txBySession[tx.session_id].push(tx);
+        });
+      }
+      box.innerHTML =
+        header('แสดงยอดเปิด/ปิด และจำนวนแบงค์สีตามธนบัตรไทยจริง', sessions.length) +
+        '<div class="v32hist-body">' + sessions.map(function (sess) {
+          var txs = txBySession[sess.id] || [];
+          var inSum = 0, outSum = 0;
+          txs.forEach(function (tx) { if (tx.direction === 'in') inSum += _money(tx.net_amount); else outSum += _money(tx.net_amount); });
+          var opening = sess.opening_amt || 0;
+          var fallback = _closeFallback(sess);
+          var expected = sess.expected_closing_amt != null ? _money(sess.expected_closing_amt) : (fallback.expected != null ? fallback.expected : opening + inSum - outSum);
+          var closeDenoms = sess.closing_denominations || fallback.denoms || {};
+          var countedFromDenoms = _denomTotal(closeDenoms);
+          var hasCounted = sess.counted_closing_amt != null || countedFromDenoms > 0 || fallback.counted != null;
+          var counted = hasCounted ? _money(sess.counted_closing_amt != null ? sess.counted_closing_amt : (countedFromDenoms > 0 ? countedFromDenoms : fallback.counted)) : null;
+          var closing = hasCounted ? counted : (sess.closing_amt != null ? _money(sess.closing_amt) : expected);
+          var diff = sess.close_difference != null ? _money(sess.close_difference) : (fallback.diff != null ? fallback.diff : (hasCounted ? counted - expected : null));
+          var diffAbs = diff == null ? 0 : Math.abs(diff);
+          var diffClass = diff == null ? 'warn' : (diffAbs < 0.01 ? 'good' : 'bad');
+          var closeClass = sess.status === 'closed' ? diffClass : 'warn';
+          var closeStatusText = sess.status === 'closed' ? (diff == null ? 'ปิดรอบแล้ว' : (diffAbs < 0.01 ? 'ปิดรอบพอดี' : 'ปิดรอบมีส่วนต่าง')) : 'ยังไม่ปิดรอบ';
+          var closeHtml = '<div class="v32sess-close ' + closeClass + '">' +
+            '<div class="v32sess-close-head">' +
+              '<div><i class="material-icons-round" style="font-size:16px;vertical-align:-3px;margin-right:4px;">fact_check</i>รายการปิดรอบ<small>ยอดควรมี = ยอดเปิด + เงินเข้า − เงินออก</small></div>' +
+              '<div class="v32sess-close-money">ยอดควรมีในลิ้นชักจริง<b>฿' + _f(expected) + '</b></div>' +
+            '</div>' +
+            '<div class="v32sess-close-grid">' +
+              '<div class="v32sess-close-stat"><span>ยอดเปิดรอบ</span><b>฿' + _f(opening) + '</b></div>' +
+              '<div class="v32sess-close-stat good"><span>เงินเข้าในรอบ</span><b>฿' + _f(inSum) + '</b></div>' +
+              '<div class="v32sess-close-stat bad"><span>เงินออกในรอบ</span><b>฿' + _f(outSum) + '</b></div>' +
+              '<div class="v32sess-close-stat"><span>ควรมีตอนปิด</span><b>฿' + _f(expected) + '</b></div>' +
+              '<div class="v32sess-close-stat ' + (hasCounted ? '' : 'warn') + '"><span>นับจริงตอนปิด</span><b>' + (hasCounted ? '฿' + _f(counted) : '-') + '</b></div>' +
+              '<div class="v32sess-close-stat ' + diffClass + '"><span>ส่วนต่าง</span><b>' + (diff == null ? '-' : (diff < 0 ? '-฿' + _f(Math.abs(diff)) : '฿' + _f(diff))) + '</b></div>' +
+            '</div>' +
+            '<div class="v32sess-open-title"><span>' + closeStatusText + (sess.closed_at ? ' · ' + _fdt(sess.closed_at) : '') + '</span><b>' + (sess.close_status ? escHtml(sess.close_status) : '') + '</b></div>' +
+            '<div class="v32tx-denoms">' + _denomChips(closeDenoms, hasCounted ? 'ไม่มีรายละเอียดแบงค์ยอดปิด' : 'ยังไม่มีข้อมูลแบงค์ตอนปิดรอบ') + '</div>' +
+          '</div>';
+          return '<div class="v32sess">' +
+            '<div class="v32sess-top">' +
+              '<div><div class="v32sess-title">รอบวันที่ ' + _fdt(sess.opened_at) + '</div>' +
+              '<div class="v32sess-meta">เปิดโดย ' + escHtml(sess.opened_by || '-') + (sess.closed_at ? ' · ปิด ' + _fdt(sess.closed_at) : ' · ยังไม่ปิดรอบ') + '</div></div>' +
+              '<div class="v32sess-sum">' +
+                '<span class="v32sess-pill">เปิด ฿' + _f(opening) + '</span>' +
+                '<span class="v32sess-pill" style="color:#047857;background:#ecfdf5">เข้า ฿' + _f(inSum) + '</span>' +
+                '<span class="v32sess-pill" style="color:#b91c1c;background:#fef2f2">ออก ฿' + _f(outSum) + '</span>' +
+                '<span class="v32sess-pill">ควรมี ฿' + _f(expected) + '</span>' +
+                '<span class="v32sess-pill ' + (hasCounted ? '' : 'warn') + '">นับจริง ' + (hasCounted ? '฿' + _f(counted) : '-') + '</span>' +
+                '<span class="v32sess-pill ' + diffClass + '">ส่วนต่าง ' + (diff == null ? '-' : (diff < 0 ? '-฿' + _f(Math.abs(diff)) : '฿' + _f(diff))) + '</span>' +
+                '<span class="v32sess-pill">ปิด ฿' + _f(closing) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="v32sess-content">' +
+              '<div class="v32sess-open"><div class="v32sess-open-title"><span>แบงค์/เหรียญยอดเปิดรอบ</span><b>฿' + _f(_denomTotal(sess.opening_denominations || sess.denominations || {})) + '</b></div><div class="v32tx-denoms">' + _denomChips(sess.opening_denominations || sess.denominations || {}, 'ไม่มีข้อมูลแบงค์ยอดเปิด') + '</div></div>' +
+              closeHtml +
+              (txs.length ? txs.map(function (tx) { return _txCardHtml(tx, true); }).join('') : '<div class="v32tx-empty">รอบนี้ไม่มีรายการเข้าออก</div>') +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div>';
+    } catch (e) {
+      console.warn('[v32] session history:', e);
+      box.innerHTML = '<div class="v32hist-hdr"><div><i class="material-icons-round" style="vertical-align:-4px;margin-right:6px">manage_history</i>ประวัติรอบย้อนหลัง<small style="color:#b91c1c">โหลดประวัติไม่สำเร็จ: ' + escHtml(e.message || e) + '</small></div></div>';
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -735,23 +1020,11 @@
         if (transactions.length === 0) {
           txList.innerHTML = '<p style="text-align:center;color:#9CA3AF;padding:40px 20px;">ไม่มีรายการวันนี้</p>';
         } else {
-          txList.innerHTML = transactions.map(function (tx) {
-            var isIn  = tx.direction === 'in';
-            var isExc = tx.type === 'แลกเงินออก' || tx.type === 'แลกเงินเข้า';
-            var icon  = isExc ? 'currency_exchange' : (isIn ? 'add' : 'remove');
-            return '<div class="transaction-item">' +
-              '<div class="transaction-icon ' + tx.direction + '"><i class="material-icons-round">' + icon + '</i></div>' +
-              '<div class="transaction-info">' +
-                '<div class="transaction-title">' + (tx.type || '') + '</div>' +
-                '<div class="transaction-time">' + _fdt(tx.created_at) + ' — ' + (tx.staff_name || '') + '</div>' +
-                (tx.note ? '<div class="transaction-note">' + tx.note + '</div>' : '') +
-              '</div>' +
-              '<div class="transaction-amount ' + (isIn ? 'positive' : 'negative') + '">' +
-                (isIn ? '+' : '−') + '฿' + _f(tx.net_amount) +
-              '</div></div>';
-          }).join('');
+          txList.innerHTML = transactions.map(function (tx) { return _txCardHtml(tx, false); }).join('');
         }
       }
+
+      await _renderSessionHistory(session ? session.id : null);
 
       /* ── Global balance ── */
       var gBal = document.getElementById('global-cash-balance');
@@ -763,6 +1036,7 @@
   /* Expose the Promise-based wizard + drawer loader for v33 reuse */
   window.v32ShowDenomWizard = showDenomWizard;
   window.v32LoadDrawer = _loadDrawer;
+  window.v32RenderSessionHistory = function () { return _renderSessionHistory(null); };
 
   console.info('%c[v32-cashui] ✅%c premium UI + denomination + แลกเงิน + เพิ่มเงิน + auto reset', 'color:#9a25ae;font-weight:700', 'color:#6b7280');
 

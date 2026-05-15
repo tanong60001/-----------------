@@ -227,6 +227,9 @@ window.renderQuotations = async function () {
         `<div style="display:flex;flex-direction:column;gap:0">${quotes.map(q => {
           const isExpired = q.valid_until && new Date(q.valid_until) < new Date() && q.status === 'รออนุมัติ';
           const sn = q.customer_name?.replace(/'/g, "&apos;") || '';
+          const deleteBtn = q.status === 'ยกเลิก'
+            ? `<button onclick="v9DeleteQuotation?.('${q.id}')" style="width:32px;height:32px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;cursor:pointer;display:flex;align-items:center;justify-content:center" title="ลบใบเสนอราคา"><i class="material-icons-round" style="font-size:16px;color:#dc2626">delete</i></button>`
+            : '';
           return `<div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:background .2s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
             <div style="flex:1;min-width:200px">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
@@ -244,6 +247,7 @@ window.renderQuotations = async function () {
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button onclick="v9PrintQuotation?.('${q.id}')" style="width:32px;height:32px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" title="พิมพ์"><i class="material-icons-round" style="font-size:16px;color:#64748b">print</i></button>
               ${q.status === 'รออนุมัติ' ? `<button onclick="v9ConvertQuotation?.('${q.id}','${sn}')" style="padding:6px 12px;border:none;border-radius:8px;background:#10b981;color:#fff;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px"><i class="material-icons-round" style="font-size:14px">shopping_cart</i>สร้างบิล</button><button onclick="v9CancelQuotation?.('${q.id}')" style="width:32px;height:32px;border:1px solid #fecaca;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" title="ยกเลิก"><i class="material-icons-round" style="font-size:16px;color:#ef4444">close</i></button>` : ''}
+              ${deleteBtn}
             </div>
           </div>`;
         }).join('')}</div>`}

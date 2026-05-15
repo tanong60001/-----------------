@@ -50,6 +50,14 @@
     };
   }
 
+  function localDayRangeIso(startKey, endKey) {
+    const [sy, sm, sd] = String(startKey).split('-').map(Number);
+    const [ey, em, ed] = String(endKey).split('-').map(Number);
+    const start = new Date(sy, (sm || 1) - 1, sd || 1, 0, 0, 0, 0);
+    const end = new Date(ey, (em || 1) - 1, ed || 1, 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
   function parseReturnInfo(info) {
     if (!info) return {};
     if (typeof info === 'object') return info;
@@ -69,6 +77,35 @@
   function isProjectBill(bill) {
     const text = [bill?.project_id, bill?.customer_name, bill?.method, bill?.status].filter(Boolean).join(' ');
     return Boolean(bill?.project_id) || /\[โครงการ\]|โครงการ|เบิกของโครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ|project/i.test(text);
+  }
+
+  function isClosedBill(bill) {
+    return ['ยกเลิก', 'คืนสินค้า'].includes(String(bill?.status || ''));
+  }
+
+  function isDebtMethod(method) {
+    return /ค้าง|เครดิต|debt/i.test(String(method || ''));
+  }
+
+  function isCodBill(bill) {
+    return /ชำระหน้างาน|เก็บปลายทาง|cod/i.test(`${bill?.status || ''} ${bill?.method || ''}`);
+  }
+
+  function billDeposit(bill) {
+    return Math.max(0, money(bill?.deposit_amount));
+  }
+
+  function billCollectedNow(bill) {
+    if (isClosedBill(bill) || isCodBill(bill) || isDebtMethod(bill?.method)) return billDeposit(bill);
+    const total = effectiveBillTotal(bill);
+    const deposit = billDeposit(bill);
+    return deposit > 0 && deposit < total ? deposit : total;
+  }
+
+  function paidRatioForCogs(bill) {
+    const total = effectiveBillTotal(bill);
+    if (total <= 0) return 0;
+    return Math.max(0, Math.min(1, billCollectedNow(bill) / total));
   }
 
   function ensureDay(map, key) {
@@ -94,30 +131,25 @@
   async function loadMonthProfit(info) {
     if (typeof db === 'undefined') throw new Error('ระบบฐานข้อมูลยังไม่พร้อม');
 
-    const startTime = info.start + 'T00:00:00';
-    const endTime = info.end + 'T23:59:59';
+    const { startIso, endIso } = localDayRangeIso(info.start, info.end);
 
-    const [billR, expR, attR, advR, projExpR, projMsR] = await Promise.all([
-      db.from('บิลขาย').select('id,total,method,status,date,return_info,project_id,customer_name').gte('date', startTime).lte('date', endTime).limit(12000),
-      db.from('รายจ่าย').select('amount,category,description,note,date').gte('date', startTime).lte('date', endTime).limit(6000),
-      db.from('เช็คชื่อ').select('employee_id,status,date,deduction,note').gte('date', startTime).lte('date', endTime).limit(6000),
-      db.from('เบิกเงิน').select('amount,status,date').gte('date', startTime).lte('date', endTime).limit(6000),
-      db.from('รายจ่ายโครงการ').select('amount,paid_at').not('paid_at', 'is', null).gte('paid_at', startTime).lte('paid_at', endTime).limit(6000),
-      db.from('งวดงาน').select('amount,billed_at,status').eq('status', 'billed').gte('billed_at', startTime).lte('billed_at', endTime).limit(6000),
+    const [billR, expR, attR, advR, projExpR, projMsR, debtPayR] = await Promise.all([
+      db.from('บิลขาย').select('id,total,method,status,date,return_info,project_id,customer_name,deposit_amount,delivery_status,delivery_mode').gte('date', startIso).lte('date', endIso).limit(12000),
+      db.from('รายจ่าย').select('amount,category,description,note,date').gte('date', startIso).lte('date', endIso).limit(6000),
+      db.from('เช็คชื่อ').select('employee_id,status,date,deduction,note').gte('date', info.start).lte('date', info.end).limit(6000),
+      db.from('เบิกเงิน').select('amount,status,date').gte('date', startIso).lte('date', endIso).limit(6000),
+      db.from('รายจ่ายโครงการ').select('amount,paid_at').not('paid_at', 'is', null).gte('paid_at', startIso).lte('paid_at', endIso).limit(6000),
+      db.from('งวดงาน').select('amount,billed_at,status').eq('status', 'billed').gte('billed_at', startIso).lte('billed_at', endIso).limit(6000),
+      db.from('ชำระหนี้').select('amount,method,date').gte('date', startIso).lte('date', endIso).limit(6000),
     ]);
 
-    for (const result of [billR, expR, attR, advR, projExpR, projMsR]) {
+    for (const result of [billR, expR, attR, advR, projExpR, projMsR, debtPayR]) {
       if (result.error) throw result.error;
     }
 
     const dayMap = {};
     const allBills = billR.data || [];
-    const paidBills = allBills.filter(b =>
-      (b.status === 'สำเร็จ' || b.status === 'คืนบางส่วน')
-      && b.method !== 'ค้างชำระ'
-      && b.method !== 'เครดิต'
-      && !isProjectBill(b)
-    );
+    const paidBills = allBills.filter(b => !isClosedBill(b) && !isProjectBill(b) && billCollectedNow(b) > 0);
 
     const billIds = paidBills.map(b => b.id).filter(Boolean).slice(0, 1000);
     let billItems = [];
@@ -131,11 +163,12 @@
     paidBills.forEach(bill => {
       const key = rowDate(bill.date);
       billDate[bill.id] = key;
-      add(dayMap, key, 'revenue', effectiveBillTotal(bill), 'store');
+      add(dayMap, key, 'revenue', billCollectedNow(bill), 'store');
     });
 
     billItems.forEach(item => {
-      add(dayMap, billDate[item.bill_id], 'cogs', money(item.cost) * money(item.qty), 'store');
+      const bill = paidBills.find(row => row.id === item.bill_id);
+      add(dayMap, billDate[item.bill_id], 'cogs', money(item.cost) * money(item.qty) * paidRatioForCogs(bill), 'store');
     });
 
     paidBills.forEach(bill => {
@@ -148,8 +181,12 @@
           const original = billItems.find(item => item.bill_id === bill.id && item.name === ret.name);
           cost = money(original?.cost);
         }
-        add(dayMap, key, 'cogs', -cost * money(ret.qty), 'store');
+        add(dayMap, key, 'cogs', -cost * money(ret.qty) * paidRatioForCogs(bill), 'store');
       });
+    });
+
+    (debtPayR.data || []).forEach(payment => {
+      add(dayMap, rowDate(payment.date), 'revenue', payment.amount, 'store');
     });
 
     (expR.data || []).filter(e => !isStockPurchaseExpense(e)).forEach(expense => {

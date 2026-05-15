@@ -68,6 +68,31 @@
   const whole = value => Math.max(0, Math.floor(num(value)));
   const fmtWhole = value => whole(value).toLocaleString('th-TH');
   const money = value => `฿${fmt(value)}`;
+  const MATERIAL_EMOJIS = ['🧱', '🪨', '🪵', '🔩', '⚙️', '🔧', '🪛', '🪚', '⛓️', '🧲', '🚧', '🏗️', '🪣', '⚡'];
+  const MATERIAL_KEY_EMOJIS = [
+    { keys: ['ปูน', 'ซีเมนต์', 'คอนกรีต', 'มอร์ตาร์'], emoji: '🪨' },
+    { keys: ['อิฐ', 'บล็อก', 'กระเบื้อง'], emoji: '🧱' },
+    { keys: ['ไม้', 'ไม้อัด', 'แผ่น'], emoji: '🪵' },
+    { keys: ['น็อต', 'สกรู', 'ตะปู', 'พุก', 'แหวน'], emoji: '🔩' },
+    { keys: ['เหล็ก', 'เพลา', 'ฉาก', 'แป๊บ', 'ท่อ'], emoji: '⛓️' },
+    { keys: ['สายไฟ', 'ไฟ', 'ปลั๊ก', 'สวิตช์'], emoji: '⚡' },
+    { keys: ['แม่เหล็ก'], emoji: '🧲' },
+    { keys: ['สี', 'แปรง', 'ลูกกลิ้ง'], emoji: '🪣' },
+    { keys: ['เลื่อย'], emoji: '🪚' },
+    { keys: ['ไขควง'], emoji: '🪛' },
+    { keys: ['ประแจ', 'คีม', 'ค้อน', 'เครื่องมือ'], emoji: '🔧' },
+  ];
+  function materialEmojiForProduct(product) {
+    const hay = [product?.name, product?.category, product?.barcode].filter(Boolean).join(' ').toLowerCase();
+    const picked = MATERIAL_KEY_EMOJIS.find(item => item.keys.some(key => hay.includes(key.toLowerCase())));
+    if (picked) return picked.emoji;
+    const seed = String(product?.id || product?.name || hay || 'material').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    return MATERIAL_EMOJIS[Math.abs(seed) % MATERIAL_EMOJIS.length];
+  }
+  function materialPlaceholderHtml(product) {
+    const emoji = materialEmojiForProduct(product);
+    return `<div class="v66-material-placeholder" aria-label="ไม่มีรูปสินค้า"><span>${emoji}</span></div>`;
+  }
 
   function withTimeout(promise, ms, fallback, label) {
     let timer;
@@ -416,13 +441,29 @@
     }
   }
 
+  function decorateMaterialPlaceholderCard(card) {
+    const product = productFromCard(card);
+    const imageHost = card?.querySelector?.('.product-img,.product-list-img');
+    if (!imageHost || imageHost.querySelector('img,.v66-material-placeholder')) return;
+    if (product?.img_url) return;
+    const icon = Array.from(imageHost.querySelectorAll('i.material-icons-round'))
+      .find(el => ['inventory_2', 'local_offer'].includes(String(el.textContent || '').trim()));
+    if (!icon) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = materialPlaceholderHtml(product || { name: card.querySelector('.product-name')?.textContent || '' });
+    icon.replaceWith(holder.firstElementChild);
+  }
+
   function decorateRecipeCards() {
     if (state.decoratingCards) return;
     state.decoratingCards = true;
     try {
       const grid = document.getElementById('pos-product-grid') || document.getElementById('productGrid');
       if (!grid) return;
-      grid.querySelectorAll('.product-card,.product-list-item').forEach(decorateRecipeCard);
+      grid.querySelectorAll('.product-card,.product-list-item').forEach(card => {
+        decorateMaterialPlaceholderCard(card);
+        decorateRecipeCard(card);
+      });
     } finally {
       state.decoratingCards = false;
     }
@@ -459,7 +500,7 @@
     const click = recipe ? `v66RecipeAddToCart('${js(product.id)}')` : `addToCart('${js(product.id)}')`;
     const image = product.img_url
       ? `<img src="${esc(product.img_url)}" alt="${esc(product.name)}" loading="lazy">`
-      : '<i class="material-icons-round">inventory_2</i>';
+      : materialPlaceholderHtml(product);
 
     if (mode === 'list') {
       return `<div class="product-list-item ${recipe ? 'v66-recipe-sale-card' : ''} ${out ? 'out-of-stock' : ''}" ${attrs} onclick="${click}">
@@ -1565,6 +1606,10 @@
       .v66-recipe-capacity.compact b{font-size:12px}
       .v66-recipe-capacity.bad{border-color:#fecaca;background:#fff7f7}
       .v66-recipe-capacity.bad span,.v66-recipe-capacity.bad b{color:#b91c1c}
+      #pos-product-grid .v66-material-placeholder{width:100%;height:100%;min-height:100%;display:flex;align-items:center;justify-content:center;border-radius:inherit;background:linear-gradient(135deg,#f8fafc 0%,#eef2ff 48%,#f0fdf4 100%);box-shadow:inset 0 0 0 1px rgba(148,163,184,.28);position:relative;overflow:hidden}
+      #pos-product-grid .v66-material-placeholder:before{content:"";position:absolute;inset:10px;border-radius:14px;border:1px dashed rgba(71,85,105,.22)}
+      #pos-product-grid .v66-material-placeholder span{position:relative;font-size:42px;line-height:1;filter:drop-shadow(0 6px 10px rgba(15,23,42,.14))}
+      #pos-product-grid .product-list-img .v66-material-placeholder span{font-size:26px}
       .product-card[data-v66-recipe="1"] .product-stock:not(.out),.product-list-item[data-v66-recipe="1"] .product-stock:not(.out){display:inline-flex;align-items:center;border:1px solid #86efac;background:#f0fdf4;color:#047857!important;border-radius:999px;padding:3px 8px;font-weight:950}
       .product-card[data-v66-recipe="1"].out-of-stock .product-stock,.product-list-item[data-v66-recipe="1"].out-of-stock .product-stock{display:inline-flex;align-items:center;border:1px solid #fecaca;background:#fff1f2;color:#b91c1c!important;border-radius:999px;padding:3px 8px;font-weight:950}
       .v66-extra-btn{width:38px;height:38px;border:0;border-radius:12px;background:#fff;color:#dc2626;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}

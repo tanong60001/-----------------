@@ -804,7 +804,7 @@
       }
 
       /* KPI card refinements */
-      .dash-v3-kpi-grid { gap: 18px !important; }
+      .dash-v3-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 18px !important; align-items: stretch !important; }
       .dash-v3-card {
         border-radius: 22px !important;
         box-shadow: 0 6px 24px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04) !important;
@@ -835,6 +835,7 @@
       @media(max-width: 700px) {
         .v33-dash-hero { grid-template-columns: 1fr; }
         .v33-dash-hero-score { text-align: left; min-width: 0; }
+        .dash-v3-kpi-grid { grid-template-columns: 1fr !important; }
       }
     `;
     document.head.appendChild(css3);
@@ -857,12 +858,17 @@
     const cards = kpiGrid.querySelectorAll('.dash-v3-card');
     if (cards.length < 4) return; // still skeleton
 
-    const vals = Array.from(cards).map(c => {
+    const valsByLabel = {};
+    Array.from(cards).forEach(c => {
+      const labelEl = c.querySelector('span');
       const amtEl = c.querySelector('div[style*="font-size: 26px"]') || c.querySelector('div[style*="font-size:26px"]');
-      return v33ParseAmount(amtEl ? amtEl.textContent : '');
+      const label = String(labelEl ? labelEl.textContent : '').trim();
+      valsByLabel[label] = v33ParseAmount(amtEl ? amtEl.textContent : '');
     });
-    // The cards are: [ยอดขายจริงสุทธิ, ต้นทุนขาย, รอเก็บเงินปลายทาง, กำไรสุทธิ, สภาพคล่อง]
-    const [revenue, cogs, codAmt, net, liquidity] = vals;
+    const revenue = valsByLabel['เงินจริงรับเข้า'] ?? valsByLabel['ยอดขายจริงสุทธิ'] ?? 0;
+    const cogs = valsByLabel['ต้นทุนขาย'] ?? 0;
+    const net = valsByLabel['กำไรสุทธิ'] ?? 0;
+    const liquidity = valsByLabel['สภาพคล่อง (เงินหมุน)'] ?? valsByLabel['สภาพคล่อง'] ?? 0;
     const margin = revenue > 0 ? Math.round((net / revenue) * 100) : 0;
 
     let tone, icon, msg;

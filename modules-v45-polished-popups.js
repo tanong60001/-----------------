@@ -34,7 +34,7 @@
       .v45-exp-head{background:radial-gradient(circle at 18% 0%,rgba(251,191,36,.42),transparent 35%),radial-gradient(circle at 82% 15%,rgba(236,72,153,.38),transparent 32%),linear-gradient(135deg,#581c87,#be123c 62%,#f97316)}
       .v45-debt-head{background:radial-gradient(circle at 16% 0%,rgba(56,189,248,.42),transparent 34%),radial-gradient(circle at 78% 18%,rgba(250,204,21,.34),transparent 30%),linear-gradient(135deg,#0f172a,#2563eb 54%,#16a34a)}
       .v45-billbox{border-radius:20px;background:#fff;border:1px solid #e2e8f0;overflow:hidden}.v45-bill-top{display:flex;justify-content:space-between;gap:14px;background:#fff7ed;border-bottom:1px solid #fed7aa;padding:13px 15px}.v45-bill-top b{color:#9a3412}.v45-bill-lines{padding:14px 15px;display:grid;gap:10px}
-      .v45-debt-bill .v45-bill-top{background:linear-gradient(135deg,#eff6ff,#dcfce7);border-bottom-color:#bfdbfe}.v45-debt-bill .v45-bill-top b{color:#1d4ed8}.v45-debt-amount{height:auto!important;min-height:74px!important;font-size:34px!important;font-weight:950!important;color:#1d4ed8!important;padding:8px 15px!important}.v45-debt-note{display:flex;align-items:center;gap:10px;border:1px dashed #93c5fd;background:#eff6ff;border-radius:14px;padding:12px;color:#475569;font-size:12px;font-weight:800;line-height:1.55}.v45-debt-note i{color:#2563eb}
+      .v45-debt-bill .v45-bill-top{background:linear-gradient(135deg,#eff6ff,#dcfce7);border-bottom-color:#bfdbfe}.v45-debt-bill .v45-bill-top b{color:#1d4ed8}.v45-debt-amount{height:auto!important;min-height:74px!important;font-size:34px!important;font-weight:950!important;color:#1d4ed8!important;padding:8px 15px!important}.v45-debt-discount{font-size:22px!important;font-weight:950!important;color:#059669!important}.v45-debt-note{display:flex;align-items:center;gap:10px;border:1px dashed #93c5fd;background:#eff6ff;border-radius:14px;padding:12px;color:#475569;font-size:12px;font-weight:800;line-height:1.55}.v45-debt-note i{color:#2563eb}
       .v45-paychips{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.v45-paychip{height:54px;border:1.5px solid #e2e8f0;background:#fff;border-radius:14px;font:inherit;font-weight:950;color:#475569;cursor:pointer}.v45-paychip.on{border-color:#dc2626;background:#fef2f2;color:#b91c1c;box-shadow:0 0 0 4px #fee2e2}
       @media(max-width:860px){.v45-grid,.v45-form-grid{grid-template-columns:1fr}.v45-mats [id^="v9rec-mat-row-"]{grid-template-columns:1fr!important}.v45-actions{flex-direction:column}.v45-btn{width:100%}.v45-paychips{grid-template-columns:1fr}}
     `;
@@ -320,15 +320,28 @@
     updateDebtSummary();
   }
 
-  function updateDebtSummary() {
+  function updateDebtSummary(source) {
     const debt = money(document.getElementById('v45-debt-modal')?.dataset.debt);
     const amountEl = document.getElementById('v45-debt-amount');
-    const raw = money(amountEl?.value);
-    const paid = Math.max(0, Math.min(raw, debt));
-    const remaining = Math.max(0, debt - paid);
+    const discountEl = document.getElementById('v45-debt-discount');
+    let paid = Math.max(0, Math.min(money(amountEl?.value), debt));
+    let discount = Math.max(0, Math.min(money(discountEl?.value), debt));
+    if (paid + discount > debt) {
+      if (source === 'discount') {
+        paid = Math.max(0, debt - discount);
+        if (amountEl) amountEl.value = paid.toFixed(2).replace(/\.00$/, '');
+      } else {
+        discount = Math.max(0, debt - paid);
+        if (discountEl) discountEl.value = discount.toFixed(2).replace(/\.00$/, '');
+      }
+    }
+    const totalReduce = paid + discount;
+    const remaining = Math.max(0, debt - totalReduce);
     const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     setText('v45-debt-pay-preview', '฿' + fmt(paid));
+    setText('v45-debt-discount-preview', '฿' + fmt(discount));
+    setText('v45-debt-reduce-preview', '฿' + fmt(totalReduce));
     setText('v45-debt-remain', '฿' + fmt(remaining));
     setText('v45-debt-method-preview', method);
     const remainEl = document.getElementById('v45-debt-remain');
@@ -395,7 +408,8 @@
                       <div class="v45-metric"><span>ยอดหนี้คงค้างทั้งหมด</span><b style="color:#dc2626">฿${fmt(debt)}</b></div>
                     </div>
                   </div>
-                  <div class="v45-field"><label>ยอดรับชำระ *</label><input class="v45-debt-amount" type="number" id="v45-debt-amount" min="1" max="${debt}" value="${debt}" oninput="v45UpdateDebtSummary()"></div>
+                  <div class="v45-field"><label>ยอดรับชำระ *</label><input class="v45-debt-amount" type="number" id="v45-debt-amount" min="0" max="${debt}" value="${debt}" oninput="v45UpdateDebtSummary('amount')"></div>
+                  <div class="v45-field"><label>ส่วนลด</label><input class="v45-debt-discount" type="number" id="v45-debt-discount" min="0" max="${debt}" value="0" placeholder="0" oninput="v45UpdateDebtSummary('discount')"></div>
                   <div class="v45-field"><label>วิธีชำระ</label><select id="v45-debt-method" style="display:none"><option>เงินสด</option><option>โอนเงิน</option><option>บัตรเครดิต</option></select><div class="v45-paychips"><button type="button" class="v45-paychip on" data-method="เงินสด" onclick="v45SetDebtMethod('เงินสด')">เงินสด</button><button type="button" class="v45-paychip" data-method="โอนเงิน" onclick="v45SetDebtMethod('โอนเงิน')">โอนเงิน</button><button type="button" class="v45-paychip" data-method="บัตรเครดิต" onclick="v45SetDebtMethod('บัตรเครดิต')">บัตรเครดิต</button></div></div>
                   <div class="v45-field"><label>หมายเหตุ</label><input id="v45-debt-note" placeholder="เลขอ้างอิง / รายละเอียดเพิ่ม"></div>
                   <div class="v45-debt-note"><i class="material-icons-round">verified</i><span>ระบบจะลดหนี้ลูกค้า บันทึกประวัติชำระหนี้ และถ้าเลือกเงินสดจะบันทึกเข้าเงินสดหน้าลิ้นชักด้วย</span></div>
@@ -405,6 +419,8 @@
                   <div class="v45-bill-lines">
                     <div class="v45-metric"><span>ยอดหนี้เดิม</span><b>฿${fmt(debt)}</b></div>
                     <div class="v45-metric"><span>วิธีชำระ</span><b id="v45-debt-method-preview">เงินสด</b></div>
+                    <div class="v45-metric good"><span>ส่วนลด</span><b id="v45-debt-discount-preview">฿0</b></div>
+                    <div class="v45-metric"><span>ยอดตัดหนี้รวม</span><b id="v45-debt-reduce-preview">฿${fmt(debt)}</b></div>
                     <div class="v45-metric"><span>ยอดคงเหลือหลังชำระ</span><b id="v45-debt-remain" style="color:#059669">฿0</b></div>
                     <div style="height:10px;background:#e0f2fe;border-radius:999px;overflow:hidden"><div style="height:100%;width:100%;background:linear-gradient(90deg,#2563eb,#16a34a);border-radius:999px"></div></div>
                     <div style="font-size:12px;color:#64748b;line-height:1.8;font-weight:800;background:#f8fafc;border-radius:14px;padding:12px">ตรวจยอดก่อนกดรับชำระ หน้าตานี้ทำงานกับ flow เดิมของลูกหนี้และประวัติชำระหนี้</div>
@@ -425,11 +441,15 @@
         document.getElementById('v45-debt-form').onsubmit = async e => {
           e.preventDefault();
           const paidAmt = Math.max(0, Math.min(money(document.getElementById('v45-debt-amount')?.value), debt));
+          const discountAmt = Math.max(0, Math.min(money(document.getElementById('v45-debt-discount')?.value), debt));
+          const totalReduce = paidAmt + discountAmt;
           const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
           const note = document.getElementById('v45-debt-note')?.value?.trim();
+          const discountNote = discountAmt > 0 ? ` ส่วนลด ฿${fmt(discountAmt)}` : '';
 
           if (paidAmt <= 0) { toast?.('กรุณากรอกยอดรับชำระ', 'warning'); return; }
           if (paidAmt > debt) { toast?.('ยอดรับชำระมากกว่ายอดหนี้', 'warning'); return; }
+          if (totalReduce > debt) { toast?.('ยอดรับชำระรวมส่วนลดมากกว่ายอดหนี้', 'warning'); return; }
 
           if (method === 'เงินสด') {
             const session = await getOpenCashSession();
@@ -444,7 +464,7 @@
             window.v28DebtPayWiz(customerId, customerName, paidAmt, async (finalPaid, recvTotal, chgTotal, recvDs, chgDs) => {
               try {
                 // 1. อัปเดตยอดหนี้ลูกค้า
-                const newDebt = Math.max(0, debt - finalPaid);
+                const newDebt = Math.max(0, debt - finalPaid - discountAmt);
                 const upd = await db.from('customer').update({ debt_amount: newDebt }).eq('id', customerId);
                 if (upd.error) throw upd.error;
 
@@ -470,13 +490,13 @@
                     refTable: 'ชำระหนี้',
                     denominations: recvDs,
                     change_denominations: chgDs,
-                    note: `${customerName} ชำระหนี้${note ? ' - ' + note : ''}`,
+                    note: `${customerName} ชำระหนี้${discountNote}${note ? ' - ' + note : ''}`,
                   });
                 }
 
                 // 4. สรุปผล
-                try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(finalPaid)}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
-                toast?.(`รับชำระสำเร็จ ฿${fmt(finalPaid)}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
+                try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(finalPaid)}${discountNote}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
+                toast?.(`รับชำระสำเร็จ ฿${fmt(finalPaid)}${discountNote}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
                 
                 closeModalById('v45-debt-modal');
                 await refreshDebtViews(customerId);
@@ -487,7 +507,7 @@
             }, true); // true = cashOnly (ให้ v45 จัดการ DB เอง)
           } else {
             // วิธีอื่นๆ (โอน/บัตร)
-            const newDebt = Math.max(0, debt - paidAmt);
+            const newDebt = Math.max(0, debt - totalReduce);
             const upd = await db.from('customer').update({ debt_amount: newDebt }).eq('id', customerId);
             if (upd.error) throw upd.error;
 
@@ -499,8 +519,8 @@
             });
             if (payError) throw payError;
 
-            try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
-            toast?.(`รับชำระสำเร็จ ฿${fmt(paidAmt)}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
+            try { if (typeof logActivity === 'function') logActivity('รับชำระหนี้', `${customerName} ฿${fmt(paidAmt)}${discountNote}${newDebt > 0 ? ' เหลือ ฿' + fmt(newDebt) : ' ครบ'}`); } catch (_) {}
+            toast?.(`รับชำระสำเร็จ ฿${fmt(paidAmt)}${discountNote}${newDebt > 0 ? ' เหลือหนี้ ฿' + fmt(newDebt) : ' ครบแล้ว'}`, 'success');
             
             closeModalById('v45-debt-modal');
             await refreshDebtViews(customerId);

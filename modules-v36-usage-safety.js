@@ -5024,10 +5024,11 @@ console.log('[v36] Usage safety patch loaded');
     const discount = money(bill?.discount);
     const subtotal = (items || []).reduce((s, it) => s + money(it.total), 0) || total + discount;
     const printedAt = new Date();
-    const status = receiptStatusTextV36(bill);
-    const method = receiptMethodTextV36(bill);
+    const isQuotationDoc = docType === 'quotation';
+    const status = isQuotationDoc ? 'ใบเสนอราคา / ยังไม่รับเงิน' : receiptStatusTextV36(bill);
+    const method = isQuotationDoc ? 'ยังไม่ชำระ' : receiptMethodTextV36(bill);
     const isBillingDoc = docType === 'billing';
-    const suppressQr = isBillingDoc || await shouldSuppressPrintQrV36(bill);
+    const suppressQr = isQuotationDoc || isBillingDoc || await shouldSuppressPrintQrV36(bill);
     const qrAmount = (() => {
       try {
         if (/เงินโอน\+เงินสด/.test(method) && v12State?.mixedPayment) return normalizeMixedPaymentV36().transfer;
@@ -5035,11 +5036,12 @@ console.log('[v36] Usage safety patch loaded');
       return total;
     })();
     const qr = (suppressQr || crowded) ? null : buildPaymentQrV36(rc, qrAmount);
-    const paymentBlock = qr
+    const paymentBlock = isQuotationDoc ? ''
+      : qr
       ? receiptQrBlockV36(qr, qrAmount)
       : (suppressQr && !isBillingDoc ? `<div class="paid-note">ชำระแล้ว<small>ขอบคุณที่ใช้บริการ</small></div>` : '');
-    const title = isBillingDoc ? 'ใบวางบิล' : (docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน'));
-    const titleEn = isBillingDoc ? 'BILLING NOTE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT'));
+    const title = isQuotationDoc ? 'ใบเสนอราคา' : (isBillingDoc ? 'ใบวางบิล' : (docType === 'payment' ? 'ใบรับเงิน' : (docType === 'delivery' ? 'ใบส่งของ' : 'ใบเสร็จรับเงิน')));
+    const titleEn = isQuotationDoc ? 'QUOTATION' : (isBillingDoc ? 'BILLING NOTE' : (docType === 'payment' ? 'PAYMENT RECEIPT' : (docType === 'delivery' ? 'DELIVERY NOTE' : 'RECEIPT')));
     const promoInfo = (() => {
       try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
     })();
@@ -5119,7 +5121,7 @@ console.log('[v36] Usage safety patch loaded');
   <div class="rule"></div>
   <section class="cust"><div class="cust-h">ข้อมูลลูกค้า / CUSTOMER</div><div class="cust-b"><div><div class="cust-name">${htmlAttr(bill?.customer_name || 'ลูกค้าทั่วไป')}</div><div class="muted">${htmlAttr(customerAddress || '-')}</div>${customerPhone ? `<div class="phone">☎ ${htmlAttr(customerPhone)}</div>` : ''}</div><div><div class="info-row"><span class="muted">พนักงานขาย:</span><b>${htmlAttr(bill?.staff_name || userName())}</b></div><div class="info-row"><span class="muted">วิธีชำระเงิน:</span><b>${htmlAttr(method)}</b></div></div></div></section>
   <table><thead><tr><th style="width:38px">#</th><th>รายละเอียด / DESCRIPTION</th><th style="width:70px">จำนวน</th><th style="width:70px">หน่วย</th><th style="width:90px">ราคา/หน่วย</th><th style="width:95px">จำนวนเงิน</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="mid"><div><div class="words">จำนวนเงิน (ตัวอักษร)<b>${htmlAttr(words)}</b></div><div class="note"><b>📝 หมายเหตุ</b>สินค้าโปรโมชันมากมายสอบถามได้เลย</div></div><div></div><div class="summary"><div class="sum-row"><span>${isBillingDoc ? 'ยอดหนี้เดิม' : 'รวมเงิน (Subtotal)'}</span><b>${fmt(isBillingDoc ? billingOriginal : subtotal)}</b></div>${billingPaidRow}${discount ? `<div class="sum-row"><span>ส่วนลด</span><b>-${fmt(discount)}</b></div>` : ''}<div class="grand"><span>${isBillingDoc ? 'ยอดคงค้างที่ต้องชำระ / BALANCE DUE' : 'จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL'}</span><b>฿${fmt(total)}</b></div></div></div>
+  <div class="mid"><div><div class="words">จำนวนเงิน (ตัวอักษร)<b>${htmlAttr(words)}</b></div><div class="note"><b>📝 หมายเหตุ</b>${htmlAttr(isQuotationDoc ? (bill?.note || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน') : 'สินค้าโปรโมชันมากมายสอบถามได้เลย')}</div></div><div></div><div class="summary"><div class="sum-row"><span>${isBillingDoc ? 'ยอดหนี้เดิม' : 'รวมเงิน (Subtotal)'}</span><b>${fmt(isBillingDoc ? billingOriginal : subtotal)}</b></div>${billingPaidRow}${discount ? `<div class="sum-row"><span>ส่วนลด</span><b>-${fmt(discount)}</b></div>` : ''}<div class="grand"><span>${isQuotationDoc ? 'ยอดเสนอราคา / QUOTED TOTAL' : (isBillingDoc ? 'ยอดคงค้างที่ต้องชำระ / BALANCE DUE' : 'จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL')}</span><b>฿${fmt(total)}</b></div></div></div>
   <div class="pay-slot">${paymentBlock}</div>
   <div class="bottom-line"><div class="sigs"><div class="sig"><div class="sig-line"></div><b>ผู้รับของ / Received By</b><small>วันที่ / Date ........../........../..........</small></div><div class="sig"><div class="sig-line"></div><b>ผู้อนุมัติ / Authorized</b><small>วันที่ / Date ........../........../..........</small></div></div><div class="foot">${htmlAttr(footer)}</div></div><div class="pg">1/1</div>
 </div><script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close()},1500)},700)}<\/script></body></html>`);
