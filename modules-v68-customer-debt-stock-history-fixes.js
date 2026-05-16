@@ -598,6 +598,9 @@
       tbody.innerHTML = filtered.map(b => {
         const debtLike = /ค้าง|บางส่วน/.test(String(b.status || '')) || (num(b.deposit_amount) > 0 && num(b.deposit_amount) < effectiveTotal(b));
         const terminal = /ยกเลิก|คืนสินค้า/.test(String(b.status || ''));
+        const returnInfo = parseInfo(b.return_info);
+        const adminUser = (() => { try { return Function('try { return USER && USER.role === "admin" } catch(e) { return false }')(); } catch (_) { return false; } })();
+        const canCorrectReturn = adminUser && num(returnInfo.return_total) > 0 && typeof window.v76OpenReturnCorrection === 'function';
         return `<tr>
           <td><div class="v39-bill-no">#${esc(b.bill_no || b.id)}</div><div class="v39-sub">${esc(b.staff_name || '-')}</div></td>
           <td><div style="font-weight:900;color:#0f172a">${esc(billDate(b.date))}</div><div class="v39-sub">${esc(billTime(b.date))}</div></td>
@@ -612,6 +615,7 @@
               <button class="v39-action view" onclick="viewBillDetail('${esc(b.id)}')" title="ดูรายละเอียด"><i class="material-icons-round">receipt</i></button>
               <button class="v39-action print" onclick="${typeof window.v24ShowDocSelector === 'function' ? 'v24ShowDocSelector' : 'v5PrintFromHistory'}('${esc(b.id)}')" title="พิมพ์เอกสาร"><i class="material-icons-round">print</i></button>
               ${debtLike && typeof window.v20BMCPayDebt === 'function' ? `<button class="v39-action pay" onclick="v20BMCPayDebt('${esc(b.id)}')" title="รับชำระ"><i class="material-icons-round">payments</i></button>` : ''}
+              ${canCorrectReturn ? `<button class="v39-action v76-return-fix-btn" onclick="v76OpenReturnCorrection('${esc(b.id)}')" title="แก้ไขการคืนสินค้า"><i class="material-icons-round">settings_backup_restore</i></button>` : ''}
               ${!terminal && !isProjectBill(b) ? `<button class="v39-action return" onclick="${typeof window.v10ShowReturnModal === 'function' ? `v10ShowReturnModal('${esc(b.id)}')` : `v12ReturnBill('${esc(b.id)}')`}" title="คืนสินค้า"><i class="material-icons-round">assignment_return</i></button><button class="v39-action cancel" onclick="cancelBill('${esc(b.id)}')" title="ยกเลิก"><i class="material-icons-round">cancel</i></button>` : ''}
             </div>
           </div></td>

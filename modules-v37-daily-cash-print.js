@@ -502,6 +502,61 @@
     try { return JSON.parse(raw); } catch (_) { return {}; }
   }
 
+  function returnItemKeyV37(row) {
+    const pid = row?.product_id || row?.productId || '';
+    if (pid) return `id:${pid}`;
+    return `name:${String(row?.name || '').trim()}|${String(row?.unit || row?.sell_unit || '').trim()}`;
+  }
+
+  function applyLegacyReturnRowsV37(bill, rows) {
+    const info = parseBillInfoV37(bill);
+    const returnedItems = Array.isArray(info?.return_items) ? info.return_items : [];
+    if (!returnedItems.length) return rows;
+
+    const discount = money(bill?.discount);
+    const billTotal = money(bill?.total);
+    const rowSubtotal = rows.reduce((sum, row) => sum + money(row?.total), 0);
+    if (billTotal > 0 && rowSubtotal <= billTotal + discount + 0.01) return rows;
+
+    const returnedByKey = {};
+    returnedItems.forEach(item => {
+      const qty = money(item?.qty ?? item?.return_qty);
+      if (qty <= 0) return;
+      const key = returnItemKeyV37(item);
+      returnedByKey[key] = (returnedByKey[key] || 0) + qty;
+      if (item?.name) {
+        const nameKey = `name:${String(item.name || '').trim()}|${String(item.unit || item.sell_unit || '').trim()}`;
+        returnedByKey[nameKey] = Math.max(returnedByKey[nameKey] || 0, returnedByKey[key]);
+      }
+    });
+
+    return rows.map(row => {
+      const key = returnItemKeyV37(row);
+      const nameKey = `name:${String(row?.name || '').trim()}|${String(row?.unit || row?.sell_unit || '').trim()}`;
+      const returnedQty = Math.min(money(row?.qty || 0), money(returnedByKey[key] || returnedByKey[nameKey] || 0));
+      if (returnedQty <= 0) return row;
+
+      let left = returnedQty;
+      const oldQty = money(row?.qty || 0);
+      const oldTake = money(row?.take_qty || 0);
+      const oldDeliver = money(row?.deliver_qty || 0);
+      const cutDeliver = Math.min(oldDeliver, left);
+      left -= cutDeliver;
+      const cutTake = Math.min(oldTake, left);
+      left -= cutTake;
+      const nextQty = Math.max(0, oldQty - returnedQty);
+      const price = money(row?.price);
+
+      return {
+        ...row,
+        qty: nextQty,
+        take_qty: Math.max(0, oldTake - cutTake),
+        deliver_qty: Math.max(0, oldDeliver - cutDeliver),
+        total: money(nextQty * price),
+      };
+    });
+  }
+
   function smartPaymentState(bill, total) {
     const deposit = money(bill?.deposit_amount);
     const info = parseBillInfoV37(bill);
@@ -602,7 +657,7 @@
   async function printA4Detailed(bill, items, docType = 'receipt', targetWin = null) {
     const rc = await loadShopConfig();
     const ds = await loadDocSettings(docType);
-    const rows = items || [];
+    const rows = applyLegacyReturnRowsV37(bill, items || []);
     const subtotal = rows.reduce((s, it) => s + money(it.total), 0);
     const discount = money(bill?.discount);
     const total = money(bill?.total || Math.max(0, subtotal - discount));
