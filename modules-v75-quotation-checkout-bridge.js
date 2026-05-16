@@ -174,6 +174,17 @@
     }
   }
 
+  function isAdminUser() {
+    try { return String(USER?.role || '').toLowerCase() === 'admin'; }
+    catch (_) { return false; }
+  }
+
+  function resetSaleDiscount() {
+    setDiscount(0);
+    try { window.renderCart?.(); } catch (_) {}
+    try { window.sendToDisplay?.({ type: 'cart', cart: getCart(), total: window.getCartTotal?.() || 0 }); } catch (_) {}
+  }
+
   function savedCheckoutBill() {
     try { if (v12State?.savedBill?.id) return v12State.savedBill; } catch (_) {}
     try { if (window.v12State?.savedBill?.id) return window.v12State.savedBill; } catch (_) {}
@@ -243,11 +254,14 @@
     const wrapped = async function (...args) {
       const hadQuote = !!window._v75PendingQuoteCheckout;
       window._v75QuotePaymentInProgress = hadQuote;
+      let ok = false;
       try {
         const out = await original.apply(this, args);
+        ok = out !== false && (!getCart().length || !!savedCheckoutBill()?.id);
         if (hadQuote && out !== false) await markQuoteConverted(out);
         return out;
       } finally {
+        if (ok) setTimeout(resetSaleDiscount, 80);
         window._v75QuotePaymentInProgress = false;
       }
     };
@@ -269,9 +283,123 @@
     setGlobal('closeCheckout', wrapped);
   }
 
+  function decorateCancelledBillDeleteButtons() {
+    if (!isAdminUser()) return;
+    const tbody = document.getElementById('history-tbody');
+    if (!tbody) return;
+    tbody.querySelectorAll('[data-v39-actions]').forEach(wrap => {
+      const billId = wrap.getAttribute('data-v39-actions');
+      if (!billId || wrap.querySelector('.v75-delete-cancelled-bill')) return;
+      const row = wrap.closest('tr');
+      const rowText = row?.textContent || '';
+      if (!/ยกเลิก/.test(rowText)) return;
+      const actions = wrap.querySelector('.v39-actions') || wrap;
+      const btn = document.createElement('button');
+      btn.className = 'v39-action cancel v75-delete-cancelled-bill';
+      btn.type = 'button';
+      btn.title = 'ลบบิลที่ยกเลิก';
+      btn.innerHTML = '<i class="material-icons-round">delete_forever</i>';
+      btn.addEventListener('click', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        window.v75DeleteCancelledBill(billId);
+      });
+      actions.appendChild(btn);
+    });
+  }
+
+  function wrapHistoryLoader(name) {
+    const original = window[name];
+    if (typeof original !== 'function' || original.__v75DeleteCancelled) return;
+    const wrapped = async function (...args) {
+      const out = await original.apply(this, args);
+      setTimeout(decorateCancelledBillDeleteButtons, 60);
+      setTimeout(decorateCancelledBillDeleteButtons, 300);
+      return out;
+    };
+    Object.defineProperty(wrapped, '__v75DeleteCancelled', { value: true });
+    setGlobal(name, wrapped);
+  }
+
+  function installHistoryDeleteHooks() {
+    wrapHistoryLoader('v39LoadHistoryData');
+    wrapHistoryLoader('loadHistoryData');
+    wrapHistoryLoader('v5LoadHistoryData');
+    setTimeout(decorateCancelledBillDeleteButtons, 200);
+    installHistoryDeleteObserver();
+  }
+
+  function installHistoryDeleteObserver() {
+    if (window.__v75HistoryDeleteObserver) return;
+    window.__v75HistoryDeleteObserver = true;
+    const attach = () => {
+      const tbody = document.getElementById('history-tbody');
+      if (!tbody || tbody.__v75DeleteObserved) return;
+      tbody.__v75DeleteObserved = true;
+      const observer = new MutationObserver(() => {
+        clearTimeout(tbody.__v75DeleteTimer);
+        tbody.__v75DeleteTimer = setTimeout(decorateCancelledBillDeleteButtons, 40);
+      });
+      observer.observe(tbody, { childList: true, subtree: true });
+      decorateCancelledBillDeleteButtons();
+    };
+    attach();
+    document.addEventListener('click', ev => {
+      if (ev.target?.closest?.('[data-page="history"], #nav-history')) setTimeout(attach, 250);
+    });
+    const app = document.getElementById('page-history') || document.body;
+    try {
+      new MutationObserver(attach).observe(app, { childList: true, subtree: true });
+    } catch (_) {}
+  }
+
+  window.v75DeleteCancelledBill = async function (billId) {
+    if (!isAdminUser()) {
+      toast?.('ลบบิลได้เฉพาะแอดมิน', 'warning');
+      return;
+    }
+    try {
+      const { data: bill, error } = await db.from('บิลขาย')
+        .select('id,bill_no,status,total')
+        .eq('id', billId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!bill) throw new Error('ไม่พบบิล');
+      if (!/ยกเลิก/.test(String(bill.status || ''))) {
+        toast?.('ลบได้เฉพาะบิลที่ยกเลิกแล้วเท่านั้น', 'warning');
+        return;
+      }
+      const ask = await Swal.fire({
+        icon: 'warning',
+        title: `ลบบิล #${bill.bill_no || ''}?`,
+        html: `<div style="text-align:left;font-family:Prompt,sans-serif">
+          <p>บิลนี้อยู่ในสถานะ <b style="color:#dc2626">ยกเลิก</b> แล้ว</p>
+          <p style="color:#64748b;font-size:13px">ระบบจะลบหัวบิลและรายการสินค้าในบิลออกจากประวัติ แต่จะไม่ลบประวัติเงินสดหรือประวัติสต็อกที่เคยบันทึกไว้</p>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'ลบบิล',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626',
+      });
+      if (!ask.isConfirmed) return;
+      try { await db.from('รายการในบิล').delete().eq('bill_id', bill.id); } catch (_) {}
+      const del = await db.from('บิลขาย').delete().eq('id', bill.id);
+      if (del.error) throw del.error;
+      try { logActivity?.('ลบบิลยกเลิก', `ลบบิล #${bill.bill_no || bill.id}`, bill.id, 'บิลขาย'); } catch (_) {}
+      toast?.('ลบบิลที่ยกเลิกแล้วสำเร็จ', 'success');
+      if (typeof window.v39LoadHistoryData === 'function') await window.v39LoadHistoryData();
+      else if (typeof window.loadHistoryData === 'function') await window.loadHistoryData();
+      try { window.updateHomeStats?.(); } catch (_) {}
+    } catch (e) {
+      console.error('[v75 delete cancelled bill]', e);
+      toast?.('ลบบิลไม่สำเร็จ: ' + (e.message || e), 'error');
+    }
+  };
+
   function installHooks() {
     ['v12CompletePayment', 'v13CompletePayment', 'v15CompletePayment', 'v16CompletePayment', 'v17CompletePayment', 'v18CompletePayment', 'completePayment', 'v9Sale'].forEach(wrapPaymentFunction);
     wrapCloseCheckout();
+    installHistoryDeleteHooks();
   }
 
   window.v9ConvertQuotation = async function (quotId) {
@@ -336,5 +464,6 @@
   };
 
   installHooks();
+  setTimeout(installHooks, 1200);
   console.log('[v75] quotation uses existing checkout flow');
 })(); 
