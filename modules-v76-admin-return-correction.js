@@ -71,6 +71,10 @@
       .v76-qty-wrap label{font-size:10px;color:#64748b;font-weight:900;text-align:center}
       .v76-return-row input[type="number"]{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:8px;padding:0 9px;font-weight:950;text-align:center;color:#111827;background:#fff;outline:none}
       .v76-return-row input[type="number"]:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.14)}
+      .v76-return-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+      .v76-return-tools b{font-size:13px;font-weight:950;color:#334155}
+      .v76-return-tools button{border:1px solid #d8b4fe;background:#faf5ff;color:#7c3aed;border-radius:8px;height:34px;padding:0 12px;font-weight:950;cursor:pointer}
+      .v76-return-tools button:hover{background:#f3e8ff}
       .v76-return-note{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:start;font-size:12px;color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:11px 12px;margin-top:12px;line-height:1.55}
       .v76-return-note i{font-size:20px;color:#ea580c}
       .v76-return-cash{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;margin-top:10px;padding:11px 12px;border:1px solid #dbeafe;background:#eff6ff;border-radius:8px;font-size:12px;color:#1e3a8a;line-height:1.5}
@@ -93,6 +97,9 @@
       .v76-return-note{display:block;font-size:12px;color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:11px 12px;margin-top:12px;line-height:1.6;font-weight:750}
       .v76-return-row input[type="checkbox"]{width:20px;height:20px;accent-color:#7c3aed;justify-self:center}
       .v76-return-list+.v76-return-note{margin-bottom:2px}
+      .swal2-popup.v76-return-popup .swal2-html-container{padding:0!important}
+      .swal2-popup.v76-return-popup .swal2-title{display:none!important}
+      .swal2-popup.v76-return-popup .v76-return-note{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:start;line-height:1.55}
       @media(max-width:640px){
         .v76-return-hero{grid-template-columns:1fr;padding:18px}
         .v76-return-body{padding:14px 16px 18px}
@@ -262,26 +269,52 @@
             <div class="v76-return-name">${esc(it.name || bi?.name || '-')}</div>
             <div class="v76-return-meta">คืนไว้ ${fmt(qty)} ${esc(unit)} · ยอด ${fmt(it.total || qty * num(it.price))} บาท${disabled ? '<br>ไม่พบสินค้าอ้างอิงในบิล จึงแก้ด้วยปุ่มนี้ไม่ได้' : ''}</div>
           </div>
-          <input type="number" class="v76-undo-qty" data-idx="${idx}" min="0" max="${esc(qty)}" step="0.000001" value="${esc(qty)}" ${disabled ? 'disabled' : ''}>
+          <div class="v76-qty-wrap">
+            <label>จำนวนที่จะแก้คืน</label>
+            <input type="number" class="v76-undo-qty" data-idx="${idx}" min="0" max="${esc(qty)}" step="0.000001" value="${esc(qty)}" ${disabled ? 'disabled' : ''}>
+          </div>
         </label>`;
       }).join('');
 
       const refundMethod = info.refund_method || '';
       const looksCashRefund = String(refundMethod || bill.method || '').includes('เงินสด');
       const { value } = await Swal.fire({
-        title: 'แก้ไขการคืนสินค้า',
         html: `<div class="v76-return-modal">
-          <div class="v76-return-head"><div><strong>บิล #${esc(bill.bill_no || bill.id)}</strong><span>ยอดคืนปัจจุบัน ${fmt(info.return_total)} บาท</span></div><span>${esc(bill.status || '')}</span></div>
-          <div class="v76-return-list">${rows}</div>
-          <div class="v76-return-note">ระบบจะลดสต็อกกลับ, บันทึกประวัติ stock_movement แบบย้อนรายการ, และคำนวณยอดบิล/ยอดหนี้ใหม่ให้</div>
-          ${looksCashRefund ? `<label class="v76-return-cash"><input type="checkbox" id="v76-cash-reverse"> <span>บันทึกรับเงินคืนเข้าลิ้นชักด้วย เฉพาะกรณีที่ตอนคืนผิดได้จ่ายเงินสดให้ลูกค้าไปแล้ว</span></label>` : ''}
-          <input id="v76-return-note" class="swal2-input" placeholder="หมายเหตุ เช่น คืนผิดรายการ / ใส่จำนวนผิด" style="margin:12px 0 0;width:100%">
+          <div class="v76-return-hero">
+            <div>
+              <div class="v76-return-kicker"><i class="material-icons-round">settings_backup_restore</i> แอดมิน</div>
+              <h2 class="v76-return-title">แก้ไขการคืนสินค้า</h2>
+              <div class="v76-return-sub">เลือกเฉพาะรายการที่คืนผิด ระบบจะย้อนสต็อกและคำนวณยอดบิลใหม่ให้อัตโนมัติ</div>
+            </div>
+            <div class="v76-return-badge">บิล #${esc(bill.bill_no || bill.id)}</div>
+          </div>
+          <div class="v76-return-body">
+            <div class="v76-return-summary">
+              <div class="v76-return-stat"><span>ยอดคืนปัจจุบัน</span><b>฿${fmt(info.return_total)}</b></div>
+              <div class="v76-return-stat"><span>สถานะบิล</span><b>${esc(bill.status || '-')}</b></div>
+              <div class="v76-return-stat"><span>จำนวนรายการคืน</span><b>${returnItems.length}</b></div>
+            </div>
+            <div class="v76-return-tools">
+              <b>เลือกรายการที่ต้องการย้อนกลับ</b>
+              <button type="button" id="v76-select-all">เลือกทั้งหมด</button>
+            </div>
+            <div class="v76-return-list">${rows}</div>
+            <div class="v76-return-note"><i class="material-icons-round">info</i><span>ระบบจะลดสต็อกกลับ, บันทึกประวัติ stock_movement แบบย้อนรายการ, และคำนวณยอดบิล/ยอดหนี้ใหม่ให้</span></div>
+            ${looksCashRefund ? `<label class="v76-return-cash"><input type="checkbox" id="v76-cash-reverse"> <span>บันทึกรับเงินคืนเข้าลิ้นชักด้วย เฉพาะกรณีที่ตอนคืนผิดได้จ่ายเงินสดให้ลูกค้าไปแล้ว</span></label>` : ''}
+            <div class="v76-return-form"><label>หมายเหตุการแก้ไข</label><input id="v76-return-note" placeholder="เช่น คืนผิดรายการ / ใส่จำนวนผิด"></div>
+          </div>
         </div>`,
         width: 760,
+        customClass: { popup: 'v76-return-popup' },
         showCancelButton: true,
         confirmButtonText: 'บันทึกแก้คืน',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#7c3aed',
+        didOpen: () => {
+          document.getElementById('v76-select-all')?.addEventListener('click', () => {
+            document.querySelectorAll('.v76-undo-check:not(:disabled)').forEach(ch => { ch.checked = true; });
+          });
+        },
         preConfirm: () => {
           const selected = [];
           document.querySelectorAll('.v76-undo-check:checked').forEach(ch => {

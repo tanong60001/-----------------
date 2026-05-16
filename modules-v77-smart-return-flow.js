@@ -30,6 +30,42 @@
     try { Function('n', 'v', 'try{eval(n+"=v")}catch(e){}')(name, value); } catch (_) {}
   };
 
+  function injectStyle() {
+    if (document.getElementById('v77-smart-return-style')) return;
+    const style = document.createElement('style');
+    style.id = 'v77-smart-return-style';
+    style.textContent = `
+      .swal2-popup.v77-settlement-popup{padding:0!important;border-radius:8px!important;overflow:hidden!important;width:min(720px,calc(100vw - 24px))!important}
+      .swal2-popup.v77-settlement-popup .swal2-html-container{margin:0!important;padding:0!important}
+      .swal2-popup.v77-settlement-popup .swal2-actions{margin:0!important;padding:14px 22px 20px!important;border-top:1px solid #eef2f7;background:#fff}
+      .swal2-popup.v77-settlement-popup .swal2-confirm,.swal2-popup.v77-settlement-popup .swal2-cancel{height:44px!important;border-radius:8px!important;padding:0 20px!important;font-weight:950!important}
+      .v77-pay-modal{text-align:left;color:#0f172a;background:#fff}
+      .v77-pay-head{padding:22px 24px;background:#f8fafc;border-bottom:1px solid #e5e7eb}
+      .v77-pay-kicker{display:flex;align-items:center;gap:8px;color:#dc2626;font-size:12px;font-weight:950;margin-bottom:5px}
+      .v77-pay-kicker i{font-size:18px}
+      .v77-pay-title{font-size:24px;line-height:1.12;font-weight:950;margin:0;color:#111827}
+      .v77-pay-sub{font-size:13px;line-height:1.5;color:#64748b;font-weight:750;margin-top:7px}
+      .v77-pay-body{padding:18px 24px 20px}
+      .v77-pay-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+      .v77-pay-stat{border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;background:#fff}
+      .v77-pay-stat span{display:block;color:#64748b;font-size:11px;font-weight:850;margin-bottom:4px}
+      .v77-pay-stat b{display:block;font-size:20px;font-weight:950;color:#111827;line-height:1.1}
+      .v77-pay-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .v77-pay-card{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;border:1px solid #dbe3ee;border-radius:8px;padding:13px;background:#fff;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+      .v77-pay-card:hover{border-color:#94a3b8;background:#fbfdff}
+      .v77-pay-card input{position:absolute;opacity:0;pointer-events:none}
+      .v77-pay-icon{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:#eef2ff;color:#4f46e5}
+      .v77-pay-icon i{font-size:20px}
+      .v77-pay-name{font-size:14px;font-weight:950;color:#111827;line-height:1.25}
+      .v77-pay-desc{font-size:12px;color:#64748b;line-height:1.45;margin-top:4px;font-weight:700}
+      .v77-pay-card:has(input:checked){border-color:#dc2626;background:#fff7ed;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
+      .v77-pay-card:has(input:checked) .v77-pay-icon{background:#fee2e2;color:#dc2626}
+      .v77-pay-note{margin-top:12px;border:1px solid #fed7aa;background:#fff7ed;color:#7c2d12;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.55;font-weight:750}
+      @media(max-width:640px){.v77-pay-head{padding:18px}.v77-pay-body{padding:14px 16px 18px}.v77-pay-summary,.v77-pay-options{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(style);
+  }
+
   function isDebtBill(bill) {
     return /ค้าง/.test(String(bill?.method || '')) || /ค้าง/.test(String(bill?.status || ''));
   }
@@ -43,31 +79,43 @@
   }
 
   async function askReturnSettlement(bill, totalReturn, debtDeduction) {
-    const opts = {
-      unpaid: 'ยังไม่ได้รับเงิน / หักยอดบิลเท่านั้น',
-      cash: 'คืนเงินสด',
-      transfer: 'คืนเงินโอน',
-    };
-    if (isDebtBill(bill) && debtDeduction > 0) opts.debt = 'หักหนี้ลูกค้า';
-
-    let inputValue = 'unpaid';
-    if (isDebtBill(bill) && debtDeduction > 0) inputValue = 'debt';
-    else if (String(bill.method || '').includes('เงินสด')) inputValue = 'cash';
-    else if (isTransferBill(bill)) inputValue = 'transfer';
+    injectStyle();
+    const isDebt = isDebtBill(bill) && debtDeduction > 0;
+    const cards = [
+      ['unpaid', 'receipt_long', 'ยังไม่ได้รับเงิน', 'หักแค่ยอดบิล ไม่บันทึกเงินสดออก และไม่เปิดหน้านับแบงค์'],
+      ['cash', 'payments', 'คืนเงินสด', 'บันทึกเงินสดออกจากลิ้นชัก และเปิดหน้านับแบงค์หลังยืนยัน'],
+      ['transfer', 'account_balance', 'คืนเงินโอน', 'บันทึกว่าโอนคืนแล้ว ไม่กระทบเงินสดในลิ้นชัก'],
+      ...(isDebt ? [['debt', 'remove_circle', 'หักหนี้ลูกค้า', `ลดหนี้ลูกค้าตามยอดคืน สูงสุด ฿${fmt(debtDeduction)}`]] : []),
+    ];
 
     const { value, isConfirmed } = await Swal.fire({
-      title: 'เลือกวิธีจัดการยอดคืน',
-      html: `<div style="text-align:left;line-height:1.7">
-        <div>ยอดคืน: <strong style="color:#dc2626">฿${fmt(totalReturn)}</strong></div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px">ถ้าลูกค้ายังไม่ได้จ่ายหรือสินค้ายังไม่ได้ส่ง ให้เลือก “ยังไม่ได้รับเงิน” เพื่อหักเฉพาะยอดบิล</div>
+      html: `<div class="v77-pay-modal">
+        <div class="v77-pay-head">
+          <div class="v77-pay-kicker"><i class="material-icons-round">assignment_return</i> คืนสินค้า</div>
+          <h2 class="v77-pay-title">เลือกวิธีจัดการยอดคืน</h2>
+          <div class="v77-pay-sub">ถ้าลูกค้ายังไม่ได้จ่าย หรือบิลนี้ยังไม่ได้ไปส่ง ให้เลือกหักยอดบิลเท่านั้น ระบบจะไม่เปิดหน้านับแบงค์</div>
+        </div>
+        <div class="v77-pay-body">
+          <div class="v77-pay-summary">
+            <div class="v77-pay-stat"><span>บิล</span><b>#${bill?.bill_no || '-'}</b></div>
+            <div class="v77-pay-stat"><span>ยอดคืน</span><b style="color:#dc2626">฿${fmt(totalReturn)}</b></div>
+          </div>
+          <div class="v77-pay-options">
+            ${cards.map(([value, icon, name, desc], idx) => `<label class="v77-pay-card">
+              <input type="radio" name="v77-settlement" value="${value}" ${idx === 0 ? 'checked' : ''}>
+              <span class="v77-pay-icon"><i class="material-icons-round">${icon}</i></span>
+              <span><span class="v77-pay-name">${name}</span><span class="v77-pay-desc">${desc}</span></span>
+            </label>`).join('')}
+          </div>
+          <div class="v77-pay-note">ระบบตั้งค่าเริ่มต้นเป็น “ยังไม่ได้รับเงิน” เพื่อกันการบันทึกเงินสดออกผิดกรณี</div>
+        </div>
       </div>`,
-      input: 'select',
-      inputOptions: opts,
-      inputValue,
+      customClass: { popup: 'v77-settlement-popup' },
       showCancelButton: true,
       confirmButtonText: 'ดำเนินการคืน',
       cancelButtonText: 'ยกเลิก',
       confirmButtonColor: '#dc2626',
+      preConfirm: () => document.querySelector('input[name="v77-settlement"]:checked')?.value || 'unpaid',
     });
     return isConfirmed ? value : null;
   }
@@ -350,6 +398,7 @@
   }
 
   function install() {
+    injectStyle();
     if (typeof window.v10ConfirmReturn !== 'function') return setTimeout(install, 300);
     if (window.v10ConfirmReturn.__v77SmartReturn) return;
     const originalShowReturn = window.v10ShowReturnModal;
