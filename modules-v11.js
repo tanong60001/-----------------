@@ -96,17 +96,38 @@ console.log('[v11] Loading modules-v11.js v2...');
 // updateHomeStats is local to app.js so we override it on window
 // ══════════════════════════════════════
 
+function v11LocalDayRange(date) {
+  const d = date || new Date();
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function v11ParseReturnInfo(info) {
+  if (!info) return {};
+  if (typeof info === 'object') return info;
+  try { return JSON.parse(info); } catch (_) { return {}; }
+}
+
+function v11EffectiveBillTotal(bill) {
+  const info = v11ParseReturnInfo(bill?.return_info);
+  const total = Number(info.new_total ?? bill?.total ?? 0);
+  return Number.isFinite(total) ? total : 0;
+}
+
 window.updateHomeStats = async function () {
   const el = document.getElementById('home-username');
   if (el) el.textContent = typeof USER !== 'undefined' ? (USER?.username || 'User') : 'User';
-  const today = new Date().toISOString().split('T')[0];
+  const today = v11LocalDayRange();
   try {
     const { data: bills } = await db.from('บิลขาย')
       .select('total, discount, id, status, return_info')
-      .gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59')
+      .gte('date', today.startIso).lte('date', today.endIso)
       .in('status', ['สำเร็จ', 'คืนบางส่วน']);
 
-    const totalSales = bills?.reduce((sum, b) => sum + (b.total || 0), 0) || 0;
+    const totalSales = bills?.reduce((sum, b) => sum + v11EffectiveBillTotal(b), 0) || 0;
     const ordersCount = bills?.length || 0;
     let profit = 0;
 
@@ -121,8 +142,9 @@ window.updateHomeStats = async function () {
       // ✅ Deduct returned items' cost
       let returnCostTotal = 0;
       (bills || []).forEach(b => {
-        if (b.return_info?.return_items) {
-          b.return_info.return_items.forEach(ri => {
+        const returnInfo = v11ParseReturnInfo(b.return_info);
+        if (returnInfo?.return_items) {
+          returnInfo.return_items.forEach(ri => {
             const qty = parseFloat(ri.qty || 0);
             let cost = parseFloat(ri.cost || 0);
             if (!cost) {

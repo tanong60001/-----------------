@@ -20,6 +20,10 @@
   const notify = (msg, type = 'info') => {
     try { if (typeof toast === 'function') toast(msg, type); } catch (_) {}
   };
+  const isAdminUser = () => {
+    try { return String(USER?.role || '').toLowerCase() === 'admin'; }
+    catch (_) { return false; }
+  };
   const localDateKey = value => {
     const d = value ? new Date(value) : new Date();
     if (Number.isNaN(d.getTime())) return '';
@@ -57,6 +61,13 @@
       return `<span class="v37den-chip ${isCoin ? 'coin' : 'bill'}"><b>฿${label}</b><em>x${intFmt(qty)} ${unit}</em><small>฿${intFmt(v * qty)}</small></span>`;
     }).join('');
     return html || `<span class="v37den-empty">${esc(empty)}</span>`;
+  };
+  const closingSnapshotFromTx = list => {
+    const tx = (list || []).find(row =>
+      String(row?.type || '').includes('ปิดรอบ') &&
+      (denomTotal(row?.denominations) > 0 || /ยอดปิด/i.test(String(row?.note || '')))
+    );
+    return tx?.denominations || {};
   };
   const cleanCashNote = note => String(note || '')
     .split('|')
@@ -214,6 +225,12 @@
   async function renderCashHistory() {
     const host = document.getElementById('v37-cash-history');
     if (!host) return;
+    if (!isAdminUser()) {
+      host.closest('#v37-cash-history-wrap')?.remove();
+      host.innerHTML = '';
+      notify('ดูประวัติลิ้นชักได้เฉพาะแอดมิน', 'warning');
+      return;
+    }
     const dateKey = document.getElementById('v37-cash-history-date')?.value || '';
     if (!dateKey) {
       host.innerHTML = '<div style="padding:22px;text-align:center;color:#94a3b8;font-weight:800">เลือกวันที่ที่ต้องการดูประวัติลิ้นชักก่อน</div>';
@@ -257,9 +274,11 @@
           if (tx.direction === 'in') cashIn += n;
           else cashOut += n;
         });
+        const closingSnapshot = s.closing_denominations || closingSnapshotFromTx(list);
         const closeAmt = s.status === 'closed' ? money(s.closing_amt) : money(s.opening_amt) + cashIn - cashOut;
         const status = s.status === 'open' ? 'กำลังเปิดอยู่' : 'ปิดแล้ว';
-        const counted = money(s.counted_closing_amt);
+        const countedFromSnapshot = denomTotal(closingSnapshot);
+        const counted = money(s.counted_closing_amt || countedFromSnapshot);
         const diff = s.close_difference == null ? null : money(s.close_difference);
         return `<div class="v37hist-card">
           <div>
@@ -280,9 +299,9 @@
             <div class="v37den-panel-title"><span>ยอดเปิดรอบตามจำนวนแบงค์/เหรียญ</span><b>รวม ฿${fmt(denomTotal(s.opening_denominations || s.denominations || {}))}</b></div>
             <div class="v37den-list">${denomChips(s.opening_denominations || s.denominations || {}, 'ไม่มีข้อมูลแบงค์ยอดเปิด')}</div>
           </div>
-          ${(s.closing_denominations && denomTotal(s.closing_denominations) > 0) ? `<div class="v37den-panel">
-            <div class="v37den-panel-title"><span>ยอดปิดรอบที่นับจริง</span><b>รวม ฿${fmt(denomTotal(s.closing_denominations))}</b></div>
-            <div class="v37den-list">${denomChips(s.closing_denominations, 'ไม่มีข้อมูลแบงค์ยอดปิด')}</div>
+          ${(closingSnapshot && denomTotal(closingSnapshot) > 0) ? `<div class="v37den-panel">
+            <div class="v37den-panel-title"><span>ยอดปิดรอบที่นับจริง</span><b>รวม ฿${fmt(denomTotal(closingSnapshot))}</b></div>
+            <div class="v37den-list">${denomChips(closingSnapshot, 'ไม่มีข้อมูลแบงค์ยอดปิด')}</div>
           </div>` : ''}
         </div>`;
       }).join('');
@@ -292,6 +311,10 @@
   }
 
   window.v37ShowCashSessionTx = async function (sessionId) {
+    if (!isAdminUser()) {
+      notify('ดูประวัติลิ้นชักได้เฉพาะแอดมิน', 'warning');
+      return;
+    }
     const list = (window.v37CashHistoryTx?.[sessionId] || []).slice()
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const html = list.length ? list.map(tx => {
@@ -383,6 +406,26 @@
           `รายการแบงค์/เหรียญ ${JSON.stringify(counts || {})}`,
         ].filter(Boolean).join(' | '),
       }).eq('id', session.id));
+    }
+    try {
+      await must(db.from('cash_transaction').insert({
+        session_id: session.id,
+        type: 'ปิดรอบ',
+        direction: 'in',
+        amount: 0,
+        net_amount: 0,
+        balance_after: countedTotal,
+        staff_name: user(),
+        note: [
+          'snapshot ยอดปิด',
+          `ยอดตามระบบ ฿${fmt(totals.balance)}`,
+          `ยอดที่นับจริง ฿${fmt(countedTotal)}`,
+          `ส่วนต่าง ฿${fmt(diff)}`,
+        ].join(' | '),
+        denominations: counts,
+      }));
+    } catch (e) {
+      console.warn('[v37] closing denomination snapshot failed:', e);
     }
     notify('ปิดลิ้นชักเรียบร้อย เปิดใหม่ได้เมื่อเริ่มรอบ/วันใหม่', 'success');
     try { if (typeof renderCashDrawer === 'function') await renderCashDrawer(); } catch (_) {}

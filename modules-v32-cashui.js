@@ -330,6 +330,13 @@
     };
   }
 
+  function _closeSnapshotFromTx(txs) {
+    var snap = (txs || []).find(function (tx) {
+      return String(tx.type || '').indexOf('ปิดรอบ') >= 0 && _denomTotal(tx.denominations) > 0;
+    });
+    return snap ? _asObj(snap.denominations) : {};
+  }
+
   function _denomChips(obj, emptyText) {
     obj = _asObj(obj);
     var html = ALL.map(function (d) {
@@ -426,10 +433,23 @@
     return el && el.value ? el.value : _today();
   }
 
+  function _isAdminUser() {
+    try {
+      var role = String((typeof USER !== 'undefined' && USER && USER.role) || '').toLowerCase();
+      return role === 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function _renderSessionHistory(currentSessionId) {
     var page = document.querySelector('#page-cash .v32pg');
     if (!page) return;
     var box = document.getElementById('v32-session-history');
+    if (!_isAdminUser()) {
+      if (box) box.remove();
+      return;
+    }
     if (!box) {
       box = document.createElement('div');
       box.id = 'v32-session-history';
@@ -479,7 +499,10 @@
           var opening = sess.opening_amt || 0;
           var fallback = _closeFallback(sess);
           var expected = sess.expected_closing_amt != null ? _money(sess.expected_closing_amt) : (fallback.expected != null ? fallback.expected : opening + inSum - outSum);
-          var closeDenoms = sess.closing_denominations || fallback.denoms || {};
+          var txCloseDenoms = _closeSnapshotFromTx(txs);
+          var closeDenoms = _denomTotal(sess.closing_denominations) > 0
+            ? sess.closing_denominations
+            : (_denomTotal(fallback.denoms) > 0 ? fallback.denoms : txCloseDenoms);
           var countedFromDenoms = _denomTotal(closeDenoms);
           var hasCounted = sess.counted_closing_amt != null || countedFromDenoms > 0 || fallback.counted != null;
           var counted = hasCounted ? _money(sess.counted_closing_amt != null ? sess.counted_closing_amt : (countedFromDenoms > 0 ? countedFromDenoms : fallback.counted)) : null;
@@ -1036,7 +1059,14 @@
   /* Expose the Promise-based wizard + drawer loader for v33 reuse */
   window.v32ShowDenomWizard = showDenomWizard;
   window.v32LoadDrawer = _loadDrawer;
-  window.v32RenderSessionHistory = function () { return _renderSessionHistory(null); };
+  window.v32RenderSessionHistory = function () {
+    if (!_isAdminUser()) {
+      if (typeof toast === 'function') toast('ดูประวัติลิ้นชักได้เฉพาะแอดมิน', 'warning');
+      document.getElementById('v32-session-history')?.remove();
+      return Promise.resolve();
+    }
+    return _renderSessionHistory(null);
+  };
 
   console.info('%c[v32-cashui] ✅%c premium UI + denomination + แลกเงิน + เพิ่มเงิน + auto reset', 'color:#9a25ae;font-weight:700', 'color:#6b7280');
 
