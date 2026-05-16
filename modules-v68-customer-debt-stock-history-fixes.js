@@ -39,6 +39,66 @@
     return Math.max(0, num(info.new_total ?? bill?.total));
   }
 
+  function canDeleteBillV68() {
+    try {
+      if (typeof window.canDeleteActionV36 === 'function') return window.canDeleteActionV36();
+    } catch (_) {}
+    try { return USER?.role === 'admin' || USER_PERMS?.can_delete === true; } catch (_) { return false; }
+  }
+
+  window.v68DeleteCancelledBill = async function (billId) {
+    if (!canDeleteBillV68()) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์ลบบิล', text: 'ต้องเป็นแอดมินหรือมีสิทธิ์ลบรายการ', confirmButtonColor: '#dc2626' });
+      } else {
+        toast?.('ไม่มีสิทธิ์ลบบิล', 'warning');
+      }
+      return false;
+    }
+    try {
+      const { data: bill, error } = await db.from(BILL_TABLE)
+        .select('id,bill_no,status,customer_name,total')
+        .eq('id', billId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!bill) throw new Error('ไม่พบบิล');
+      if (!/ยกเลิก/.test(String(bill.status || ''))) {
+        toast?.('ลบได้เฉพาะบิลที่ยกเลิกแล้ว', 'warning');
+        return false;
+      }
+
+      const ok = await Swal.fire({
+        icon: 'warning',
+        title: `ลบบิล #${bill.bill_no || bill.id}?`,
+        html: `<div style="text-align:left;line-height:1.7">บิลนี้ถูกยกเลิกแล้วและจะถูกลบออกจากหน้าประวัติ<br><b>${esc(bill.customer_name || 'ลูกค้าทั่วไป')}</b> · ฿${fmt(bill.total)}</div>`,
+        showCancelButton: true,
+        confirmButtonText: 'ลบบิล',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626',
+      });
+      if (!ok.isConfirmed) return false;
+
+      if (typeof v9ShowOverlay === 'function') v9ShowOverlay('กำลังลบบิลที่ยกเลิก...');
+      const itemDelete = await db.from(ITEM_TABLE).delete().eq('bill_id', bill.id);
+      if (itemDelete.error) throw itemDelete.error;
+      const billDelete = await db.from(BILL_TABLE).delete().eq('id', bill.id);
+      if (billDelete.error) throw billDelete.error;
+      if (typeof logActivity === 'function') {
+        logActivity('ลบบิลที่ยกเลิก', `บิล #${bill.bill_no || bill.id}`, bill.id, BILL_TABLE);
+      }
+      toast?.('ลบบิลที่ยกเลิกแล้ว', 'success');
+      await window.v39LoadHistoryData?.();
+      window.v12BMCLoad?.();
+      return true;
+    } catch (e) {
+      console.error('[v68] delete cancelled bill:', e);
+      toast?.('ลบบิลไม่สำเร็จ: ' + (e.message || e), 'error');
+      return false;
+    } finally {
+      if (typeof v9HideOverlay === 'function') v9HideOverlay();
+    }
+  };
+
   function isTerminalBill(bill) {
     return /ยกเลิก|คืนสินค้า/.test(String(bill?.status || ''));
   }
@@ -601,6 +661,7 @@
         const returnInfo = parseInfo(b.return_info);
         const adminUser = (() => { try { return Function('try { return USER && USER.role === "admin" } catch(e) { return false }')(); } catch (_) { return false; } })();
         const canCorrectReturn = adminUser && num(returnInfo.return_total) > 0 && typeof window.v76OpenReturnCorrection === 'function';
+        const canDeleteCancelled = /ยกเลิก/.test(String(b.status || '')) && !isProjectBill(b) && canDeleteBillV68();
         return `<tr>
           <td><div class="v39-bill-no">#${esc(b.bill_no || b.id)}</div><div class="v39-sub">${esc(b.staff_name || '-')}</div></td>
           <td><div style="font-weight:900;color:#0f172a">${esc(billDate(b.date))}</div><div class="v39-sub">${esc(billTime(b.date))}</div></td>
@@ -616,6 +677,7 @@
               <button class="v39-action print" onclick="${typeof window.v24ShowDocSelector === 'function' ? 'v24ShowDocSelector' : 'v5PrintFromHistory'}('${esc(b.id)}')" title="พิมพ์เอกสาร"><i class="material-icons-round">print</i></button>
               ${debtLike && typeof window.v20BMCPayDebt === 'function' ? `<button class="v39-action pay" onclick="v20BMCPayDebt('${esc(b.id)}')" title="รับชำระ"><i class="material-icons-round">payments</i></button>` : ''}
               ${canCorrectReturn ? `<button class="v39-action v76-return-fix-btn" onclick="v76OpenReturnCorrection('${esc(b.id)}')" title="แก้ไขการคืนสินค้า"><i class="material-icons-round">settings_backup_restore</i></button>` : ''}
+              ${canDeleteCancelled ? `<button class="v39-action cancel" onclick="v68DeleteCancelledBill('${esc(b.id)}')" title="ลบบิลที่ยกเลิก"><i class="material-icons-round">delete_forever</i></button>` : ''}
               ${!terminal && !isProjectBill(b) ? `<button class="v39-action return" onclick="${typeof window.v10ShowReturnModal === 'function' ? `v10ShowReturnModal('${esc(b.id)}')` : `v12ReturnBill('${esc(b.id)}')`}" title="คืนสินค้า"><i class="material-icons-round">assignment_return</i></button><button class="v39-action cancel" onclick="cancelBill('${esc(b.id)}')" title="ยกเลิก"><i class="material-icons-round">cancel</i></button>` : ''}
             </div>
           </div></td>

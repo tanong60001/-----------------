@@ -446,12 +446,18 @@
   function autoDocTypeForBill(bill, rows) {
     const total = money(bill?.total || (rows || []).reduce((s, it) => s + money(it.total), 0));
     const pay = smartPaymentState(bill, total);
-    if (!pay.paidFull || pay.deposit > 0) return 'payment';
-    const hasDelivery = bill?.delivery_mode === 'deliver'
+    const deliveryStatus = String(bill?.delivery_status || '');
+    const deliveryMode = String(bill?.delivery_mode || '');
+    const deliveredDone = /สำเร็จ|delivered/i.test(deliveryStatus);
+    const hasDeliveryPlan = bill?.delivery_mode === 'deliver'
       || bill?.delivery_mode === 'partial'
-      || /รอจัดส่ง|จัดส่ง/i.test(String(bill?.delivery_status || ''))
+      || /รอจัดส่ง|จัดส่ง|deliver|partial/i.test(deliveryStatus + ' ' + deliveryMode)
       || (rows || []).some(it => money(it.deliver_qty) > 0);
-    if (hasDelivery) return 'delivery';
+    const pendingDelivery = hasDeliveryPlan && !deliveredDone;
+    const partialDeposit = pay.deposit > 0 && pay.deposit < total && !pay.paidFull;
+    if (pendingDelivery && !pay.paidFull) return 'delivery_due';
+    if (pendingDelivery) return 'delivery';
+    if (!pay.paidFull || partialDeposit) return 'payment';
     return 'receipt';
   }
 
@@ -668,7 +674,8 @@
     const isBilling = docType === 'billing';
     const isPaymentDoc = docType === 'payment';
     const isDebtNotice = docType === 'debt_notice';
-    const isInvoiceDoc = !isDebtNotice && isPaymentDoc && remaining > 0 && deposit <= 0;
+    const isDeliveryDueDoc = docType === 'delivery_due';
+    const isInvoiceDoc = !isDebtNotice && (isDeliveryDueDoc || (isPaymentDoc && remaining > 0 && deposit <= 0));
     const billingOriginal = money(bill?.billing_original_total || total);
     const billingPaid = money(bill?.billing_paid_total || 0);
     const paidRow = payState.paid > 0 && remaining > 0
@@ -696,16 +703,19 @@
     const title = isBilling ? 'ใบวางบิล'
       : isDebtNotice ? 'ใบแจ้งยอดค้างชำระ'
       : docType === 'delivery' ? 'ใบส่งของ'
-      : isInvoiceDoc ? 'ใบส่งของ/ใบกำกับ'
+      : isDeliveryDueDoc ? 'ใบส่งของ/ใบแจ้งยอดชำระ'
+      : isInvoiceDoc ? 'ใบแจ้งยอดชำระ'
       : docType === 'payment' ? 'ใบรับเงินมัดจำ'
       : 'ใบเสร็จรับเงิน';
     const titleEn = isBilling ? 'BILLING NOTE'
       : isDebtNotice ? 'BALANCE DUE NOTICE'
       : docType === 'delivery' ? 'DELIVERY NOTE'
-      : isInvoiceDoc ? 'DELIVERY/INVOICE'
+      : isDeliveryDueDoc ? 'DELIVERY/BALANCE DUE'
+      : isInvoiceDoc ? 'BALANCE DUE'
       : docType === 'payment' ? 'PAYMENT RECEIPT'
       : 'RECEIPT';
-    const showDeliveryCols = rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || ''));
+    const showDeliveryCols = (docType === 'delivery' || isDeliveryDueDoc)
+      && (rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || '')));
     const itemCount = rows.length;
     const compact = itemCount > 10;
     const dense = itemCount > 18;
