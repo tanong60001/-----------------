@@ -79,6 +79,9 @@
       if (!ok.isConfirmed) return false;
 
       if (typeof v9ShowOverlay === 'function') v9ShowOverlay('กำลังลบบิลที่ยกเลิก...');
+      if (typeof window.v79CleanupProjectBillLinks === 'function') {
+        await window.v79CleanupProjectBillLinks(bill.id);
+      }
       const itemDelete = await db.from(ITEM_TABLE).delete().eq('bill_id', bill.id);
       if (itemDelete.error) throw itemDelete.error;
       const billDelete = await db.from(BILL_TABLE).delete().eq('id', bill.id);
@@ -661,15 +664,21 @@
         const returnInfo = parseInfo(b.return_info);
         const adminUser = (() => { try { return Function('try { return USER && USER.role === "admin" } catch(e) { return false }')(); } catch (_) { return false; } })();
         const canCorrectReturn = adminUser && num(returnInfo.return_total) > 0 && typeof window.v76OpenReturnCorrection === 'function';
-        const canDeleteCancelled = /ยกเลิก/.test(String(b.status || '')) && !isProjectBill(b) && canDeleteBillV68();
+        const projectBill = isProjectBill(b);
+        const canDeleteNow = canDeleteBillV68();
+        const canDeleteCancelled = /ยกเลิก/.test(String(b.status || '')) && canDeleteNow;
+        const canCancelProject = !terminal && projectBill && canDeleteNow;
+        const methodLabel = projectBill ? 'โครงการ' : (b.method || '-');
+        const methodIcon = projectBill ? 'business_center' : (methodClass(b.method) === 'cash' ? 'payments' : methodClass(b.method) === 'transfer' ? 'qr_code' : methodClass(b.method) === 'credit' ? 'credit_card' : 'schedule');
+        const statusLabel = projectBill && !/ยกเลิก/.test(String(b.status || '')) ? 'โครงการ' : (b.status || '-');
         return `<tr>
           <td><div class="v39-bill-no">#${esc(b.bill_no || b.id)}</div><div class="v39-sub">${esc(b.staff_name || '-')}</div></td>
           <td><div style="font-weight:900;color:#0f172a">${esc(billDate(b.date))}</div><div class="v39-sub">${esc(billTime(b.date))}</div></td>
           <td><div class="v39-customer">${esc(b.customer_name || 'ลูกค้าทั่วไป')}</div><div class="v39-sub">${esc(b.delivery_phone || '')}</div></td>
-          <td><span class="v39-pill ${methodClass(b.method)}"><i class="material-icons-round" style="font-size:15px">${methodClass(b.method) === 'cash' ? 'payments' : methodClass(b.method) === 'transfer' ? 'qr_code' : methodClass(b.method) === 'credit' ? 'credit_card' : 'schedule'}</i>${esc(b.method || '-')}</span></td>
+          <td><span class="v39-pill ${projectBill ? 'credit' : methodClass(b.method)}"><i class="material-icons-round" style="font-size:15px">${methodIcon}</i>${esc(methodLabel)}</span></td>
           <td><span class="v39-pill other"><i class="material-icons-round" style="font-size:15px">local_shipping</i>${esc(deliveryText(b))}</span></td>
           <td class="v39-money">฿${fmt(b.total)}${num(b.discount) > 0 ? `<div class="v39-discount">ลด ฿${fmt(b.discount)}</div>` : ''}</td>
-          <td><span class="v39-pill v39-status ${statusClass(b.status)}">${esc(b.status || '-')}</span>${!b.customer_id && debtLike ? '<div class="v39-sub" style="color:#d97706">ยังไม่ผูกลูกค้า</div>' : ''}</td>
+          <td><span class="v39-pill v39-status ${projectBill ? 'info' : statusClass(b.status)}">${esc(statusLabel)}</span>${!b.customer_id && debtLike ? '<div class="v39-sub" style="color:#d97706">ยังไม่ผูกลูกค้า</div>' : ''}</td>
           <td><div class="v39-actions-wrap" data-v39-actions="${esc(b.id)}">
             <button class="v39-actions-toggle" onclick="v39ToggleHistoryActions('${esc(b.id)}', event)" title="จัดการ"><i class="material-icons-round">more_horiz</i></button>
             <div class="v39-actions">
@@ -678,7 +687,8 @@
               ${debtLike && typeof window.v20BMCPayDebt === 'function' ? `<button class="v39-action pay" onclick="v20BMCPayDebt('${esc(b.id)}')" title="รับชำระ"><i class="material-icons-round">payments</i></button>` : ''}
               ${canCorrectReturn ? `<button class="v39-action v76-return-fix-btn" onclick="v76OpenReturnCorrection('${esc(b.id)}')" title="แก้ไขการคืนสินค้า"><i class="material-icons-round">settings_backup_restore</i></button>` : ''}
               ${canDeleteCancelled ? `<button class="v39-action cancel" onclick="v68DeleteCancelledBill('${esc(b.id)}')" title="ลบบิลที่ยกเลิก"><i class="material-icons-round">delete_forever</i></button>` : ''}
-              ${!terminal && !isProjectBill(b) ? `<button class="v39-action return" onclick="${typeof window.v10ShowReturnModal === 'function' ? `v10ShowReturnModal('${esc(b.id)}')` : `v12ReturnBill('${esc(b.id)}')`}" title="คืนสินค้า"><i class="material-icons-round">assignment_return</i></button><button class="v39-action cancel" onclick="cancelBill('${esc(b.id)}')" title="ยกเลิก"><i class="material-icons-round">cancel</i></button>` : ''}
+              ${canCancelProject ? `<button class="v39-action cancel" onclick="cancelBill('${esc(b.id)}')" title="ยกเลิกบิลโครงการ"><i class="material-icons-round">cancel</i></button>` : ''}
+              ${!terminal && !projectBill ? `<button class="v39-action return" onclick="${typeof window.v10ShowReturnModal === 'function' ? `v10ShowReturnModal('${esc(b.id)}')` : `v12ReturnBill('${esc(b.id)}')`}" title="คืนสินค้า"><i class="material-icons-round">assignment_return</i></button><button class="v39-action cancel" onclick="cancelBill('${esc(b.id)}')" title="ยกเลิก"><i class="material-icons-round">cancel</i></button>` : ''}
             </div>
           </div></td>
         </tr>`;
