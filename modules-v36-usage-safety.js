@@ -2368,6 +2368,66 @@ console.log('[v36] Usage safety patch loaded');
   }
 
   function installDeliverySafety() {
+    async function refreshDeliveryViews() {
+      try { if (typeof renderDelivery === 'function') await renderDelivery(); } catch (_) { }
+      try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) { }
+      try { if (typeof loadProducts === 'function') await loadProducts(); } catch (_) { }
+      try { if (typeof v12BMCLoad === 'function') v12BMCLoad(); } catch (_) { }
+      try { if (typeof v39LoadHistoryData === 'function') v39LoadHistoryData(); } catch (_) { }
+    }
+
+    window.v36FinalizeDeliveryAfterPayment = async function (billId) {
+      if (!billId || window.__deliveryFinalizeLocks?.[billId]) return false;
+      window.__deliveryFinalizeLocks = window.__deliveryFinalizeLocks || {};
+      window.__deliveryFinalizeLocks[billId] = true;
+      try {
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            title: 'กำลังปิดงานจัดส่ง',
+            html: 'รับชำระสำเร็จแล้ว ระบบกำลังบันทึกสถานะจัดส่งและประวัติให้ครบ...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+          });
+        }
+
+        const { bill, items } = await fetchBillAndItems(billId);
+        if (!bill) throw new Error('ไม่พบบิล');
+        if (bill.delivery_status === txt.delivered) {
+          if (typeof Swal !== 'undefined') Swal.close();
+          return true;
+        }
+
+        await settleDeliveryStockOnce(billId, items);
+        const total = effectiveTotal(bill);
+        const paid = effectivePaidForDelivery(bill, total);
+        const remaining = Math.max(0, total - paid);
+
+        await must(db.from(txt.bill).update({
+          delivery_status: txt.delivered,
+          status: remaining > 0 ? txt.debt : txt.success,
+        }).eq('id', billId), 'อัปเดตสถานะจัดส่งหลังรับชำระ');
+
+        if (typeof logActivity === 'function') {
+          await Promise.resolve(logActivity(txt.delivered, `บิล #${bill.bill_no || billId} รับชำระแล้ว${remaining > 0 ? ' เหลือ ฿' + fmt(remaining) : ' ครบถ้วน'}`, billId, txt.bill));
+        }
+
+        delete window.__v36DeliveryPendingPayment?.[billId];
+        if (typeof Swal !== 'undefined') Swal.close();
+        toast?.(remaining > 0 ? 'รับชำระแล้ว และปิดงานจัดส่งพร้อมบันทึกยอดค้างที่เหลือ' : 'รับชำระครบแล้ว และปิดงานจัดส่งสำเร็จ', 'success');
+        await refreshDeliveryViews();
+        return true;
+      } catch (e) {
+        if (typeof Swal !== 'undefined') Swal.close();
+        console.error('[v36] finalize delivery after payment failed:', e);
+        toast?.('รับชำระแล้ว แต่ปิดงานจัดส่งไม่สำเร็จ: ' + (e.message || e), 'error');
+        return false;
+      } finally {
+        delete window.__deliveryFinalizeLocks[billId];
+      }
+    };
+
     window.v12DQMarkDone = async function (billId) {
       if (window.__deliveryDoneLocks?.[billId]) return;
       window.__deliveryDoneLocks = window.__deliveryDoneLocks || {};
@@ -2383,6 +2443,14 @@ console.log('[v36] Usage safety patch loaded');
         const paid = effectivePaidForDelivery(bill, total);
         const remaining = Math.max(0, total - paid);
         let action = remaining > 0 ? 'pay' : 'done';
+
+        if (remaining > 0 && typeof v20BMCPayDebt === 'function') {
+          window.__v36DeliveryPendingPayment = window.__v36DeliveryPendingPayment || {};
+          window.__v36DeliveryPendingPayment[billId] = { remaining, startedAt: new Date().toISOString() };
+          toast?.('เปิดหน้ารับชำระก่อน ระบบจะปิดงานจัดส่งหลังบันทึกธุรกรรมสำเร็จ', 'info');
+          await v20BMCPayDebt(billId);
+          return;
+        }
 
         if (typeof Swal !== 'undefined') {
           const result = await Swal.fire({
@@ -2405,6 +2473,14 @@ console.log('[v36] Usage safety patch loaded');
           });
           if (result.isDismissed) return;
           action = result.isDenied ? 'debt' : (remaining > 0 ? 'pay' : 'done');
+          if (remaining > 0 && action === 'pay' && typeof v20BMCPayDebt === 'function') {
+            window.__v36DeliveryPendingPayment = window.__v36DeliveryPendingPayment || {};
+            window.__v36DeliveryPendingPayment[billId] = { remaining, startedAt: new Date().toISOString() };
+            Swal.close();
+            toast?.('กรุณารับชำระให้เสร็จ ระบบจะปิดงานจัดส่งหลังบันทึกธุรกรรมสำเร็จ', 'info');
+            await v20BMCPayDebt(billId);
+            return;
+          }
         } else if (!confirm('ยืนยันจัดส่งสำเร็จ?')) {
           return;
         }

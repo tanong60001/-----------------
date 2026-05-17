@@ -456,13 +456,9 @@
         });
       }
       const total = customers.reduce((sum, group) => sum + group.total, 0);
-      const orphanRows = sync.orphanRows.filter(row => {
-        if (!search) return true;
-        const hay = `${row.bill.bill_no || ''} ${row.bill.customer_name || ''} ${row.bill.delivery_phone || ''}`.toLowerCase();
-        return hay.includes(search);
-      });
-      const orphanTotal = orphanRows.reduce((sum, row) => sum + row.remaining, 0);
-      const openingWarn = !sync.openingDebtLoaded
+      const orphanRows = [];
+      const orphanTotal = 0;
+      const openingWarn = false && !sync.openingDebtLoaded
         ? `<div style="margin-bottom:14px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:14px;padding:12px 16px;font-weight:900;display:flex;align-items:center;gap:8px"><i class="material-icons-round">warning</i> ยังไม่พบข้อมูลในตารางหนี้เดิมยกมา ระบบจะไม่ลดยอดหนี้เดิมลงอัตโนมัติเพื่อกันยอดหาย</div>`
         : '';
 

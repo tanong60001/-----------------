@@ -2306,6 +2306,9 @@
           if (typeof v12BMCLoad === 'function') v12BMCLoad();
           if (typeof renderDebts === 'function') renderDebts();
           await refreshCashViews();
+          if (window.__v36DeliveryPendingPayment?.[billId] && typeof window.v36FinalizeDeliveryAfterPayment === 'function') {
+            await window.v36FinalizeDeliveryAfterPayment(billId);
+          }
         };
 
         const rows = [
@@ -2567,6 +2570,14 @@
       const paid = Number(bill.deposit_amount || 0);
       const remaining = Math.max(0, effectiveTotal - paid);
       let action = remaining > 0 ? 'pay' : 'done';
+
+      if (remaining > 0 && typeof v20BMCPayDebt === 'function') {
+        window.__v36DeliveryPendingPayment = window.__v36DeliveryPendingPayment || {};
+        window.__v36DeliveryPendingPayment[billId] = { remaining, startedAt: new Date().toISOString() };
+        if (typeof toast === 'function') toast('เปิดหน้ารับชำระก่อน ระบบจะปิดงานจัดส่งหลังบันทึกธุรกรรมสำเร็จ', 'info');
+        await v20BMCPayDebt(billId);
+        return;
+      }
 
       if (typeof Swal !== 'undefined') {
         const result = await Swal.fire({

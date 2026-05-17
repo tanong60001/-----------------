@@ -36,6 +36,9 @@
       .v45-billbox{border-radius:20px;background:#fff;border:1px solid #e2e8f0;overflow:hidden}.v45-bill-top{display:flex;justify-content:space-between;gap:14px;background:#fff7ed;border-bottom:1px solid #fed7aa;padding:13px 15px}.v45-bill-top b{color:#9a3412}.v45-bill-lines{padding:14px 15px;display:grid;gap:10px}
       .v45-debt-bill .v45-bill-top{background:linear-gradient(135deg,#eff6ff,#dcfce7);border-bottom-color:#bfdbfe}.v45-debt-bill .v45-bill-top b{color:#1d4ed8}.v45-debt-amount{height:auto!important;min-height:74px!important;font-size:34px!important;font-weight:950!important;color:#1d4ed8!important;padding:8px 15px!important}.v45-debt-discount{font-size:22px!important;font-weight:950!important;color:#059669!important}.v45-debt-note{display:flex;align-items:center;gap:10px;border:1px dashed #93c5fd;background:#eff6ff;border-radius:14px;padding:12px;color:#475569;font-size:12px;font-weight:800;line-height:1.55}.v45-debt-note i{color:#2563eb}
       .v45-paychips{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.v45-paychip{height:54px;border:1.5px solid #e2e8f0;background:#fff;border-radius:14px;font:inherit;font-weight:950;color:#475569;cursor:pointer}.v45-paychip.on{border-color:#dc2626;background:#fef2f2;color:#b91c1c;box-shadow:0 0 0 4px #fee2e2}
+      .v45-pay-sheet{width:min(820px,96vw)!important;max-height:calc(100vh - 24px);overflow:hidden;border-radius:18px}
+      .v45-pay-sheet .v45-head{padding:13px 16px}.v45-pay-sheet .v45-icon{width:42px;height:42px;border-radius:13px}.v45-pay-sheet .v45-icon i{font-size:24px}.v45-pay-sheet .v45-title{font-size:22px;margin-top:2px}.v45-pay-sheet .v45-kicker{font-size:10px}.v45-pay-sheet .v45-sub{display:none}.v45-pay-sheet .v45-close{width:36px;height:36px;border-radius:11px}
+      .v45-pay-body{padding:12px!important;max-height:calc(100vh - 94px);overflow:hidden}.v45-pay-sheet .v45-grid{grid-template-columns:minmax(0,1fr) 270px!important;gap:12px!important}.v45-pay-sheet .v45-card{padding:12px;border-radius:14px}.v45-pay-sheet .v45-section-title{font-size:13px;margin-bottom:9px}.v45-pay-sheet .v45-billbox{border-radius:15px}.v45-pay-sheet .v45-bill-lines{padding:10px;gap:8px}.v45-pay-sheet .v45-metric{padding:9px 10px;border-radius:11px}.v45-pay-sheet .v45-metric span{font-size:11px}.v45-pay-sheet .v45-metric b{font-size:15px}.v45-pay-sheet .v45-field{margin-bottom:9px}.v45-pay-sheet .v45-field label{font-size:11px;margin-bottom:5px}.v45-pay-sheet .v45-field input{height:40px;border-radius:11px}.v45-pay-sheet .v45-debt-amount{min-height:52px!important;font-size:28px!important;padding:5px 12px!important}.v45-pay-sheet .v45-debt-discount{font-size:18px!important}.v45-pay-sheet .v45-paychips{gap:7px}.v45-pay-sheet .v45-paychip{height:44px;border-radius:11px;font-size:13px}.v45-pay-sheet .v45-debt-note{display:none}.v45-pay-sheet .v45-bill-top{padding:10px 12px}.v45-pay-sheet .v45-bill-top b{font-size:28px!important}.v45-pay-sheet .v45-bill-top i{font-size:34px!important}.v45-pay-sheet .v45-debt-bill .v45-bill-lines > div:last-child{display:none}.v45-pay-sheet .v45-actions{margin-top:10px}
       @media(max-width:860px){.v45-grid,.v45-form-grid{grid-template-columns:1fr}.v45-mats [id^="v9rec-mat-row-"]{grid-template-columns:1fr!important}.v45-actions{flex-direction:column}.v45-btn{width:100%}.v45-paychips{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -316,6 +319,11 @@
   function setDebtMethod(method) {
     const sel = document.getElementById('v45-debt-method');
     if (sel) sel.value = method;
+    if (method !== '__debt__') {
+      const modal = document.getElementById('v45-debt-modal');
+      const amountEl = document.getElementById('v45-debt-amount');
+      if (amountEl && money(amountEl.value) <= 0) amountEl.value = money(modal?.dataset.debt).toFixed(2).replace(/\.00$/, '');
+    }
     document.querySelectorAll('#v45-debt-modal .v45-paychip').forEach(btn => btn.classList.toggle('on', btn.dataset.method === method));
     updateDebtSummary();
   }
@@ -324,8 +332,14 @@
     const debt = money(document.getElementById('v45-debt-modal')?.dataset.debt);
     const amountEl = document.getElementById('v45-debt-amount');
     const discountEl = document.getElementById('v45-debt-discount');
-    let paid = Math.max(0, Math.min(money(amountEl?.value), debt));
-    let discount = Math.max(0, Math.min(money(discountEl?.value), debt));
+    const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
+    const keepDebt = method === '__debt__';
+    let paid = keepDebt ? 0 : Math.max(0, Math.min(money(amountEl?.value), debt));
+    let discount = keepDebt ? 0 : Math.max(0, Math.min(money(discountEl?.value), debt));
+    if (keepDebt) {
+      if (amountEl) amountEl.value = '0';
+      if (discountEl) discountEl.value = '0';
+    }
     if (paid + discount > debt) {
       if (source === 'discount') {
         paid = Math.max(0, debt - discount);
@@ -337,13 +351,14 @@
     }
     const totalReduce = paid + discount;
     const remaining = Math.max(0, debt - totalReduce);
-    const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
+    const methodLabel = keepDebt ? 'บันทึกเป็นค้างชำระ' : method;
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     setText('v45-debt-pay-preview', '฿' + fmt(paid));
     setText('v45-debt-discount-preview', '฿' + fmt(discount));
     setText('v45-debt-reduce-preview', '฿' + fmt(totalReduce));
     setText('v45-debt-remain', '฿' + fmt(remaining));
-    setText('v45-debt-method-preview', method);
+    setText('v45-debt-method-preview', methodLabel);
+    setText('v45-bill-submit-label', keepDebt ? 'บันทึกค้างชำระ' : 'รับชำระ');
     const remainEl = document.getElementById('v45-debt-remain');
     if (remainEl) remainEl.style.color = remaining > 0 ? '#dc2626' : '#059669';
   }
@@ -389,7 +404,7 @@
         el.dataset.debt = String(debt);
         el.dataset.customerId = String(customerId);
         el.innerHTML = `
-          <div class="v45-sheet" id="v45-debt-sheet" style="width:min(980px,96vw)">
+          <div class="v45-sheet v45-pay-sheet" id="v45-debt-sheet" style="width:min(820px,96vw)">
             <div class="v45-head v45-debt-head">
               <div class="v45-title-row">
                 <div class="v45-icon"><i class="material-icons-round">account_balance_wallet</i></div>
@@ -397,7 +412,7 @@
               </div>
               <button class="v45-close" onclick="document.getElementById('v45-debt-modal')?.remove()"><i class="material-icons-round">close</i></button>
             </div>
-            <form id="v45-debt-form" class="v45-body">
+            <form id="v45-debt-form" class="v45-body v45-pay-body">
               <div class="v45-grid" style="grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr)">
                 <div class="v45-card">
                   <div class="v45-section-title"><i class="material-icons-round">person</i> ข้อมูลรับชำระ</div>
@@ -429,7 +444,7 @@
               </div>
               <div class="v45-actions">
                 <button type="button" class="v45-btn" onclick="document.getElementById('v45-debt-modal')?.remove()">ยกเลิก</button>
-                <button type="submit" class="v45-btn primary"><i class="material-icons-round">payments</i> รับชำระ</button>
+                <button type="submit" class="v45-btn primary"><i class="material-icons-round">payments</i> <span id="v45-bill-submit-label">รับชำระ</span></button>
               </div>
             </form>
           </div>`;
@@ -536,13 +551,193 @@
     return true;
   }
 
+  function billEffectiveTotal(bill) {
+    let info = bill?.return_info || {};
+    if (typeof info === 'string') {
+      try { info = JSON.parse(info); } catch (_) { info = {}; }
+    }
+    return money(info.new_total ?? bill?.total);
+  }
+
+  function installBillPaymentPopup(force = false) {
+    if (!force && window.v20BMCPayDebt?.__v45BillPopup) return true;
+    window.v20BMCPayDebt = async function (billId) {
+      try {
+        injectStyle();
+        const { data: bill, error } = await db.from('บิลขาย').select('*').eq('id', billId).maybeSingle();
+        if (error) throw error;
+        if (!bill) { toast?.('ไม่พบบิล', 'error'); return; }
+
+        const total = billEffectiveTotal(bill);
+        const paidBefore = money(bill.deposit_amount);
+        const remaining = Math.max(0, total - paidBefore);
+        if (remaining <= 0) { toast?.('ไม่มียอดค้างชำระ', 'info'); return; }
+
+        closeModalById('v45-debt-modal');
+        const el = document.createElement('div');
+        el.id = 'v45-debt-modal';
+        el.className = 'v45-modal';
+        el.dataset.debt = String(remaining);
+        el.dataset.customerId = String(bill.customer_id || '');
+        el.innerHTML = `
+          <div class="v45-sheet v45-pay-sheet" id="v45-debt-sheet" style="width:min(820px,96vw)">
+            <div class="v45-head v45-debt-head">
+              <div class="v45-title-row">
+                <div class="v45-icon"><i class="material-icons-round">receipt_long</i></div>
+                <div><div class="v45-kicker">Bill Payment</div><div class="v45-title">รับชำระบิล</div><div class="v45-sub">หน้ารับชำระบิลจัดส่ง เชื่อมลิ้นชักเงินสดและปิดงานจัดส่งหลังบันทึกสำเร็จ</div></div>
+              </div>
+              <button class="v45-close" onclick="document.getElementById('v45-debt-modal')?.remove()"><i class="material-icons-round">close</i></button>
+            </div>
+            <form id="v45-debt-form" class="v45-body v45-pay-body">
+              <div class="v45-grid" style="grid-template-columns:minmax(0,1fr) 270px">
+                <div class="v45-card">
+                  <div class="v45-section-title"><i class="material-icons-round">person</i> ข้อมูลรับชำระ</div>
+                  <div class="v45-billbox" style="margin-bottom:10px">
+                    <div class="v45-bill-lines">
+                      <div class="v45-metric"><span>บิล</span><b>#${safeText(bill.bill_no || bill.id)}</b></div>
+                      <div class="v45-metric"><span>ลูกค้า</span><b style="font-size:16px;text-align:right">${safeText(bill.customer_name || 'ลูกค้า')}</b></div>
+                      <div class="v45-metric"><span>ยอดรวมบิล</span><b>฿${fmt(total)}</b></div>
+                      <div class="v45-metric"><span>ชำระแล้ว</span><b style="color:#059669">฿${fmt(paidBefore)}</b></div>
+                      <div class="v45-metric"><span>ยอดค้างชำระ</span><b style="color:#dc2626">฿${fmt(remaining)}</b></div>
+                    </div>
+                  </div>
+                  <div class="v45-field"><label>ยอดรับชำระ *</label><input class="v45-debt-amount" type="number" id="v45-debt-amount" min="0" max="${remaining}" value="${remaining}" oninput="v45UpdateDebtSummary('amount')"></div>
+                  <div class="v45-field"><label>ส่วนลด</label><input class="v45-debt-discount" type="number" id="v45-debt-discount" min="0" max="${remaining}" value="0" placeholder="0" oninput="v45UpdateDebtSummary('discount')"></div>
+                  <div class="v45-field"><label>วิธีชำระ</label><select id="v45-debt-method" style="display:none"><option>เงินสด</option><option>โอนเงิน</option><option value="__debt__">บันทึกเป็นค้างชำระ</option></select><div class="v45-paychips"><button type="button" class="v45-paychip on" data-method="เงินสด" onclick="v45SetDebtMethod('เงินสด')">เงินสด</button><button type="button" class="v45-paychip" data-method="โอนเงิน" onclick="v45SetDebtMethod('โอนเงิน')">โอนเงิน</button><button type="button" class="v45-paychip" data-method="__debt__" onclick="v45SetDebtMethod('__debt__')">ค้างชำระ</button></div></div>
+                  <div class="v45-field"><label>หมายเหตุ</label><input id="v45-debt-note" placeholder="เลขอ้างอิง / รายละเอียดเพิ่ม"></div>
+                  <div class="v45-debt-note"><i class="material-icons-round">verified</i><span>ถ้าเลือกเงินสด ระบบจะเปิดหน้านับเงินและบันทึกเข้าลิ้นชักเงินสดด้วย</span></div>
+                </div>
+                <div class="v45-billbox v45-debt-bill">
+                  <div class="v45-bill-top"><div><span style="font-size:12px;color:#1d4ed8;font-weight:900">ยอดรับชำระ</span><b id="v45-debt-pay-preview" style="display:block;font-size:38px;font-weight:950;line-height:1.05">฿${fmt(remaining)}</b></div><i class="material-icons-round" style="font-size:48px;color:#16a34a">price_check</i></div>
+                  <div class="v45-bill-lines">
+                    <div class="v45-metric"><span>ยอดค้างเดิม</span><b>฿${fmt(remaining)}</b></div>
+                    <div class="v45-metric"><span>วิธีชำระ</span><b id="v45-debt-method-preview">เงินสด</b></div>
+                    <div class="v45-metric good"><span>ส่วนลด</span><b id="v45-debt-discount-preview">฿0</b></div>
+                    <div class="v45-metric"><span>ยอดตัดหนี้รวม</span><b id="v45-debt-reduce-preview">฿${fmt(remaining)}</b></div>
+                    <div class="v45-metric"><span>ยอดคงเหลือหลังชำระ</span><b id="v45-debt-remain" style="color:#059669">฿0</b></div>
+                    <div style="height:10px;background:#e0f2fe;border-radius:999px;overflow:hidden"><div style="height:100%;width:100%;background:linear-gradient(90deg,#2563eb,#16a34a);border-radius:999px"></div></div>
+                    <div style="font-size:12px;color:#64748b;line-height:1.8;font-weight:800;background:#f8fafc;border-radius:14px;padding:12px">ตรวจยอดก่อนกดรับชำระ</div>
+                  </div>
+                </div>
+              </div>
+              <div class="v45-actions">
+                <button type="button" class="v45-btn" onclick="document.getElementById('v45-debt-modal')?.remove()">ยกเลิก</button>
+                <button type="submit" class="v45-btn primary"><i class="material-icons-round">payments</i> <span id="v45-bill-submit-label">รับชำระ</span></button>
+              </div>
+            </form>
+          </div>`;
+        document.body.appendChild(el);
+        el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+        requestAnimationFrame(() => document.getElementById('v45-debt-sheet')?.classList.add('open'));
+        updateDebtSummary();
+        document.getElementById('v45-debt-amount')?.focus();
+
+        async function saveBillPayment(paidAmt, method, recvTotal, chgTotal, recvD, chgD) {
+          const keepDebt = method === '__debt__';
+          const discountAmt = keepDebt ? 0 : Math.max(0, Math.min(money(document.getElementById('v45-debt-discount')?.value), remaining));
+          const note = document.getElementById('v45-debt-note')?.value?.trim();
+          const totalReduce = paidAmt + discountAmt;
+          if (!keepDebt && paidAmt <= 0) { toast?.('กรุณากรอกยอดรับชำระ', 'warning'); return; }
+          if (totalReduce > remaining) { toast?.('ยอดรับชำระรวมส่วนลดมากกว่ายอดค้าง', 'warning'); return; }
+
+          const newDeposit = paidBefore + totalReduce;
+          const full = newDeposit >= total - 0.009;
+          const nextStatus = keepDebt ? 'ค้างชำระ' : (full ? (bill.delivery_status === 'รอจัดส่ง' ? 'รอจัดส่ง' : 'สำเร็จ') : 'ค้างชำระ');
+          const nextMethod = keepDebt ? (bill.method || 'ค้างชำระ') : (full ? method : bill.method);
+          await db.from('บิลขาย').update({
+            deposit_amount: newDeposit,
+            status: nextStatus,
+            method: nextMethod,
+          }).eq('id', billId);
+
+          if (bill.customer_id) {
+            const { data: cust } = await db.from('customer').select('debt_amount').eq('id', bill.customer_id).maybeSingle();
+            if (cust) {
+              const currentDebt = money(cust.debt_amount);
+              const shouldAddDeliveryDebt = keepDebt && !/ค้าง|บางส่วน/.test(String(bill.status || ''));
+              const nextDebt = shouldAddDeliveryDebt
+                ? currentDebt + remaining
+                : Math.max(0, currentDebt - totalReduce);
+              await db.from('customer').update({ debt_amount: nextDebt }).eq('id', bill.customer_id);
+            }
+          }
+
+          if (method === 'เงินสด') {
+            const session = await getOpenCashSession();
+            if (!session) { toast?.('กรุณาเปิดรอบลิ้นชักเงินสดก่อนรับเงินสด', 'warning'); return; }
+            if (typeof window.recordCashTx === 'function') {
+              await window.recordCashTx({
+                sessionId: session.id,
+                type: 'รับชำระบิล',
+                direction: 'in',
+                amount: recvTotal || paidAmt,
+                change_amt: chgTotal || 0,
+                netAmount: paidAmt,
+                refId: billId,
+                refTable: 'บิลขาย',
+                denominations: recvD || {},
+                change_denominations: chgD || {},
+                note: `รับชำระบิล #${bill.bill_no || billId}${discountAmt > 0 ? ' ส่วนลด ฿' + fmt(discountAmt) : ''}${note ? ' - ' + note : ''}`,
+              });
+            }
+          }
+
+          try {
+            if (typeof logActivity === 'function') {
+              logActivity(keepDebt ? 'บันทึกค้างชำระบิลจัดส่ง' : 'รับชำระบิล', keepDebt
+                ? `บิล #${bill.bill_no || billId} ค้างชำระ ฿${fmt(remaining)}`
+                : `บิล #${bill.bill_no || billId} ฿${fmt(paidAmt)} ${method}${discountAmt > 0 ? ' ส่วนลด ฿' + fmt(discountAmt) : ''}`, billId, 'บิลขาย');
+            }
+          } catch (_) {}
+          closeModalById('v45-debt-modal');
+          toast?.(keepDebt ? `บันทึกเป็นค้างชำระ ฿${fmt(remaining)} และจะปิดงานจัดส่ง` : `รับชำระบิลสำเร็จ ฿${fmt(paidAmt)}`, 'success');
+          await refreshDebtViews(bill.customer_id);
+          try { if (typeof v12BMCLoad === 'function') v12BMCLoad(); } catch (_) {}
+          if (window.__v36DeliveryPendingPayment?.[billId] && typeof window.v36FinalizeDeliveryAfterPayment === 'function') {
+            await window.v36FinalizeDeliveryAfterPayment(billId);
+          }
+        }
+
+        document.getElementById('v45-debt-form').onsubmit = async e => {
+          e.preventDefault();
+          const paidAmt = Math.max(0, Math.min(money(document.getElementById('v45-debt-amount')?.value), remaining));
+          const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
+          if (method === '__debt__') {
+            try { await saveBillPayment(0, method, 0, 0, {}, {}); }
+            catch (err) { console.error('[v45] bill debt keep:', err); toast?.('บันทึกค้างชำระไม่สำเร็จ: ' + (err.message || err), 'error'); }
+          } else if (method === 'เงินสด') {
+            const session = await getOpenCashSession();
+            if (!session) { toast?.('กรุณาเปิดรอบลิ้นชักเงินสดก่อนรับเงินสด', 'warning'); return; }
+            if (typeof window.v28DebtPayWiz !== 'function') { toast?.('ระบบนับเงินไม่พร้อมใช้งาน', 'error'); return; }
+            window.v28DebtPayWiz(bill.customer_id || '__bill__', bill.customer_name || 'ลูกค้า', paidAmt, async (finalPaid, recvTotal, chgTotal, recvD, chgD) => {
+              try { await saveBillPayment(finalPaid, method, recvTotal, chgTotal, recvD, chgD); }
+              catch (err) { console.error('[v45] bill cash payment:', err); toast?.('รับชำระบิลไม่สำเร็จ: ' + (err.message || err), 'error'); }
+            }, true);
+          } else {
+            try { await saveBillPayment(paidAmt, method, 0, 0, {}, {}); }
+            catch (err) { console.error('[v45] bill payment:', err); toast?.('รับชำระบิลไม่สำเร็จ: ' + (err.message || err), 'error'); }
+          }
+        };
+      } catch (err) {
+        console.error('[v45] bill payment:', err);
+        toast?.('รับชำระบิลไม่สำเร็จ: ' + (err.message || err), 'error');
+      }
+    };
+    window.v20BMCPayDebt.__v45BillPopup = true;
+    try { v20BMCPayDebt = window.v20BMCPayDebt; } catch (_) {}
+    return true;
+  }
+
   function install() {
     injectStyle();
     installRecipePopup();
     installExpensePopup();
     installDebtPaymentPopup(true);
+    installBillPaymentPopup(true);
     setTimeout(() => installDebtPaymentPopup(true), 900);
     setTimeout(() => installDebtPaymentPopup(true), 1800);
+    setTimeout(() => installBillPaymentPopup(true), 900);
+    setTimeout(() => installBillPaymentPopup(true), 1800);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
