@@ -1719,7 +1719,7 @@ function v12S2(container) {
 }
 
 function v12DeliveryFormHTML() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   if (!v12State.deliveryPaymentMode) v12State.deliveryPaymentMode = 'cod';
   return `
     <div class="v12-delivery-form">
@@ -1804,7 +1804,7 @@ window.v12SetDeliveryMode = function (mode) {
   });
   // Set default delivery date to today if not set
   if ((mode === 'deliver' || mode === 'partial') && !v12State.deliveryDate) {
-    v12State.deliveryDate = new Date().toISOString().split('T')[0];
+    v12State.deliveryDate = appLocalDateKey();
   }
   const body = document.getElementById('v12-step-body');
   if (body) v12S2(body);
@@ -2771,7 +2771,7 @@ window.v12DQFilter = async function (filter) {
   const el = document.getElementById(`dq-pill-${filter}`);
   if (el) el.classList.add('active');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   try {
@@ -2833,7 +2833,7 @@ async function v12DQRenderCards(bills) {
   const billIds = bills.map(b => b.id);
   const { data: allItems } = await db.from('รายการในบิล').select('*').in('bill_id', billIds);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   area.innerHTML = bills.map(b => {
@@ -2968,7 +2968,7 @@ window.renderHistory = async function () {
   const section = document.getElementById('page-history');
   if (!section) return;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   section.innerHTML = `
     <div class="v12-bmc-container">
       <div class="v12-bmc-search-bar">
@@ -3032,7 +3032,7 @@ window.v12BMCSetTab = function (tab) {
 };
 
 window.v12BMCLoad = async function () {
-  const date = document.getElementById('bmc-date')?.value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('bmc-date')?.value || appLocalDateKey();
   const search = document.getElementById('bmc-search')?.value?.toLowerCase() || '';
 
   try {
@@ -3149,7 +3149,7 @@ function v12BMCMethodBadge(method) {
 }
 
 window.v12BMCExport = async function () {
-  const date = document.getElementById('bmc-date')?.value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('bmc-date')?.value || appLocalDateKey();
   try {
     const { data: bills } = await db.from('บิลขาย').select('*').gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59').order('date', { ascending: false });
     if (!bills?.length) { toast('ไม่มีข้อมูลในวันนี้', 'warning'); return; }

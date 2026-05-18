@@ -64,6 +64,140 @@ const formatDate = (d) => new Date(d).toLocaleDateString('th-TH', { dateStyle: '
 const formatTime = (d) => new Date(d).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 const formatDateTime = (d) => new Date(d).toLocaleString('th-TH');
 
+// ── SK_BILL: ตัวช่วยรวมศูนย์สำหรับคำนวณบิล/วันที่ — ใช้แทน effectiveTotal ที่กระจายอยู่ ──
+// อย่าลบ helper เก่า (getEffectiveBillTotal / appLocalDateKey / v11EffectiveBillTotal ฯลฯ)
+// helper นี้เป็น "single source of truth" สำหรับโค้ดใหม่ และ wrap helper เก่าให้สอดคล้องกัน
+window.SK_BILL = window.SK_BILL || (function () {
+  function parseReturnInfo(info) {
+    if (!info) return {};
+    if (typeof info === 'object') return info;
+    try { return JSON.parse(info); } catch (_) { return {}; }
+  }
+  function effectiveTotal(bill) {
+    if (!bill) return 0;
+    const info = parseReturnInfo(bill.return_info);
+    const n = Number(info.new_total ?? bill.total ?? 0);
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+  // บิลที่ "นับเป็นยอดขายจริง" — ไม่รวมยกเลิก / คืนทั้งบิล (สอดคล้องกับหน้าประวัติ)
+  function isValid(bill) {
+    return !/ยกเลิก|คืนสินค้า/.test(String(bill?.status || ''));
+  }
+  function isClosed(bill) {
+    return /ยกเลิก|คืนสินค้า/.test(String(bill?.status || ''));
+  }
+  function localDateKey(date) {
+    const d = date instanceof Date ? date : (date ? new Date(date) : new Date());
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function todayRangeIso(date) {
+    const key = localDateKey(date);
+    return { startIso: key + 'T00:00:00', endIso: key + 'T23:59:59.999' };
+  }
+  return { parseReturnInfo, effectiveTotal, isValid, isClosed, localDateKey, todayRangeIso };
+})();
+
+// ── SK_STOCK: ตัดสต็อกแบบ atomic (กัน race condition หลายเครื่อง) ──────────
+// ใช้ Postgres RPC ถ้ามี (ดูไฟล์ migrations/atomic_stock_debt.sql)
+// ถ้า RPC ยังไม่ติดตั้ง จะ fallback เป็น read-modify-write จาก DB ทันที
+// (ดีกว่าของเดิมที่อ่านจาก memory เพราะอย่างน้อยอ่านล่าสุด)
+window.SK_STOCK = window.SK_STOCK || (function () {
+  let rpcAvailable = null; // null=untested, true/false=known
+  async function applyDelta(productId, deltaQty) {
+    if (!productId || String(productId).startsWith('extra-')) {
+      return { ok: false, skipped: true, stockBefore: 0, stockAfter: 0 };
+    }
+    const delta = Number(deltaQty) || 0;
+    // 1) ลอง RPC atomic ก่อน — ถ้าเคยรู้แล้วว่าไม่มี ข้ามไป fallback
+    if (rpcAvailable !== false) {
+      try {
+        const { data, error } = await db.rpc('sk_apply_stock_delta', {
+          p_product_id: productId, p_delta: delta
+        });
+        if (!error && data) {
+          rpcAvailable = true;
+          const row = Array.isArray(data) ? data[0] : data;
+          return {
+            ok: true,
+            stockBefore: Number(row?.stock_before ?? 0),
+            stockAfter: Number(row?.stock_after ?? 0),
+            method: 'rpc'
+          };
+        }
+        if (error && /(could not find the function|does not exist|schema cache)/i.test(error.message || '')) {
+          rpcAvailable = false;
+        }
+      } catch (_) { /* fall through */ }
+    }
+    // 2) Fallback: read-modify-write (อ่านจาก DB ล่าสุด — แม่นกว่า memory)
+    try {
+      const { data: prod } = await db.from('สินค้า').select('stock').eq('id', productId).maybeSingle();
+      const before = Number(prod?.stock || 0);
+      const after = before + delta;
+      const { error: upErr } = await db.from('สินค้า')
+        .update({ stock: after, updated_at: new Date().toISOString() })
+        .eq('id', productId);
+      if (upErr) throw upErr;
+      return { ok: true, stockBefore: before, stockAfter: after, method: 'legacy' };
+    } catch (e) {
+      console.error('[SK_STOCK] applyDelta error:', e);
+      return { ok: false, error: e, stockBefore: 0, stockAfter: 0 };
+    }
+  }
+  return { applyDelta };
+})();
+
+// ── SK_CUSTOMER: อัปเดต total_purchase/debt_amount/visit_count แบบ atomic ──
+// ใช้ RPC sk_apply_customer_deltas ถ้ามี; ถ้าไม่มีจะ fallback read-modify-write
+window.SK_CUSTOMER = window.SK_CUSTOMER || (function () {
+  let rpcAvailable = null;
+  async function applyDeltas(customerId, deltas) {
+    if (!customerId) return { ok: false, skipped: true };
+    const totalDelta = Number(deltas?.total_purchase) || 0;
+    const debtDelta = Number(deltas?.debt_amount) || 0;
+    const visitDelta = Number(deltas?.visit_count) || 0;
+    if (!totalDelta && !debtDelta && !visitDelta) return { ok: true, skipped: true };
+    if (rpcAvailable !== false) {
+      try {
+        const { error } = await db.rpc('sk_apply_customer_deltas', {
+          p_customer_id: customerId,
+          p_total_delta: totalDelta,
+          p_debt_delta: debtDelta,
+          p_visit_delta: visitDelta
+        });
+        if (!error) {
+          rpcAvailable = true;
+          return { ok: true, method: 'rpc' };
+        }
+        if (/(could not find the function|does not exist|schema cache)/i.test(error.message || '')) {
+          rpcAvailable = false;
+        }
+      } catch (_) { /* fall through */ }
+    }
+    try {
+      const { data: cust } = await db.from('customer')
+        .select('total_purchase, visit_count, debt_amount')
+        .eq('id', customerId).maybeSingle();
+      const upd = {};
+      if (totalDelta) upd.total_purchase = Math.max(0, (cust?.total_purchase || 0) + totalDelta);
+      if (debtDelta) upd.debt_amount = Math.max(0, (cust?.debt_amount || 0) + debtDelta);
+      if (visitDelta) upd.visit_count = Math.max(0, (cust?.visit_count || 0) + visitDelta);
+      if (Object.keys(upd).length === 0) return { ok: true, skipped: true };
+      const { error: upErr } = await db.from('customer').update(upd).eq('id', customerId);
+      if (upErr) throw upErr;
+      return { ok: true, method: 'legacy' };
+    } catch (e) {
+      console.error('[SK_CUSTOMER] applyDeltas error:', e);
+      return { ok: false, error: e };
+    }
+  }
+  return { applyDeltas };
+})();
+
 function toast(message, type = 'success') {
   const container = document.getElementById('toast-container');
   const t = document.createElement('div');
@@ -371,7 +505,7 @@ async function updateHomeStats() {
   document.getElementById('home-username').textContent = USER?.username || 'User';
   const todayKey = typeof appLocalDateKey === 'function'
     ? appLocalDateKey()
-    : new Date().toISOString().split('T')[0];
+    : appLocalDateKey();
   try {
     const { data: bills } = await db.from('บิลขาย')
       .select('total, discount, id, status, return_info')
@@ -963,31 +1097,46 @@ async function completePayment() {
     }).select().single();
     if (billError) throw billError;
 
-    // [UNCHANGED] ลูปบันทึกรายการสินค้า + ตัดสต็อกทันทีทุกกรณี
+    // ลูปบันทึกรายการสินค้า + ตัดสต็อกแบบ atomic (กัน race หลายเครื่อง)
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
-      await db.from('รายการในบิล').insert({ bill_id: bill.id, product_id: item.is_extra_charge || String(item.id || '').startsWith('extra-') ? null : item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, total: item.price * item.qty });
-      // ตัดสต็อกทันที ไม่ว่าจะเป็น method ไหนก็ตาม
-      await db.from('สินค้า').update({ stock: (prod?.stock || 0) - item.qty }).eq('id', item.id);
-      // [UPDATED] stock_movement type แยกตาม method
+      const isVirtual = !!item.is_extra_charge || String(item.id || '').startsWith('extra-');
+      await db.from('รายการในบิล').insert({
+        bill_id: bill.id,
+        product_id: isVirtual ? null : item.id,
+        name: item.name, qty: item.qty, price: item.price, cost: item.cost,
+        total: item.price * item.qty
+      });
+      // ตัดสต็อก: ใช้ SK_STOCK (RPC atomic ถ้ามี → fallback อ่าน DB ล่าสุด)
+      // ของเสมือน (extra charge) ข้ามการตัดสต็อก
+      let stockBefore = Number(prod?.stock || 0);
+      let stockAfter = stockBefore - item.qty;
+      if (!isVirtual) {
+        const res = await SK_STOCK.applyDelta(item.id, -item.qty);
+        if (res.ok) { stockBefore = res.stockBefore; stockAfter = res.stockAfter; }
+      }
       const moveType = isProject ? 'จ่ายของให้โครงการ' : 'ขาย';
-      await db.from('stock_movement').insert({ product_id: item.id, product_name: item.name, type: moveType, direction: 'out', qty: item.qty, stock_before: prod?.stock || 0, stock_after: (prod?.stock || 0) - item.qty, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username });
+      await db.from('stock_movement').insert({
+        product_id: item.id,
+        product_name: item.name, type: moveType, direction: 'out', qty: item.qty,
+        stock_before: stockBefore, stock_after: stockAfter,
+        ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username
+      });
     }
 
-    // [UNCHANGED] บันทึก cash_transaction เฉพาะ 'cash' เท่านั้น
+    // บันทึก cash_transaction เฉพาะ 'cash' เท่านั้น
     if (checkoutState.method === 'cash' && session) {
       await db.from('cash_transaction').insert({ session_id: session.id, type: 'ขาย', direction: 'in', amount: checkoutState.received, change_amt: checkoutState.change, net_amount: checkoutState.total, balance_after: 0, ref_id: bill.id, ref_table: 'บิลขาย', staff_name: USER?.username, denominations: checkoutState.receivedDenominations });
     }
 
-    // [UPDATED] อัปเดตข้อมูลลูกค้า: debt_amount บวกเพิ่มเฉพาะ 'debt' เท่านั้น ห้ามบวกถ้าเป็น 'project'
+    // อัปเดตลูกค้าแบบ atomic (กัน race): บวก total_purchase + visit_count เสมอ
+    // บวก debt_amount เฉพาะ method=debt; project ไม่นับเป็นหนี้
     if (checkoutState.customer.id) {
-      const { data: cust } = await db.from('customer').select('total_purchase, visit_count, debt_amount').eq('id', checkoutState.customer.id).single();
-      await db.from('customer').update({
-        total_purchase: (cust?.total_purchase || 0) + checkoutState.total,
-        visit_count: (cust?.visit_count || 0) + 1,
-        // [KEY] บวกหนี้เฉพาะ debt เท่านั้น — project ไม่นับเป็นหนี้
-        debt_amount: isDebt ? (cust?.debt_amount || 0) + checkoutState.total : (cust?.debt_amount || 0)
-      }).eq('id', checkoutState.customer.id);
+      await SK_CUSTOMER.applyDeltas(checkoutState.customer.id, {
+        total_purchase: checkoutState.total,
+        visit_count: 1,
+        debt_amount: isDebt ? checkoutState.total : 0
+      });
     }
 
     // [NEW] ถ้าเป็น project ให้บันทึกเป็นรายจ่ายโครงการทันที
@@ -1360,7 +1509,7 @@ async function closeCashSession(session, currentBalance) {
 async function renderHistory() {
   const section = document.getElementById('page-history');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   section.innerHTML = `
     <div class="inv-container">
       <div class="inv-toolbar">
@@ -1383,7 +1532,7 @@ async function renderHistory() {
 }
 
 async function loadHistoryData() {
-  const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('history-date')?.value || appLocalDateKey();
   const search = document.getElementById('history-search')?.value?.toLowerCase() || '';
   const { data: bills } = await db.from('บิลขาย').select('*').gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59').order('date', { ascending: false });
   let filtered = (bills || []).filter(b => !search || b.bill_no?.toString().includes(search) || b.customer_name?.toLowerCase().includes(search) || b.staff_name?.toLowerCase().includes(search));
@@ -1449,7 +1598,7 @@ async function cancelBill(billId) {
 }
 
 async function exportHistory() {
-  const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('history-date')?.value || appLocalDateKey();
   const { data: bills } = await db.from('บิลขาย').select('*').gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59').order('date', { ascending: false });
   const rows = [['บิล#', 'วันที่', 'ลูกค้า', 'วิธีชำระ', 'ยอด', 'ส่วนลด', 'รับเงิน', 'ทอน', 'พนักงาน', 'สถานะ']];
   (bills || []).forEach(b => rows.push([b.bill_no, formatDateTime(b.date), b.customer_name || '', b.method, b.total, b.discount || 0, b.received || 0, b.change || 0, b.staff_name || '', b.status]));
@@ -1661,7 +1810,7 @@ async function _oldRecordDebtPayment(customerId, name) {
 async function renderExpenses() {
   const section = document.getElementById('page-exp');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   section.innerHTML = `
     <div style="max-width:1200px; margin:0 auto; padding-bottom:30px; animation: fade-in-up 0.4s ease-out;">
       <div style="background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #fbcfe8; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(236, 72, 153, 0.05); flex-wrap: wrap; gap: 16px;">
@@ -1715,7 +1864,7 @@ async function renderExpenses() {
 }
 
 async function loadExpenseData() {
-  const date = document.getElementById('exp-date')?.value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('exp-date')?.value || appLocalDateKey();
   const search = document.getElementById('exp-search')?.value?.toLowerCase() || '';
   const { data } = await db.from('รายจ่าย').select('*').gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59').order('date', { ascending: false });
   const filtered = (data || []).filter(e => !search || e.description?.toLowerCase().includes(search) || e.category?.toLowerCase().includes(search));
@@ -2240,7 +2389,7 @@ async function renderDashboard() {
   if (!section) return;
   section.innerHTML = `<div style="padding:24px;"><div class="stats-grid" id="dash-stats"><div style="grid-column:1/-1;text-align:center;padding:40px;"><div class="spinner"></div><p>กำลังโหลดข้อมูล...</p></div></div><div id="dash-charts"></div></div>`;
   try {
-    const today = typeof appLocalDateKey === 'function' ? appLocalDateKey() : new Date().toISOString().split('T')[0];
+    const today = typeof appLocalDateKey === 'function' ? appLocalDateKey() : appLocalDateKey();
     const sevenDaysAgo = typeof appLocalDateKey === 'function' ? appLocalDateKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const { data: bills7Raw } = await db.from('บิลขาย').select('total, date, method, status, return_info').gte('date', sevenDaysAgo + 'T00:00:00').order('date');
     const { data: todayBillsRaw } = await db.from('บิลขาย').select('total, status, return_info').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59');

@@ -820,7 +820,7 @@ function switchAttTab(tab) {
 async function loadAttCheckin() {
   const sec = document.getElementById('att-tab-checkin');
   if (!sec) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const emps  = await loadEmployees();
   const actives = emps.filter(e => e.status==='ทำงาน');
   const { data: attToday } = await db.from('เช็คชื่อ').select('*').eq('date', today);
@@ -891,7 +891,7 @@ async function loadAttAdvance() {
   if (!sec) return;
   const emps = await loadEmployees();
   const actives = emps.filter(e => e.status==='ทำงาน');
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const { data: advances } = await db.from('เบิกเงิน').select('*, พนักงาน(name,lastname)').order('date', { ascending: false }).limit(50).catch(()=>({data:[]}));
   const totalToday = (advances||[]).filter(a=>(a.date||'').startsWith(today)&&a.status==='อนุมัติ').reduce((s,a)=>s+a.amount,0);
 

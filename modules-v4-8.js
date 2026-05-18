@@ -1652,7 +1652,7 @@ async function v5LoadCheckin() {
   if (!sec) return;
   sec.innerHTML = v5Loading('โหลดข้อมูลพนักงาน...');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const [emps, { data: attToday }] = await Promise.all([
     loadEmployees(),
     db.from('เช็คชื่อ').select('*').eq('date', today)
@@ -1737,7 +1737,7 @@ async function v5LoadAdvance() {
   if (!sec) return;
   sec.innerHTML = v5Loading('โหลดรายการเบิกเงิน...');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const [emps, { data: advances }] = await Promise.all([
     loadEmployees(),
     db.from('เบิกเงิน').select('*, พนักงาน(name,lastname)').order('date',{ascending:false}).limit(60).catch(()=>({data:[]}))
@@ -2017,7 +2017,7 @@ async function v5LoadEmps() {
 window.renderHistory = async function() {
   const section = document.getElementById('page-history');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   section.innerHTML = `
     <div class="inv-container">
       <div class="inv-toolbar">
@@ -2047,7 +2047,7 @@ window.renderHistory = async function() {
 };
 
 window.v5LoadHistoryData = async function() {
-  const date   = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+  const date   = document.getElementById('history-date')?.value || appLocalDateKey();
   const search = document.getElementById('history-search')?.value?.toLowerCase() || '';
   const { data: bills } = await db.from('บิลขาย').select('*')
     .gte('date', date+'T00:00:00').lte('date', date+'T23:59:59')
@@ -2543,7 +2543,7 @@ window.v5LoadAdvance && (async function patchLoadAdvance() {
     if (!sec) return;
     sec.innerHTML = typeof v5Loading==='function' ? v5Loading('โหลดรายการเบิกเงิน...') : '<div style="padding:40px;text-align:center;">โหลด...</div>';
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = appLocalDateKey();
     let emps = [], advances = [];
     try { emps = await loadEmployees(); } catch(e) { emps = []; }
     try {

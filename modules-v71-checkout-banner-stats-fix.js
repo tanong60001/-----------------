@@ -256,7 +256,7 @@
     try {
       const search = (document.getElementById('history-search')?.value || '').toLowerCase();
       const depositOn = window.v68HistoryFilter === 'depositPending';
-      const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+      const date = document.getElementById('history-date')?.value || appLocalDateKey();
       let q = db.from('บิลขาย').select('*').order('date', { ascending: false });
       // When deposit filter is active, ignore the date picker so the user
       // sees every outstanding-deposit bill, not just today's.

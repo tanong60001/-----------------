@@ -283,7 +283,7 @@
     const state = getState();
     if (!state) return;
     if (!state.deliveryPaymentMode) state.deliveryPaymentMode = 'cod';
-    const today = new Date().toISOString().split('T')[0];
+    const today = appLocalDateKey();
     // pre-populate state so user can press "ถัดไป" immediately without blurring fields first
     if (!state.deliveryDate) state.deliveryDate = today;
     // ถ้าลูกค้ามีเบอร์/ที่อยู่ ให้เอามาเติมตอนเข้า sub-step เป็นครั้งแรก

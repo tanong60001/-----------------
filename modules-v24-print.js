@@ -827,7 +827,7 @@ window.viewDebtHistory = window.v24ViewDebtBills;
 const _v24OrigRenderHistory = window.renderHistory;
 window.renderHistory = async function () {
   const sec = document.getElementById('page-history'); if (!sec) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   sec.innerHTML = `
     <style>
       .v12-bmc-tab { background: #f1f5f9; color: #64748b; border: none; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-thai, 'Prompt'), sans-serif; white-space: nowrap; }

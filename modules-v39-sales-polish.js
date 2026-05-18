@@ -256,7 +256,7 @@
     ensureStyle();
     const section = document.getElementById('page-history');
     if (!section) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = appLocalDateKey();
     section.innerHTML = `<div class="v39-history">
       <div class="v39-history-hero">
         <div class="v39-history-title">
@@ -282,7 +282,7 @@
   };
 
   window.v39LoadHistoryData = async function () {
-    const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+    const date = document.getElementById('history-date')?.value || appLocalDateKey();
     const search = (document.getElementById('history-search')?.value || '').toLowerCase();
     const activeFilter = window.v39HistoryFilter || 'all';
     const depositFilterOn = window.v68HistoryFilter === 'depositPending';

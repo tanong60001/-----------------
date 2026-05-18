@@ -1121,7 +1121,7 @@ window.printBillFromHistory = async function(billId) {
 window.renderAttendance = async function() {
   const section = document.getElementById('page-att');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const emps = await loadEmployees();
   const active = emps.filter(e=>e.status==='ทำงาน');
   const {data:attToday} = await db.from('เช็คชื่อ').select('*').eq('date',today);

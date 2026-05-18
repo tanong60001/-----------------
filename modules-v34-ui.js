@@ -316,7 +316,7 @@ window.v34DQFilter = async function (filter) {
     else { btn.style.background = '#f1f5f9'; btn.style.color = '#64748b'; }
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   try {

@@ -639,7 +639,7 @@
   }
 
   async function loadHistoryBills() {
-    const date = document.getElementById('history-date')?.value || new Date().toISOString().split('T')[0];
+    const date = document.getElementById('history-date')?.value || appLocalDateKey();
     const search = (document.getElementById('history-search')?.value || '').toLowerCase();
     let query = db.from(BILL_TABLE).select('*').order('date', { ascending: false });
     if (search) query = query.range(0, 4999);

@@ -237,7 +237,7 @@ window.cancelBill = async function(billId) {
 ════════════════════════════════════════════════════════════════ */
 window.renderHistory = async function() {
   const sec=document.getElementById('page-history'); if(!sec) return;
-  const today=new Date().toISOString().split('T')[0];
+  const today=appLocalDateKey();
   sec.innerHTML=`<div class="v12-bmc-container"><div class="v20-bmc-header"><div class="v20-bmc-title"><i class="material-icons-round">receipt_long</i> ศูนย์จัดการบิล</div></div><div class="v12-bmc-search-bar"><div class="v12-bmc-search"><i class="material-icons-round" style="color:var(--text-muted,#9ca3af);font-size:18px">search</i><input type="text" id="bmc-search" placeholder="ค้นหาเลขบิล, ชื่อลูกค้า..." oninput="v12BMCLoad()"></div><div class="v20-date-range"><input type="date" class="v12-bmc-date" id="bmc-date-from" value="${today}" onchange="v12BMCLoad()"><span style="color:var(--text-muted);font-size:13px;font-weight:600">ถึง</span><input type="date" class="v12-bmc-date" id="bmc-date-to" value="${today}" onchange="v12BMCLoad()"></div><button onclick="v20BMCExport()" class="v20-export-btn"><i class="material-icons-round" style="font-size:16px">download</i> Export</button></div><div class="v12-bmc-tabs"><button class="v12-bmc-tab active" id="bmc-tab-all" onclick="v12BMCSetTab('all')">📋 ทั้งหมด <span class="tab-count" id="bmc-cnt-all">0</span></button><button class="v12-bmc-tab" id="bmc-tab-done" onclick="v12BMCSetTab('done')">🟢 สำเร็จ <span class="tab-count" id="bmc-cnt-done">0</span></button><button class="v12-bmc-tab" id="bmc-tab-pending" onclick="v12BMCSetTab('pending')">🟡 รอจัดส่ง <span class="tab-count" id="bmc-cnt-pending">0</span></button><button class="v12-bmc-tab" id="bmc-tab-debt" onclick="v12BMCSetTab('debt')">🔴 ค้างชำระ <span class="tab-count" id="bmc-cnt-debt">0</span></button><button class="v12-bmc-tab" id="bmc-tab-deposit" onclick="v12BMCSetTab('deposit')">🟠 มัดจำ <span class="tab-count" id="bmc-cnt-deposit">0</span></button><button class="v12-bmc-tab" id="bmc-tab-returned" onclick="v12BMCSetTab('returned')">🟣 คืน <span class="tab-count" id="bmc-cnt-returned">0</span></button><button class="v12-bmc-tab" id="bmc-tab-cancelled" onclick="v12BMCSetTab('cancelled')">⚫ ยกเลิก <span class="tab-count" id="bmc-cnt-cancelled">0</span></button></div><div class="v12-bmc-table-wrap"><table class="v12-bmc-table"><thead><tr><th>บิล #</th><th>วันเวลา</th><th>ลูกค้า</th><th>วิธีชำระ</th><th>จัดส่ง</th><th style="text-align:right">ยอดรวม</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody id="bmc-tbody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">⏳ กำลังโหลด...</td></tr></tbody></table></div><div class="v20-bmc-summary" id="bmc-summary"></div></div>`;
   window.v12BMCActiveTab='all'; await v12BMCLoad();
 };
@@ -245,7 +245,7 @@ window.renderHistory = async function() {
 window.v12BMCSetTab = function(tab) { window.v12BMCActiveTab=tab; document.querySelectorAll('.v12-bmc-tab').forEach(t=>t.classList.remove('active')); document.getElementById(`bmc-tab-${tab}`)?.classList.add('active'); v12BMCLoad(); };
 
 window.v12BMCLoad = async function() {
-  const df=document.getElementById('bmc-date-from')?.value||new Date().toISOString().split('T')[0];
+  const df=document.getElementById('bmc-date-from')?.value||appLocalDateKey();
   const dt=document.getElementById('bmc-date-to')?.value||df;
   const search=document.getElementById('bmc-search')?.value?.toLowerCase()||'';
   try {
@@ -290,7 +290,7 @@ window.v20BMCPayDebt = async function(billId) {
 
 /* ── Export ────────────────────────────────────────────────── */
 window.v20BMCExport = window.v12BMCExport = async function() {
-  const df=document.getElementById('bmc-date-from')?.value||new Date().toISOString().split('T')[0];
+  const df=document.getElementById('bmc-date-from')?.value||appLocalDateKey();
   const dt=document.getElementById('bmc-date-to')?.value||df;
   try{const{data:bs}=await db.from('บิลขาย').select('*').gte('date',_v20AddTZ(df+'T00:00:00')).lte('date',_v20AddTZ(dt+'T23:59:59')).order('date',{ascending:false});if(!bs?.length){typeof toast==='function'&&toast('ไม่มีข้อมูล','warning');return;}const rows=[['บิล#','วันที่','ลูกค้า','วิธีชำระ','ยอด','ส่วนลด','รับ','ทอน','มัดจำ','ค้าง','สถานะ','จัดส่ง']];bs.forEach(b=>rows.push([b.bill_no,_v20dt(b.date),b.customer_name||'ทั่วไป',b.method,b.total,b.discount||0,b.received||0,b.change||0,b.deposit_amount||0,b.total-(b.deposit_amount||0),b.status,b.delivery_status||'-']));const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=`sales_${df}_to_${dt}.csv`;a.click();typeof toast==='function'&&toast('Export สำเร็จ','success');}catch(e){typeof toast==='function'&&toast('Export ไม่สำเร็จ','error');}
 };

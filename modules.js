@@ -522,7 +522,7 @@ function showEmployeeModal(emp) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="form-group"><label class="form-label">วันเริ่มงาน</label>
-          <input class="form-input" type="date" id="emp-start" value="${emp?.start_date||new Date().toISOString().split('T')[0]}"></div>
+          <input class="form-input" type="date" id="emp-start" value="${emp?.start_date||appLocalDateKey()}"></div>
         <div class="form-group"><label class="form-label">สถานะ</label>
           <select class="form-input" id="emp-status">
             <option value="ทำงาน" ${(emp?.status||'ทำงาน')==='ทำงาน'?'selected':''}>ทำงาน</option>
@@ -587,7 +587,7 @@ const ATT_STATUS = {
 window.renderAttendance = async function() {
   const section = document.getElementById('page-att');
   if (!section) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const emps = await loadEmployees();
   const active = emps.filter(e=>e.status==='ทำงาน');
   const {data:attToday} = await db.from('เช็คชื่อ').select('*').eq('date',today);
@@ -713,7 +713,7 @@ async function saveEditAtt(attId, empId) {
   toast('แก้ไขสำเร็จ','success'); closeModal(); renderAttendance();
 }
 async function showAttDatePicker() {
-  const {value:date} = await Swal.fire({title:'ดูเช็คชื่อย้อนหลัง',input:'date',inputValue:new Date().toISOString().split('T')[0],showCancelButton:true,confirmButtonText:'ดู',cancelButtonText:'ยกเลิก'});
+  const {value:date} = await Swal.fire({title:'ดูเช็คชื่อย้อนหลัง',input:'date',inputValue:appLocalDateKey(),showCancelButton:true,confirmButtonText:'ดู',cancelButtonText:'ยกเลิก'});
   if (!date) return;
   const emps = await loadEmployees();
   const {data:attData} = await db.from('เช็คชื่อ').select('*').eq('date',date);

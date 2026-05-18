@@ -1540,7 +1540,7 @@ window.v5LoadAdvance = async function () {
 
   try {
     let emps = [], advances = [];
-    const today = new Date().toISOString().split('T')[0];
+    const today = appLocalDateKey();
 
     const [empsResult, advResult] = await Promise.all([
       loadEmployees().catch(() => []),
@@ -2078,7 +2078,7 @@ window.editEmployee = async function (empId) {
         <div class="form-group">
           <label class="form-label">วันเริ่มงาน</label>
           <input class="form-input" type="date" id="v9emp-start"
-            value="${emp.start_date || new Date().toISOString().split('T')[0]}">
+            value="${emp.start_date || appLocalDateKey()}">
         </div>
         <div class="form-group">
           <label class="form-label">สถานะ</label>
@@ -6237,7 +6237,7 @@ window.v9BuildPurchaseHTML = function () {
           </div>
           <div class="form-group">
             <label class="form-label">วันที่รับสินค้า</label>
-            <input class="form-input" type="date" id="pur-date" value="${new Date().toISOString().split('T')[0]}">
+            <input class="form-input" type="date" id="pur-date" value="${appLocalDateKey()}">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
@@ -7341,7 +7341,7 @@ window.showAddPurchaseModal = function () {
           </div>
           <div class="form-group">
             <label class="form-label">วันที่รับสินค้า</label>
-            <input class="form-input" type="date" id="v9p23-date" value="${new Date().toISOString().split('T')[0]}">
+            <input class="form-input" type="date" id="v9p23-date" value="${appLocalDateKey()}">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
@@ -7885,7 +7885,7 @@ window.v9P23Save = async function () {
   const supplier = document.getElementById('v9p23-supplier')?.value?.trim() || '';
   const method = document.getElementById('v9p23-method')?.value || 'เงินสด';
   const note = document.getElementById('v9p23-note')?.value?.trim() || '';
-  const purDate = document.getElementById('v9p23-date')?.value || new Date().toISOString().split('T')[0];
+  const purDate = document.getElementById('v9p23-date')?.value || appLocalDateKey();
   const dueDate = document.getElementById('v9p23-due')?.value || null;
   const suppSelId = document.getElementById('v9p23-supp-id')?.value || null;
   const total = items.reduce((s, i) => s + i.qty * i.cost, 0);
@@ -7897,7 +7897,7 @@ window.v9P23Save = async function () {
     // 1. Purchase order
     const { data: po, error: poErr } = await db.from('purchase_order').insert({
       // ถ้าเป็นวันนี้ใช้เวลาปัจจุบัน ถ้าเป็นวันอื่นใช้ 12:00 เพื่อหลีก TZ
-      date: (purDate === new Date().toISOString().split('T')[0])
+      date: (purDate === appLocalDateKey())
         ? new Date().toISOString()
         : new Date(purDate + 'T12:00:00').toISOString(),
       supplier: supplier || null, total, method,
@@ -8882,7 +8882,7 @@ window.v9Pur24HTML = function () {
     </div>
     <div class="v9p24-field">
       <div class="v9p24-lbl">วันที่รับสินค้า</div>
-      <input class="v9p24-fi" type="date" id="v9p24-date" value="${new Date().toISOString().split('T')[0]}">
+      <input class="v9p24-fi" type="date" id="v9p24-date" value="${appLocalDateKey()}">
     </div>
     <div class="v9p24-field" style="margin-bottom:6px;">
       <div class="v9p24-lbl">วิธีชำระ</div>
@@ -9544,7 +9544,7 @@ window.v9Pur24Save = async function () {
   if (!items.length) { typeof toast === 'function' && toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'error'); return; }
   const supplier = document.getElementById('v9p24-supplier')?.value?.trim() || '';
   const method = document.querySelector('.v9p24-mbtn.on')?.textContent?.trim() || 'เงินสด';
-  const purDate = document.getElementById('v9p24-date')?.value || new Date().toISOString().split('T')[0];
+  const purDate = document.getElementById('v9p24-date')?.value || appLocalDateKey();
   const dueDate = document.getElementById('v9p24-due')?.value || null;
   const suppSelId = document.getElementById('v9pur24-supp-id')?.value || null;
   const total = items.reduce((s, i) => s + i.qty * i.cost, 0);
@@ -9553,7 +9553,7 @@ window.v9Pur24Save = async function () {
   v9ShowOverlay('กำลังบันทึก...', `${items.length} รายการ | ฿${formatNum(total)}`);
   try {
     const { data: po, error: poErr } = await db.from('purchase_order').insert({
-      date: (purDate === new Date().toISOString().split('T')[0])
+      date: (purDate === appLocalDateKey())
         ? new Date().toISOString()
         : new Date(purDate + 'T12:00:00').toISOString(),
       supplier: supplier || null, total, method,
@@ -13227,7 +13227,7 @@ window.renderDashboard = async function () {
 
 window.v9DashLoad = async function () {
   const days = parseInt(document.querySelector('.db-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
   const lbl = document.getElementById('db-date-lbl');
   const periodLbl = document.querySelector('.db-per.on')?.dataset.lbl || 'วันนี้';
@@ -14151,7 +14151,7 @@ window.recordDebtPayment = async function (customerId, name) {
 const _v9OrigDashLoad41 = window.v9DashLoad;
 window.v9DashLoad = async function () {
   const days = parseInt(document.querySelector('.db-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
 
   const lbl = document.getElementById('db-date-lbl');
@@ -15974,7 +15974,7 @@ window.renderDashboard = async function () {
 
 window.v9d44Load = async function () {
   const days = parseInt(document.querySelector('.v9d44-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
 
   const lbl = document.getElementById('v9d44-lbl');
@@ -17543,7 +17543,7 @@ window.v5LoadPayroll = async function () {
 const _v9OrigD44Load48 = window.v9d44Load;
 window.v9d44Load = async function () {
   const days = parseInt(document.querySelector('.v9d44-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
 
   const lbl = document.getElementById('v9d44-lbl');
@@ -18124,7 +18124,7 @@ window.savePurchaseOrder = async function () {
 // tSal (จ่ายเงินเดือน) ครอบคลุม cash flow แล้ว
 window.v9d44Load = async function () {
   const days = parseInt(document.querySelector('.v9d44-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
 
   const lbl = document.getElementById('v9d44-lbl');
@@ -18881,7 +18881,7 @@ window.v9PrintQuotation = async function (quotId) {
 // ── Bug3: Dashboard redesign + P&L ดึงค่าแรงจริง ─────────────────
 window.v9d44Load = async function () {
   const days = parseInt(document.querySelector('.v9d44-per.on')?.dataset.d || 1);
-  const today = new Date().toISOString().split('T')[0];
+  const today = appLocalDateKey();
   const since = days === 1 ? today : new Date(Date.now() - (days - 1) * 86400000).toISOString().split('T')[0];
 
   const lbl = document.getElementById('v9d44-lbl');

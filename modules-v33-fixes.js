@@ -1368,7 +1368,7 @@
       const btn = document.getElementById('v26-save-btn');
       if (btn) { btn.classList.add('saving'); btn.innerHTML = '<i class="material-icons-round">sync</i> กำลังบันทึก...'; }
       window.showLoading('กำลังบันทึกการเช็คชื่อ...');
-      const today = new Date().toISOString().split('T')[0];
+      const today = appLocalDateKey();
       const now = new Date();
       let ok = 0, skip = 0;
       try {
