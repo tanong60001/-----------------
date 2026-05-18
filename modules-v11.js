@@ -122,13 +122,13 @@ window.updateHomeStats = async function () {
   if (el) el.textContent = typeof USER !== 'undefined' ? (USER?.username || 'User') : 'User';
   const today = v11LocalDayRange();
   try {
-    const { data: bills } = await db.from('บิลขาย')
+    const { data: allBills } = await db.from('บิลขาย')
       .select('total, discount, id, status, return_info')
-      .gte('date', today.startIso).lte('date', today.endIso)
-      .in('status', ['สำเร็จ', 'คืนบางส่วน']);
+      .gte('date', today.startIso).lte('date', today.endIso);
 
-    const totalSales = bills?.reduce((sum, b) => sum + v11EffectiveBillTotal(b), 0) || 0;
-    const ordersCount = bills?.length || 0;
+    const bills = (allBills || []).filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
+    const totalSales = bills.reduce((sum, b) => sum + v11EffectiveBillTotal(b), 0);
+    const ordersCount = bills.length;
     let profit = 0;
 
     const todayBillIds = bills?.map(b => b.id) || [];

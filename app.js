@@ -369,11 +369,17 @@ function getEffectiveBillTotal(bill) {
 
 async function updateHomeStats() {
   document.getElementById('home-username').textContent = USER?.username || 'User';
-  const today = getLocalDayRange();
+  const todayKey = typeof appLocalDateKey === 'function'
+    ? appLocalDateKey()
+    : new Date().toISOString().split('T')[0];
   try {
-    const { data: bills } = await db.from('บิลขาย').select('total, discount, id, status, return_info').gte('date', today.startIso).lte('date', today.endIso).in('status', ['สำเร็จ', 'คืนบางส่วน']);
-    const totalSales = bills?.reduce((sum, b) => sum + getEffectiveBillTotal(b), 0) || 0;
-    const ordersCount = bills?.length || 0;
+    const { data: bills } = await db.from('บิลขาย')
+      .select('total, discount, id, status, return_info')
+      .gte('date', todayKey + 'T00:00:00')
+      .lte('date', todayKey + 'T23:59:59');
+    const validBills = (bills || []).filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
+    const totalSales = validBills.reduce((sum, b) => sum + getEffectiveBillTotal(b), 0);
+    const ordersCount = validBills.length;
 
     const cashBalance = await getCashBalance();
     document.getElementById('home-sales').textContent = `฿${formatNum(totalSales)}`;
@@ -2234,13 +2240,15 @@ async function renderDashboard() {
   if (!section) return;
   section.innerHTML = `<div style="padding:24px;"><div class="stats-grid" id="dash-stats"><div style="grid-column:1/-1;text-align:center;padding:40px;"><div class="spinner"></div><p>กำลังโหลดข้อมูล...</p></div></div><div id="dash-charts"></div></div>`;
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const { data: bills7 } = await db.from('บิลขาย').select('total, date, method, status').gte('date', sevenDaysAgo + 'T00:00:00').in('status', ['สำเร็จ', 'คืนบางส่วน']).order('date');
-    const { data: todayBills } = await db.from('บิลขาย').select('total').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59').in('status', ['สำเร็จ', 'คืนบางส่วน']);
+    const today = typeof appLocalDateKey === 'function' ? appLocalDateKey() : new Date().toISOString().split('T')[0];
+    const sevenDaysAgo = typeof appLocalDateKey === 'function' ? appLocalDateKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data: bills7Raw } = await db.from('บิลขาย').select('total, date, method, status, return_info').gte('date', sevenDaysAgo + 'T00:00:00').order('date');
+    const { data: todayBillsRaw } = await db.from('บิลขาย').select('total, status, return_info').gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59');
     const { data: expenses7 } = await db.from('รายจ่าย').select('amount').gte('date', sevenDaysAgo + 'T00:00:00');
-    const totalSales7 = (bills7 || []).reduce((s, b) => s + b.total, 0);
-    const todaySales = (todayBills || []).reduce((s, b) => s + b.total, 0);
+    const bills7 = (bills7Raw || []).filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
+    const todayBills = (todayBillsRaw || []).filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
+    const totalSales7 = (bills7 || []).reduce((s, b) => s + getEffectiveBillTotal(b), 0);
+    const todaySales = (todayBills || []).reduce((s, b) => s + getEffectiveBillTotal(b), 0);
     const totalExp = (expenses7 || []).reduce((s, e) => s + e.amount, 0);
     const cashBills = (bills7 || []).filter(b => b.method === 'เงินสด').length;
     const transferBills = (bills7 || []).filter(b => b.method === 'โอนเงิน').length;
@@ -2248,11 +2256,11 @@ async function renderDashboard() {
     const byDay = {};
     (bills7 || []).forEach(b => {
       const d = b.date.split('T')[0];
-      byDay[d] = (byDay[d] || 0) + b.total;
+      byDay[d] = (byDay[d] || 0) + getEffectiveBillTotal(b);
     });
     const days = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const d = typeof appLocalDateKey === 'function' ? appLocalDateKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000)) : new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       days.push({ date: d, label: new Date(d).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric' }), total: byDay[d] || 0 });
     }
     const maxVal = Math.max(...days.map(d => d.total), 1);

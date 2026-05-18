@@ -39,6 +39,12 @@
     return Math.max(0, num(info.new_total ?? bill?.total));
   }
 
+  function isPartialReturnBill(bill) {
+    const status = String(bill?.status || '');
+    const info = parseInfo(bill?.return_info);
+    return /คืนบางส่วน/.test(status) || num(info.return_total) > 0;
+  }
+
   function canDeleteBillV68() {
     try {
       if (typeof window.canDeleteActionV36 === 'function') return window.canDeleteActionV36();
@@ -118,12 +124,12 @@
   }
 
   function isDebtCandidate(bill) {
-    if (!bill || isTerminalBill(bill) || isProjectBill(bill)) return false;
+    if (!bill || isTerminalBill(bill) || isProjectBill(bill) || isPartialReturnBill(bill)) return false;
     const total = effectiveTotal(bill);
     if (total <= 0) return false;
     const deposit = num(bill.deposit_amount);
-    const status = String(bill.status || '');
-    return /ค้าง|บางส่วน|ชำระหน้างาน/.test(status) || (deposit > 0 && deposit < total);
+    const text = `${bill.status || ''} ${bill.method || ''}`;
+    return /ค้าง|ชำระหน้างาน/.test(text) || (/บางส่วน/.test(text) && !/คืน/.test(text)) || (deposit > 0 && deposit < total);
   }
 
   function billDate(value) {
@@ -142,47 +148,106 @@
     return Math.max(0, effectiveTotal(bill) - num(bill.deposit_amount));
   }
 
-  function debtBillRows(bills, startingPaidPool = 0) {
-    let paidPool = startingPaidPool;
+  // ใช้สำหรับคำนวณ rawBillDebt เท่านั้น — แค่ยอดบิลค้างปัจจุบัน (ไม่หักการชำระ)
+  function debtBillRows(bills /*, startingPaidPool ignored — kept for backward compat */) {
     return (bills || [])
       .filter(isDebtCandidate)
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
       .map(bill => {
         const total = effectiveTotal(bill);
         const billPaid = Math.min(total, num(bill.deposit_amount));
-        const beforePayment = Math.max(0, total - billPaid);
-        const fifoPaid = Math.min(beforePayment, paidPool);
-        paidPool = Math.max(0, paidPool - fifoPaid);
-        const paid = billPaid + fifoPaid;
-        const remaining = Math.max(0, total - paid);
-        return { bill, total, paid, billPaid, fifoPaid, remaining };
+        const remaining = Math.max(0, total - billPaid);
+        return { bill, total, paid: billPaid, billPaid, fifoPaid: 0, remaining };
       });
   }
 
-  function buildDebtRows(bills, payments, openingDebt = 0, openingKey = 'opening') {
-    let paidPool = (payments || []).reduce((sum, row) => sum + num(row.amount), 0);
-    const rows = [];
+  // FIFO แบบเรียงตามเวลา (date-aware) — เงินที่จ่ายในวันที่ X
+  // ปิดได้เฉพาะหนี้ที่เกิดขึ้นก่อน/ถึงวันที่ X เท่านั้น
+  // บิลใหม่ที่สร้างหลังวันที่จ่าย จะไม่ถูกหักย้อนหลัง
+  function buildDebtRows(bills, payments, openingDebt = 0, openingKey = 'opening', openingDate = null) {
+    const ALL_BILLS = (bills || []).filter(isDebtCandidate);
+
+    // เตรียม event ของหนี้และยอดจ่าย เรียงตามวันที่
+    const events = [];
     if (openingDebt > 0) {
-      const openingPaid = Math.min(openingDebt, paidPool);
-      paidPool = Math.max(0, paidPool - openingPaid);
-      rows.push({
-        bill: {
-          id: `opening-${openingKey}`,
-          bill_no: 'ยกมา',
-          date: null,
-          total: openingDebt,
-          status: 'หนี้ยกมา',
-          customer_name: 'ยอดหนี้ยกมา',
-          __openingDebt: true,
-        },
-        total: openingDebt,
-        paid: openingPaid,
-        billPaid: 0,
-        fifoPaid: openingPaid,
-        remaining: Math.max(0, openingDebt - openingPaid),
-      });
+      events.push({ kind: 'debt', source: 'opening', date: openingDate || '0000-01-01T00:00:00Z' });
     }
-    rows.push(...debtBillRows(bills, paidPool));
+    ALL_BILLS.forEach(bill => {
+      events.push({ kind: 'debt', source: 'bill', date: bill.date || '', bill });
+    });
+    (payments || []).forEach(p => {
+      events.push({ kind: 'pay', date: p.date || '', amount: num(p.amount) });
+    });
+    events.sort((a, b) => {
+      const cmp = String(a.date || '').localeCompare(String(b.date || ''));
+      if (cmp !== 0) return cmp;
+      // วันเดียวกัน: ลงทะเบียนหนี้ก่อน แล้วค่อยจ่าย (ให้ pay กินหนี้วันเดียวกันได้)
+      if (a.kind === b.kind) return 0;
+      return a.kind === 'debt' ? -1 : 1;
+    });
+
+    const queue = []; // FIFO รายการหนี้ทั้งหมด เรียงตามที่ลงทะเบียน
+    for (const evt of events) {
+      if (evt.kind === 'debt') {
+        if (evt.source === 'opening') {
+          queue.push({ source: 'opening', total: openingDebt, remaining: openingDebt, billPaid: 0, fifoPaid: 0 });
+        } else {
+          const bill = evt.bill;
+          const total = effectiveTotal(bill);
+          const billPaid = Math.min(total, num(bill.deposit_amount));
+          queue.push({ source: 'bill', bill, total, billPaid, fifoPaid: 0, remaining: Math.max(0, total - billPaid) });
+        }
+      } else {
+        // เงินจ่าย: ใช้กับหนี้ที่ "เกิดก่อน" เท่านั้น (ซึ่งคือทุกตัวใน queue ตอนนี้)
+        let pool = evt.amount;
+        for (const d of queue) {
+          if (pool <= 0) break;
+          if (d.remaining <= 0) continue;
+          const apply = Math.min(d.remaining, pool);
+          d.remaining -= apply;
+          d.fifoPaid += apply;
+          pool -= apply;
+        }
+        // ส่วนเกินที่จ่ายเกินยอดที่มีตอนนั้น — ปล่อยทิ้ง ไม่ลอยมาหักบิลใหม่ในอนาคต
+      }
+    }
+
+    // แปลง queue เป็น rows
+    const rows = [];
+    for (const d of queue) {
+      if (d.source === 'opening') {
+        const paid = Math.max(0, openingDebt - d.remaining);
+        rows.push({
+          bill: {
+            id: `opening-${openingKey}`,
+            bill_no: 'ยกมา',
+            date: openingDate || null,
+            total: openingDebt,
+            status: 'หนี้ยกมา',
+            customer_name: 'ยอดหนี้ยกมา',
+            __openingDebt: true,
+          },
+          total: openingDebt,
+          paid,
+          billPaid: 0,
+          fifoPaid: paid,
+          remaining: d.remaining,
+        });
+      } else {
+        // ส่งคืนเฉพาะบิลที่ยังเป็น debt candidate หรือยังมียอดค้าง
+        // (เพื่อไม่ไปแก้สถานะบิลเงินสด/บิลที่ปิดไปแล้ว — และ heal บิลที่บั๊กเก่า flip ไว้)
+        if (isDebtCandidate(d.bill) || d.remaining > 0) {
+          rows.push({
+            bill: d.bill,
+            total: d.total,
+            paid: d.billPaid + d.fifoPaid,
+            billPaid: d.billPaid,
+            fifoPaid: d.fifoPaid,
+            remaining: d.remaining,
+          });
+        }
+      }
+    }
     return rows;
   }
 
@@ -432,10 +497,11 @@
     document.head.appendChild(style);
   }
 
-  window.v68RenderDebts = window.renderDebts = async function () {
+  window.v68RenderDebts = window.renderDebts = async function (opts = {}) {
     injectStyle();
     const section = document.getElementById('page-debt');
     if (!section) return;
+    const shouldRestoreSearchFocus = opts.keepSearchFocus || document.activeElement?.id === 'v68-debt-search-input';
     section.innerHTML = `<div style="padding:80px;text-align:center;color:#94a3b8;font-weight:800">กำลังซิงค์ยอดลูกหนี้จากบิลจริง...</div>`;
     try {
       const search = String(window.v68DebtSearch || '').toLowerCase();
@@ -479,9 +545,9 @@
       }).join('');
 
       const orphanHtml = orphanRows.length ? `<div class="v68-orphan">
-        <div class="v68-orphan-head"><i class="material-icons-round">warning</i> บิลค้างที่ยังไม่ผูกลูกค้าประจำ ${orphanRows.length} ใบ รวม ฿${fmt(orphanTotal)}</div>
+        <div class="v68-orphan-head"><i class="material-icons-round">warning</i> บิลรอระบุลูกค้าประจำ ${orphanRows.length} ใบ รวม ฿${fmt(orphanTotal)}</div>
         <table><thead><tr><th>บิล</th><th>ลูกค้าในบิล</th><th>วันที่</th><th style="text-align:right">คงเหลือ</th><th>จัดการ</th></tr></thead><tbody>
-          ${orphanRows.map(row => `<tr><td>#${esc(row.bill.bill_no || row.bill.id)}</td><td>${esc(row.bill.customer_name || '-')}</td><td>${esc(billDate(row.bill.date))}</td><td style="text-align:right;color:#b91c1c;font-weight:900">฿${fmt(row.remaining)}</td><td><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="viewBillDetail('${row.bill.id}')"><i class="material-icons-round">receipt</i> ดูบิล</button><button class="btn btn-primary btn-sm" onclick="v68LinkDebtBillToCustomer('${row.bill.id}')"><i class="material-icons-round">link</i> ผูกลูกค้า</button></div></td></tr>`).join('')}
+          ${orphanRows.map(row => `<tr><td>#${esc(row.bill.bill_no || row.bill.id)}</td><td>${esc(row.bill.customer_name || '-')}</td><td>${esc(billDate(row.bill.date))}</td><td style="text-align:right;color:#b91c1c;font-weight:900">฿${fmt(row.remaining)}</td><td><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="viewBillDetail('${row.bill.id}')"><i class="material-icons-round">receipt</i> ดูบิล</button><button class="btn btn-primary btn-sm" onclick="v68LinkDebtBillToCustomer('${row.bill.id}')"><i class="material-icons-round">person_search</i> เลือกลูกค้า</button></div></td></tr>`).join('')}
         </tbody></table>
       </div>` : '';
 
@@ -490,7 +556,7 @@
           <div class="debt-hero">
             <div class="debt-hero-left">
               <h2><i class="material-icons-round" style="font-size:28px">account_balance_wallet</i> จัดการลูกหนี้</h2>
-              <p>ซิงค์จากบิลค้างชำระจริง และแสดงบิลที่ยังไม่ผูกลูกค้าให้ตรวจได้ทันที</p>
+              <p>ซิงค์จากบิลค้างชำระจริงตามยอดที่ยังจ่ายไม่ครบ</p>
             </div>
             <div class="debt-stat-boxes">
               <div class="debt-stat-box danger"><div class="lbl">ยอดหนี้รวมทั้งหมด</div><div class="val">฿${fmt(total + orphanTotal)}</div></div>
@@ -498,7 +564,7 @@
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-            <label class="v68-debt-search"><i class="material-icons-round">search</i><input value="${esc(window.v68DebtSearch || '')}" placeholder="ค้นหาลูกค้า เบอร์โทร หรือเลขบิล..." oninput="window.v68DebtSearch=this.value;v68RenderDebts()"></label>
+            <label class="v68-debt-search"><i class="material-icons-round">search</i><input id="v68-debt-search-input" value="${esc(window.v68DebtSearch || '')}" placeholder="ค้นหาลูกค้า เบอร์โทร หรือเลขบิล..." oninput="v68HandleDebtSearch(this.value)"></label>
             <button class="btn btn-outline" onclick="v68SyncCustomerTotals(true).then(()=>{toast?.('ซิงค์ยอดลูกค้าเรียบร้อย','success');v68RenderDebts();})"><i class="material-icons-round">sync</i> ซิงค์ยอด</button>
           </div>
           ${openingWarn}
@@ -507,6 +573,14 @@
           </div>
           ${orphanHtml}
         </div>`;
+      if (shouldRestoreSearchFocus) {
+        const input = document.getElementById('v68-debt-search-input');
+        if (input) {
+          input.focus();
+          const len = input.value.length;
+          try { input.setSelectionRange(len, len); } catch (_) {}
+        }
+      }
     } catch (error) {
       console.error('[v68] render debts:', error);
       section.innerHTML = `<div style="padding:40px;color:#dc2626;font-weight:800">โหลดลูกหนี้ไม่สำเร็จ: ${esc(error.message || error)}</div>`;
@@ -526,12 +600,12 @@
       (customers || []).forEach(c => { options[c.id] = `${c.name}${c.phone ? ' - ' + c.phone : ''}`; });
       const guess = (customers || []).find(c => String(c.name || '').trim().toLowerCase() === String(bill?.customer_name || '').trim().toLowerCase());
       const result = await Swal.fire({
-        title: `ผูกบิล #${bill?.bill_no || ''} กับลูกค้า`,
+        title: `เลือกเจ้าของบิล #${bill?.bill_no || ''}`,
         input: 'select',
         inputOptions: options,
         inputValue: guess?.id || '',
         showCancelButton: true,
-        confirmButtonText: 'ผูกลูกค้า',
+        confirmButtonText: 'บันทึกลูกค้า',
         cancelButtonText: 'ยกเลิก',
         inputValidator: value => !value ? 'กรุณาเลือกลูกค้า' : undefined,
       });
@@ -546,11 +620,11 @@
       if (error) throw error;
       syncCache = null;
       await getSyncedCustomers(true);
-      toast?.('ผูกบิลกับลูกค้าเรียบร้อย', 'success');
+      toast?.('บันทึกลูกค้าในบิลเรียบร้อย', 'success');
       window.v68RenderDebts?.();
     } catch (error) {
       console.error('[v68] link debt bill:', error);
-      toast?.('ผูกลูกค้าไม่สำเร็จ: ' + (error.message || error), 'error');
+      toast?.('บันทึกลูกค้าไม่สำเร็จ: ' + (error.message || error), 'error');
     }
   };
 
@@ -585,6 +659,33 @@
     return /ส่ง|จัดส่ง/.test(String(bill?.delivery_mode || '')) ? 'รอจัดส่ง' : 'รับเอง / ไม่จัดส่ง';
   }
 
+  function isUnpaidHistoryBill(bill) {
+    if (!bill || isProjectBill(bill) || isTerminalBill(bill) || isPartialReturnBill(bill)) return false;
+    const total = effectiveTotal(bill);
+    if (total <= 0) return false;
+    const deposit = num(bill.deposit_amount);
+    const text = `${bill.status || ''} ${bill.method || ''}`;
+    return /ค้าง|ชำระหน้างาน/.test(text) || (/บางส่วน/.test(text) && !/คืน/.test(text)) || (deposit > 0 && deposit < total);
+  }
+
+  function isDepositOpenHistoryBill(bill) {
+    if (!bill || isProjectBill(bill) || isTerminalBill(bill) || isPartialReturnBill(bill)) return false;
+    const total = effectiveTotal(bill);
+    const deposit = num(bill.deposit_amount);
+    return total > 0 && deposit > 0 && deposit < total;
+  }
+
+  function isUnshippedHistoryBill(bill) {
+    if (!bill || isProjectBill(bill) || isTerminalBill(bill) || isPartialReturnBill(bill)) return false;
+    const delivery = deliveryText(bill);
+    if (/สำเร็จ|จัดส่งแล้ว|รับเอง|ไม่จัดส่ง/.test(delivery)) return false;
+    return /รอ|ยังไม่|จัดส่ง|ส่ง/.test(delivery) || !bill.customer_id;
+  }
+
+  function isIncompleteHistoryBill(bill) {
+    return isUnpaidHistoryBill(bill) || isUnshippedHistoryBill(bill) || isDepositOpenHistoryBill(bill);
+  }
+
   function methodClass(method) {
     const m = String(method || '');
     if (/เงินสด/.test(m)) return 'cash';
@@ -596,6 +697,7 @@
 
   function statusClass(status) {
     const s = String(status || '');
+    if (/คืนบางส่วน/.test(s)) return 'done';
     if (/สำเร็จ|รอจัดส่ง/.test(s)) return 'done';
     if (/ค้าง|บางส่วน/.test(s)) return 'debt';
     if (/ยกเลิก|คืน/.test(s)) return 'cancel';
@@ -605,6 +707,14 @@
   window.v68SetHistoryFilter = function (filter) {
     window.v68HistoryFilter = window.v68HistoryFilter === filter ? 'all' : filter;
     window.v39LoadHistoryData?.();
+  };
+
+  window.v68HandleDebtSearch = function (value) {
+    window.v68DebtSearch = value;
+    clearTimeout(window.__v68DebtSearchTimer);
+    window.__v68DebtSearchTimer = setTimeout(() => {
+      window.v68RenderDebts?.({ keepSearchFocus: true });
+    }, 300);
   };
 
   window.v39LoadHistoryData = window.loadHistoryData = async function () {
@@ -619,22 +729,14 @@
           .order('date', { ascending: false })
           .range(0, 9999);
         if (incompleteErr) throw incompleteErr;
-        incompleteAll = (allIncompleteRows || []).filter(b =>
-          !/สำเร็จ/.test(String(b.status || ''))
-          && !isProjectBill(b)
-          && !isTerminalBill(b)
-        );
+        incompleteAll = (allIncompleteRows || []).filter(isIncompleteHistoryBill);
       } catch (incompleteErr) {
         console.warn('[v68] incomplete history fallback:', incompleteErr);
-        incompleteAll = bills.filter(b =>
-          !/สำเร็จ/.test(String(b.status || ''))
-          && !isProjectBill(b)
-          && !isTerminalBill(b)
-        );
+        incompleteAll = bills.filter(isIncompleteHistoryBill);
       }
       const stats = [
         ['all', '#dc2626', 'receipt_long', bills.length, 'บิลทั้งหมด'],
-        ['valid', '#16a34a', 'payments', '฿' + fmt(valid.reduce((s, b) => s + num(b.total), 0)), 'ยอดขายสุทธิ'],
+        ['valid', '#16a34a', 'payments', '฿' + fmt(valid.reduce((s, b) => s + effectiveTotal(b), 0)), 'ยอดขายสุทธิ'],
         ['transfer', '#2563eb', 'qr_code_2', bills.filter(b => /โอน|พร้อมเพย์/.test(String(b.method || ''))).length, 'โอนเงิน'],
         ['delivery', '#f59e0b', 'local_shipping', bills.filter(b => /รอ|จัดส่ง/.test(deliveryText(b))).length, 'งานจัดส่ง'],
         ['incomplete', '#ea580c', 'pending_actions', incompleteAll.length, 'บิลที่ยังไม่สำเร็จ'],
@@ -655,7 +757,7 @@
         return;
       }
       tbody.innerHTML = filtered.map(b => {
-        const debtLike = /ค้าง|บางส่วน/.test(String(b.status || '')) || (num(b.deposit_amount) > 0 && num(b.deposit_amount) < effectiveTotal(b));
+        const debtLike = isUnpaidHistoryBill(b) || isDepositOpenHistoryBill(b);
         const terminal = /ยกเลิก|คืนสินค้า/.test(String(b.status || ''));
         const returnInfo = parseInfo(b.return_info);
         const adminUser = (() => { try { return Function('try { return USER && USER.role === "admin" } catch(e) { return false }')(); } catch (_) { return false; } })();
@@ -673,8 +775,8 @@
           <td><div class="v39-customer">${esc(b.customer_name || 'ลูกค้าทั่วไป')}</div><div class="v39-sub">${esc(b.delivery_phone || '')}</div></td>
           <td><span class="v39-pill ${projectBill ? 'credit' : methodClass(b.method)}"><i class="material-icons-round" style="font-size:15px">${methodIcon}</i>${esc(methodLabel)}</span></td>
           <td><span class="v39-pill other"><i class="material-icons-round" style="font-size:15px">local_shipping</i>${esc(deliveryText(b))}</span></td>
-          <td class="v39-money">฿${fmt(b.total)}${num(b.discount) > 0 ? `<div class="v39-discount">ลด ฿${fmt(b.discount)}</div>` : ''}</td>
-          <td><span class="v39-pill v39-status ${projectBill ? 'info' : statusClass(b.status)}">${esc(statusLabel)}</span>${!b.customer_id && debtLike ? '<div class="v39-sub" style="color:#d97706">ยังไม่ผูกลูกค้า</div>' : ''}</td>
+          <td class="v39-money">฿${fmt(effectiveTotal(b))}${num(b.discount) > 0 ? `<div class="v39-discount">ลด ฿${fmt(b.discount)}</div>` : ''}</td>
+          <td><span class="v39-pill v39-status ${projectBill ? 'info' : statusClass(b.status)}">${esc(statusLabel)}</span></td>
           <td><div class="v39-actions-wrap" data-v39-actions="${esc(b.id)}">
             <button class="v39-actions-toggle" onclick="v39ToggleHistoryActions('${esc(b.id)}', event)" title="จัดการ"><i class="material-icons-round">more_horiz</i></button>
             <div class="v39-actions">
@@ -885,7 +987,7 @@
     if (!state) return;
     const isDebt = state.method === 'debt' || /ค้าง/.test(String(state.method || ''));
     if (isDebt && !state.customer?.id) {
-      throw new Error('บิลค้างชำระต้องเลือกลูกค้าประจำก่อนบันทึก เพื่อไม่ให้เกิดบิลค้างที่ไม่ผูกลูกค้า');
+      throw new Error('บิลค้างชำระต้องเลือกลูกค้าประจำก่อนบันทึก');
     }
   }
 
