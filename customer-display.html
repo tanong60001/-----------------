@@ -149,10 +149,38 @@
     .qr-frame{display:inline-block;background:var(--white);border:3px solid #2563EB;border-radius:var(--r-lg);padding:20px;box-shadow:0 6px 24px rgba(37,99,235,.2)}
     .qr-frame img,#qr-container canvas,#qr-container table{display:block;width:260px;height:260px;border-radius:10px}
     .qr-hint{margin-top:12px;font-size:16px;color:var(--g400);font-weight:500}
-    .mix-wrap{display:grid;grid-template-columns:360px 1fr;gap:26px;align-items:center;margin-top:26px}
-    .mix-panel{background:#fff;border:2px solid #DBEAFE;border-radius:22px;padding:22px;text-align:left;box-shadow:0 12px 35px rgba(37,99,235,.10)}
-    .mix-row{display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid #E5E7EB;font-size:18px;font-weight:800;color:#334155}
-    .mix-row:last-child{border-bottom:0}.mix-row strong{font-family:var(--num);font-size:28px;color:#172033;letter-spacing:0}.mix-row.blue strong{color:#2563EB}.mix-row.red strong{color:#DC2626}.mix-row.green strong{color:#059669}
+    body.pin-qr-mode .content{top:68px;bottom:0}
+    body.pin-qr-mode .step-bar,body.pin-qr-mode .prog,body.pin-qr-mode .cust-banner{display:none!important}
+    body.pin-qr-mode .sc-pay{background:linear-gradient(135deg,#ecfdf5 0%,#f8fafc 45%,#fff 100%);align-items:stretch;justify-content:stretch}
+    body.pin-qr-mode .pay-card{max-width:none;width:100%;height:100%;padding:36px 44px;display:flex;align-items:center;justify-content:center}
+    .pin-hero{width:min(1500px,96vw);min-height:min(760px,calc(100vh - 140px));display:grid;grid-template-columns:minmax(420px,.9fr) minmax(430px,620px);gap:34px;align-items:center}
+    .pin-copy{text-align:left}.pin-kicker{display:inline-flex;align-items:center;gap:10px;background:#d1fae5;color:#047857;border:1px solid #a7f3d0;border-radius:999px;padding:9px 16px;font-size:17px;font-weight:900;margin-bottom:18px}
+    .pin-title{font-size:54px;font-weight:950;line-height:1.08;color:#0f172a;letter-spacing:-1px;margin-bottom:16px}
+    .pin-sub{font-size:23px;font-weight:800;line-height:1.55;color:#475569;max-width:720px}
+    .pin-steps{display:grid;gap:12px;margin-top:26px;max-width:620px}.pin-step{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:16px 18px;box-shadow:0 10px 28px rgba(15,23,42,.06)}
+    .pin-step b{width:38px;height:38px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-family:var(--num);font-size:18px;flex-shrink:0}.pin-step span{font-size:18px;font-weight:850;color:#0f172a}
+    .pin-card{background:#fff;border:1px solid #bbf7d0;border-radius:34px;padding:26px;box-shadow:0 30px 90px rgba(16,185,129,.18);text-align:center;position:relative;overflow:hidden}
+    .pin-card::before{content:'';position:absolute;inset:16px;border:2px dashed #a7f3d0;border-radius:26px;pointer-events:none}
+    .pin-card-inner{position:relative;z-index:2}.pin-bill{display:inline-flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:16px;font-weight:900;color:#475569;margin-bottom:16px}
+    .pin-qr-box{width:350px;height:350px;margin:0 auto;background:#fff;border:9px solid #ecfdf5;border-radius:26px;padding:18px;box-shadow:inset 0 0 0 1px #bbf7d0}
+    .pin-qr-box img{width:100%;height:100%;display:block;border-radius:14px}.pin-card h3{font-size:27px;font-weight:950;color:#064e3b;margin-top:16px}.pin-card p{font-size:16px;font-weight:800;color:#64748b;margin-top:5px}
+    .pin-expire{margin-top:14px;display:inline-flex;align-items:center;gap:7px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:999px;padding:7px 13px;font-size:14px;font-weight:900}
+    @media(max-width:1100px){.pin-hero{grid-template-columns:1fr;gap:20px}.pin-title{font-size:36px}.pin-sub{font-size:17px}.pin-qr-box{width:270px;height:270px}}
+    #pin-qr-overlay{position:fixed;inset:0;z-index:2000;background:linear-gradient(135deg,#ecfdf5 0%,#f8fafc 46%,#fff 100%);display:flex;align-items:center;justify-content:center;padding:30px 42px;overflow:hidden}
+    #pin-qr-overlay .pin-hero{width:min(1280px,94vw);min-height:auto;max-height:calc(100vh - 60px);grid-template-columns:minmax(0,1fr) minmax(340px,480px);gap:28px}
+    #pin-qr-overlay .pin-title{font-size:42px}
+    #pin-qr-overlay .pin-sub{font-size:19px}
+    #pin-qr-overlay .pin-steps{margin-top:20px}
+    #pin-qr-overlay .pin-step{padding:13px 16px}
+    #pin-qr-overlay .pin-qr-box{width:320px;height:320px}
+    #pin-qr-overlay .pin-card{padding:24px}
+    body.pin-qr-mode .hdr,body.pin-qr-mode .content,body.pin-qr-mode .step-bar,body.pin-qr-mode .prog,body.pin-qr-mode .cust-banner{display:none!important}
+    @media(max-width:1100px){#pin-qr-overlay{padding:22px;overflow:auto;align-items:flex-start}#pin-qr-overlay .pin-hero{grid-template-columns:1fr;max-height:none}#pin-qr-overlay .pin-title{font-size:34px}#pin-qr-overlay .pin-sub{font-size:17px}#pin-qr-overlay .pin-qr-box{width:280px;height:280px}}
+    .mix-wrap{display:grid;grid-template-columns:300px 170px;gap:22px;align-items:center;justify-content:center;margin:18px auto 0;max-width:560px}
+    .mix-panel{background:#fff;border:2px solid #DBEAFE;border-radius:18px;padding:18px;text-align:left;box-shadow:0 12px 35px rgba(37,99,235,.10)}
+    .mix-row{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #E5E7EB;font-size:16px;font-weight:800;color:#334155}
+    .mix-row:last-child{border-bottom:0}.mix-row strong{font-family:var(--num);font-size:24px;color:#172033;letter-spacing:0}.mix-row.blue strong{color:#2563EB}.mix-row.red strong{color:#DC2626}.mix-row.green strong{color:#059669}
+    #qr-label{max-width:580px;margin:12px auto 0;line-height:1.25;word-break:break-word}
 
     /* ═══ CASH ═══ */
     .sc-cash{background:var(--g50);flex-direction:row}
@@ -368,6 +396,54 @@
     let adTimer = null;
     let adRenderSeq = 0;
     let latestTransferQr = null;
+    let activePaymentQr = null;
+    let thanksTimer = null;
+
+    function isPaymentScreenActive(){
+      return !!(document.getElementById('screen-payment')?.classList.contains('active') || document.getElementById('screen-cash')?.classList.contains('active'));
+    }
+
+    function transferQrState(data,total){
+      const payload = data?.qrPayload || data?.qrUrl || data?.payload || '';
+      return {
+        payload,
+        label:data?.qrLabel || data?.label,
+        mode:data?.qrMode || data?.mode,
+        detail:data?.qrDetail || data?.detail,
+        recipient:data?.qrRecipient || data?.recipient,
+        bankName:data?.bankName,
+        accountNumber:data?.accountNumber,
+        accountName:data?.accountName,
+        amount:Number(total ?? data?.amount ?? data?.total ?? 0),
+        createdAt:data?.createdAt || Date.now()
+      };
+    }
+
+    function lockTransferQr(data,total){
+      const state = transferQrState(data,total);
+      if(!state.payload && latestTransferQr?.payload) state.payload = latestTransferQr.payload;
+      if(!state.label && latestTransferQr?.label) state.label = latestTransferQr.label;
+      if(!state.mode && latestTransferQr?.mode) state.mode = latestTransferQr.mode;
+      if(!state.detail && latestTransferQr?.detail) state.detail = latestTransferQr.detail;
+      if(!state.recipient && latestTransferQr?.recipient) state.recipient = latestTransferQr.recipient;
+      if(!state.bankName && latestTransferQr?.bankName) state.bankName = latestTransferQr.bankName;
+      if(!state.accountNumber && latestTransferQr?.accountNumber) state.accountNumber = latestTransferQr.accountNumber;
+      if(!state.accountName && latestTransferQr?.accountName) state.accountName = latestTransferQr.accountName;
+      if(!state.amount && latestTransferQr?.amount) state.amount = latestTransferQr.amount;
+      latestTransferQr = {...(latestTransferQr||{}), ...state};
+      activePaymentQr = latestTransferQr;
+      return latestTransferQr;
+    }
+
+    function isTransferLike(method){
+      const text = String(method || '').toLowerCase();
+      return text === 'transfer' || /โอน|พร้อมเพย์|promptpay|qr/.test(text);
+    }
+
+    function isMixedPaymentLike(method){
+      const text = String(method || '').toLowerCase();
+      return text === 'credit' || /สด\s*\+\s*โอน|เงินสด.*โอน|cash.*transfer|transfer.*cash/.test(text);
+    }
 
     function customerAdDb() {
       return new Promise((resolve, reject) => {
@@ -459,6 +535,14 @@
     }
 
     function showScreen(id) {
+      if(document.body.classList.contains('pin-qr-mode') && id !== 'payment' && id !== 'thanks') return;
+      // ★ Guard: ถ้าอยู่หน้า thanks อยู่ → ห้ามสลับไป idle จนกว่า thanks timer จะ fire
+      //   (timer จะตั้ง window.__allowThanksExit=true ก่อนเรียก showScreen('idle'))
+      //   แต่ยอมให้สลับไป items/payment/cash ได้ (เริ่มบิลใหม่)
+      if(document.body.classList.contains('thanks-mode') && id === 'idle' && !window.__allowThanksExit) {
+        console.debug('[customer-display] blocked idle switch — thanks active');
+        return;
+      }
       document.body.classList.toggle('thanks-mode', id === 'thanks');
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       const el=document.getElementById('screen-'+id);
@@ -640,6 +724,14 @@
     function showCustomerFull(data) { renderCustomerPanel(data,'selected'); }
 
     function showPaymentMethod(method,total,extra) {
+      // เคลียร์ pin-qr overlay ก่อน (ถ้าค้างจากขั้น "เพิ่มลูกค้าใหม่")
+      if(document.body.classList.contains('pin-qr-mode')) {
+        clearPinQr();
+      }
+      document.body.classList.remove('pin-qr-mode');
+      document.getElementById('pay-box').style.display='';
+      document.getElementById('method-chip').style.display='';
+      document.getElementById('pay-status-label').style.display='';
       hideCustomerDraft();
       document.getElementById('pay-amount').textContent=`฿${fmt(total)}`;
       document.getElementById('pay-box').className='pay-box '+(METHOD_BG[method]||'cash-bg');
@@ -652,29 +744,36 @@
       document.getElementById('qr-section').style.display='none';
       document.getElementById('debt-section').style.display='none';
       if(method==='transfer'){
-        const payload = extra?.qrPayload || latestTransferQr?.payload || '';
+        const locked = lockTransferQr(extra || latestTransferQr || {}, total);
+        const payload = locked?.payload || '';
         document.getElementById('qr-section').style.display='block';
-        renderQRDisplay(payload,extra?.qrLabel||latestTransferQr?.label,extra?.qrMode||latestTransferQr?.mode,extra?.qrDetail||latestTransferQr?.detail,extra?.qrRecipient||latestTransferQr?.recipient,{
-          bankName:extra?.bankName||latestTransferQr?.bankName,
-          accountNumber:extra?.accountNumber||latestTransferQr?.accountNumber,
-          accountName:extra?.accountName||latestTransferQr?.accountName
+        renderQRDisplay(payload,locked?.label,locked?.mode,locked?.detail,locked?.recipient,{
+          bankName:locked?.bankName,
+          accountNumber:locked?.accountNumber,
+          accountName:locked?.accountName
         });
       } else if(method==='debt'){
+        activePaymentQr = null;
         document.getElementById('debt-section').style.display='block';
         document.getElementById('debt-text').innerHTML=`ระบบจะบันทึกยอด <strong>฿${fmt(total)}</strong> เป็นหนี้ค้างชำระของ <strong>${currentCustomer.name||'ลูกค้า'}</strong>`;
+      } else {
+        activePaymentQr = null;
       }
       showScreen('payment');setStep(3);
     }
 
     function renderQRDisplay(payload,label,mode,detail,recipient,bankInfo) {
       const c=document.getElementById('qr-container');c.innerHTML='';
+      const isPinForm=mode==='pin';
       if(payload){
-        const src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data='+encodeURIComponent(String(payload||''));
-        c.innerHTML=`<div style="width:310px;background:#fff;border:3px solid #2563EB;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,.18);display:inline-block"><div style="height:64px;background:#144B73;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:20px;font-weight:950"><i class="material-icons-round" style="font-size:34px">qr_code_2</i> THAI QR PAYMENT</div><div style="padding:12px 18px 18px"><div style="display:inline-block;border:1px solid #172033;padding:2px 14px;font-size:14px;font-weight:950;color:#172033;margin-bottom:10px">PromptPay</div><img src="${src}" style="width:250px;height:250px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`;
+        const payloadText=String(payload||'');
+        const isQrImage=/^https?:\/\/.+(?:promptpay\.io|\.png|\.jpg|\.jpeg|\.webp|\.gif)(?:[?#].*)?$/i.test(payloadText);
+        const src=isQrImage?payloadText:'https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data='+encodeURIComponent(payloadText);
+        c.innerHTML=`<div style="width:310px;background:#fff;border:3px solid ${isPinForm?'#10B981':'#2563EB'};border-radius:18px;overflow:hidden;box-shadow:0 18px 45px ${isPinForm?'rgba(16,185,129,.18)':'rgba(37,99,235,.18)'};display:inline-block"><div style="height:64px;background:${isPinForm?'#047857':'#144B73'};color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:20px;font-weight:950"><i class="material-icons-round" style="font-size:34px">${isPinForm?'assignment_ind':'qr_code_2'}</i> ${isPinForm?'แบบฟอร์มลูกค้า':'THAI QR PAYMENT'}</div><div style="padding:12px 18px 18px">${isPinForm?'<div style="display:inline-block;border:1px solid #10B981;background:#ecfdf5;color:#047857;border-radius:999px;padding:4px 14px;font-size:14px;font-weight:950;margin-bottom:10px">กรอกข้อมูล / ปักหมุด</div>':'<div style="display:inline-block;border:1px solid #172033;padding:2px 14px;font-size:14px;font-weight:950;color:#172033;margin-bottom:10px">PromptPay</div>'}<img src="${src}" style="width:250px;height:250px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`;
       }else{
         c.innerHTML=`<div style="width:310px;min-height:230px;background:#EFF6FF;border:3px solid #2563EB;border-radius:18px;box-shadow:0 18px 45px rgba(37,99,235,.16);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1D4ED8;font-weight:950"><i class="material-icons-round" style="font-size:60px;color:#2563EB;margin-bottom:10px">account_balance</i><div style="font-size:24px">โอนเข้าบัญชี</div><div style="font-size:14px;color:#64748b;margin-top:4px">กรุณาโอนตามข้อมูลด้านล่าง</div></div>`;
       }
-      const prefix=mode==='bank'?'โอนเข้าบัญชีธนาคาร':'PromptPay';
+      const prefix=isPinForm?'สแกนเพื่อกรอกข้อมูลลูกค้า':(mode==='bank'?'โอนเข้าบัญชีธนาคาร':'PromptPay');
       const bankLines=mode==='bank'?`<div style="margin:14px auto 0;max-width:430px;background:#fff7f7;border:1px solid #fecaca;border-radius:14px;overflow:hidden;text-align:left">
         <div style="display:flex;justify-content:space-between;gap:14px;padding:10px 14px;border-bottom:1px solid #fee2e2"><span style="color:#64748b">ธนาคาร</span><strong style="color:#172033">${bankInfo?.bankName||'-'}</strong></div>
         <div style="display:flex;justify-content:space-between;gap:14px;padding:10px 14px;border-bottom:1px solid #fee2e2"><span style="color:#64748b">เลขบัญชี</span><strong style="color:#172033">${bankInfo?.accountNumber||detail||'-'}</strong></div>
@@ -683,7 +782,59 @@
       document.getElementById('qr-label').innerHTML=`${label||prefix}${recipient&&mode!=='bank'?`<br><strong style="color:#172033">${recipient}</strong>`:''}${detail&&mode!=='bank'?`<br><span style="font-size:14px;color:#94a3b8">${detail}</span>`:''}${bankLines}`;
     }
 
+    function clearPinQr(){
+      document.getElementById('pin-qr-overlay')?.remove();
+      document.body.classList.remove('pin-qr-mode');
+    }
+
+    function showPinQr(data){
+      document.body.classList.add('pin-qr-mode');
+      document.getElementById('fs-overlay')?.classList.add('hidden');
+      const url=data.url||'';
+      const bill=data.bill||{};
+      const total=Number(bill.total||0);
+      const src='https://api.qrserver.com/v1/create-qr-code/?size=380x380&margin=10&data='+encodeURIComponent(String(url));
+      let overlay=document.getElementById('pin-qr-overlay');
+      if(!overlay){
+        overlay=document.createElement('div');
+        overlay.id='pin-qr-overlay';
+        document.body.appendChild(overlay);
+      }
+      overlay.innerHTML=`
+        <div class="pin-hero">
+          <div class="pin-copy">
+            <div class="pin-kicker"><i class="material-icons-round">assignment_ind</i> แบบฟอร์มลูกค้าใหม่</div>
+            <div class="pin-title">สแกนเพื่อกรอกข้อมูล และปักหมุดจัดส่ง</div>
+            <div class="pin-sub">ใช้มือถือสแกน QR นี้ แล้วกรอกชื่อ เบอร์โทร ที่อยู่ และตำแหน่งจัดส่ง ข้อมูลจะส่งกลับให้พนักงานอัตโนมัติ</div>
+            <div class="pin-steps">
+              <div class="pin-step"><b>1</b><span>สแกน QR ด้วยกล้องมือถือ</span></div>
+              <div class="pin-step"><b>2</b><span>กรอกข้อมูลติดต่อและที่อยู่</span></div>
+              <div class="pin-step"><b>3</b><span>กดยืนยันเพื่อส่งข้อมูลเข้าบิลนี้</span></div>
+            </div>
+          </div>
+          <div class="pin-card">
+            <div class="pin-card-inner">
+              <div class="pin-bill"><i class="material-icons-round">receipt_long</i>${total?`ยอดบิล ฿${fmt(total)}`:'รอข้อมูลลูกค้า'}</div>
+              <a class="pin-qr-box" href="${url}" target="_blank" rel="noopener" title="เปิดฟอร์มลูกค้า" style="display:block;text-decoration:none"><img src="${src}" alt="QR customer form"></a>
+              <h3>ฟอร์มลูกค้าใหม่</h3>
+              <p>กรอกข้อมูลบนมือถือของลูกค้า</p>
+              <div style="margin-top:14px"><a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#10b981;color:#fff;border-radius:999px;padding:10px 18px;font-size:16px;font-weight:950;text-decoration:none"><i class="material-icons-round">open_in_new</i> เปิดฟอร์มบนจอนี้</a></div>
+              <div class="pin-expire"><i class="material-icons-round">schedule</i> QR หมดอายุใน 48 ชั่วโมง</div>
+            </div>
+          </div>
+        </div>`;
+      setStep(2);
+    }
+
     function showMixedPayment(data){
+      if(document.body.classList.contains('pin-qr-mode')) {
+        clearPinQr();
+      }
+      activePaymentQr = lockTransferQr(data, data.transfer || data.total);
+      document.body.classList.remove('pin-qr-mode');
+      document.getElementById('pay-box').style.display='';
+      document.getElementById('method-chip').style.display='';
+      document.getElementById('pay-status-label').style.display='';
       document.getElementById('pay-amount').textContent=`฿${fmt(data.total)}`;
       document.getElementById('pay-box').className='pay-box transfer-bg';
       document.getElementById('method-chip').innerHTML=`<i class="material-icons-round">sync_alt</i><span>เงินสด+โอน</span>`;
@@ -693,17 +844,19 @@
       document.getElementById('debt-section').style.display='none';
       document.getElementById('qr-section').style.display='block';
       const c=document.getElementById('qr-container');
-      const payload=data.qrPayload||'';
-      const src=payload?'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data='+encodeURIComponent(String(payload)):'';
+      const payload=data.qrPayload||data.qrUrl||activePaymentQr?.payload||'';
+      const payloadText=String(payload||'');
+      const isQrImage=/^https?:\/\/.+(?:promptpay\.io|\.png|\.jpg|\.jpeg|\.webp|\.gif)(?:[?#].*)?$/i.test(payloadText);
+      const src=payload?isQrImage?payloadText:'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data='+encodeURIComponent(payloadText):'';
       c.innerHTML=`<div class="mix-wrap">
-        <div>${payload?`<div style="width:310px;background:#fff;border:3px solid #2563EB;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,.18);display:inline-block"><div style="height:58px;background:#144B73;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:18px;font-weight:950"><i class="material-icons-round" style="font-size:30px">qr_code_2</i> THAI QR PAYMENT</div><div style="padding:10px 18px 16px"><div style="display:inline-block;border:1px solid #172033;padding:2px 12px;font-size:13px;font-weight:950;color:#172033;margin-bottom:8px">PromptPay</div><img src="${src}" style="width:220px;height:220px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`:''}</div>
+        <div>${payload?`<div style="width:300px;background:#fff;border:3px solid #2563EB;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,.18);display:inline-block"><div style="height:52px;background:#144B73;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:17px;font-weight:950"><i class="material-icons-round" style="font-size:28px">qr_code_2</i> THAI QR PAYMENT</div><div style="padding:10px 16px 16px"><div style="display:inline-block;border:1px solid #172033;padding:2px 12px;font-size:13px;font-weight:950;color:#172033;margin-bottom:8px">PromptPay</div><img src="${src}" style="width:210px;height:210px;border-radius:10px;background:#fff;display:block;margin:0 auto" alt="QR"></div></div>`:''}</div>
         <div class="mix-panel">
           <div class="mix-row blue"><span>ยอดโอน</span><strong>฿${fmt(data.transfer)}</strong></div>
           <div class="mix-row red"><span>ยอดเงินสด</span><strong>฿${fmt(data.cash)}</strong></div>
           <div class="mix-row"><span>ยอดรวม</span><strong>฿${fmt(data.total)}</strong></div>
         </div>
       </div>`;
-      document.getElementById('qr-label').innerHTML=`<strong style="color:#172033">${data.qrRecipient||data.accountName||'PromptPay'}</strong>${data.qrDetail?`<br><span style="font-size:14px;color:#94a3b8">${data.qrDetail}</span>`:''}`;
+      document.getElementById('qr-label').innerHTML=`<span style="font-size:15px;color:#94a3b8">สแกน PromptPay เพื่อชำระยอดโอน</span><br><strong style="color:#172033;font-size:18px">${data.qrRecipient||data.accountName||'PromptPay'}</strong>${data.qrDetail?`<br><span style="font-size:13px;color:#94a3b8">${data.qrDetail}</span>`:''}`;
       showScreen('payment');setStep(3);
     }
 
@@ -860,6 +1013,15 @@
 
         case 'cart': {
           const cart=data.cart||[],total=data.total||0;
+          const paymentLocked = !!activePaymentQr || isPaymentScreenActive();
+          const thanksActive = document.body.classList.contains('thanks-mode');
+          if(!paymentLocked) activePaymentQr = null;
+          // ถ้าอยู่หน้า thanks: ถ้ามีของใหม่เข้าตะกร้า → สลับไป items ทันที (ปิด thanks timer)
+          // ถ้าตะกร้าว่าง → "อย่า" ปิด thanks (กัน POS เคลียร์ cart หลัง save แล้ว thanks หาย)
+          if(cart.length>0 && thanksActive){
+            clearTimeout(thanksTimer);
+            document.body.classList.remove('thanks-mode');
+          }
           const qty=cart.reduce((s,c)=>s+c.qty,0);
           currentCartCount=qty;
           document.getElementById('items-count').textContent=`${qty} รายการ`;
@@ -870,11 +1032,19 @@
             totEl.textContent=newTotal;
             totEl.classList.remove('tot-flash');void totEl.offsetWidth;totEl.classList.add('tot-flash');
           }
-          if(cart.length>0){showScreen('items');setStep(1)} else {showScreen('idle');setStep(0);hideCustomer()}
+          // ★ FIX: ถ้าอยู่หน้า thanks และ cart ว่าง → ค้างไว้ (timer 20s จะปิดเอง)
+          if(!paymentLocked && !thanksActive){
+            if(cart.length>0){showScreen('items');setStep(1)} else {showScreen('idle');setStep(0);hideCustomer()}
+          } else if(!paymentLocked && thanksActive && cart.length>0){
+            // เคสมีของเข้าใหม่ตอน thanks-mode → สลับไป items (ปิดหน้า thanks ทันที)
+            showScreen('items');setStep(1);
+          }
           break;
         }
 
         case 'customer': {
+          const incomingName=(data.name||'').trim();
+          if(document.body.classList.contains('pin-qr-mode') && incomingName && incomingName!=='ลูกค้าทั่วไป' && incomingName!=='เธฅเธนเธเธเนเธฒเธ—เธฑเนเธงเนเธ') clearPinQr();
           showCustomer(data.name||'ลูกค้าทั่วไป',data.customerType||'member');
           if((data.name||'')&&data.name!=='ลูกค้าทั่วไป') showCustomerFull(data);
           else hideCustomerDraft();
@@ -891,19 +1061,54 @@
         }
 
         case 'payment_method': {
-          if(data.qrPayload || data.qrMode==='bank') latestTransferQr={payload:data.qrPayload,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName};
-          showPaymentMethod(data.method,data.total,{qrPayload:data.qrPayload,qrLabel:data.qrLabel,qrMode:data.qrMode,qrDetail:data.qrDetail,qrRecipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName});
+          if(isMixedPaymentLike(data.method) && latestTransferQr){
+            activePaymentQr = latestTransferQr;
+            showMixedPayment({total:latestTransferQr.total||data.total,transfer:latestTransferQr.transfer||latestTransferQr.amount||data.total,cash:latestTransferQr.cash||0,qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
+            break;
+          }
+          if(isTransferLike(data.method)) lockTransferQr(data,data.total);
+          showPaymentMethod(isTransferLike(data.method)?'transfer':data.method,data.total,{qrPayload:data.qrPayload||data.qrUrl,qrLabel:data.qrLabel,qrMode:data.qrMode,qrDetail:data.qrDetail,qrRecipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName});
           break;
         }
 
         case 'qr': {
-          latestTransferQr={payload:data.qrPayload||data.qrUrl,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName};
-          showPaymentMethod('transfer',data.amount,{qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
+          const locked = lockTransferQr(data,data.amount);
+          showPaymentMethod('transfer',data.amount,{qrPayload:locked.payload,qrLabel:locked.label,qrMode:locked.mode,qrDetail:locked.detail,qrRecipient:locked.recipient,bankName:locked.bankName,accountNumber:locked.accountNumber,accountName:locked.accountName});
+          break;
+        }
+
+        case 'pin_qr': {
+          if(activePaymentQr || isPaymentScreenActive()) break;
+          showPinQr(data);
+          break;
+        }
+
+        case 'pin_done': {
+          // ลูกค้ากรอกฟอร์มเสร็จ → ล้าง QR overlay + กลับ idle / items
+          clearPinQr();
+          document.getElementById('pay-box').style.display='';
+          document.getElementById('method-chip').style.display='';
+          document.getElementById('pay-status-label').style.display='';
+          if(!activePaymentQr && !isPaymentScreenActive()){
+            if(currentCartCount>0) showScreen('items'); else showScreen('idle');
+          }
+          break;
+        }
+
+        case 'pin_qr_clear': {
+          clearPinQr();
+          document.getElementById('pay-box').style.display='';
+          document.getElementById('method-chip').style.display='';
+          document.getElementById('pay-status-label').style.display='';
+          if(!activePaymentQr && !isPaymentScreenActive()){
+            if(currentCartCount>0) showScreen('items'); else showScreen('idle');
+          }
           break;
         }
 
         case 'mixed_payment': {
-          latestTransferQr={payload:data.qrPayload,label:data.qrLabel,mode:data.qrMode,detail:data.qrDetail,recipient:data.qrRecipient,bankName:data.bankName,accountNumber:data.accountNumber,accountName:data.accountName,transfer:data.transfer,cash:data.cash,total:data.total};
+          latestTransferQr={...transferQrState(data,data.transfer),transfer:data.transfer,cash:data.cash,total:data.total};
+          activePaymentQr = latestTransferQr;
           showMixedPayment(data);
           break;
         }
@@ -911,11 +1116,22 @@
         case 'checkout': {
           const {step,total,method,received,change}=data;
           if(step===2){ showPaymentMethod(method,total,method==='transfer'&&latestTransferQr?{qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName}:{}) }
+          else if(step>=3 && isMixedPaymentLike(method) && latestTransferQr){ showMixedPayment({total:latestTransferQr.total||total,transfer:latestTransferQr.transfer||latestTransferQr.amount||total,cash:latestTransferQr.cash||0,qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName}) }
+          else if(step>=3 && isTransferLike(method) && (activePaymentQr||latestTransferQr)){ const locked=activePaymentQr||latestTransferQr; showPaymentMethod('transfer',locked.amount||total,{qrPayload:locked.payload,qrLabel:locked.label,qrMode:locked.mode,qrDetail:locked.detail,qrRecipient:locked.recipient,bankName:locked.bankName,accountNumber:locked.accountNumber,accountName:locked.accountName}) }
           else if(step>=3){ showCash(total,received||0,change||0,method,data.changeDenominations) }
           break;
         }
 
         case 'cash_update': {
+          if(latestTransferQr && (isMixedPaymentLike(data.method) || latestTransferQr.transfer !== undefined || latestTransferQr.cash !== undefined)){
+            showMixedPayment({total:latestTransferQr.total||((data.total||0)+(latestTransferQr.transfer||0)),transfer:latestTransferQr.transfer||latestTransferQr.amount||0,cash:data.total||latestTransferQr.cash||0,qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
+            break;
+          }
+          if((activePaymentQr || latestTransferQr) && (isTransferLike(data.method) || (activePaymentQr && isPaymentScreenActive()))){
+            const locked = activePaymentQr || latestTransferQr;
+            showPaymentMethod('transfer',locked.amount||data.total,{qrPayload:locked.payload,qrLabel:locked.label,qrMode:locked.mode,qrDetail:locked.detail,qrRecipient:locked.recipient,bankName:locked.bankName,accountNumber:locked.accountNumber,accountName:locked.accountName});
+            break;
+          }
           if(data.method==='เงินโอน+เงินสด'&&latestTransferQr){
             showMixedPayment({total:latestTransferQr.total||((data.total||0)+(latestTransferQr.transfer||0)),transfer:latestTransferQr.transfer||0,cash:data.total||latestTransferQr.cash||0,qrPayload:latestTransferQr.payload,qrLabel:latestTransferQr.label,qrMode:latestTransferQr.mode,qrDetail:latestTransferQr.detail,qrRecipient:latestTransferQr.recipient,bankName:latestTransferQr.bankName,accountNumber:latestTransferQr.accountNumber,accountName:latestTransferQr.accountName});
             break;
@@ -936,14 +1152,28 @@
         }
 
         case 'thanks': {
+          activePaymentQr = null;
+          clearTimeout(thanksTimer);
           hideCustomerDraft();
           document.getElementById('thanks-bill').innerHTML=data.billNo?`บิล #<strong>${data.billNo}</strong> — ฿${fmt(data.total)}`:'';
           showScreen('thanks');setStep(4);
-          setTimeout(()=>{showScreen('idle');setStep(0);hideCustomer()},6000);
+          thanksTimer=setTimeout(()=>{
+            window.__allowThanksExit=true;
+            showScreen('idle');setStep(0);hideCustomer();
+            window.__allowThanksExit=false;
+          },20000);
           break;
         }
 
-        case 'idle': { showScreen('idle');setStep(0);hideCustomer(); break; }
+        case 'idle': {
+          activePaymentQr = null;
+          // ยอมให้ POS สั่ง idle ผ่าน message ตรง ๆ ได้ (ข้าม guard)
+          window.__allowThanksExit = true;
+          clearTimeout(thanksTimer);
+          showScreen('idle');setStep(0);hideCustomer();
+          window.__allowThanksExit = false;
+          break;
+        }
 
         case 'adSettings': {
           adSettings = data.settings || {};

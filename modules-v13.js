@@ -342,27 +342,31 @@ function v13RenderCustForm(container) {
     return;
   }
   if (type === 'new') {
+    if (typeof window.v86RenderNewCustomerPinForm === 'function' && !window.v86NewCustomerManualMode) {
+      window.v86RenderNewCustomerPinForm(container);
+      return;
+    }
     container.innerHTML = `
       <div style="background:var(--bg-secondary,#f9fafb);border-radius:14px;padding:16px;margin-top:4px;border:1.5px solid var(--border,#e5e7eb);">
         <div style="font-size:13px;font-weight:700;color:var(--text-secondary,#374151);margin-bottom:12px;">
-          📋 ข้อมูลลูกค้าใหม่
+          📋 ข้อมูลลูกค้าใหม่ <span style="color:#dc2626;font-weight:850">— กรอกครบทุกช่อง</span>
         </div>
         <div class="v12-form-row">
           <div class="v12-form-group">
-            <label>ชื่อ-นามสกุล *</label>
+            <label>ชื่อ-นามสกุล <span style="color:#dc2626">*</span></label>
             <input type="text" id="v13-new-name" placeholder="ชื่อลูกค้า" value="${v12State.customer.name||''}"
               oninput="v12State.customer.name=this.value.trim()"
               style="border:1.5px solid var(--border,#d1d5db);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;width:100%;">
           </div>
           <div class="v12-form-group">
-            <label>เบอร์โทรศัพท์</label>
+            <label>เบอร์โทรศัพท์ <span style="color:#dc2626">*</span></label>
             <input type="tel" id="v13-new-phone" placeholder="0XX-XXX-XXXX" value="${v12State.customer.phone||''}"
               oninput="v12State.customer.phone=this.value.trim()"
               style="border:1.5px solid var(--border,#d1d5db);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;width:100%;">
           </div>
         </div>
         <div class="v12-form-group" style="margin-top:8px;">
-          <label>ที่อยู่</label>
+          <label>ที่อยู่ <span style="color:#dc2626">*</span></label>
           <textarea id="v13-new-address" rows="2" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด"
             oninput="v12State.customer.address=this.value.trim()"
             style="border:1.5px solid var(--border,#d1d5db);border-radius:8px;padding:9px 12px;font-size:13px;
@@ -433,7 +437,28 @@ window.v13SaveNewCustomer = async function () {
   const name    = document.getElementById('v13-new-name')?.value?.trim() || v12State.customer.name;
   const phone   = document.getElementById('v13-new-phone')?.value?.trim() || v12State.customer.phone;
   const address = document.getElementById('v13-new-address')?.value?.trim() || v12State.customer.address;
-  if (!name) { if (typeof toast==='function') toast('กรุณากรอกชื่อลูกค้า','warning'); return; }
+  // ── บังคับกรอกครบทุกช่อง ──────────────────────────────
+  const missing = [];
+  if (!name)    missing.push('ชื่อ-นามสกุล');
+  if (!phone)   missing.push('เบอร์โทรศัพท์');
+  if (!address) missing.push('ที่อยู่');
+  if (missing.length) {
+    const msg = 'กรุณากรอก: ' + missing.join(', ');
+    if (typeof toast==='function') toast(msg,'warning');
+    // โฟกัสที่ช่องว่างช่องแรก
+    const focusId = !name ? 'v13-new-name' : !phone ? 'v13-new-phone' : 'v13-new-address';
+    const el = document.getElementById(focusId);
+    if (el) { el.focus(); el.style.borderColor = '#dc2626'; el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.15)'; setTimeout(() => { el.style.borderColor=''; el.style.boxShadow=''; }, 2500); }
+    return;
+  }
+  // ── ตรวจรูปแบบเบอร์โทร (ขั้นต่ำ 9 หลัก) ─────────────
+  const phoneDigits = String(phone).replace(/\D/g, '');
+  if (phoneDigits.length < 9) {
+    if (typeof toast==='function') toast('เบอร์โทรไม่ถูกต้อง — ต้องมีอย่างน้อย 9 หลัก','warning');
+    const el = document.getElementById('v13-new-phone');
+    if (el) { el.focus(); el.style.borderColor = '#dc2626'; setTimeout(() => { el.style.borderColor=''; }, 2500); }
+    return;
+  }
   try {
     const { data, error } = await db.from('customer').insert({
       name, phone: phone||null, address: address||null,

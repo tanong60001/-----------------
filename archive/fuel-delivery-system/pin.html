@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>ปักหมุดจัดส่ง — SK POS</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    * { box-sizing: border-box }
+    body { margin: 0; font-family: Prompt, Inter, system-ui, sans-serif; background: #f1f5f9; color: #0f172a; -webkit-tap-highlight-color: transparent }
+    .wrap { min-height: 100vh; display: flex; flex-direction: column; padding: 12px }
+    .card { width: 100%; max-width: 560px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; box-shadow: 0 24px 80px rgba(15, 23, 42, .12); overflow: hidden; display: flex; flex-direction: column }
+    .head { padding: 18px 20px; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff }
+    .head h1 { margin: 0; font-size: 22px; font-weight: 900 }
+    .head p { margin: 4px 0 0; opacity: .92; font-weight: 700; font-size: 13px }
+    .body { padding: 16px 18px 18px; display: grid; gap: 12px }
+    .fld label { display: block; font-size: 12px; font-weight: 900; color: #475569; margin-bottom: 5px }
+    .fld input, .fld textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 11px 12px; font-family: inherit; font-weight: 700; font-size: 15px; background: #fff }
+    .fld textarea { min-height: 70px; resize: vertical }
+    .fld input:focus, .fld textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .15) }
+    .map-wrap { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; position: relative }
+    #map { height: 260px; width: 100% }
+    .map-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .map-info { font-size: 12px; font-weight: 800; color: #475569; padding: 2px 0 }
+    .map-info b { color: #0f172a }
+    .btn { height: 46px; border: 0; border-radius: 10px; font-family: inherit; font-weight: 900; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px }
+    .btn:disabled { opacity: .55; cursor: not-allowed }
+    .primary { background: #16a34a; color: #fff }
+    .secondary { background: #fff; color: #334155; border: 1px solid #cbd5e1 }
+    .msg { font-size: 13px; font-weight: 850; color: #64748b; line-height: 1.55 }
+    .msg.ok { color: #047857 }
+    .msg.bad { color: #b91c1c }
+    .signup-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; font-weight: 850; color: #0f172a }
+    .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; animation: pulse 1.4s ease-in-out infinite }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:.5} }
+    .full-loader { position: fixed; inset: 0; background: rgba(15,23,42,.4); display: grid; place-items: center; z-index: 9999 }
+    .full-loader.hidden { display: none }
+    .full-loader .spinner { width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+  </style>
+</head>
+
+<body>
+  <div id="loader" class="full-loader hidden"><div class="spinner"></div></div>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <h1>📍 ปักหมุดจัดส่ง</h1>
+        <p id="pin-sub">กรอกข้อมูลผู้รับและตำแหน่งจัดส่ง</p>
+      </div>
+      <div class="body">
+        <div id="pin-status" class="msg">กำลังตรวจสอบ QR...</div>
+        <div class="fld"><label>ชื่อผู้รับ <span style="color:#ef4444">*</span></label><input id="name" autocomplete="name"></div>
+        <div class="fld"><label>เบอร์โทร <span style="color:#ef4444">*</span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
+        <div class="fld"><label>ที่อยู่สั้น (โชว์ในบิล) <span style="color:#ef4444">*</span></label><textarea id="address" placeholder="เช่น 123/4 ม.5 สวนหลวง"></textarea></div>
+
+        <div class="fld">
+          <label>📍 ปักหมุดบนแผนที่ <span style="color:#ef4444">*</span></label>
+          <div class="map-wrap"><div id="map"></div></div>
+          <div class="map-actions" style="margin-top:8px">
+            <button type="button" class="btn secondary" onclick="useMyLocation()"><i class="material-icons-round">my_location</i>ตำแหน่งฉัน</button>
+            <button type="button" class="btn secondary" onclick="recenterToShop()"><i class="material-icons-round">store</i>ใกล้ร้าน</button>
+          </div>
+          <div class="map-info" id="loc-info" style="margin-top:6px">ลากหมุด หรือกดปุ่ม "ตำแหน่งฉัน"</div>
+        </div>
+
+        <label class="signup-row">
+          <input type="checkbox" id="signup" checked style="width:18px;height:18px">
+          สมัครสมาชิกร้าน (จดจำที่อยู่ครั้งหน้า)
+        </label>
+
+        <button id="submit-btn" class="btn primary" onclick="submitPin()" disabled>
+          <i class="material-icons-round">check_circle</i>ยืนยันข้อมูล
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="config.js"></script>
+  <script>
+    const db = supabase.createClient(SUPA_URL, SUPA_KEY);
+    const qs = new URLSearchParams(location.search);
+    const token = qs.get('token') || '';
+    let tokenRow = null;
+    let shopLat = 13.7563, shopLng = 100.5018; // BKK default
+    let pinLat = null, pinLng = null;
+    let map = null, marker = null;
+
+    const setStatus = (text, cls = '') => {
+      const el = document.getElementById('pin-status');
+      el.className = 'msg ' + cls;
+      el.textContent = text;
+    };
+    const showLoader = (on) => document.getElementById('loader').classList.toggle('hidden', !on);
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true, attributionControl: false }).setView([shopLat, shopLng], 14);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap',
+      }).addTo(map);
+      marker = L.marker([shopLat, shopLng], { draggable: true }).addTo(map);
+      marker.on('dragend', () => {
+        const p = marker.getLatLng();
+        setPin(p.lat, p.lng);
+      });
+      map.on('click', e => {
+        marker.setLatLng(e.latlng);
+        setPin(e.latlng.lat, e.latlng.lng);
+      });
+    }
+
+    function setPin(lat, lng) {
+      pinLat = Number(lat); pinLng = Number(lng);
+      const info = document.getElementById('loc-info');
+      info.innerHTML = `<b>📍 พิกัด:</b> ${pinLat.toFixed(6)}, ${pinLng.toFixed(6)}` +
+        (shopLat && shopLng ? ` · ห่างจากร้าน ~${haversineKm(shopLat, shopLng, pinLat, pinLng).toFixed(2)} km` : '');
+      revalidate();
+    }
+
+    function haversineKm(a1, b1, a2, b2) {
+      const R = 6371, toRad = d => d * Math.PI / 180;
+      const dLat = toRad(a2 - a1), dLng = toRad(b2 - b1);
+      const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a1)) * Math.cos(toRad(a2)) * Math.sin(dLng/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    }
+
+    function useMyLocation() {
+      if (!navigator.geolocation) return alert('เครื่องนี้ไม่รองรับการอ่านตำแหน่ง');
+      showLoader(true);
+      navigator.geolocation.getCurrentPosition(pos => {
+        showLoader(false);
+        marker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+        map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+        setPin(pos.coords.latitude, pos.coords.longitude);
+      }, () => {
+        showLoader(false);
+        alert('อ่านตำแหน่งไม่สำเร็จ — กรุณาอนุญาต GPS หรือลากหมุดเอง');
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+
+    function recenterToShop() {
+      if (!shopLat || !shopLng) return;
+      map.setView([shopLat, shopLng], 15);
+    }
+
+    function revalidate() {
+      const name = document.getElementById('name').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const address = document.getElementById('address').value.trim();
+      const ready = !!tokenRow && name && phone && address && pinLat != null && pinLng != null;
+      document.getElementById('submit-btn').disabled = !ready;
+    }
+
+    ['name', 'phone', 'address'].forEach(id => {
+      document.getElementById(id).addEventListener('input', revalidate);
+    });
+
+    async function loadToken() {
+      if (!token) return setStatus('❌ QR ไม่ถูกต้อง: ไม่พบ token', 'bad');
+      try {
+        const [tokenRes, shopRes] = await Promise.all([
+          db.from('delivery_pin_token').select('*').eq('token', token).maybeSingle(),
+          db.from('shop_config').select('pickup_lat,pickup_lng').eq('id', 1).maybeSingle(),
+        ]);
+        if (tokenRes.error || !tokenRes.data) return setStatus('❌ ไม่พบ QR นี้ หรือฐานข้อมูลยังไม่พร้อม', 'bad');
+        const data = tokenRes.data;
+        if (data.used_at) return setStatus('⚠️ QR นี้ถูกใช้งานแล้ว', 'bad');
+        if (new Date(data.expires_at).getTime() < Date.now()) return setStatus('⏰ QR หมดอายุแล้ว — ขอ QR ใหม่จากร้าน', 'bad');
+        tokenRow = data;
+        if (shopRes.data?.pickup_lat && shopRes.data?.pickup_lng) {
+          shopLat = Number(shopRes.data.pickup_lat);
+          shopLng = Number(shopRes.data.pickup_lng);
+        }
+        initMap();
+        setStatus('✅ พร้อมกรอกข้อมูลจัดส่ง', 'ok');
+
+        // Pre-fill from existing customer if update_address mode
+        if (data.mode === 'update_address' && data.customer_id) {
+          const res = await db.from('customer').select('name,phone,address,lat,lng').eq('id', data.customer_id).maybeSingle();
+          const c = res.data || {};
+          document.getElementById('name').value = c.name || '';
+          document.getElementById('phone').value = c.phone || '';
+          document.getElementById('address').value = c.address || '';
+          document.getElementById('signup').checked = false;
+          document.getElementById('signup').parentElement.style.display = 'none';
+          if (c.lat && c.lng) {
+            marker.setLatLng([c.lat, c.lng]);
+            map.setView([c.lat, c.lng], 16);
+            setPin(c.lat, c.lng);
+          }
+        }
+        revalidate();
+      } catch (e) {
+        setStatus('❌ โหลดข้อมูลไม่สำเร็จ: ' + (e.message || e), 'bad');
+      }
+    }
+
+    async function submitPin() {
+      if (!tokenRow) return;
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      showLoader(true);
+      try {
+        const payload = {
+          name: document.getElementById('name').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          address: document.getElementById('address').value.trim(),
+          lat: pinLat, lng: pinLng,
+          signup: document.getElementById('signup').checked,
+        };
+        if (!payload.name || !payload.phone || !payload.address)
+          throw new Error('กรุณากรอกชื่อ เบอร์โทร และที่อยู่');
+        if (!payload.lat || !payload.lng)
+          throw new Error('กรุณาปักหมุดจัดส่ง');
+
+        let customerId = tokenRow.customer_id || null;
+
+        if (tokenRow.mode === 'update_address' && tokenRow.customer_id) {
+          const { error } = await db.from('customer').update({
+            name: payload.name, phone: payload.phone, address: payload.address,
+            lat: payload.lat, lng: payload.lng,
+            pin_updated_at: new Date().toISOString(),
+          }).eq('id', tokenRow.customer_id);
+          if (error) throw error;
+        } else if (payload.signup) {
+          const { data: customer, error } = await db.from('customer').insert({
+            name: payload.name, phone: payload.phone, address: payload.address,
+            lat: payload.lat, lng: payload.lng,
+            pin_updated_at: new Date().toISOString(),
+            signup_consent: true,
+          }).select('id').single();
+          if (error) throw error;
+          customerId = customer?.id || null;
+        }
+
+        if (tokenRow.bill_id) {
+          await db.from('delivery_assignment').upsert({
+            bill_id: String(tokenRow.bill_id),
+            drop_lat: payload.lat, drop_lng: payload.lng,
+            drop_address: payload.address,
+            drop_pinned_by: 'customer',
+            drop_pinned_at: new Date().toISOString(),
+            status: 'pinned',
+          }, { onConflict: 'bill_id' });
+        }
+
+        // Atomic: only one client can mark token used
+        const { data: updated, error: tokenErr } = await db.from('delivery_pin_token').update({
+          used_at: new Date().toISOString(),
+          used_payload: { ...payload, customer_id: customerId },
+        }).eq('id', tokenRow.id).is('used_at', null).select('id');
+        if (tokenErr) throw tokenErr;
+        if (!updated?.length) throw new Error('QR ถูกใช้ไปแล้ว หรือหมดอายุ');
+
+        setStatus('✅ บันทึกเรียบร้อย — ขอบคุณครับ 🙏', 'ok');
+        btn.innerHTML = '<i class="material-icons-round">check_circle</i> เสร็จสิ้น';
+        btn.style.background = '#10b981';
+      } catch (e) {
+        setStatus('❌ บันทึกไม่สำเร็จ: ' + (e.message || e), 'bad');
+        btn.disabled = false;
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    loadToken();
+  </script>
+</body>
+
+</html>

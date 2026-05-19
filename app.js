@@ -289,7 +289,7 @@ async function openCustomerDisplay(autoDetect = false) {
   }
 
   customerDisplayWindow = window.open(
-    'customer-display.html',
+    'customer-display.html?v=8',
     'CustomerDisplay',
     `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=yes`
   );
@@ -324,6 +324,7 @@ const PAGE_PERM_MAP = {
   quotation: null,
   payable: null,
   admin: null,
+  delivery: null,
 };
 
 function hasPermission(page) {
@@ -448,7 +449,9 @@ function go(page) {
     home: '🏠 หน้าหลัก', pos: '🛒 ขายสินค้า', inv: '📦 คลังสินค้า', cash: '💰 ลิ้นชักเงินสด',
     dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', debt: '👥 ลูกค้าค้างชำระ', customer: '⭐ ลูกค้าประจำ',
     purchase: '📥 รับสินค้าเข้า', history: '📜 ', att: '🪪 พนักงาน/ลงเวลา',
-    log: '📑 ประวัติกิจกรรม', payable: '🏦 เจ้าหนี้ร้าน', quotation: '📄 ใบเสนอราคา', admin: '🔧 ผู้ดูแลระบบ'
+    log: '📑 ประวัติกิจกรรม', payable: '🏦 เจ้าหนี้ร้าน', quotation: '📄 ใบเสนอราคา',
+    delivery: '🚚 คิวจัดส่ง',
+    admin: '🔧 ผู้ดูแลระบบ'
   };
   document.getElementById('page-title-text').textContent = titles[page] || page;
   document.getElementById('page-actions').innerHTML = '';
@@ -472,6 +475,7 @@ function go(page) {
     case 'log': renderActivityLog(); break;
     case 'payable': renderPayables(); break;
     case 'quotation': renderQuotations(); break;
+    case 'delivery': if (typeof window.renderDelivery === 'function') window.renderDelivery(); break;
     case 'dash': if (typeof renderDashboardV3 !== 'undefined') renderDashboardV3(); else renderDashboard(); break;
     case 'admin': renderAdmin(); break;
   }
@@ -916,24 +920,35 @@ function renderStep2(container) {
     </div>`;
 }
 
-function selectPaymentMethod(method) {
+async function selectPaymentMethod(method) {
   if (method === 'debt' && checkoutState.customer.type === 'general') { toast('ค้างชำระได้เฉพาะลูกค้าประจำ', 'warning'); return; }
   checkoutState.method = method;
   document.querySelectorAll('.payment-method-btn').forEach(btn => btn.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
   const qrSection = document.getElementById('payment-qr-section');
-  if (qrSection) {
-    if (method === 'transfer') {
-      qrSection.style.display = 'block';
-      // Use PromptPay QR from shop config or generate via API
-      const qrUrl = SHOP_CONFIG.promptpay_qr_url || `https://promptpay.io/${SHOP_CONFIG.phone?.replace(/-/g, '')}/${checkoutState.total}.png`;
-      document.getElementById('promptpay-qr').src = qrUrl;
-      sendToDisplay({ type: 'qr', amount: checkoutState.total, qrUrl });
-    } else {
-      qrSection.style.display = 'none';
-    }
+  let qrUrl = null;
+  if (method === 'transfer') {
+    if (qrSection) qrSection.style.display = 'block';
+    let promptpayTarget = SHOP_CONFIG.promptpay_number || SHOP_CONFIG.promptpay || SHOP_CONFIG.phone || '';
+    try {
+      if (!window.__SK_SHOP_PAYMENT_CONFIG) {
+        const { data } = await db.from('ตั้งค่าร้านค้า').select('promptpay_number,phone').limit(1).single();
+        window.__SK_SHOP_PAYMENT_CONFIG = data || {};
+      }
+      promptpayTarget = window.__SK_SHOP_PAYMENT_CONFIG.promptpay_number || window.__SK_SHOP_PAYMENT_CONFIG.phone || promptpayTarget;
+    } catch (_) {}
+    const cleanPromptpay = String(promptpayTarget || '').replace(/[^0-9]/g, '');
+    // Use PromptPay from shop settings and lock the amount at selection time.
+    qrUrl = SHOP_CONFIG.promptpay_qr_url || `https://promptpay.io/${cleanPromptpay}/${checkoutState.total}.png`;
+    checkoutState.paymentQr = { qrUrl, amount: checkoutState.total, createdAt: Date.now() };
+    const qrImg = document.getElementById('promptpay-qr');
+    if (qrImg) qrImg.src = qrUrl;
+    sendToDisplay({ type: 'qr', amount: checkoutState.total, qrUrl, createdAt: checkoutState.paymentQr.createdAt });
+  } else {
+    if (qrSection) qrSection.style.display = 'none';
+    checkoutState.paymentQr = null;
   }
-  sendToDisplay({ type: 'payment_method', method, total: checkoutState.total });
+  sendToDisplay({ type: 'payment_method', method, total: checkoutState.total, qrUrl, createdAt: checkoutState.paymentQr?.createdAt });
 }
 
 // Step 3: Cash counting — two sub-steps: receive then change

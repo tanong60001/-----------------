@@ -15374,10 +15374,24 @@ window.selectCustomerType = async function (type) {
 window.createNewCustomer = async function () {
   const name = document.getElementById('new-customer-name')?.value?.trim();
   const phone = document.getElementById('new-customer-phone')?.value?.trim();
-  if (!name) { typeof toast === 'function' && toast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
+  const address = document.getElementById('new-customer-address')?.value?.trim();
+  // ── บังคับกรอกครบทุกช่อง ──
+  const missing = [];
+  if (!name)    missing.push('ชื่อลูกค้า');
+  if (!phone)   missing.push('เบอร์โทร');
+  if (!address) missing.push('ที่อยู่');
+  if (missing.length) {
+    typeof toast === 'function' && toast('กรุณากรอก: ' + missing.join(', '), 'warning');
+    return;
+  }
+  const phoneDigits = String(phone).replace(/\D/g, '');
+  if (phoneDigits.length < 9) {
+    typeof toast === 'function' && toast('เบอร์โทรไม่ถูกต้อง — ต้องมีอย่างน้อย 9 หลัก', 'warning');
+    return;
+  }
   try {
     const { data, error } = await db.from('customer').insert({
-      name, phone: phone || null,
+      name, phone: phone || null, address: address || null,
       total_purchase: 0, visit_count: 0, debt_amount: 0,
     }).select().single();
     if (error) throw error;
