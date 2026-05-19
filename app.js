@@ -540,7 +540,7 @@ async function updateAlerts() {
   if (!alertsList) return;
   const alerts = [];
   try {
-    const { data: lowStock } = await db.from('สินค้า').select('name, stock, min_stock').gt('min_stock', 0);
+    const lowStock = await fetchAllRows('สินค้า', 'name, stock, min_stock', query => query.gt('min_stock', 0));
     const lowItems = (lowStock || []).filter(p => p.stock <= p.min_stock && p.stock > 0);
     const outItems = (lowStock || []).filter(p => p.stock <= 0);
     if (outItems.length > 0) alerts.push({ type: 'danger', icon: 'warning', text: `สินค้าหมดสต็อก ${outItems.length} รายการ` });
@@ -555,11 +555,23 @@ async function updateAlerts() {
 // ══════════════════════════════════════════════════════════════════
 // 7. PRODUCTS & CATEGORIES
 // ══════════════════════════════════════════════════════════════════
+async function fetchAllRows(table, columns = '*', buildQuery = query => query, pageSize = 1000) {
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    let query = db.from(table).select(columns).range(from, to);
+    query = buildQuery(query);
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function loadProducts() {
   try {
-    const { data, error } = await db.from('สินค้า').select('*').order('name');
-    if (error) throw error;
-    products = data || [];
+    products = await fetchAllRows('สินค้า', '*', query => query.order('name'));
   } catch (e) { console.error('Load products error:', e); toast('ไม่สามารถโหลดสินค้าได้', 'error'); }
 }
 
