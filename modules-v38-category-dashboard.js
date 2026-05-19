@@ -135,6 +135,24 @@ console.log('[v38] Category dashboard loaded');
     return 'ok';
   }
 
+  async function loadAllProductsV38() {
+    const rows = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await db
+        .from(TABLE.product)
+        .select('*')
+        .order('name')
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    try { products = rows; } catch (_) {}
+    try { window.products = rows; } catch (_) {}
+    return rows;
+  }
+
   async function loadCategoriesSafe() {
     try {
       const { data, error } = await db.from(TABLE.category).select('*').order('name');
@@ -830,16 +848,19 @@ console.log('[v38] Category dashboard loaded');
     if (!section) return;
     installStyle();
 
+    let productList = [];
     try {
-      if (typeof loadProducts === 'function') await loadProducts();
+      productList = await loadAllProductsV38();
     } catch (e) {
       console.error('[v38] load products:', e);
       if (typeof toast === 'function') toast('โหลดสินค้าไม่สำเร็จ: ' + e.message, 'error');
     }
 
-    const productList = Array.isArray(typeof products !== 'undefined' ? products : window.products)
-      ? (typeof products !== 'undefined' ? products : window.products)
-      : [];
+    if (!productList.length) {
+      productList = Array.isArray(typeof products !== 'undefined' ? products : window.products)
+        ? (typeof products !== 'undefined' ? products : window.products)
+        : [];
+    }
     const categoryRows = await loadCategoriesSafe();
     const catStats = await buildCategoryStats(productList, categoryRows);
 
