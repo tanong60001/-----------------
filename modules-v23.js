@@ -311,12 +311,10 @@ async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
   const plan = { byIndex: new Map(), deductions: new Map(), errors: [] };
   if (!cartArr?.length) return plan;
 
-  const [{ data: productRows, error: productError }, { data: recipeRows, error: recipeError }] = await Promise.all([
-    db.from('สินค้า').select('id,name,stock,cost,unit,product_type'),
-    db.from('สูตรสินค้า').select('id,product_id,material_id,quantity,unit'),
+  const [productRows, recipeRows] = await Promise.all([
+    fetchAllRows('สินค้า', 'id,name,stock,cost,unit,product_type'),
+    fetchAllRows('สูตรสินค้า', 'id,product_id,material_id,quantity,unit'),
   ]);
-  if (productError) throw productError;
-  if (recipeError) throw recipeError;
 
   const productsById = new Map((productRows || []).map(product => [String(product.id), product]));
   const recipesByProduct = new Map();

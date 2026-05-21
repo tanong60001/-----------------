@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(node -c modules-v9.js)",
+      "Bash(node -c modules-v13.js)",
+      "Bash(git add *)"
+    ]
+  }
+}
