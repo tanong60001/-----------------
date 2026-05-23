@@ -15,6 +15,42 @@
     return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(Math.round(money(value)));
   };
 
+  function retryTime(row, field) {
+    const time = new Date(row?.[field] || row?.created_at || 0).getTime();
+    return Number.isFinite(time) ? time : 0;
+  }
+
+  function retryKey(row) {
+    return [
+      row?.project_id || '',
+      row?.description || row?.bill_id || row?.milestone_no || '',
+      row?.category || row?.type || ''
+    ].map(value => String(value || '').trim().toLowerCase()).join('|');
+  }
+
+  function dedupeProjectRetries(rows, timeField) {
+    const windowMs = 20 * 60 * 1000;
+    const kept = [];
+    [...(rows || [])]
+      .sort((a, b) => retryTime(a, timeField) - retryTime(b, timeField))
+      .forEach(row => {
+        const key = retryKey(row);
+        const amount = money(row?.amount);
+        const time = retryTime(row, timeField);
+        const oldIndex = kept.findIndex(old =>
+          retryKey(old) === key &&
+          Math.abs(retryTime(old, timeField) - time) <= windowMs &&
+          Math.abs(money(old?.amount) - amount) <= 1
+        );
+        if (oldIndex >= 0) {
+          if (time >= retryTime(kept[oldIndex], timeField)) kept[oldIndex] = row;
+        } else {
+          kept.push(row);
+        }
+      });
+    return kept;
+  }
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -138,8 +174,8 @@
       db.from('รายจ่าย').select('amount,category,description,note,date').gte('date', startIso).lte('date', endIso).limit(6000),
       db.from('เช็คชื่อ').select('employee_id,status,date,deduction,note').gte('date', info.start).lte('date', info.end).limit(6000),
       db.from('เบิกเงิน').select('amount,status,date').gte('date', startIso).lte('date', endIso).limit(6000),
-      db.from('รายจ่ายโครงการ').select('amount,paid_at').not('paid_at', 'is', null).gte('paid_at', startIso).lte('paid_at', endIso).limit(6000),
-      db.from('งวดงาน').select('amount,billed_at,status').eq('status', 'billed').gte('billed_at', startIso).lte('billed_at', endIso).limit(6000),
+      db.from('รายจ่ายโครงการ').select('id,project_id,description,category,type,bill_id,amount,paid_at,created_at').not('paid_at', 'is', null).gte('paid_at', startIso).lte('paid_at', endIso).limit(6000),
+      db.from('งวดงาน').select('id,project_id,milestone_no,description,amount,billed_at,created_at,status').eq('status', 'billed').gte('billed_at', startIso).lte('billed_at', endIso).limit(6000),
       db.from('ชำระหนี้').select('amount,method,date').gte('date', startIso).lte('date', endIso).limit(6000),
     ]);
 
@@ -193,11 +229,11 @@
       add(dayMap, rowDate(expense.date), 'expenses', expense.amount, 'store');
     });
 
-    (projExpR.data || []).forEach(expense => {
+    dedupeProjectRetries(projExpR.data || [], 'paid_at').forEach(expense => {
       add(dayMap, rowDate(expense.paid_at), 'expenses', expense.amount, 'project');
     });
 
-    (projMsR.data || []).forEach(milestone => {
+    dedupeProjectRetries(projMsR.data || [], 'billed_at').forEach(milestone => {
       add(dayMap, rowDate(milestone.billed_at), 'revenue', milestone.amount, 'project');
     });
 

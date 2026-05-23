@@ -576,7 +576,7 @@
           </div>
           <div class="v44-field" style="margin:0">
             <label>วงเงินค่าแรงเหมา</label>
-            <input id="v67-labor-budget" class="swal2-input" style="width:100%;margin:0;height:46px" type="number" min="${minBudget}" step="1" value="${esc(current?.limit || '')}" placeholder="0">
+            <input id="v67-labor-budget" class="swal2-input" style="width:100%;margin:0;height:46px" type="number" min="${minBudget}" step="any" value="${esc(current?.limit || '')}" placeholder="0.00">
           </div>
           ${minBudget > 0 ? `<div style="padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:12px;font-size:12px;font-weight:850">ช่างรายนี้จ่ายไปแล้ว ฿${fmt(minBudget)} จึงลดวงเงินต่ำกว่านี้ไม่ได้</div>` : ''}
         </div>
@@ -687,7 +687,7 @@
             </div>
             <div class="v67-field">
               <label>จำนวนเงิน</label>
-              <input id="v67-labor-amount" type="number" min="1" max="${row.remaining}" step="1" placeholder="0" oninput="v67ResetLaborCashCount(true);v67UpdateLaborPay()">
+              <input id="v67-labor-amount" type="number" min="0.01" max="${row.remaining}" step="any" placeholder="0.00" oninput="v67ResetLaborCashCount(true);v67UpdateLaborPay()">
             </div>
           </div>
 
@@ -981,8 +981,10 @@
     const btn = document.getElementById('v67-pay-confirm');
     if (btn) { btn.disabled = true; btn.innerHTML = 'กำลังบันทึก...'; }
 
+    let cashTxId = null;
+    let expId = null;
+
     try {
-      let cashTxId = null;
       const isCash = method === 'เงินสด';
       if (isCash) {
         const session = await getOpenSession();
@@ -1019,15 +1021,21 @@
         paid_at: new Date().toISOString()
       }).select('id').single();
       if (expErr) throw expErr;
+      expId = exp?.id || null;
 
       if (cashTxId && exp?.id) {
         await db.from('cash_transaction').update({ ref_id: exp.id }).eq('id', cashTxId);
       }
 
       const { data: project } = await db.from('โครงการ').select('total_expenses').eq('id', projectId).maybeSingle();
-      await db.from('โครงการ').update({
+      const { error: projectErr } = await db.from('โครงการ').update({
         total_expenses: num(project?.total_expenses) + amount
       }).eq('id', projectId);
+      if (projectErr) {
+        if (expId) await db.from(PROJECT_EXPENSE_TABLE).delete().eq('id', expId);
+        if (cashTxId) await db.from('cash_transaction').delete().eq('id', cashTxId);
+        throw projectErr;
+      }
 
       logActivity?.(PROJECT_EXPENSE_TABLE, `${desc} ฿${fmt(amount)}${isCash ? ' (เงินสด)' : ''}`, exp?.id, PROJECT_EXPENSE_TABLE);
       document.getElementById('v67-labor-pay-modal')?.remove();
@@ -1036,6 +1044,14 @@
       if (typeof loadCashBalance === 'function') loadCashBalance();
       window.v14OpenProject?.(projectId);
     } catch (error) {
+      if (expId) {
+        try { await db.from(PROJECT_EXPENSE_TABLE).delete().eq('id', expId); } catch (_) {}
+      }
+      if (cashTxId) {
+        try { await db.from('cash_transaction').delete().eq('id', cashTxId); } catch (_) {}
+      }
+      if (typeof renderCashDrawer === 'function') renderCashDrawer();
+      if (typeof loadCashBalance === 'function') loadCashBalance();
       console.error('[v67] labor payment:', error);
       if (btn) {
         btn.disabled = false;

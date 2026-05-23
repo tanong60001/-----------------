@@ -211,6 +211,40 @@
     return Number.isFinite(n) ? n : 0;
   };
 
+  const projectRetryTime = (row, field) => {
+    const time = new Date(row?.[field] || row?.created_at || 0).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+
+  const projectRetryKey = (row) => [
+    row?.project_id || '',
+    row?.description || row?.bill_id || row?.milestone_no || '',
+    row?.category || row?.type || ''
+  ].map(v => String(v || '').trim().toLowerCase()).join('|');
+
+  const dedupeProjectRetries = (rows, timeField) => {
+    const retryWindowMs = 20 * 60 * 1000;
+    const kept = [];
+    [...(rows || [])]
+      .sort((a, b) => projectRetryTime(a, timeField) - projectRetryTime(b, timeField))
+      .forEach(row => {
+        const key = projectRetryKey(row);
+        const amount = money(row?.amount);
+        const time = projectRetryTime(row, timeField);
+        const oldIndex = kept.findIndex(old =>
+          projectRetryKey(old) === key &&
+          Math.abs(projectRetryTime(old, timeField) - time) <= retryWindowMs &&
+          Math.abs(money(old?.amount) - amount) <= 1
+        );
+        if (oldIndex >= 0) {
+          if (time >= projectRetryTime(kept[oldIndex], timeField)) kept[oldIndex] = row;
+        } else {
+          kept.push(row);
+        }
+      });
+    return kept;
+  };
+
   const isClosedBill = (bill) => ['ยกเลิก', 'คืนสินค้า'].includes(String(bill?.status || ''));
   const isDebtMethod = (method) => /ค้าง|เครดิต|debt/i.test(String(method || ''));
   const isCodBill = (bill) => /ชำระหน้างาน|เก็บปลายทาง|cod/i.test(`${bill?.status || ''} ${bill?.method || ''}`);
@@ -419,8 +453,8 @@
         db.from('เบิกเงิน').select('amount, status, date').gte('date', startIso).lte('date', endIso).limit(otherLimit),
         db.from('ชำระหนี้').select('amount, method, date').gte('date', startIso).lte('date', endIso).limit(otherLimit),
         db.from('จ่ายเงินเดือน').select('net_paid, paid_date').gte('paid_date', startIso).lte('paid_date', endIso).limit(otherLimit),
-        db.from('รายจ่ายโครงการ').select('amount, paid_at').not('paid_at','is',null).gte('paid_at', startIso).lte('paid_at', endIso).limit(otherLimit),
-        db.from('งวดงาน').select('amount, billed_at').eq('status', 'billed').gte('billed_at', startIso).lte('billed_at', endIso).limit(otherLimit),
+        db.from('รายจ่ายโครงการ').select('id, project_id, description, category, type, bill_id, amount, paid_at, created_at').not('paid_at','is',null).gte('paid_at', startIso).lte('paid_at', endIso).limit(otherLimit),
+        db.from('งวดงาน').select('id, project_id, milestone_no, description, amount, billed_at, created_at, status').eq('status', 'billed').gte('billed_at', startIso).lte('billed_at', endIso).limit(otherLimit),
         db.from('customer').select('debt_amount').gt('debt_amount', 0).limit(10000)
       ]);
 
@@ -489,9 +523,9 @@
 
       const advances = (advR.data || []).filter(a => a.status === 'อนุมัติ');
       const debtPayments = debtPaymentR.data || [];
-      const projExpenses = projExpR.data || [];
+      const projExpenses = dedupeProjectRetries(projExpR.data || [], 'paid_at');
       const sumProjExpenses = projExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
-      const projMilestones = projMsR.data || [];
+      const projMilestones = dedupeProjectRetries(projMsR.data || [], 'billed_at');
       const sumProjMilestones = projMilestones.reduce((s, m) => s + parseFloat(m.amount || 0), 0);
 
       // ─── ACCOUNTING LOGIC (CASH BASIS) ───────────────────────────

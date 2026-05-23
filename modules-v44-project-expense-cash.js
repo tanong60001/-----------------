@@ -337,7 +337,7 @@
               </div>
               <div class="v44-field">
                 <label>จำนวนเงิน (บาท) *</label>
-                <input id="v44-exp-amt" type="number" min="1" step="1" placeholder="0" oninput="v44UpdateExpenseCash()">
+                <input id="v44-exp-amt" type="number" min="0.01" step="any" placeholder="0.00" oninput="v44UpdateExpenseCash()">
               </div>
               <div class="v44-field">
                 <label>วิธีจ่ายเงิน</label>
@@ -419,9 +419,11 @@
     const btn = document.getElementById('v44-exp-confirm');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
 
+    const isCash = method === 'เงินสด';
+    let cashTxId = null;
+    let expId = null;
+
     try {
-      const isCash = method === 'เงินสด';
-      let cashTxId = null;
 
       if (isCash) {
         const session = await getOpenSession();
@@ -450,23 +452,29 @@
       const { data: exp, error: expErr } = await db.from('รายจ่ายโครงการ').insert({
         project_id: projId,
         description: desc,
-        category: cat,
-        amount,
-        type: 'expense',
-        notes: notes || null,
-        cash_tx_id: cashTxId,
-        paid_at: new Date().toISOString()
+          category: cat,
+          amount,
+          type: 'expense',
+          notes: notes || null,
+          cash_tx_id: cashTxId,
+          paid_at: new Date().toISOString()
       }).select('id').single();
       if (expErr) throw expErr;
+      expId = exp?.id || null;
 
       if (cashTxId && exp?.id) {
         await db.from('cash_transaction').update({ ref_id: exp.id }).eq('id', cashTxId);
       }
 
       const { data: project } = await db.from('โครงการ').select('total_expenses').eq('id', projId).maybeSingle();
-      await db.from('โครงการ').update({
+      const { error: projectErr } = await db.from('โครงการ').update({
         total_expenses: num(project?.total_expenses) + amount
       }).eq('id', projId);
+      if (projectErr) {
+        if (expId) await db.from('รายจ่ายโครงการ').delete().eq('id', expId);
+        if (cashTxId) await db.from('cash_transaction').delete().eq('id', cashTxId);
+        throw projectErr;
+      }
 
       logActivity?.('รายจ่ายโครงการ', `${desc} ฿${fmt(amount)}${isCash ? ' (เงินสด)' : ''}`, exp?.id, 'รายจ่ายโครงการ');
       document.getElementById('v44-expense-modal')?.remove();
@@ -475,6 +483,14 @@
       if (typeof loadCashBalance === 'function') loadCashBalance();
       window.v14OpenProject?.(projId);
     } catch (e) {
+      if (expId) {
+        try { await db.from('รายจ่ายโครงการ').delete().eq('id', expId); } catch (_) {}
+      }
+      if (cashTxId) {
+        try { await db.from('cash_transaction').delete().eq('id', cashTxId); } catch (_) {}
+      }
+      if (typeof renderCashDrawer === 'function') renderCashDrawer();
+      if (typeof loadCashBalance === 'function') loadCashBalance();
       console.error('[v44] add project expense:', e);
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="material-icons-round" style="font-size:17px;vertical-align:middle">save</i> บันทึกรายจ่าย'; }
       toast?.('บันทึกไม่สำเร็จ: ' + e.message, 'error');
