@@ -762,16 +762,26 @@ console.log('[v38] Category dashboard loaded');
   }
 
   function productRow(product) {
-    const ss = stockState(product);
-    const stockClass = ss === 'out' ? 'danger' : ss === 'low' ? 'warn' : 'ok';
+    const isRecipe = typeof window.v66HasRecipe === 'function' && window.v66HasRecipe(product.id);
+    let stockCell;
+    if (isRecipe) {
+      const remaining = typeof window.v66RecipeRemaining === 'function' ? Number(window.v66RecipeRemaining(product.id) || 0) : 0;
+      const cls = remaining > 0 ? 'ok' : 'danger';
+      const display = Number.isFinite(remaining) ? Math.floor(remaining) : 0;
+      stockCell = `<span class="v38-stock ${cls}" title="คำนวณจากวัตถุดิบในสต็อก">ผลิตได้ ${fmt(display)} ${esc(product.unit || '')}</span>`;
+    } else {
+      const ss = stockState(product);
+      const stockClass = ss === 'out' ? 'danger' : ss === 'low' ? 'warn' : 'ok';
+      stockCell = `<span class="v38-stock ${stockClass}">${fmt(product.stock)} ${esc(product.unit || '')}</span>`;
+    }
     return `<tr>
       <td><div class="v38-img">${product.img_url ? `<img src="${esc(product.img_url)}" alt="${esc(product.name)}">` : '<i class="material-icons-round">image</i>'}</div></td>
-      <td><strong>${esc(product.name || '')}</strong>${product.note ? `<small>${esc(product.note)}</small>` : ''}</td>
+      <td><strong>${esc(product.name || '')}</strong>${isRecipe ? '<small style="display:inline-block;margin-top:3px;background:#eef2ff;color:#4338ca;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:850">ขายตามสูตร</small>' : ''}${product.note ? `<small>${esc(product.note)}</small>` : ''}</td>
       <td class="mono">${esc(product.barcode || '-')}</td>
       <td><span class="v38-cat-badge">${esc(categoryName(product))}</span></td>
       <td class="right"><strong>฿${fmt(product.price)}</strong></td>
       <td class="right">฿${fmt(product.cost || 0)}</td>
-      <td class="center"><span class="v38-stock ${stockClass}">${fmt(product.stock)} ${esc(product.unit || '')}</span></td>
+      <td class="center">${stockCell}</td>
       <td class="right"><div class="v38-actions">
         <button onclick="v42ProductActions?.('${js(product.id)}')" title="จัดการสินค้า"><i class="material-icons-round">more_horiz</i></button>
       </div></td>
@@ -839,7 +849,7 @@ console.log('[v38] Category dashboard loaded');
       .right{text-align:right}.center{text-align:center}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
       .v38-empty{padding:42px;text-align:center;color:#94a3b8;font-weight:850}
       @media(max-width:1180px){.v38-cat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:760px){.v38-head{flex-direction:column}.v38-head-actions,.v38-btn{width:100%;justify-content:center}.v38-cat-cards{grid-template-columns:1fr}.v38-search{min-width:100%;max-width:none}}
+      @media(max-width:760px){.v38-head{flex-direction:column}.v38-head-actions,.v38-btn{width:100%;justify-content:center}.v38-cat-panel{display:none}.v38-cat-cards{grid-template-columns:1fr}.v38-search{min-width:100%;max-width:none}}
     </style>`);
   }
 

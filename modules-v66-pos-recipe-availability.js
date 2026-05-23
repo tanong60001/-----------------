@@ -176,11 +176,26 @@
     if (!force && Date.now() - state.loadedAt < CACHE_MS) return state.recipes;
     if (state.loading && !force) return state.loading;
 
-    const request = db.from(RECIPE_TABLE)
-      .select('id,product_id,material_id,quantity,unit')
-      .then(({ data, error }) => {
+    const fetchAllRecipeRows = async () => {
+      if (typeof fetchAllRows === 'function') {
+        return fetchAllRows(RECIPE_TABLE, 'id,product_id,material_id,quantity,unit');
+      }
+      const rows = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await db.from(RECIPE_TABLE)
+          .select('id,product_id,material_id,quantity,unit')
+          .range(from, from + pageSize - 1);
         if (error) throw new Error(error.message);
-        state.recipes = data || [];
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
+    };
+
+    const request = fetchAllRecipeRows()
+      .then(rows => {
+        state.recipes = rows || [];
         state.loadedAt = Date.now();
         rebuildRecipeMap(state.recipes);
         window.__v66Debug = {
@@ -1022,16 +1037,10 @@
     if (state.protectingInventory) return;
     state.protectingInventory = true;
     try {
-      document.querySelectorAll('button[onclick*="v42ProductActions"]').forEach(button => {
-        const call = button.getAttribute('onclick') || '';
-        const match = call.match(/v42ProductActions\?\.\(['"]([^'"]+)/) || call.match(/v42ProductActions\(['"]([^'"]+)/);
-        const product = match ? productById(match[1]) : null;
-        if (!isRecipeManagedProduct(product)) return;
-        const row = button.closest('tr');
-        if (!row || row.dataset.v66RecipeLocked === '1') return;
-        row.dataset.v66RecipeLocked = '1';
-        row.style.display = 'none';
-        row.dataset.v66RecipeHiddenFromInventory = '1';
+      document.querySelectorAll('tr[data-v66-recipe-hidden-from-inventory="1"]').forEach(row => {
+        row.style.display = '';
+        delete row.dataset.v66RecipeHiddenFromInventory;
+        delete row.dataset.v66RecipeLocked;
       });
     } finally {
       state.protectingInventory = false;

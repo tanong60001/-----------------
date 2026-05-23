@@ -141,6 +141,65 @@ function v26LocalDateKey(date = new Date()) {
       .v26-stats-grid { grid-template-columns: 1fr 1fr; }
       .v26-actions-grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 768px) {
+      #page-att .v26-banner {
+        margin-bottom: 14px;
+        padding: 18px 16px;
+        border-radius: 16px;
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+      }
+      #page-att .v26-banner-inner {
+        gap: 0;
+      }
+      #page-att .v26-header-left h2 {
+        gap: 10px;
+        font-size: 22px;
+        line-height: 1.2;
+      }
+      #page-att .v26-header-left h2 div {
+        font-size: 19px;
+      }
+      #page-att .v26-date,
+      #page-att .v26-stats-grid,
+      #page-att .v26-header-right,
+      #page-att .v26-opts,
+      #page-att .v26-card-note,
+      #page-att .v26-card-actions,
+      #page-att .v26-save-wrap {
+        display: none !important;
+      }
+      #page-att .v26-grid {
+        gap: 8px;
+        margin-bottom: 0;
+      }
+      #page-att .v26-card,
+      #page-att .v26-card:hover {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.055);
+        transform: none;
+        cursor: default;
+      }
+      #page-att .v26-card-inner {
+        padding: 0;
+      }
+      #page-att .v26-person-row {
+        min-height: 58px;
+        gap: 0 !important;
+        padding: 13px 15px !important;
+      }
+      #page-att .v26-avatar,
+      #page-att .v26-card-sub {
+        display: none !important;
+      }
+      #page-att .v26-person-name {
+        font-size: 16px !important;
+        line-height: 1.35;
+        color: #0f172a !important;
+        word-break: break-word;
+      }
+    }
     /* ─── Card Grid ─── */
     .v26-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -563,10 +622,10 @@ function v26Card(emp) {
   return `
     <div class="v26-card ${stCls}" id="v26c-${emp.id}">
       <div class="v26-card-inner" onclick="v26Pick('${emp.id}')">
-        <div style="display:flex;align-items:center;gap:15px;padding:12px 15px;">
+        <div class="v26-person-row" style="display:flex;align-items:center;gap:15px;padding:12px 15px;">
           <div class="v26-avatar">${d.emoji}</div>
           <div style="flex:1;">
-            <div style="font-weight:900;font-size:16px;color:#1e293b;">${emp.name} ${emp.lastname || ''}</div>
+            <div class="v26-person-name" style="font-weight:900;font-size:16px;color:#1e293b;">${emp.name} ${emp.lastname || ''}</div>
             <div class="v26-card-sub">${emp.position || 'พนักงาน'} · ฿${formatNum(emp.daily_wage || 0)}/วัน</div>
           </div>
         </div>

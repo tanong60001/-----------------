@@ -356,6 +356,7 @@
       .v56-cal-title h3{margin:0;font-size:20px;color:#fff;font-weight:950;line-height:1.2}.v56-cal-title p{margin:4px 0 0;color:rgba(255,255,255,.72);font-size:12px;font-weight:800}
       .v56-cal-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.v56-cal-nav button{height:38px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;border-radius:10px;padding:0 12px;font:inherit;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
       .v56-cal-nav button.v56-export-btn{background:#10b981;border-color:#10b981;color:#fff;box-shadow:0 12px 24px rgba(16,185,129,.22)}
+      .v56-cal-nav button.v56-advance-btn{background:#f59e0b;border-color:#f59e0b;color:#fff;box-shadow:0 12px 24px rgba(245,158,11,.2)}
       .v56-cal-body{padding:18px 22px 22px;overflow:auto;background:#f8fafc}.v56-cal-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.v56-legend{display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:7px 10px;color:#475569;font-size:12px;font-weight:900}.v56-legend i{width:10px;height:10px;border-radius:999px;display:block}
       .v56-cal-grid{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:9px}.v56-cal-dow{padding:9px 4px;text-align:center;color:#64748b;font-size:12px;font-weight:950}
       .v56-cal-day{min-height:126px;border:1px solid #e2e8f0;background:#fff;border-radius:13px;padding:10px;display:flex;flex-direction:column;gap:7px;box-shadow:0 8px 18px rgba(15,23,42,.035)}
@@ -374,12 +375,232 @@
         #page-att .v26-banner-inner > div{grid-template-columns:1fr!important}
         #page-att .v26-stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
       }
+      @media(max-width:768px){
+        #page-att .v26-banner{
+          margin:0 auto 12px!important;
+          min-height:0!important;
+          border-radius:16px!important;
+          box-shadow:0 14px 32px rgba(15,23,42,.14)!important;
+        }
+        #page-att .v26-banner-inner{
+          min-height:92px!important;
+          padding:18px 70px 18px 18px!important;
+          align-items:center!important;
+        }
+        #page-att .v26-header-left h2{
+          gap:10px!important;
+          font-size:22px!important;
+        }
+        #page-att .v26-header-left h2 > div{
+          font-size:20px!important;
+          line-height:1.15!important;
+        }
+        #page-att .v26-date,
+        #page-att .v26-stats-grid,
+        #page-att .v26-header-right,
+        #page-att .v26-opts,
+        #page-att .v26-card-note,
+        #page-att .v26-card-actions,
+        #page-att .v26-save-wrap{
+          display:none!important;
+        }
+        #page-att .v26-grid{
+          margin:10px auto 0!important;
+          grid-template-columns:1fr!important;
+          gap:8px!important;
+        }
+        #page-att .v26-card,
+        #page-att .v26-card:hover{
+          border-color:#dbe6f3!important;
+          border-radius:12px!important;
+          background:#fff!important;
+          box-shadow:0 6px 18px rgba(15,23,42,.055)!important;
+          transform:none!important;
+        }
+        #page-att .v26-card-inner{
+          border-radius:12px!important;
+          padding:0!important;
+        }
+        #page-att .v26-person-row{
+          min-height:58px!important;
+          gap:0!important;
+          padding:14px 16px!important;
+        }
+        #page-att .v26-avatar,
+        #page-att .v26-card-sub{
+          display:none!important;
+        }
+        #page-att .v26-person-name{
+          display:block!important;
+          color:#0f172a!important;
+          font-size:16px!important;
+          line-height:1.35!important;
+          letter-spacing:0!important;
+          cursor:pointer!important;
+        }
+        .v56-att-tools{
+          margin:0 auto!important;
+          gap:8px!important;
+        }
+        .v56-att-search{
+          width:100%!important;
+          min-width:0!important;
+          height:48px!important;
+          border-radius:12px!important;
+          box-shadow:0 8px 22px rgba(15,23,42,.045)!important;
+        }
+        .v56-att-chip{display:none!important}
+        .v56-more-wrap{right:14px!important;top:14px!important}
+        .v56-more-btn{
+          width:42px!important;
+          height:42px!important;
+          border-radius:12px!important;
+        }
+        .v56-cal-modal{
+          padding:10px!important;
+          align-items:center!important;
+        }
+        .v56-cal-box{
+          width:100%!important;
+          max-height:calc(100dvh - 20px)!important;
+          border-radius:16px!important;
+        }
+        .v56-cal-head{
+          gap:10px!important;
+          padding:14px!important;
+          align-items:flex-start!important;
+          flex-direction:column!important;
+        }
+        .v56-cal-title{gap:10px!important}
+        .v56-cal-avatar{
+          width:38px!important;
+          height:38px!important;
+          border-radius:11px!important;
+          flex:0 0 38px!important;
+        }
+        .v56-cal-title h3{font-size:17px!important}
+        .v56-cal-title p{
+          font-size:11px!important;
+          line-height:1.35!important;
+        }
+        .v56-cal-nav{
+          width:100%!important;
+          display:grid!important;
+          grid-template-columns:repeat(4,minmax(0,1fr))!important;
+          gap:6px!important;
+        }
+        .v56-cal-nav button{
+          min-width:0!important;
+          height:36px!important;
+          justify-content:center!important;
+          border-radius:9px!important;
+          padding:0 7px!important;
+          font-size:11px!important;
+          overflow:hidden!important;
+        }
+        .v56-cal-nav .v56-export-btn{display:none!important}
+        .v56-cal-nav .v56-advance-btn{
+          grid-column:1/-1!important;
+          justify-self:stretch!important;
+          font-size:12px!important;
+        }
+        .v56-cal-body{
+          padding:12px 8px 14px!important;
+          overflow:auto!important;
+        }
+        .v56-cal-legend{
+          gap:5px!important;
+          margin-bottom:9px!important;
+        }
+        .v56-legend{
+          padding:5px 7px!important;
+          font-size:10px!important;
+        }
+        .v56-cal-grid{
+          width:100%!important;
+          grid-template-columns:repeat(7,minmax(0,1fr))!important;
+          gap:4px!important;
+          overflow:visible!important;
+        }
+        .v56-cal-dow{
+          min-width:0!important;
+          padding:4px 0!important;
+          font-size:10px!important;
+        }
+        .v56-cal-day{
+          min-width:0!important;
+          min-height:84px!important;
+          border-radius:9px!important;
+          padding:6px 4px!important;
+          gap:5px!important;
+          box-shadow:none!important;
+          justify-content:space-between!important;
+        }
+        .v56-day-top{
+          align-items:flex-start!important;
+          flex-direction:column!important;
+          gap:5px!important;
+        }
+        .v56-day-num{
+          font-size:12px!important;
+          line-height:1!important;
+        }
+        .v56-day-status{
+          width:9px!important;
+          height:9px!important;
+          min-width:9px!important;
+          border-radius:999px!important;
+          padding:0!important;
+          font-size:0!important;
+        }
+        .v56-money-row.payment,
+        .v56-note-line{
+          display:none!important;
+        }
+        .v56-money-row.advance{
+          width:100%!important;
+          min-width:0!important;
+          min-height:29px!important;
+          display:grid!important;
+          grid-template-columns:1fr!important;
+          gap:2px!important;
+          align-items:stretch!important;
+          padding:3px!important;
+          border:1px solid #fde68a!important;
+          border-radius:7px!important;
+          background:rgba(255,251,235,.92)!important;
+          font-size:8px!important;
+          line-height:1!important;
+          overflow:hidden!important;
+        }
+        .v56-money-row.advance span{
+          color:#b45309!important;
+          font-size:8px!important;
+          line-height:1!important;
+          text-align:center!important;
+        }
+        .v56-money-row.advance b{
+          width:100%!important;
+          height:auto!important;
+          min-height:13px!important;
+          border:0!important;
+          border-radius:5px!important;
+          background:#fff!important;
+          padding:1px 2px!important;
+          color:#92400e!important;
+          font-size:8px!important;
+          line-height:1.1!important;
+          justify-content:center!important;
+          text-align:center!important;
+          overflow-wrap:anywhere!important;
+        }
+      }
       @media(max-width:640px){
         #page-att .v26-grid{grid-template-columns:1fr!important}
         #page-att .v26-actions-grid{grid-template-columns:1fr!important}
         #page-att .v26-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
         #page-att .v26-save-btn{width:100%!important;min-width:0!important}
-        .v56-more-wrap{right:14px;top:14px}.v56-cal-head{align-items:flex-start;flex-direction:column}.v56-cal-nav{justify-content:flex-start}.v56-cal-grid{grid-template-columns:repeat(7,minmax(96px,1fr));overflow:auto}.v56-cal-day{min-height:122px}
+        .v56-more-wrap{right:14px;top:14px}.v56-cal-head{align-items:flex-start;flex-direction:column}.v56-cal-nav{justify-content:flex-start}.v56-cal-grid{grid-template-columns:repeat(7,minmax(0,1fr));overflow:visible}.v56-cal-day{min-height:84px}
       }
     `;
     document.head.appendChild(style);
@@ -501,6 +722,18 @@
       event.stopPropagation();
       window.v56OpenEmployeeCalendar(empId, getEmployeeNameFromCard(card), 0);
     });
+
+    const name = card.querySelector('.v26-person-name');
+    if (name && name.dataset.v56DetailBound !== '1') {
+      name.dataset.v56DetailBound = '1';
+      name.title = 'เธ”เธนเธเธเธดเธ—เธดเธเธเธเธฑเธเธเธฒเธ';
+      name.addEventListener('click', event => {
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        event.preventDefault();
+        event.stopPropagation();
+        window.v56OpenEmployeeCalendar(empId, getEmployeeNameFromCard(card), 0);
+      });
+    }
   }
 
   function monthInfo(offset = 0) {
@@ -605,8 +838,8 @@
             <span class="v56-day-num">${day}</span>
             <span class="v56-day-status">${esc(status)}</span>
           </div>
-          <div class="v56-money-row"><span>เบิก</span><b>${adv ? '฿' + fmt(adv) : '-'}</b></div>
-          <div class="v56-money-row"><span>จ่าย</span><b>${paid ? '฿' + fmt(paid) : '-'}</b></div>
+          <div class="v56-money-row advance"><span>เบิก</span><b>${adv ? '฿' + fmt(adv) : '-'}</b></div>
+          <div class="v56-money-row payment"><span>จ่าย</span><b>${paid ? '฿' + fmt(paid) : '-'}</b></div>
           <div class="v56-note-line">${note ? esc(note) : ' '}</div>
         </div>
       `);
@@ -637,8 +870,9 @@
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',${info.offset - 1})"><i class="material-icons-round">chevron_left</i>เดือนก่อน</button>
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',0)">เดือนนี้</button>
             <button type="button" onclick="v56OpenEmployeeCalendar('${js(empId)}','${js(empName)}',${info.offset + 1})">เดือนถัดไป<i class="material-icons-round">chevron_right</i></button>
-            <button class="v56-export-btn" type="button" onclick="v56ExportEmployeeCalendarExcel('${js(empId)}','${js(empName)}',${info.offset})"><i class="material-icons-round">grid_on</i>Excel</button>
             <button type="button" onclick="document.getElementById('v56-cal-modal')?.remove()"><i class="material-icons-round">close</i></button>
+            <button class="v56-advance-btn" type="button" onclick="v56OpenAdvanceFromCalendar('${js(empId)}','${js(empName)}')"><i class="material-icons-round">payments</i>เบิกเงิน</button>
+            <button class="v56-export-btn" type="button" onclick="v56ExportEmployeeCalendarExcel('${js(empId)}','${js(empName)}',${info.offset})"><i class="material-icons-round">grid_on</i>Excel</button>
           </div>
         </div>
         <div class="v56-cal-body">${bodyHtml}</div>
@@ -749,6 +983,15 @@
       console.error('[v56] export calendar:', error);
       toast?.('ส่งออก Excel ไม่สำเร็จ: ' + (error.message || error), 'error');
     }
+  };
+
+  window.v56OpenAdvanceFromCalendar = function (empId, empName) {
+    document.getElementById('v56-cal-modal')?.remove();
+    if (typeof window.openAdvanceWizard === 'function') {
+      window.openAdvanceWizard(empId, empName);
+      return;
+    }
+    toast?.('เมนูเบิกเงินยังโหลดไม่สำเร็จ', 'warning');
   };
 
   window.v56OpenEmployeeCalendar = async function (empId, empName, offset = 0) {

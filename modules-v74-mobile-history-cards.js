@@ -155,18 +155,23 @@
 
         #page-history .v39-sales-table tr.v74-open td:not(:nth-child(1)):not(:nth-child(6)) {
           display: grid !important;
-          grid-template-columns: 88px minmax(0, 1fr) !important;
-          gap: 10px !important;
+          grid-template-columns: minmax(96px, 1fr) minmax(0, 1fr) !important;
+          gap: 12px !important;
           align-items: center !important;
           grid-column: 1 / -1 !important;
-          padding-top: 11px !important;
-          margin-top: 11px !important;
+          min-height: 48px !important;
+          padding-top: 12px !important;
+          margin-top: 12px !important;
           border-top: 1px solid #f1f5f9 !important;
+          text-align: right !important;
         }
 
         #page-history .v39-sales-table tr.v74-open td:not(:nth-child(1)):not(:nth-child(6)) > * {
           justify-self: end !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
           text-align: right !important;
+          overflow-wrap: anywhere !important;
         }
 
         #page-history .v39-sales-table td:nth-child(1) {
@@ -408,17 +413,22 @@
 
         #page-inv #inv-table tr.v74-open td:not(:nth-child(2)) {
           display: grid !important;
-          grid-template-columns: 88px minmax(0, 1fr) !important;
-          gap: 10px !important;
+          grid-template-columns: minmax(96px, 1fr) minmax(0, 1fr) !important;
+          gap: 12px !important;
           align-items: center !important;
-          padding-top: 11px !important;
-          margin-top: 11px !important;
+          min-height: 48px !important;
+          padding-top: 12px !important;
+          margin-top: 12px !important;
           border-top: 1px solid #f1f5f9 !important;
+          text-align: right !important;
         }
 
         #page-inv #inv-table tr.v74-open td:not(:nth-child(2)) > * {
           justify-self: end !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
           text-align: right !important;
+          overflow-wrap: anywhere !important;
         }
 
         #page-inv #inv-table tr.v74-open td:nth-child(1)::before { content: 'รูป'; }
@@ -574,17 +584,22 @@
 
         #page-inv .v38-table tr.v74-open td:not(:nth-child(2)) {
           display: grid !important;
-          grid-template-columns: 88px minmax(0, 1fr) !important;
-          gap: 10px !important;
+          grid-template-columns: minmax(96px, 1fr) minmax(0, 1fr) !important;
+          gap: 12px !important;
           align-items: center !important;
-          padding-top: 11px !important;
-          margin-top: 11px !important;
+          min-height: 48px !important;
+          padding-top: 12px !important;
+          margin-top: 12px !important;
           border-top: 1px solid #f1f5f9 !important;
+          text-align: right !important;
         }
 
         #page-inv .v38-table tr.v74-open td:not(:nth-child(2)) > * {
           justify-self: end !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
           text-align: right !important;
+          overflow-wrap: anywhere !important;
         }
 
         #page-inv .v38-table tr.v74-open td:nth-child(1)::before { content: 'รูป'; }
@@ -635,7 +650,7 @@
         }
 
         #page-history .v39-sales-table tr.v74-open td:not(:nth-child(1)):not(:nth-child(6)) {
-          grid-template-columns: 76px minmax(0, 1fr) !important;
+          grid-template-columns: minmax(84px, 1fr) minmax(0, 1fr) !important;
         }
 
         #page-history .v39-bill-no,
@@ -644,11 +659,11 @@
         }
 
         #page-inv #inv-table tr.v74-open td:not(:nth-child(2)) {
-          grid-template-columns: 76px minmax(0, 1fr) !important;
+          grid-template-columns: minmax(84px, 1fr) minmax(0, 1fr) !important;
         }
 
         #page-inv .v38-table tr.v74-open td:not(:nth-child(2)) {
-          grid-template-columns: 76px minmax(0, 1fr) !important;
+          grid-template-columns: minmax(84px, 1fr) minmax(0, 1fr) !important;
         }
       }
     `;

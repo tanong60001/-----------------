@@ -42,10 +42,12 @@
       .dash-v3-tab.active { background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border-color: transparent; box-shadow: 0 8px 20px rgba(14, 165, 233, 0.3); animation: dashPulseGlow 2s infinite; }
       
       /* Cards */
-      .dash-v3-kpi-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; margin-bottom: 28px; align-items: stretch; }
+      .dash-v3-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 28px; align-items: stretch; }
       .dash-v3-card { background: var(--card-soft-bg, #ffffff); border-radius: 22px; padding: 26px; border: 1px solid color-mix(in srgb, var(--card-accent, #cbd5e1) 18%, #e2e8f0); box-shadow: 0 12px 32px rgba(15,23,42,0.06); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); position: relative; overflow: hidden; }
       .dash-v3-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 42px rgba(15,23,42,0.1); border-color: color-mix(in srgb, var(--card-accent, #cbd5e1) 34%, #e2e8f0); z-index: 10; }
       .dash-v3-card::before { display: none; }
+      .dash-v3-money { min-width: 0; max-width: 100%; line-height: 1.16; letter-spacing: 0 !important; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+      .dash-v3-kpi-money { color: var(--text-primary); font-size: 28px; font-weight: 900; margin-bottom: 4px; }
       
       /* Animations for contents */
       .anim-child { animation: dashFadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -68,11 +70,12 @@
       .dash-v3-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
       
       .pl-line-item { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
-      .pl-line-val { font-size: 16px; font-weight: 800; }
+      .pl-line-val { min-width: 0; font-size: 16px; font-weight: 800; letter-spacing: 0; overflow-wrap: anywhere; }
       .pl-group-header { font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px 12px; display: flex; align-items: center; gap: 6px; }
       
       .dash-v3-net-box { background: linear-gradient(135deg, var(--card-bg-sub, #f8fafc), color-mix(in srgb, var(--card-bg-sub, #f8fafc) 90%, #000)); border-radius: 16px; padding: 24px; display: flex; justify-content: space-between; align-items: center; margin-top: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.04); position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--card-bg-sub, #e2e8f0) 80%, #000); }
       .dash-v3-net-box::after { content: ''; position: absolute; top: 0; right: 0; width: 150px; height: 150px; background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%); border-radius: 50%; transform: translate(30%, -30%); }
+      .dash-v3-net-box > div:last-child { min-width:0; max-width:100%; letter-spacing:0 !important; overflow-wrap:anywhere; }
       .dash-v3-main-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
       .dash-v3-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
       .dash-v3-card-head { padding: 18px 20px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -86,17 +89,17 @@
       .dash-v3-ledger-row:last-child { border-bottom:0; }
       .dash-v3-ledger-label { font-size:13px; font-weight:900; color:#334155; line-height:1.35; }
       .dash-v3-ledger-help { font-size:11px; font-weight:700; color:#64748b; margin-top:2px; line-height:1.35; }
-      .dash-v3-ledger-val { font-size:18px; font-weight:950; color:#0f172a; white-space:nowrap; }
+      .dash-v3-ledger-val { min-width:0; font-size:18px; font-weight:950; color:#0f172a; letter-spacing:0; overflow-wrap:anywhere; text-align:right; }
       .dash-v3-ledger-row.total { margin-top:4px; padding:14px 12px; border:0; border-radius:12px; background:#ecfdf5; }
       .dash-v3-ledger-row.total .dash-v3-ledger-label { color:#047857; }
       .dash-v3-ledger-row.total .dash-v3-ledger-val { color:#047857; font-size:22px; }
       .dash-v3-mini-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
       .dash-v3-mini { border:1px solid #e2e8f0; border-radius:12px; padding:12px; background:#fff; min-width:0; }
       .dash-v3-mini .lbl { font-size:11px; font-weight:900; color:#64748b; line-height:1.25; }
-      .dash-v3-mini .val { font-size:18px; font-weight:950; color:#0f172a; margin-top:4px; white-space:nowrap; }
+      .dash-v3-mini .val { min-width:0; font-size:18px; font-weight:950; color:#0f172a; margin-top:4px; letter-spacing:0; overflow-wrap:anywhere; }
       .dash-v3-explain { margin-bottom:24px; background:#f8fafc; border:1px solid #e2e8f0; border-left:5px solid #2563eb; border-radius:14px; padding:14px 16px; color:#475569; font-size:13px; font-weight:750; line-height:1.7; }
       @media (min-width: 1200px) {
-        .dash-v3-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+        .dash-v3-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .dash-v3-kpi-grid .dash-v3-card { min-width: 0; }
       }
       @media (max-width: 1180px) {
@@ -130,9 +133,10 @@
         .dash-v3-truth-head, .dash-v3-truth-body { padding:14px; }
         .dash-v3-mini-grid { grid-template-columns:1fr; }
         .dash-v3-ledger-val { font-size:16px; }
+        .dash-v3-kpi-money { font-size:24px; }
         .dash-v3-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border-radius: 8px; }
         .pl-line-item { font-size: 13px; line-height: 1.35; }
-        .pl-line-val { font-size: 14px; white-space: nowrap; }
+        .pl-line-val { font-size: 14px; white-space: normal; text-align: right; }
         .pl-group-header { margin: 14px 0 8px 4px; font-size: 11px; }
         .dash-v3-net-box { padding: 16px; border-radius: 10px; display: grid; grid-template-columns: 1fr; gap: 8px; text-align: left; }
         .dash-v3-net-box > div:last-child { font-size: 26px !important; }
@@ -575,7 +579,7 @@
                 <i class="material-icons-round" style="font-size:18px;">${k.icon}</i>
               </div>
             </div>
-            <div style="font-size: 26px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.5px;">
+            <div class="dash-v3-money dash-v3-kpi-money">
               ${k.val < 0 ? '−' : ''}฿${formatNum(Math.abs(Math.round(k.val)))}
             </div>
             <div style="font-size: 11px; font-weight: 600; color: var(--text-tertiary);">${k.sub}</div>
