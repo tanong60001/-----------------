@@ -935,6 +935,65 @@
   };
 
   /* ─────────────────────────────────────────────────────────────
+     เคลียร์ส่วนลด pos-discount หลังขายเสร็จ
+     v20.closeCheckout เคลียร์ cart + v12State แต่ไม่ได้แตะ pos-discount
+     → discount เก่ายังอยู่ในช่อง → บิลถัดไปโดนหักด้วย
+  ───────────────────────────────────────────────────────────── */
+  function clearDiscountInput() {
+    try {
+      const inp = document.getElementById('pos-discount');
+      if (inp) {
+        inp.value = '0';
+        // trigger input event เผื่อมี listener อื่นต้อง re-render cart
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (typeof v12State !== 'undefined' && v12State) {
+        v12State.discount = 0;
+      }
+      if (window.v12State) window.v12State.discount = 0;
+    } catch (e) { console.warn('[v92] clearDiscountInput:', e); }
+  }
+
+  function patchDiscountReset() {
+    // wrap closeCheckout
+    const origClose = window.closeCheckout;
+    if (typeof origClose === 'function' && !origClose.__v92DiscountReset) {
+      const wrapped = function (...args) {
+        const hadSavedBill = typeof v12State !== 'undefined' && v12State?.savedBill;
+        const r = origClose.apply(this, args);
+        if (hadSavedBill) {
+          // เคลียร์ทันที + delay กันโดน renderCart รอบหลังเขียนทับ
+          clearDiscountInput();
+          setTimeout(clearDiscountInput, 50);
+          setTimeout(clearDiscountInput, 300);
+        }
+        return r;
+      };
+      Object.defineProperty(wrapped, '__v92DiscountReset', { value: true });
+      window.closeCheckout = wrapped;
+      try { closeCheckout = wrapped; } catch (_) {}
+    }
+
+    // wrap v12CompletePayment เผื่อบางครั้งไม่ผ่าน closeCheckout (เช่น ขายแบบ fast)
+    const origPay = window.v12CompletePayment;
+    if (typeof origPay === 'function' && !origPay.__v92DiscountReset) {
+      const wrapped = async function (...args) {
+        const r = await origPay.apply(this, args);
+        if (typeof v12State !== 'undefined' && v12State?.savedBill) {
+          setTimeout(clearDiscountInput, 100);
+          setTimeout(clearDiscountInput, 600);
+        }
+        return r;
+      };
+      Object.defineProperty(wrapped, '__v92DiscountReset', { value: true });
+      window.v12CompletePayment = wrapped;
+      window.v15CompletePayment = wrapped;
+      window.v13CompletePayment = wrapped;
+    }
+  }
+
+  /* ─────────────────────────────────────────────────────────────
      install
   ───────────────────────────────────────────────────────────── */
   function install() {
@@ -945,6 +1004,7 @@
     patchBMCPayDebtGuard();
     patchDQMarkDone();
     patchDashboard();
+    patchDiscountReset();
   }
 
   if (document.readyState === 'loading') {
