@@ -340,15 +340,64 @@
     const start = new Date(base.getFullYear(), base.getMonth(), 1);
     const end = new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59, 999);
     return {
+      mode: 'month',
       value: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      from: ymd(start), to: ymd(end),
       label: start.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }),
       startISO: start.toISOString(),
       endISO: end.toISOString(),
     };
   }
 
-  async function loadStaffSales(monthValue) {
-    const bounds = monthBounds(monthValue);
+  /* YYYY-MM-DD ตามเวลาท้องถิ่น */
+  function ymd(d) {
+    const dt = (d instanceof Date) ? d : new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+
+  function rangeBounds(from, to) {
+    const f = new Date(from + 'T00:00:00');
+    const t = new Date(to + 'T23:59:59.999');
+    const sameDay = ymd(f) === ymd(t);
+    const sameMonth = f.getFullYear() === t.getFullYear() && f.getMonth() === t.getMonth();
+    let label;
+    if (sameDay) {
+      label = f.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+    } else if (sameMonth) {
+      label = `${f.getDate()}–${t.getDate()} ${f.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`;
+    } else {
+      label = `${f.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} — ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    }
+    return {
+      mode: 'range',
+      from: ymd(f), to: ymd(t),
+      value: `${ymd(f)}_${ymd(t)}`,
+      label,
+      startISO: f.toISOString(),
+      endISO: t.toISOString(),
+    };
+  }
+
+  /* แปลง input จาก renderStaffSalesDashboard:
+     - undefined / null → เดือนปัจจุบัน
+     - "YYYY-MM" → เดือนนั้น (เดิม)
+     - "YYYY-MM-DD_YYYY-MM-DD" → ช่วงวันที่
+     - { from, to } → ช่วงวันที่
+  */
+  function resolveBounds(input) {
+    if (!input) return monthBounds();
+    if (typeof input === 'object' && input.from && input.to) return rangeBounds(input.from, input.to);
+    const s = String(input);
+    if (/^\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [from, to] = s.split('_');
+      return rangeBounds(from, to);
+    }
+    if (/^\d{4}-\d{2}$/.test(s)) return monthBounds(s);
+    return monthBounds();
+  }
+
+  async function loadStaffSales(input) {
+    const bounds = resolveBounds(input);
     const [{ data: bills, error: billError }, { data: emps }] = await Promise.all([
       db.from(BILL_TABLE)
         .select('id,bill_no,date,total,discount,received,change,staff_name,status,method,customer_name,project_id,note')
@@ -389,11 +438,11 @@
     </tbody></table></div>`;
   }
 
-  async function renderStaffSalesDashboard(monthValue, selectedStaff) {
+  async function renderStaffSalesDashboard(input, selectedStaff) {
     const sec = document.getElementById('page-att');
     if (!sec) return;
     injectStyle();
-    const current = monthBounds(monthValue).value;
+    const current = resolveBounds(input);
     sec.innerHTML = `<div class="v48-sales"><div class="v48-sales-hero"><div class="v48-sales-title"><div class="v48-sales-icon"><i class="material-icons-round">leaderboard</i></div><div><h2>ยอดขายพนักงาน</h2><p>กำลังโหลดยอดขายและค่าคอมมิชชั่น...</p></div></div></div></div>`;
     try {
       const data = await loadStaffSales(current);
@@ -413,13 +462,22 @@
             <div class="v48-sales-icon"><i class="material-icons-round">leaderboard</i></div>
             <div><h2>ยอดขายพนักงาน</h2><p>${esc(data.bounds.label)} · ไม่รวมบิลโครงการและบิลยกเลิก</p></div>
           </div>
-          <div class="v48-sales-actions">
+          <div class="v48-sales-actions" style="flex-wrap:wrap;gap:6px;align-items:center">
             <button class="v48-btn" onclick="renderAttendance()"><i class="material-icons-round">arrow_back</i> กลับ</button>
-            <input class="v48-month" type="month" value="${esc(data.bounds.value)}" onchange="renderStaffSalesDashboard(this.value)">
-            <button class="v48-btn" onclick="v48ShiftStaffSalesMonth('${esc(data.bounds.value)}',-1)"><i class="material-icons-round">chevron_left</i></button>
-            <button class="v48-btn" onclick="v48ShiftStaffSalesMonth('${esc(data.bounds.value)}',1)"><i class="material-icons-round">chevron_right</i></button>
+            <div style="display:inline-flex;gap:4px;align-items:center;background:rgba(255,255,255,.92);border-radius:10px;padding:4px 8px">
+              <input class="v48-date" type="date" value="${esc(data.bounds.from)}" id="v48-from" style="border:none;background:transparent;font-family:inherit;font-weight:700;color:#0f172a;font-size:13px">
+              <span style="color:#64748b;font-size:12px;font-weight:600">—</span>
+              <input class="v48-date" type="date" value="${esc(data.bounds.to)}" id="v48-to" style="border:none;background:transparent;font-family:inherit;font-weight:700;color:#0f172a;font-size:13px">
+              <button class="v48-btn" style="padding:4px 8px;font-size:11px" onclick="v48ApplyDateRange()">ใช้ช่วงนี้</button>
+            </div>
+            <button class="v48-btn" onclick="v48QuickRange('today')">วันนี้</button>
+            <button class="v48-btn" onclick="v48QuickRange('yesterday')">เมื่อวาน</button>
+            <button class="v48-btn" onclick="v48QuickRange('7d')">7 วัน</button>
+            <button class="v48-btn" onclick="v48QuickRange('month')">เดือนนี้</button>
+            <button class="v48-btn" onclick="v48ShiftStaffSalesRange(-1)"><i class="material-icons-round">chevron_left</i></button>
+            <button class="v48-btn" onclick="v48ShiftStaffSalesRange(1)"><i class="material-icons-round">chevron_right</i></button>
             <button class="v48-btn" onclick="v48OpenCommissionSettings()"><i class="material-icons-round">tune</i> ตั้งค่าคอม</button>
-            <button class="v48-btn primary" onclick="renderStaffSalesDashboard('${esc(data.bounds.value)}','${js(activeStaff)}')"><i class="material-icons-round">refresh</i> รีเฟรช</button>
+            <button class="v48-btn primary" onclick="renderStaffSalesDashboard(window.__v48StaffSalesRange,'${js(activeStaff)}')"><i class="material-icons-round">refresh</i> รีเฟรช</button>
           </div>
         </div>
 
@@ -434,7 +492,7 @@
           <div class="v48-panel-head"><strong>สรุปตามพนักงาน</strong><span style="color:#64748b;font-size:12px;font-weight:850">ขั้นคอม: ${esc(tiersText)}</span></div>
           <div class="v48-table-wrap"><table class="v48-table">
             <thead><tr><th>พนักงาน</th><th class="right">จำนวนบิล</th><th class="right">ยอดขายเดือนนี้</th><th class="right">อัตราคอม</th><th class="right">ค่าคอม</th></tr></thead>
-            <tbody>${data.staff.length ? data.staff.map(row => `<tr class="staff-row" onclick="renderStaffSalesDashboard('${esc(data.bounds.value)}','${js(row.name)}')">
+            <tbody>${data.staff.length ? data.staff.map(row => `<tr class="staff-row" onclick="renderStaffSalesDashboard(window.__v48StaffSalesRange,'${js(row.name)}')">
               <td><strong>${esc(row.name)}</strong>${row.name === activeStaff ? ' <span class="v48-rate">กำลังดู</span>' : ''}</td>
               <td class="right">${fmt(row.bills.length)}</td>
               <td class="right"><strong>฿${fmt(row.total)}</strong></td>
@@ -445,10 +503,14 @@
         </div>
 
         <div class="v48-panel v48-bill-list">
-          <div class="v48-panel-head"><strong>${activeStaff === 'ทั้งหมด' ? 'บิลทั้งหมดในเดือนนี้' : `บิลของ ${esc(picked?.name || 'พนักงาน')}`}</strong><button class="v48-btn" onclick="renderStaffSalesDashboard('${esc(data.bounds.value)}','ทั้งหมด')"><i class="material-icons-round">select_all</i> ดูทั้งหมด</button></div>
+          <div class="v48-panel-head"><strong>${activeStaff === 'ทั้งหมด' ? `บิลทั้งหมดในช่วง ${esc(data.bounds.label)}` : `บิลของ ${esc(picked?.name || 'พนักงาน')}`}</strong><button class="v48-btn" onclick="renderStaffSalesDashboard(window.__v48StaffSalesRange,'ทั้งหมด')"><i class="material-icons-round">select_all</i> ดูทั้งหมด</button></div>
           ${billRowsHTML(picked?.bills || [])}
         </div>
       </div>`;
+      // เก็บทั้ง 2 ตัว: range (object) สำหรับ logic ใหม่ + month (string) สำหรับ backward compat
+      window.__v48StaffSalesRange = data.bounds.mode === 'range'
+        ? { from: data.bounds.from, to: data.bounds.to }
+        : data.bounds.value;
       window.__v48StaffSalesMonth = data.bounds.value;
       window.__v48StaffSalesSelected = activeStaff;
       installStaffSalesRealtime();
@@ -494,12 +556,62 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: BILL_TABLE }, () => {
         if (!document.querySelector('#page-att .v48-sales')) return;
         clearTimeout(timer);
-        timer = setTimeout(() => renderStaffSalesDashboard(window.__v48StaffSalesMonth, window.__v48StaffSalesSelected), 500);
+        timer = setTimeout(() => renderStaffSalesDashboard(window.__v48StaffSalesRange || window.__v48StaffSalesMonth, window.__v48StaffSalesSelected), 500);
       })
       .subscribe(status => console.info('[v48] staff sales realtime:', status));
   }
 
   window.renderStaffSalesDashboard = renderStaffSalesDashboard;
+
+  /* ── ช่วงวันที่ helpers ── */
+  window.v48ApplyDateRange = function () {
+    const fromEl = document.getElementById('v48-from');
+    const toEl = document.getElementById('v48-to');
+    const from = fromEl?.value, to = toEl?.value;
+    if (!from || !to) return;
+    if (from > to) {
+      try { toast?.('วันเริ่มต้นต้องน้อยกว่าหรือเท่ากับวันสิ้นสุด', 'warning'); } catch (_) {}
+      return;
+    }
+    renderStaffSalesDashboard({ from, to }, window.__v48StaffSalesSelected);
+  };
+
+  window.v48QuickRange = function (preset) {
+    const today = new Date();
+    let from, to;
+    if (preset === 'today') {
+      from = to = ymd(today);
+    } else if (preset === 'yesterday') {
+      const y = new Date(today); y.setDate(y.getDate() - 1);
+      from = to = ymd(y);
+    } else if (preset === '7d') {
+      const s = new Date(today); s.setDate(s.getDate() - 6);
+      from = ymd(s); to = ymd(today);
+    } else if (preset === 'month') {
+      const s = new Date(today.getFullYear(), today.getMonth(), 1);
+      const e = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      from = ymd(s); to = ymd(e);
+    } else {
+      return;
+    }
+    renderStaffSalesDashboard({ from, to }, window.__v48StaffSalesSelected);
+  };
+
+  window.v48ShiftStaffSalesRange = function (delta) {
+    const cur = window.__v48StaffSalesRange;
+    if (cur && typeof cur === 'object' && cur.from && cur.to) {
+      // เลื่อนช่วงตามความกว้างของช่วง (1 วันก็เลื่อนทีละวัน, 7 วันก็เลื่อนทีละ 7 วัน)
+      const f = new Date(cur.from + 'T00:00:00');
+      const t = new Date(cur.to + 'T00:00:00');
+      const widthDays = Math.round((t - f) / 86400000) + 1;
+      const newF = new Date(f); newF.setDate(newF.getDate() + delta * widthDays);
+      const newT = new Date(t); newT.setDate(newT.getDate() + delta * widthDays);
+      return renderStaffSalesDashboard({ from: ymd(newF), to: ymd(newT) }, window.__v48StaffSalesSelected);
+    }
+    // fallback: shift by month (โหมดเก่า)
+    return window.v48ShiftStaffSalesMonth(window.__v48StaffSalesMonth, delta);
+  };
+
   window.v48ShiftStaffSalesMonth = function (monthValue, delta) {
     const [y, m] = String(monthValue || monthBounds().value).split('-').map(Number);
     const d = new Date(y || new Date().getFullYear(), (m || new Date().getMonth() + 1) - 1 + Number(delta || 0), 1);
@@ -538,7 +650,7 @@
     if (result.isConfirmed) {
       await saveTiersRemote(result.value || []);
       if (typeof toast === 'function') toast('บันทึกขั้นคอมมิชชั่นแล้ว', 'success');
-      if (document.querySelector('#page-att .v48-sales')) renderStaffSalesDashboard(window.__v48StaffSalesMonth, window.__v48StaffSalesSelected);
+      if (document.querySelector('#page-att .v48-sales')) renderStaffSalesDashboard(window.__v48StaffSalesRange || window.__v48StaffSalesMonth, window.__v48StaffSalesSelected);
     }
   };
 
