@@ -27,6 +27,12 @@ console.log('[v36] Usage safety patch loaded');
     try { return USER?.username || 'system'; } catch (_) { return 'system'; }
   }
 
+  function isProjectBill(bill) {
+    if (!bill) return false;
+    const text = `${bill.method || ''} ${bill.status || ''} ${bill.customer_name || ''} ${bill.note || ''}`;
+    return !!bill.project_id || /\u0e42\u0e04\u0e23\u0e07\u0e01\u0e32\u0e23/.test(text);
+  }
+
   async function queryOne(table, select, filters) {
     let q = db.from(table).select(select);
     (filters || []).forEach(f => { q = q.eq(f[0], f[1]); });
@@ -2401,12 +2407,13 @@ console.log('[v36] Usage safety patch loaded');
 
         await settleDeliveryStockOnce(billId, items);
         const total = effectiveTotal(bill);
-        const paid = effectivePaidForDelivery(bill, total);
-        const remaining = Math.max(0, total - paid);
+        const projectBill = isProjectBill(bill);
+        const paid = projectBill ? total : effectivePaidForDelivery(bill, total);
+        const remaining = projectBill ? 0 : Math.max(0, total - paid);
 
         await must(db.from(txt.bill).update({
           delivery_status: txt.delivered,
-          status: remaining > 0 ? txt.debt : txt.success,
+          status: projectBill ? (bill.status || txt.success) : (remaining > 0 ? txt.debt : txt.success),
         }).eq('id', billId), 'อัปเดตสถานะจัดส่งหลังรับชำระ');
 
         if (typeof logActivity === 'function') {
@@ -2439,9 +2446,10 @@ console.log('[v36] Usage safety patch loaded');
           return toast?.('บิลนี้จัดส่งสำเร็จไปแล้ว', 'info');
         }
 
+        const projectBill = isProjectBill(bill);
         const total = effectiveTotal(bill);
-        const paid = effectivePaidForDelivery(bill, total);
-        const remaining = Math.max(0, total - paid);
+        const paid = projectBill ? total : effectivePaidForDelivery(bill, total);
+        const remaining = projectBill ? 0 : Math.max(0, total - paid);
         let action = remaining > 0 ? 'pay' : 'done';
 
         if (remaining > 0 && typeof v20BMCPayDebt === 'function') {
@@ -2499,7 +2507,7 @@ console.log('[v36] Usage safety patch loaded');
         await settleDeliveryStockOnce(billId, items);
         await must(db.from(txt.bill).update({
           delivery_status: txt.delivered,
-          status: remaining > 0 ? txt.debt : txt.success,
+          status: projectBill ? (bill.status || txt.success) : (remaining > 0 ? txt.debt : txt.success),
         }).eq('id', billId), 'อัปเดตสถานะจัดส่ง');
 
         if (remaining > 0 && action === 'debt' && bill.customer_id) {

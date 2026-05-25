@@ -24,6 +24,11 @@
     catch (_) { return num(v).toLocaleString('th-TH'); }
   };
   const effectiveTotal = b => num(b?.return_info?.new_total ?? b?.total);
+  const isProjectBill = b => {
+    if (!b) return false;
+    const text = `${b.method || ''} ${b.status || ''} ${b.customer_name || ''} ${b.note || ''}`;
+    return !!b.project_id || /\u0e42\u0e04\u0e23\u0e07\u0e01\u0e32\u0e23/.test(text);
+  };
 
   /* ─────────────────────────────────────────────────────────────
      1) WRAP cancelBill
@@ -486,7 +491,7 @@
     if (stale || missing.length) {
       try {
         const { data } = await db.from(BILL_TABLE)
-          .select('id,status,deposit_amount,total,return_info,delivery_status,delivery_mode')
+          .select('id,status,method,customer_name,project_id,note,deposit_amount,received,total,return_info,delivery_status,delivery_mode')
           .in('id', ids);
         (data || []).forEach(b => _billCache.set(String(b.id), b));
         _lastFetchAt = Date.now();
@@ -518,7 +523,12 @@
     span.setAttribute('data-v92-badge', '1');
     span.style.cssText = 'padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:700;border:1px solid;display:inline-flex;align-items:center;gap:3px;width:fit-content;line-height:1.2';
 
-    if (total > 0 && remaining < 0.01) {
+    if (isProjectBill(b)) {
+      span.style.background = '#eef2ff';
+      span.style.color = '#4338ca';
+      span.style.borderColor = '#c7d2fe';
+      span.innerHTML = `<i class="material-icons-round" style="font-size:12px">business_center</i>โครงการ`;
+    } else if (total > 0 && remaining < 0.01) {
       // ชำระครบแล้ว
       span.style.background = '#ecfdf5';
       span.style.color = '#047857';
@@ -637,6 +647,7 @@
   ───────────────────────────────────────────────────────────── */
   function isBillFullyPaid(bill) {
     if (!bill) return false;
+    if (isProjectBill(bill)) return false;
     const total = effectiveTotal(bill);
     if (total <= 0) return true;
     const status = String(bill.status || '');
@@ -672,6 +683,12 @@
     const wrapped = async function (billId, ...args) {
       try {
         const { data: bill } = await db.from(BILL_TABLE).select('*').eq('id', billId).maybeSingle();
+        if (bill && isProjectBill(bill)) {
+          try { toast?.('บิลโครงการไม่ต้องรับชำระเงินจากลูกค้า', 'info'); } catch (_) {}
+          try { window.v12BMCLoad?.(); } catch (_) {}
+          try { window.v12DQFilter?.(window.v12DQCurrentFilter || 'today'); } catch (_) {}
+          return;
+        }
         if (bill && isBillFullyPaid(bill)) {
           await healBillPaidFlag(bill);
           try { toast?.('บิลนี้ชำระครบแล้ว ไม่ต้องรับชำระเพิ่ม', 'info'); } catch (_) {}
