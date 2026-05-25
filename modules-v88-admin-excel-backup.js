@@ -181,21 +181,30 @@
   function setupSheet(sheet, columns, range, title) {
     const lastColumn = Math.max(1, columns.length);
     sheet.mergeCells(1, 1, 1, lastColumn);
-    sheet.getCell(1, 1).value = `${FILE_TAG} - ${title}`;
-    sheet.getCell(1, 1).font = { name: 'Arial', bold: true, size: 15, color: { argb: 'FF0F172A' } };
+    sheet.getCell(1, 1).value = title;
+    sheet.getCell(1, 1).font = { name: 'Tahoma', bold: true, size: 15, color: { argb: 'FF0F172A' } };
     sheet.mergeCells(2, 1, 2, lastColumn);
-    sheet.getCell(2, 1).value = `\u0e0a\u0e48\u0e27\u0e07\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48: ${range.start} \u0e16\u0e36\u0e07 ${range.end}`;
+    sheet.getCell(2, 1).value = `ช่วงวันที่: ${range.start} ถึง ${range.end}`;
     sheet.mergeCells(3, 1, 3, lastColumn);
-    sheet.getCell(3, 1).value = `\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e44\u0e1f\u0e25\u0e4c: ${new Date().toLocaleString('th-TH')} \u0e42\u0e14\u0e22 ${currentUser()?.username || 'admin'}`;
+    sheet.getCell(3, 1).value = `สร้างไฟล์: ${new Date().toLocaleString('th-TH')} โดย ${currentUser()?.username || 'admin'}`;
     sheet.views = [{ state: 'frozen', ySplit: 5 }];
-    sheet.pageSetup = { paperSize: 9, orientation: columns.length > 7 ? 'landscape' : 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+    sheet.pageSetup = {
+      paperSize: 9,
+      orientation: columns.length > 4 ? 'landscape' : 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: false,
+    };
     sheet.pageSetup.printTitlesRow = '1:5';
-    sheet.pageSetup.margins = { left: 0.25, right: 0.25, top: 0.45, bottom: 0.45, header: 0.2, footer: 0.2 };
+    sheet.pageSetup.margins = { left: 0.25, right: 0.25, top: 0.55, bottom: 0.5, header: 0.25, footer: 0.25 };
+    sheet.headerFooter.oddHeader = `&L${FILE_TAG}&C&B${title}&R${range.start} - ${range.end}`;
+    sheet.headerFooter.oddFooter = '&Lพิมพ์จาก SK POS&Cหน้า &P จาก &N&R&A';
   }
 
   function styleHeader(row) {
     row.eachCell(cell => {
-      cell.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+      cell.font = { name: 'Tahoma', bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
       cell.alignment = { vertical: 'middle', wrapText: true };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
@@ -205,7 +214,7 @@
   function styleBody(sheet, headerRow, lastRow, lastColumn) {
     for (let rowNumber = headerRow + 1; rowNumber <= lastRow; rowNumber += 1) {
       sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, cell => {
-        cell.font = { name: 'Arial', size: 10 };
+        cell.font = { name: 'Tahoma', size: 10 };
         cell.alignment = { vertical: 'top', wrapText: true };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
         if (typeof cell.value === 'number') { cell.numFmt = '#,##0.00'; cell.alignment = { horizontal: 'right', vertical: 'top' }; }
@@ -279,7 +288,7 @@
     sheet.addRow([]);
     styleHeader(sheet.addRow(columns));
     if (rows.length) rows.forEach(row => sheet.addRow(row));
-    else sheet.addRow(['No records']);
+    else sheet.addRow(['ไม่มีรายการในช่วงวันที่นี้']);
     columns.forEach((column, index) => {
       let width = String(column).length + 2;
       rows.slice(0, 240).forEach(row => { width = Math.max(width, String(cellValue(row[index])).length + 2); });
@@ -314,9 +323,9 @@
     const [sales, expenses, purchases, debtPayments, advances, payroll, projectExpenses, milestones, customers, employees, projects] = results;
     return {
       sales, expenses, purchases, debtPayments, advances, payroll, projectExpenses, milestones,
-      customerName: byId(customers, row => label(row.name, 'Customer')),
-      employeeName: byId(employees, row => label([row.name, row.lastname].filter(Boolean).join(' '), 'Employee')),
-      projectName: byId(projects, row => label(row.name, 'Project')),
+      customerName: byId(customers, row => label(row.name, 'ลูกค้า')),
+      employeeName: byId(employees, row => label([row.name, row.lastname].filter(Boolean).join(' '), 'พนักงาน')),
+      projectName: byId(projects, row => label(row.name, 'โครงการ')),
     };
   }
 
@@ -327,61 +336,61 @@
   function accountSheets(data) {
     const income = [];
     data.sales.filter(row => !isCanceled(row.status)).forEach(row => income.push([
-      rowDate(row.date), 'Sales', label(row.bill_no, '-'), label(row.customer_name, 'General customer'),
+      rowDate(row.date), 'ขายสินค้า', label(row.bill_no, '-'), label(row.customer_name, 'ลูกค้าทั่วไป'),
       label(row.method, '-'), label(row.status, '-'), money(row, 'total'), label(row.note, ''),
     ]));
     data.debtPayments.forEach(row => income.push([
-      rowDate(row.date), 'Debt payment', '-', label(data.customerName.get(String(row.customer_id)), 'Customer'),
-      label(row.method, '-'), label(row.status, 'Received'), money(row, 'amount'), label(row.note, ''),
+      rowDate(row.date), 'รับชำระหนี้', '-', label(data.customerName.get(String(row.customer_id)), 'ลูกค้า'),
+      label(row.method, '-'), label(row.status, 'รับเงินแล้ว'), money(row, 'amount'), label(row.note, ''),
     ]));
     data.milestones.forEach(row => income.push([
-      rowDate(row.billed_at), 'Project milestone', label(row.milestone_no, '-'),
-      label(data.projectName.get(String(row.project_id)), 'Project'), label(row.method, '-'),
-      label(row.status, 'Billed'), money(row, 'amount'), label(row.note || row.description, ''),
+      rowDate(row.billed_at), 'วางบิลโครงการ', label(row.milestone_no, '-'),
+      label(data.projectName.get(String(row.project_id)), 'โครงการ'), label(row.method, '-'),
+      label(row.status, 'วางบิลแล้ว'), money(row, 'amount'), label(row.note || row.description, ''),
     ]));
 
     const expense = [];
     data.expenses.filter(row => !isCanceled(row.status)).forEach(row => expense.push([
-      rowDate(row.date), 'Store expense', label(row.description, '-'), label(row.category, '-'),
+      rowDate(row.date), 'รายจ่ายร้าน', label(row.description, '-'), label(row.category, '-'),
       label(row.method, '-'), money(row, 'amount'), label(row.staff_name, ''), label(row.note, ''),
     ]));
     data.purchases.filter(row => !isCanceled(row.status)).forEach(row => expense.push([
-      rowDate(row.date), 'Inventory purchase', label(row.supplier, '-'), 'Purchase order',
+      rowDate(row.date), 'ซื้อสินค้าเข้าร้าน', label(row.supplier, '-'), 'ใบซื้อสินค้า',
       label(row.method, '-'), money(row, 'total'), label(row.staff_name, ''), label(row.note, ''),
     ]));
     data.projectExpenses.forEach(row => expense.push([
-      rowDate(row.paid_at || row.created_at), 'Project expense',
-      label(data.projectName.get(String(row.project_id)), 'Project'), label(row.category || row.type, '-'),
+      rowDate(row.paid_at || row.created_at), 'รายจ่ายโครงการ',
+      label(data.projectName.get(String(row.project_id)), 'โครงการ'), label(row.category || row.type, '-'),
       label(row.method, '-'), money(row, 'amount'), label(row.staff_name, ''), label(row.description || row.notes, ''),
     ]));
     data.advances.filter(row => !isCanceled(row.status)).forEach(row => expense.push([
-      rowDate(row.date), 'Employee advance', label(data.employeeName.get(String(row.employee_id)), 'Employee'),
-      'Staff', label(row.method, '-'), money(row, 'amount'), label(row.approved_by, ''), label(row.reason, ''),
+      rowDate(row.date), 'พนักงานเบิกเงิน', label(data.employeeName.get(String(row.employee_id)), 'พนักงาน'),
+      'พนักงาน', label(row.method, '-'), money(row, 'amount'), label(row.approved_by, ''), label(row.reason, ''),
     ]));
     data.payroll.filter(row => !isCanceled(row.status)).forEach(row => expense.push([
-      rowDate(row.paid_date), 'Payroll', label(data.employeeName.get(String(row.employee_id)), 'Employee'),
-      label(row.month, 'Staff'), label(row.method, '-'), money(row, 'net_paid'),
+      rowDate(row.paid_date), 'จ่ายเงินเดือน', label(data.employeeName.get(String(row.employee_id)), 'พนักงาน'),
+      label(row.month, 'พนักงาน'), label(row.method, '-'), money(row, 'net_paid'),
       label(row.paid_by || row.staff_name, ''), label(row.note, ''),
     ]));
 
     const project = [];
     data.milestones.forEach(row => project.push([
-      rowDate(row.billed_at), label(data.projectName.get(String(row.project_id)), 'Project'),
-      'Income', label(row.title || row.description, 'Milestone'), money(row, 'amount'), label(row.status, 'Billed'),
+      rowDate(row.billed_at), label(data.projectName.get(String(row.project_id)), 'โครงการ'),
+      'รายรับ', label(row.title || row.description, 'งวดงาน'), money(row, 'amount'), label(row.status, 'วางบิลแล้ว'),
     ]));
     data.projectExpenses.forEach(row => project.push([
-      rowDate(row.paid_at || row.created_at), label(data.projectName.get(String(row.project_id)), 'Project'),
-      'Expense', label(row.description || row.category, 'Project expense'), -money(row, 'amount'), label(row.status, 'Paid'),
+      rowDate(row.paid_at || row.created_at), label(data.projectName.get(String(row.project_id)), 'โครงการ'),
+      'รายจ่าย', label(row.description || row.category, 'รายจ่ายโครงการ'), -money(row, 'amount'), label(row.status, 'จ่ายแล้ว'),
     ]));
 
     const employee = [];
     data.advances.forEach(row => employee.push([
-      rowDate(row.date), label(data.employeeName.get(String(row.employee_id)), 'Employee'),
-      'Advance', money(row, 'amount'), label(row.status, '-'), label(row.reason, ''),
+      rowDate(row.date), label(data.employeeName.get(String(row.employee_id)), 'พนักงาน'),
+      'เบิกเงิน', money(row, 'amount'), label(row.status, '-'), label(row.reason, ''),
     ]));
     data.payroll.forEach(row => employee.push([
-      rowDate(row.paid_date), label(data.employeeName.get(String(row.employee_id)), 'Employee'),
-      'Payroll', money(row, 'net_paid'), label(row.status, 'Paid'), label(row.note, ''),
+      rowDate(row.paid_date), label(data.employeeName.get(String(row.employee_id)), 'พนักงาน'),
+      'เงินเดือน', money(row, 'net_paid'), label(row.status, 'จ่ายแล้ว'), label(row.note, ''),
     ]));
     return { income, expense, project, employee };
   }
@@ -389,14 +398,14 @@
   function addAccountingSummary(workbook, range, sheets) {
     const incomeTotal = sheets.income.reduce((sum, row) => sum + money({ value: row[6] }, 'value'), 0);
     const expenseTotal = sheets.expense.reduce((sum, row) => sum + money({ value: row[5] }, 'value'), 0);
-    addReportSheet(workbook, range, 'Summary', ['Item', 'Amount'], [
-      ['Income total', incomeTotal],
-      ['Expense total', expenseTotal],
-      ['Net cash report', incomeTotal - expenseTotal],
-      ['Income rows', sheets.income.length],
-      ['Expense rows', sheets.expense.length],
-      ['Project rows', sheets.project.length],
-      ['Employee rows', sheets.employee.length],
+    addReportSheet(workbook, range, 'สรุปบัญชี', ['หัวข้อ', 'จำนวนเงิน / จำนวนรายการ'], [
+      ['รายรับรวม', incomeTotal],
+      ['รายจ่ายรวม', expenseTotal],
+      ['คงเหลือสุทธิ', incomeTotal - expenseTotal],
+      ['จำนวนรายการรายรับ', sheets.income.length],
+      ['จำนวนรายการรายจ่าย', sheets.expense.length],
+      ['จำนวนรายการโครงการ', sheets.project.length],
+      ['จำนวนรายการพนักงาน', sheets.employee.length],
     ]);
   }
 
@@ -406,10 +415,10 @@
     const workbook = new ExcelJS.Workbook();
     workbook.creator = FILE_TAG; workbook.created = new Date();
     addAccountingSummary(workbook, range, sheets);
-    addReportSheet(workbook, range, 'Income', ['Date', 'Type', 'Reference', 'Customer or Project', 'Method', 'Status', 'Amount', 'Note'], sheets.income);
-    addReportSheet(workbook, range, 'Expense', ['Date', 'Type', 'Description', 'Category', 'Method', 'Amount', 'Recorded by', 'Note'], sheets.expense);
-    addReportSheet(workbook, range, 'Projects', ['Date', 'Project', 'Flow', 'Description', 'Amount', 'Status'], sheets.project);
-    addReportSheet(workbook, range, 'Employees', ['Date', 'Employee', 'Type', 'Amount', 'Status', 'Note'], sheets.employee);
+    addReportSheet(workbook, range, 'รายรับ', ['วันที่', 'ประเภท', 'เลขอ้างอิง', 'ลูกค้า / โครงการ', 'วิธีชำระ', 'สถานะ', 'จำนวนเงิน', 'หมายเหตุ'], sheets.income);
+    addReportSheet(workbook, range, 'รายจ่าย', ['วันที่', 'ประเภท', 'รายละเอียด', 'หมวดหมู่', 'วิธีจ่าย', 'จำนวนเงิน', 'ผู้บันทึก', 'หมายเหตุ'], sheets.expense);
+    addReportSheet(workbook, range, 'โครงการ', ['วันที่', 'โครงการ', 'เงินเข้า / เงินออก', 'รายละเอียด', 'จำนวนเงิน', 'สถานะ'], sheets.project);
+    addReportSheet(workbook, range, 'พนักงาน', ['วันที่', 'พนักงาน', 'รายการ', 'จำนวนเงิน', 'สถานะ', 'หมายเหตุ'], sheets.employee);
     return workbook;
   }
 

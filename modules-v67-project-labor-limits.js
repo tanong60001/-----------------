@@ -4,7 +4,11 @@
   console.log('[v67] project labor limit tools loaded');
 
   const STORE_KEY = 'sk:v67:project_labor_limits:v1';
+  const PROJECT_TABLE = 'โครงการ';
   const PROJECT_EXPENSE_TABLE = 'รายจ่ายโครงการ';
+  const PROJECT_MILESTONE_TABLE = 'งวดงาน';
+  const PROJECT_BILL_TABLE = 'บิลขาย';
+  const PROJECT_BILL_ITEM_TABLE = 'รายการในบิล';
   const LABOR_CATEGORY = 'ค่าแรง';
   const BUDGET_TYPE = 'labor_limit';
   const BUDGET_MARK = 'SK_LABOR_LIMIT_BUDGET:';
@@ -55,6 +59,7 @@
       .v67-btn.primary{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 10px 20px rgba(37,99,235,.18)}
       .v67-btn.good{background:#059669;border-color:#059669;color:#fff;box-shadow:0 10px 20px rgba(5,150,105,.16)}
       .v67-btn.excel{background:#0f766e;border-color:#0f766e;color:#fff;box-shadow:0 10px 20px rgba(15,118,110,.16)}
+      .v67-btn.project-excel{background:#7c3aed;border-color:#7c3aed;color:#fff;box-shadow:0 10px 20px rgba(124,58,237,.16)}
       .v67-btn.danger{color:#dc2626;border-color:#fecaca;background:#fff}
       .v67-labor-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 18px;background:#f8fafc}
       .v67-sum{border:1px solid #e2e8f0;background:#fff;border-radius:14px;padding:12px}
@@ -259,6 +264,7 @@
   function noteHasPay(row, budget) {
     const id = String(budget?.id || budget || '');
     const note = String(row?.notes || '');
+    if (note.includes(BUDGET_MARK) || row?.type === BUDGET_TYPE) return false;
     if (id && note.includes(`${PAY_MARK}${id}`)) return true;
 
     // Backward compatible fallback for rows created before the dedicated labor modal:
@@ -266,7 +272,13 @@
     const name = String(budget?.name || '').trim().toLowerCase();
     if (!name) return false;
     const hay = `${row?.description || ''} ${row?.category || ''} ${note}`.toLowerCase();
-    return hay.includes(name) && (hay.includes('ค่าแรง') || hay.includes('labor'));
+    return num(row?.amount) > 0 && hay.includes(name) && (hay.includes('ค่าแรง') || hay.includes('labor'));
+  }
+
+  function isBudgetExpense(row) {
+    const note = String(row?.notes || '');
+    const desc = String(row?.description || '');
+    return note.includes(BUDGET_MARK) || row?.type === BUDGET_TYPE || (num(row?.amount) <= 0 && desc.includes('[งบค่าแรงเหมา]'));
   }
 
   async function projectExpenses(projectId) {
@@ -327,7 +339,18 @@
       .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
   }
 
-  function laborExcelHtml(projectId, summary) {
+  async function projectLabel(projectId) {
+    try {
+      const { data, error } = await db.from('โครงการ').select('name,customer_name').eq('id', projectId).maybeSingle();
+      if (error) throw error;
+      return String(data?.name || data?.customer_name || projectId || '-').trim() || '-';
+    } catch (error) {
+      console.warn('[v67] project label:', error);
+      return String(projectId || '-');
+    }
+  }
+
+  function laborExcelHtml(projectId, projectName, summary) {
     const printedAt = new Date().toLocaleString('th-TH');
     const detailRows = [];
     summary.stats.forEach((row, index) => {
@@ -357,13 +380,17 @@
     });
     return `<!doctype html><html><head><meta charset="utf-8">
       <style>
-        @page{size:A4 landscape;margin:8mm}
-        body{font-family:Tahoma,'Prompt',sans-serif;color:#0f172a}
+        @page{size:A4 landscape;margin:10mm 8mm}
+        *{box-sizing:border-box}
+        body{font-family:Tahoma,'Prompt',sans-serif;color:#0f172a;margin:0;background:#fff}
         table{border-collapse:collapse;width:100%}
-        th,td{border:1px solid #cbd5e1;padding:7px 8px;font-size:12px;vertical-align:top}
-        .title td{background:#0f172a;color:#fff;border-color:#0f172a;padding:14px 16px}
-        .title h1{margin:0;font-size:22px}.title p{margin:4px 0 0;color:#cbd5e1;font-size:12px}
-        .summary td{background:#f8fafc;font-weight:900;font-size:13px}
+        thead{display:table-header-group}
+        tfoot{display:table-footer-group}
+        tr{page-break-inside:avoid;break-inside:avoid}
+        th,td{border:1px solid #cbd5e1;padding:6px 8px;font-size:11.5px;vertical-align:top;line-height:1.35}
+        .title td{background:#0f172a;color:#fff;border-color:#0f172a;padding:12px 14px}
+        .title h1{margin:0;font-size:20px}.title p{margin:4px 0 0;color:#cbd5e1;font-size:11px}
+        .summary td{background:#f8fafc;font-weight:900;font-size:12px}
         .summary b{font-size:18px;color:#0f172a}
         th{background:#1f2937;color:#fff;font-weight:900}
         .right{text-align:right}.green{color:#047857;font-weight:900}.red{color:#b91c1c;font-weight:900}
@@ -372,42 +399,323 @@
         .pay-head td{background:#ecfdf5;color:#065f46;font-weight:900}
         .pay td{background:#fbfdff;color:#334155;font-size:11px}
         .foot td{background:#f1f5f9;color:#475569;font-size:11px}
+        @media print{body{margin:0}thead{display:table-header-group}tfoot{display:table-footer-group}}
       </style></head><body>
       <table>
-        <tr class="title"><td colspan="7"><h1>รายงานรายละเอียดช่างทั้งหมด</h1><p>โครงการ ${esc(projectId)} · ส่งออกเมื่อ ${esc(printedAt)}</p></td></tr>
-        <tr class="summary">
-          <td colspan="2">จำนวนช่าง/ทีม<br><b>${summary.stats.length}</b></td>
-          <td colspan="2">วงเงินเหมา<br><b>฿${fmt(summary.totalLimit)}</b></td>
-          <td colspan="2">จ่ายแล้ว<br><b>฿${fmt(summary.totalPaid)}</b></td>
-          <td>คงเหลือ<br><b>฿${fmt(summary.totalRemaining)}</b></td>
-        </tr>
-        <tr>
-          <th style="width:36px">#</th>
-          <th>ชื่อช่าง / ทีมช่าง</th>
-          <th class="right">ตั้งไว้</th>
-          <th class="right">จ่ายแล้ว</th>
-          <th class="right">คงเหลือ</th>
-          <th class="right">ใช้ไป</th>
-          <th>สถานะ / จำนวนงวด</th>
-        </tr>
-        ${detailRows.join('') || '<tr><td colspan="7" style="text-align:center;color:#64748b">ยังไม่มีรายละเอียดช่าง</td></tr>'}
-        <tr class="foot"><td colspan="7">หมายเหตุ: ไฟล์นี้จัดหน้าแบบ A4 แนวนอนสำหรับพิมพ์ และเปิดได้ด้วย Microsoft Excel</td></tr>
+        <thead>
+          <tr class="title"><td colspan="7"><h1>รายงานค่าแรงเหมาช่าง</h1><p>โครงการ: ${esc(projectName)} | รหัสโครงการ: ${esc(projectId)} | ส่งออกเมื่อ ${esc(printedAt)}</p></td></tr>
+          <tr class="summary">
+            <td colspan="2">จำนวนช่าง / ทีม<br><b>${summary.stats.length}</b></td>
+            <td colspan="2">วงเงินเหมารวม<br><b>฿${fmt(summary.totalLimit)}</b></td>
+            <td colspan="2">จ่ายแล้ว<br><b>฿${fmt(summary.totalPaid)}</b></td>
+            <td>คงเหลือ<br><b>฿${fmt(summary.totalRemaining)}</b></td>
+          </tr>
+          <tr>
+            <th style="width:36px">#</th>
+            <th>ชื่อช่าง / ทีมช่าง</th>
+            <th class="right">วงเงินที่ตั้งไว้</th>
+            <th class="right">จ่ายแล้ว</th>
+            <th class="right">คงเหลือ</th>
+            <th class="right">ใช้ไป</th>
+            <th>สถานะ / จำนวนงวด</th>
+          </tr>
+        </thead>
+        <tbody>${detailRows.join('') || '<tr><td colspan="7" style="text-align:center;color:#64748b">ยังไม่มีรายการค่าแรงเหมาช่าง</td></tr>'}</tbody>
+        <tfoot><tr class="foot"><td colspan="7">หมายเหตุ: ไฟล์นี้จัดหน้าแบบ A4 แนวนอนสำหรับพิมพ์ หัวรายงานและหัวตารางจะแสดงซ้ำทุกหน้า</td></tr></tfoot>
       </table>
       </body></html>`;
   }
 
   window.v67ExportLaborExcel = async function (projectId) {
     try {
-      const summary = await laborSummary(projectId);
+      const name = await projectLabel(projectId);
       const stamp = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+      if (window.ExcelJS) {
+        const { workbook, projectName } = await buildLaborWorkbook(projectId);
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveWorkbookBuffer(`รายงานค่าแรงเหมาช่าง_${safeFileName(projectName)}_${safeFileName(stamp)}.xlsx`, buffer);
+        toast?.('ส่งออก Excel รายงานค่าแรงเหมาช่างเรียบร้อย', 'success');
+        return;
+      }
+      const summary = await laborSummary(projectId);
       downloadExcelHtml(
-        `รายละเอียดช่างทั้งหมด_${safeFileName(stamp)}.xls`,
-        laborExcelHtml(projectId, summary)
+        `รายงานค่าแรงเหมาช่าง_${safeFileName(name)}_${safeFileName(stamp)}.xls`,
+        laborExcelHtml(projectId, name, summary)
       );
-      toast?.('ส่งออก Excel รายละเอียดช่างสำเร็จ', 'success');
+      toast?.('ส่งออก Excel รายงานค่าแรงเหมาช่างเรียบร้อย', 'success');
     } catch (error) {
       console.error('[v67] export labor excel:', error);
       toast?.('ส่งออก Excel ไม่สำเร็จ: ' + (error.message || error), 'error');
+    }
+  };
+
+  function rowDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value).slice(0, 19) : date.toLocaleString('th-TH');
+  }
+
+  function plainNote(value) {
+    return String(value || '')
+      .replace(new RegExp(`${PAY_MARK}[^|\\s]+`, 'g'), '')
+      .replace(/SK_LABOR_LIMIT_BUDGET:\s*\{.*?\}/g, '')
+      .replace(/\|\s*ช่าง:/g, 'ช่าง:')
+      .replace(/\s+\|\s+/g, ' | ')
+      .trim();
+  }
+
+  function saveWorkbookBuffer(fileName, buffer) {
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function sheetBase(sheet, title, subtitle, columnCount) {
+    const last = Math.max(1, columnCount);
+    sheet.mergeCells(1, 1, 1, last);
+    sheet.getCell(1, 1).value = title;
+    sheet.getCell(1, 1).font = { name: 'Tahoma', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    sheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+    sheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' };
+    sheet.getRow(1).height = 28;
+    sheet.mergeCells(2, 1, 2, last);
+    sheet.getCell(2, 1).value = subtitle;
+    sheet.getCell(2, 1).font = { name: 'Tahoma', size: 10, color: { argb: 'FF475569' } };
+    sheet.mergeCells(3, 1, 3, last);
+    sheet.getCell(3, 1).value = `สร้างไฟล์: ${new Date().toLocaleString('th-TH')} | ผู้สร้าง: ${staff()}`;
+    sheet.getCell(3, 1).font = { name: 'Tahoma', size: 10, color: { argb: 'FF475569' } };
+    sheet.views = [{ state: 'frozen', ySplit: 5 }];
+    sheet.pageSetup = {
+      paperSize: 9,
+      orientation: last > 4 ? 'landscape' : 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: false,
+    };
+    sheet.pageSetup.printTitlesRow = '1:5';
+    sheet.pageSetup.margins = { left: 0.25, right: 0.25, top: 0.55, bottom: 0.5, header: 0.25, footer: 0.25 };
+    sheet.headerFooter.oddHeader = `&Lรายงานโครงการ&C&B${title}&R${new Date().toLocaleDateString('th-TH')}`;
+    sheet.headerFooter.oddFooter = '&Lพิมพ์จาก SK POS&Cหน้า &P จาก &N&R&A';
+  }
+
+  function styleHeader(row) {
+    row.height = 23;
+    row.eachCell(cell => {
+      cell.font = { name: 'Tahoma', bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+  }
+
+  function styleTable(sheet, headerRow, lastRow, lastColumn) {
+    for (let r = headerRow + 1; r <= lastRow; r += 1) {
+      const row = sheet.getRow(r);
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.font = { name: 'Tahoma', size: 10, color: { argb: 'FF0F172A' } };
+        cell.alignment = { vertical: 'top', wrapText: true };
+        cell.border = { bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } }, left: { style: 'hair', color: { argb: 'FFE2E8F0' } }, right: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
+        if (typeof cell.value === 'number') {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { vertical: 'top', horizontal: 'right', wrapText: true };
+        }
+      });
+      if (r % 2 === 0) {
+        row.eachCell({ includeEmpty: true }, cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        });
+      }
+    }
+    sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: Math.max(headerRow, lastRow), column: lastColumn } };
+    sheet.pageSetup.printArea = `A1:${sheet.getColumn(lastColumn).letter}${Math.max(headerRow, lastRow)}`;
+  }
+
+  function addListSheet(workbook, name, title, subtitle, columns, rows, widths) {
+    const sheet = workbook.addWorksheet(name);
+    sheetBase(sheet, title, subtitle, columns.length);
+    sheet.addRow([]);
+    styleHeader(sheet.addRow(columns));
+    if (rows.length) rows.forEach(row => sheet.addRow(row));
+    else sheet.addRow(['ไม่มีรายการ']);
+    (widths || []).forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+    columns.forEach((column, index) => {
+      if (!sheet.getColumn(index + 1).width) sheet.getColumn(index + 1).width = Math.min(34, Math.max(12, String(column).length + 4));
+    });
+    styleTable(sheet, 5, sheet.rowCount, columns.length);
+    return sheet;
+  }
+
+  function addProjectSummarySheet(workbook, data) {
+    const { project, expenses, bills, milestones, labor } = data;
+    const budget = num(project?.budget);
+    const billed = num(project?.total_billed) || milestones.filter(row => String(row.status || '').includes('billed')).reduce((sum, row) => sum + num(row.amount), 0);
+    const goods = num(project?.total_goods_cost) || bills.reduce((sum, row) => sum + num(row.total), 0);
+    const expenseTotal = expenses.reduce((sum, row) => sum + num(row.amount), 0);
+    const totalCost = goods + expenseTotal;
+    const remain = Math.max(0, budget - billed);
+    const net = budget - totalCost;
+    const sheet = workbook.addWorksheet('สรุปโครงการ');
+    sheetBase(sheet, 'สรุปภาพรวมโครงการ', `โครงการ: ${project?.name || '-'} | สัญญา: ${project?.contract_no || '-'}`, 4);
+    sheet.addRow([]);
+    styleHeader(sheet.addRow(['หัวข้อ', 'จำนวนเงิน / ข้อมูล', 'คำอธิบาย', 'หมายเหตุ']));
+    [
+      ['งบประมาณตามสัญญา', budget, 'ยอดขาย/มูลค่าโครงการที่ตั้งไว้', project?.contract_no || ''],
+      ['เบิก/วางบิลแล้ว', billed, 'เงินเข้าโครงการจากงวดงาน', `${budget ? Math.round((billed / budget) * 100) : 0}% ของงบ`],
+      ['คงเหลือให้เบิก', remain, 'งบประมาณที่ยังไม่ถูกวางบิล', ''],
+      ['ต้นทุนสินค้า/บิลโครงการ', goods, 'มูลค่าสินค้าที่จ่ายให้โครงการ', ''],
+      ['รายจ่ายโครงการ', expenseTotal, 'ค่าแรง วัสดุ และค่าใช้จ่ายอื่น', 'ไม่รวมแถวตั้งวงเงินช่าง'],
+      ['ต้นทุนรวม', totalCost, 'ต้นทุนสินค้า + รายจ่ายโครงการ', ''],
+      ['กำไรสุทธิประมาณการ', net, 'งบประมาณ - ต้นทุนรวม', net >= 0 ? 'กำไร' : 'ขาดทุน'],
+      ['วงเงินเหมาช่างรวม', labor.totalLimit, 'งบค่าแรงเหมาช่างที่ตั้งไว้', `${labor.stats.length} ช่าง/ทีม`],
+      ['จ่ายค่าแรงเหมาช่างแล้ว', labor.totalPaid, 'ยอดจ่ายจริงตามงวดจ่าย', ''],
+      ['ค่าแรงเหมาช่างคงเหลือ', labor.totalRemaining, 'วงเงินที่ยังจ่ายได้', ''],
+    ].forEach(row => sheet.addRow(row));
+    [28, 20, 34, 28].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+    styleTable(sheet, 5, sheet.rowCount, 4);
+    sheet.getColumn(2).numFmt = '#,##0.00';
+  }
+
+  async function loadProjectWorkbookData(projectId) {
+    const [projectRes, expensesRes, billsRes] = await Promise.all([
+      db.from(PROJECT_TABLE).select('*').eq('id', projectId).maybeSingle(),
+      db.from(PROJECT_EXPENSE_TABLE).select('*').eq('project_id', projectId).order('created_at', { ascending: true }),
+      db.from(PROJECT_BILL_TABLE).select('*').eq('project_id', projectId).order('date', { ascending: true }),
+    ]);
+    if (projectRes.error) throw projectRes.error;
+    if (expensesRes.error) throw expensesRes.error;
+    if (billsRes.error) throw billsRes.error;
+
+    let milestones = [];
+    try {
+      const { data, error } = await db.from(PROJECT_MILESTONE_TABLE).select('*').eq('project_id', projectId).order('milestone_no', { ascending: true });
+      if (error) throw error;
+      milestones = data || [];
+    } catch (error) {
+      console.warn('[v67] load project milestones:', error);
+    }
+
+    const bills = billsRes.data || [];
+    let items = [];
+    const billIds = bills.map(row => row.id).filter(Boolean);
+    for (let index = 0; index < billIds.length; index += 180) {
+      const group = billIds.slice(index, index + 180);
+      const { data, error } = await db.from(PROJECT_BILL_ITEM_TABLE).select('*').in('bill_id', group);
+      if (error) throw error;
+      items = items.concat(data || []);
+    }
+
+    return {
+      project: projectRes.data || { id: projectId, name: await projectLabel(projectId) },
+      expenses: (expensesRes.data || []).filter(row => !isBudgetExpense(row)),
+      bills,
+      items,
+      milestones,
+      labor: await laborSummary(projectId),
+    };
+  }
+
+  async function buildProjectWorkbook(projectId) {
+    const data = await loadProjectWorkbookData(projectId);
+    const projectName = data.project?.name || await projectLabel(projectId);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'SK POS Project Report';
+    workbook.created = new Date();
+
+    addProjectSummarySheet(workbook, data);
+
+    addListSheet(workbook, 'ค่าแรงเหมาช่าง', 'รายงานค่าแรงเหมาช่าง', `โครงการ: ${projectName}`, [
+      '#', 'ชื่อช่าง / ทีม', 'วงเงินที่ตั้งไว้', 'จ่ายแล้ว', 'คงเหลือ', 'ใช้ไป', 'จำนวนงวดจ่าย',
+    ], data.labor.stats.map((row, index) => [
+      index + 1, row.budget.name, row.limit, row.paid, row.remaining, `${row.pct}%`, laborPaymentsFor(row, data.labor.expenses).length,
+    ]), [6, 28, 18, 18, 18, 12, 16]);
+
+    addListSheet(workbook, 'งวดจ่ายช่าง', 'รายละเอียดงวดจ่ายค่าแรงเหมาช่าง', `โครงการ: ${projectName}`, [
+      'ช่าง / ทีม', 'วันที่จ่าย', 'รายการ', 'จำนวนเงิน', 'หมายเหตุ',
+    ], data.labor.stats.flatMap(row => laborPaymentsFor(row, data.labor.expenses).map(pay => [
+      row.budget.name, rowDate(pay.created_at), pay.description || 'ค่าแรง', num(pay.amount), plainNote(pay.notes) || '-',
+    ])), [28, 20, 38, 16, 44]);
+
+    addListSheet(workbook, 'รายจ่ายโครงการ', 'รายจ่ายโครงการ', `โครงการ: ${projectName} | ไม่รวมแถวตั้งวงเงินช่าง`, [
+      'วันที่', 'รายการ', 'หมวดหมู่', 'วิธีจ่าย', 'จำนวนเงิน', 'ผู้บันทึก', 'หมายเหตุ',
+    ], data.expenses.map(row => [
+      rowDate(row.paid_at || row.created_at), row.description || '-', row.category || row.type || '-', row.method || '-', num(row.amount), row.staff_name || '-', plainNote(row.notes) || '-',
+    ]), [20, 38, 20, 16, 16, 18, 44]);
+
+    addListSheet(workbook, 'งวดงาน', 'งวดงาน / การวางบิล', `โครงการ: ${projectName}`, [
+      'งวด', 'หัวข้อ', 'วันที่วางบิล', 'จำนวนเงิน', 'สถานะ', 'หมายเหตุ',
+    ], data.milestones.map(row => [
+      row.milestone_no || '-', row.title || row.description || '-', rowDate(row.billed_at || row.due_date), num(row.amount), row.status || '-', row.note || row.notes || '',
+    ]), [10, 36, 20, 16, 16, 40]);
+
+    addListSheet(workbook, 'บิลสินค้าโครงการ', 'บิลสินค้า / วัสดุที่จ่ายให้โครงการ', `โครงการ: ${projectName}`, [
+      'เลขบิล', 'วันที่', 'รายการสินค้า', 'จำนวน', 'หน่วย', 'ราคา/หน่วย', 'รวม', 'สถานะ',
+    ], data.items.map(item => {
+      const bill = data.bills.find(row => String(row.id) === String(item.bill_id)) || {};
+      const qty = num(item.qty || item.quantity);
+      const price = num(item.price || item.unit_price);
+      return [
+        bill.bill_no || item.bill_id || '-', rowDate(bill.date), item.name || item.product_name || '-', qty, item.unit || '-', price, num(item.total || qty * price), bill.status || '-',
+      ];
+    }), [16, 20, 42, 12, 12, 16, 16, 18]);
+
+    return { workbook, projectName };
+  }
+
+  async function buildLaborWorkbook(projectId) {
+    const [{ data: project }, labor] = await Promise.all([
+      db.from(PROJECT_TABLE).select('name,contract_no').eq('id', projectId).maybeSingle(),
+      laborSummary(projectId),
+    ]);
+    const projectName = project?.name || await projectLabel(projectId);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'SK POS Labor Report';
+    workbook.created = new Date();
+
+    addListSheet(workbook, 'สรุปค่าแรง', 'สรุปค่าแรงเหมาช่าง', `โครงการ: ${projectName}`, [
+      'หัวข้อ', 'จำนวนเงิน / จำนวนรายการ', 'หมายเหตุ',
+    ], [
+      ['จำนวนช่าง / ทีม', labor.stats.length, ''],
+      ['วงเงินเหมารวม', labor.totalLimit, 'ยอดที่ตั้งไว้ให้ช่างทั้งหมด'],
+      ['จ่ายแล้ว', labor.totalPaid, 'นับเฉพาะงวดจ่ายจริง ไม่รวมแถวตั้งงบ'],
+      ['คงเหลือจ่ายได้', labor.totalRemaining, 'วงเงินที่ยังจ่ายได้'],
+    ], [28, 24, 46]);
+
+    addListSheet(workbook, 'ค่าแรงเหมาช่าง', 'รายงานค่าแรงเหมาช่าง', `โครงการ: ${projectName}`, [
+      '#', 'ชื่อช่าง / ทีม', 'วงเงินที่ตั้งไว้', 'จ่ายแล้ว', 'คงเหลือ', 'ใช้ไป', 'จำนวนงวดจ่าย',
+    ], labor.stats.map((row, index) => [
+      index + 1, row.budget.name, row.limit, row.paid, row.remaining, `${row.pct}%`, laborPaymentsFor(row, labor.expenses).length,
+    ]), [6, 30, 18, 18, 18, 12, 16]);
+
+    addListSheet(workbook, 'งวดจ่ายช่าง', 'รายละเอียดงวดจ่ายค่าแรงเหมาช่าง', `โครงการ: ${projectName}`, [
+      'ช่าง / ทีม', 'วันที่จ่าย', 'รายการ', 'จำนวนเงิน', 'หมายเหตุ',
+    ], labor.stats.flatMap(row => laborPaymentsFor(row, labor.expenses).map(pay => [
+      row.budget.name, rowDate(pay.created_at), pay.description || 'ค่าแรง', num(pay.amount), plainNote(pay.notes) || '-',
+    ])), [30, 20, 42, 16, 50]);
+
+    return { workbook, projectName };
+  }
+
+  window.v67ExportProjectExcel = async function (projectId) {
+    try {
+      if (!window.ExcelJS) {
+        toast?.('โมดูล Excel ยังโหลดไม่พร้อม กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', 'error');
+        return;
+      }
+      const { workbook, projectName } = await buildProjectWorkbook(projectId);
+      const stamp = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveWorkbookBuffer(`รายงานทั้งโครงการ_${safeFileName(projectName)}_${safeFileName(stamp)}.xlsx`, buffer);
+      toast?.('สร้าง Excel ทั้งโครงการเรียบร้อย', 'success');
+    } catch (error) {
+      console.error('[v67] export project excel:', error);
+      toast?.('สร้าง Excel ทั้งโครงการไม่สำเร็จ: ' + (error.message || error), 'error');
     }
   };
 
@@ -530,8 +838,11 @@
           <div class="v67-labor-sub">ตั้งวงเงินให้ช่างแต่ละทีม แล้วจ่ายทีละงวดโดยระบบจะหักคงเหลือและบล็อกไม่ให้จ่ายเกินวงเงิน</div>
         </div>
         <div class="v67-labor-actions">
+          <button class="v67-btn project-excel" type="button" onclick="v67ExportProjectExcel('${js(projectId)}')">
+            <i class="material-icons-round" style="font-size:17px">summarize</i>Excel ทั้งโครงการ
+          </button>
           <button class="v67-btn excel" type="button" onclick="v67ExportLaborExcel('${js(projectId)}')">
-            <i class="material-icons-round" style="font-size:17px">grid_on</i>ส่งออก Excel
+            <i class="material-icons-round" style="font-size:17px">grid_on</i>Excel ช่าง
           </button>
           <button class="v67-btn primary" type="button" onclick="v67OpenLaborLimitModal('${esc(projectId)}')">
             <i class="material-icons-round" style="font-size:17px">add</i>เพิ่มงบเหมาช่าง

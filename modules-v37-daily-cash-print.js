@@ -672,6 +672,7 @@
     const deposit = payState.deposit;
     const remaining = payState.due;
     const isBilling = docType === 'billing';
+    const isQuotation = docType === 'quotation';
     const isPaymentDoc = docType === 'payment';
     const isDebtNotice = docType === 'debt_notice';
     const isDeliveryDueDoc = docType === 'delivery_due';
@@ -687,12 +688,16 @@
     const billingRows = isBilling
       ? `<div class="amount-row"><span>ยอดหนี้เดิม</span><b>฿${fmt(billingOriginal)}</b></div>${billingPaid > 0 ? `<div class="amount-row"><span>ชำระแล้ว</span><b style="color:#059669">-฿${fmt(billingPaid)}</b></div>` : ''}`
       : '';
-    const amountRowsHtml = isBilling
+    const amountRowsHtml = isQuotation
+      ? `${discountRows}<div class="amount-row"><span>ยอดเสนอราคา</span><b>฿${fmt(total)}</b></div>`
+      : isBilling
       ? billingRows
       : `${discountRows}<div class="amount-row"><span>ยอดสุทธิ</span><b>฿${fmt(total)}</b></div>${paidRow}`;
-    const dueAmount = isBilling ? total : (remaining > 0 ? remaining : total);
-    const payLabel = isBilling ? 'ยอดคงค้างที่ต้องชำระ' : (remaining > 0 ? 'ยอดที่ต้องชำระ' : 'ยอดชำระแล้ว');
-    const noteText = ds?.note_text || 'สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน';
+    const dueAmount = isQuotation || isBilling ? total : (remaining > 0 ? remaining : total);
+    const payLabel = isQuotation ? 'ยอดเสนอราคา / QUOTED TOTAL' : (isBilling ? 'ยอดคงค้างที่ต้องชำระ' : (remaining > 0 ? 'ยอดที่ต้องชำระ' : 'ยอดชำระแล้ว'));
+    const noteText = isQuotation
+      ? (bill?.note || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน')
+      : (ds?.note_text || 'สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน');
     const footerText = ds?.footer_text || rc?.receipt_footer || 'ขอบคุณที่ใช้บริการ';
     const words = typeof v24NumberToThaiWords === 'function'
       ? v24NumberToThaiWords(total)
@@ -700,21 +705,23 @@
     const dueWords = typeof v24NumberToThaiWords === 'function' && remaining > 0
       ? v24NumberToThaiWords(remaining)
       : '';
-    const title = isBilling ? 'ใบวางบิล'
+    const title = isQuotation ? 'ใบเสนอราคา'
+      : isBilling ? 'ใบวางบิล'
       : isDebtNotice ? 'ใบแจ้งยอดค้างชำระ'
       : docType === 'delivery' ? 'ใบส่งของ'
       : isDeliveryDueDoc ? 'ใบส่งของ/ใบแจ้งยอดชำระ'
       : isInvoiceDoc ? 'ใบแจ้งยอดชำระ'
       : docType === 'payment' ? 'ใบรับเงินมัดจำ'
       : 'ใบเสร็จรับเงิน';
-    const titleEn = isBilling ? 'BILLING NOTE'
+    const titleEn = isQuotation ? 'QUOTATION'
+      : isBilling ? 'BILLING NOTE'
       : isDebtNotice ? 'BALANCE DUE NOTICE'
       : docType === 'delivery' ? 'DELIVERY NOTE'
       : isDeliveryDueDoc ? 'DELIVERY/BALANCE DUE'
       : isInvoiceDoc ? 'BALANCE DUE'
       : docType === 'payment' ? 'PAYMENT RECEIPT'
       : 'RECEIPT';
-    const showDeliveryCols = (docType === 'delivery' || isDeliveryDueDoc)
+    const showDeliveryCols = !isQuotation && (docType === 'delivery' || isDeliveryDueDoc)
       && (rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || '')));
     const itemCount = rows.length;
     const compact = itemCount > 10;
@@ -730,10 +737,12 @@
     const deliveryAddressHtml = bill?.delivery_address
       ? `<span class="muted">สถานที่จัดส่ง:</span><b class="addr">${esc(bill.delivery_address)}</b>`
       : '';
-    const rightStatusLabel = isBilling ? 'ประเภทเอกสาร' : 'สถานะจัดส่ง';
-    const rightStatusText = isBilling ? 'ใบวางบิล' : delivery.label;
-    const rightStatusTone = isBilling ? '#dc2626' : delivery.tone;
-    const customerBoxTitle = isBilling ? 'ข้อมูลลูกค้า / ลูกหนี้' : 'ข้อมูลลูกค้า / การจัดส่ง';
+    const rightStatusLabel = isQuotation || isBilling ? 'ประเภทเอกสาร' : 'สถานะจัดส่ง';
+    const rightStatusText = isQuotation ? 'ใบเสนอราคา / ยังไม่สร้างบิล' : (isBilling ? 'ใบวางบิล' : delivery.label);
+    const rightStatusTone = isQuotation || isBilling ? '#dc2626' : delivery.tone;
+    const payStatusLabel = isQuotation ? 'ยังไม่รับชำระเงิน' : payState.label;
+    const payStatusTone = isQuotation ? '#d97706' : payState.tone;
+    const customerBoxTitle = isQuotation ? 'ข้อมูลลูกค้า / ใบเสนอราคา' : (isBilling ? 'ข้อมูลลูกค้า / ลูกหนี้' : 'ข้อมูลลูกค้า / การจัดส่ง');
     const tr = rows.map((it, i) => {
       const qty = money(it.qty || 1);
       const take = money(it.take_qty ?? (showDeliveryCols ? qty : 0));
@@ -756,7 +765,7 @@
 @page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Sarabun,sans-serif;color:#0f172a;margin:0;font-size:${bodyFs}px}.page{width:calc(210mm / ${pageZoom});height:calc(297mm / ${pageZoom});overflow:hidden;padding:${pagePad};display:flex;flex-direction:column;transform:scale(${pageZoom});transform-origin:top left}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:${tiny ? 5 : 9}px}.shop h1{margin:0;color:#dc2626;font-size:${tiny ? 17 : dense ? 19 : 23}px;line-height:1.05}.muted{color:#64748b}.badge{background:#dc2626;color:#fff;border-radius:8px;padding:${tiny ? '8px 18px' : '12px 26px'};text-align:center;min-width:${tiny ? 160 : 210}px;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.5px}.badge b{font-size:${tiny ? 14 : 20}px;line-height:1.1;font-weight:900}.badge span{display:block;font-size:${tiny ? 8 : 10}px;opacity:.85;margin-top:3px;letter-spacing:1.5px}.status-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:${tiny ? 5 : 8}px}.status-card{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '4px 7px' : '7px 9px'};background:#f8fafc}.status-card span{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px}.status-card b{font-size:${tiny ? 9 : 12}px}.box{border:1px solid #e2e8f0;border-radius:7px;margin-top:${tiny ? 5 : 9}px;overflow:hidden}.box-h{background:#fff1f2;color:#dc2626;font-weight:900;padding:${tiny ? '4px 8px' : '6px 10px'}}.box-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:${tiny ? '6px 9px' : '9px 11px'}}.addr{white-space:pre-line;text-align:right}.info{display:grid;grid-template-columns:105px 1fr;gap:6px;line-height:1.55}.info b{text-align:right}table{width:100%;border-collapse:collapse;margin-top:${tiny ? 5 : 9}px;font-size:${tableFs}px}th{background:#dc2626;color:#fff;padding:${cellPad};font-weight:900}td{padding:${cellPad};border-bottom:1px solid #e5e7eb;vertical-align:top;line-height:1.22}tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.small{font-size:${Math.max(6.5, tableFs - 1)}px;color:#64748b;margin-top:1px}.ok{color:#059669;font-weight:900}.warn{color:#d97706;font-weight:900}.bottom{display:grid;grid-template-columns:1fr ${tiny ? 205 : dense ? 225 : 255}px;gap:${tiny ? 10 : 18}px;margin-top:${tiny ? 6 : 11}px}.amount-panel{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#fff}.amount-row{display:flex;justify-content:space-between;gap:12px;padding:${tiny ? '6px 8px' : '9px 12px'};border-bottom:1px solid #eef2f7;color:#64748b;font-weight:900}.amount-row b{color:#0f172a}.amount-row.pay{border-bottom:none;background:${remaining > 0 ? '#fff7ed' : '#ecfdf5'};color:${remaining > 0 ? '#9a3412' : '#047857'}}.amount-row.pay b{font-size:${tiny ? 16 : 24}px;color:${remaining > 0 ? '#c2410c' : '#059669'}}.words{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '5px 7px' : '8px 10px'};margin-top:7px}.words b{display:block;color:#dc2626}.qrbox{text-align:center;border:3px solid #16b8d4;border-radius:18px;padding:0 0 ${tiny ? 5 : 8}px;margin-top:7px;background:#fff;overflow:hidden}.thaiqr-head{background:#183d73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;height:${tiny ? 26 : 38}px;font-size:${tiny ? 8 : 12}px;font-weight:900;line-height:1.05}.thaiqr-mark{width:${tiny ? 22 : 30}px;height:${tiny ? 18 : 24}px;border:3px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center}.pp-badge{display:inline-block;border:2px solid #183d73;color:#183d73;margin:${tiny ? '5px 0 3px' : '8px 0 5px'};padding:1px 8px;line-height:.95;font-size:${tiny ? 7 : 10}px;font-weight:900}.pp-badge b{font-size:${tiny ? 11 : 17}px}.qrbox img{width:${qrScale}px;height:${qrScale}px;display:block;margin:2px auto}.qr-sub,.bank-lines{font-size:${tiny ? 6.5 : 9}px;color:#334155;line-height:1.25}.paid-stamp,.qr-missing{text-align:center;border:1px solid #e2e8f0;border-radius:8px;padding:${tiny ? '8px 6px' : '14px 8px'};margin-top:7px;font-size:${tiny ? 12 : 16}px;font-weight:900;color:#059669;background:#f8fafc}.paid-stamp small,.qr-missing small{display:block;font-size:${tiny ? 7 : 9}px;color:#94a3b8;margin-top:2px}.qr-missing{color:#dc2626}.sig{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:${tiny ? 8 : 16}px;display:flex;justify-content:space-around}.sig div{text-align:center;min-width:150px}.line{height:${tiny ? 18 : 28}px;border-bottom:1px solid #64748b;margin-bottom:4px}.foot{text-align:center;color:#94a3b8;font-size:${tiny ? 7 : 9}px;border-top:1px solid #eef2f7;margin-top:8px;padding-top:5px}@media print{body{margin:0}.page{page-break-after:avoid;break-after:avoid}}
 </style></head><body><div class="page">
   <div class="top"><div class="shop"><h1>${esc(rc.shop_name || 'ร้านค้า')}</h1><div class="muted">${esc(rc.address || '')}<br>${rc.phone ? `โทร: ${esc(rc.phone)}` : ''}</div></div><div><div class="badge"><b>${esc(title)}</b><span>${esc(titleEn)}</span></div><div class="muted" style="text-align:right;margin-top:8px;line-height:1.6">เลขที่: <b>${esc(bill?.bill_no || '-')}</b><br>วันที่: <b>${esc(dateTime(bill?.date))}</b><br>พิมพ์เมื่อ: ${esc(dateTime(new Date()))}</div></div></div>
-  <div class="status-strip"><div class="status-card"><span>สถานะชำระเงิน</span><b style="color:${payState.tone}">${esc(payState.label)}</b></div><div class="status-card"><span>${esc(rightStatusLabel)}</span><b style="color:${rightStatusTone}">${esc(rightStatusText)}</b></div></div>
+  <div class="status-strip"><div class="status-card"><span>สถานะชำระเงิน</span><b style="color:${payStatusTone}">${esc(payStatusLabel)}</b></div><div class="status-card"><span>${esc(rightStatusLabel)}</span><b style="color:${rightStatusTone}">${esc(rightStatusText)}</b></div></div>
   <section class="box"><div class="box-h">${esc(customerBoxTitle)}</div><div class="box-b"><div><b style="font-size:${tiny ? 12 : 15}px">${esc(bill?.customer_name || 'ลูกค้าทั่วไป')}</b><div class="muted" style="white-space:pre-line">${esc(bill?.customer_address || '-')}</div>${bill?.customer_phone || bill?.delivery_phone ? `<div><b>โทร:</b> ${esc(bill.customer_phone || bill.delivery_phone)}</div>` : ''}</div><div><div class="info"><span class="muted">พนักงาน:</span><b>${esc(bill?.staff_name || user())}</b><span class="muted">ชำระ:</span><b>${esc(bill?.method || '-')}</b><span class="muted">รูปแบบส่ง:</span><b>${esc(deliveryModeText(bill))}</b>${bill?.delivery_date ? `<span class="muted">วันที่นัดส่ง:</span><b>${esc(bill.delivery_date)}</b>` : ''}${deliveryAddressHtml}</div></div></div></section>
   <table><thead><tr><th style="width:34px">#</th><th>รายการสินค้า</th><th style="width:60px">รวม</th>${showDeliveryCols ? '<th style="width:72px">รับกลับแล้ว</th><th style="width:72px">ต้องไปส่ง</th>' : ''}<th style="width:58px">หน่วย</th><th style="width:82px">ราคา</th><th style="width:92px">จำนวนเงิน</th></tr></thead><tbody>${tr}</tbody></table>
   <div class="bottom"><div><b>หมายเหตุ / เงื่อนไข</b><div class="muted">${esc(noteText)}</div>${words ? `<div class="words">จำนวนเงินรวมทั้งสิ้น (ตัวอักษร)<b>${esc(words)}</b>${dueWords ? `<span class="muted">ยอดคงเหลือที่ต้องชำระ (ตัวอักษร)</span><b>${esc(dueWords)}</b>` : ''}</div>` : ''}</div><div>
@@ -764,7 +773,7 @@
       ${amountRowsHtml}
       <div class="amount-row pay"><span>${payLabel}</span><b>฿${fmt(dueAmount)}</b></div>
     </div>
-    ${dueAmount > 0 && itemCount <= 18 ? qrPaymentBlock(rc, dueAmount, payState) : ''}
+    ${!isQuotation && dueAmount > 0 && itemCount <= 18 ? qrPaymentBlock(rc, dueAmount, payState) : ''}
   </div></div>
   <div class="sig"><div><div class="line"></div><b>ผู้รับสินค้า / ลูกค้า</b></div><div><div class="line"></div><b>ผู้ส่งสินค้า / ผู้ขาย</b></div></div>
   <div class="foot">${esc(footerText)}</div>
