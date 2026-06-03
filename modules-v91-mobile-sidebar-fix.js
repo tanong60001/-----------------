@@ -39,37 +39,33 @@
     overlay?.classList.toggle('show', open);
   }
 
-  let lastToggleAt = 0;
-  function onMenuEvent(event) {
+  // คลิกเดียว = สลับครั้งเดียว (ตัด pointerup/debounce ที่ทำให้เปิดแล้วปิดทันที)
+  // ใช้ capture + stopImmediatePropagation เพื่อกัน handler อื่น (app.js) toggle ซ้ำ
+  function onMenuClick(event) {
     const button = event.target?.closest?.('#menu-toggle');
     if (!button) return;
     if (window.innerWidth > 768) return;
-
-    const now = Date.now();
-    if (event.type === 'click' && now - lastToggleAt < 420) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-      return;
-    }
-
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation?.();
-    lastToggleAt = now;
-
     const sidebar = document.getElementById('sidebar');
     setSidebar(!sidebar?.classList.contains('show'));
   }
 
   function installHandlers() {
-    document.addEventListener('pointerup', onMenuEvent, true);
-    document.addEventListener('click', onMenuEvent, true);
+    document.addEventListener('click', onMenuClick, true);
 
+    // แตะเมนูในแถบ → ปิด sidebar
     document.addEventListener('click', event => {
       if (window.innerWidth > 768) return;
       if (!event.target?.closest?.('.nav-item[data-page]')) return;
       setSidebar(false);
+    }, true);
+
+    // แตะฉากหลังมืด → ปิด
+    document.addEventListener('click', event => {
+      if (window.innerWidth > 768) return;
+      if (event.target?.id === 'sidebar-overlay') setSidebar(false);
     }, true);
   }
 

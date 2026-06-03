@@ -80,6 +80,25 @@
       /* tooltip สถานที่ทำงาน (hover) */
       #v96-tip{position:fixed;z-index:100000;transform:translate(-50%,-100%);background:#0f172a;color:#fff;padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.3;text-align:center;white-space:nowrap;box-shadow:0 10px 28px rgba(15,23,42,.3);pointer-events:none;display:none;}
       #v96-tip::after{content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#0f172a;}
+      /* ── การ์ดมือถือ (เช็คชื่อ) ── */
+      .v96-mcard{background:#fff;border:1px solid #eef2f7;border-radius:16px;padding:12px 13px;margin-bottom:10px;box-shadow:0 2px 10px rgba(15,23,42,.05);}
+      .v96-mc-head{display:flex;align-items:center;gap:11px;}
+      .v96-mc-av{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;flex:0 0 auto;}
+      .v96-mc-name{font-weight:900;color:#1e293b;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .v96-mc-sub{font-size:11px;color:#94a3b8;font-weight:700;}
+      .v96-mc-wd{font-size:20px;font-weight:900;color:#16a34a;line-height:1;}
+      .v96-mc-btns{display:flex;gap:6px;flex:0 0 auto;}
+      .v96-mc-act{flex:0 0 auto;width:40px;height:40px;border:none;border-radius:11px;background:#eff6ff;color:#2563eb;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .v96-mc-act i{font-size:20px;}
+      .v96-mc-act.adv{background:#fff7ed;color:#d97706;}
+      .v96-mc-act:active{transform:scale(.92);}
+      .v96-mc-debt{margin-top:8px;font-size:12px;font-weight:800;color:#c2410c;background:#fff7ed;border-radius:8px;padding:5px 10px;text-align:center;}
+      .v96-mdots{display:grid;grid-template-columns:repeat(15,1fr);gap:4px;margin-top:10px;}
+      .v96-mdot{position:relative;aspect-ratio:1/1;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+      .v96-mdot b{font-size:10px;font-weight:800;color:rgba(255,255,255,.95);}
+      .v96-mdot[style*="e8edf3"] b{color:#a3aec0;}
+      .v96-mdot.today{box-shadow:0 0 0 2px #f59e0b;}
+      .v96-dotadv{position:absolute;bottom:1px;right:1px;width:5px;height:5px;border-radius:50%;background:#c2410c;border:1px solid #fff;}
       .v96-locked{opacity:.55;}
       .v96-act{width:118px;padding:6px 6px;border-left:1px solid #f1f5f9;}
       .v96-act .row{display:flex;gap:5px;justify-content:center;}
@@ -213,6 +232,11 @@
         </div>
 
         <div id="v96-grid">
+          ${isMobile() ? `
+            <div id="v96-tbody">${emps.map(e => attMobileCard(e, map[String(e.id)] || {}, advMap[String(e.id)] || {}, advTotal[String(e.id)] || 0, y, mo, daysInMonth, todayDay)).join('')}</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+              ${Object.entries(ST).map(([k, v]) => `<span style="color:${v.c};font-weight:800;">${v.s} ${v.label}</span>`).join('')}
+            </div>` : `
           <div class="v95-table-wrap">
             <table class="v95-tbl">
               <thead>
@@ -232,10 +256,48 @@
           <div style="font-size:12px;color:#94a3b8;margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;">
             ${Object.entries(ST).map(([k, v]) => `<span style="color:${v.c};font-weight:800;">${v.s} ${v.label}</span>`).join('')}
             <span style="margin-left:auto;">แตะช่องวันเพื่อลงเวลา · ชี้เมาส์ค้างเพื่อดูสถานที่ทำงาน</span>
-          </div>
+          </div>`}
         </div>
       </div>`;
-    bindCellTips();
+    if (!isMobile()) bindCellTips();
+  }
+
+  function isMobile() { return window.innerWidth <= 768; }
+
+  // ── การ์ดเช็คชื่อสำหรับมือถือ: 1 คน/การ์ด · 30 วันเป็นจุดสีแถวเดียว (ไม่เลื่อนซ้ายขวา) ──
+  function attMobileCard(emp, days, dayAdv, advTotal, y, mo, daysInMonth, todayDay) {
+    let workDays = 0;
+    let dots = '';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const r = days[d];
+      const st = r ? normSt(r.status) : null;
+      if (st && isWorking(st)) workDays++;
+      const col = st && ST[st] ? ST[st].c : '#e8edf3';
+      const adv = dayAdv[d] ? '<span class="v96-dotadv"></span>' : '';
+      const today = d === todayDay ? ' today' : '';
+      dots += `<span id="v96c-${emp.id}-${d}" class="v96-mdot${today}" style="background:${col};" onclick="window.v96EditCell('${emp.id}',${d})"><b>${d}</b>${adv}</span>`;
+    }
+    const safeName = `${emp.name} ${emp.lastname || ''}`.trim();
+    return `
+      <div class="v96-mcard" data-name="${safeName.toLowerCase()}">
+        <div class="v96-mc-head">
+          <div class="v96-mc-av">${(emp.name || '?')[0]}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="v96-mc-name">${safeName}</div>
+            <div class="v96-mc-sub">${emp.position || 'พนักงาน'} · ฿${money(emp.daily_wage || 0)}/วัน</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="v96-mc-wd" id="v96-wd-${emp.id}">${workDays}</div>
+            <div style="font-size:10px;color:#94a3b8;font-weight:700;">มา (วัน)</div>
+          </div>
+          <div class="v96-mc-btns">
+            <button class="v96-mc-act adv" onclick="event.stopPropagation();window.openAdvanceWizard('${emp.id}','${safeName.replace(/'/g, "\\'")}')" title="เบิกเงิน"><i class="material-icons-round">payments</i></button>
+            <button class="v96-mc-act" onclick="event.stopPropagation();window.v96EditCell('${emp.id}',${todayDay > 0 ? todayDay : 1})" title="ลงวันนี้"><i class="material-icons-round">edit_calendar</i></button>
+          </div>
+        </div>
+        ${(advTotal > 0) ? `<div class="v96-mc-debt">เบิกเดือนนี้รวม ฿${money(advTotal)}</div>` : ''}
+        <div class="v96-mdots">${dots}</div>
+      </div>`;
   }
 
   // tooltip แสดงสถานที่ทำงานเมื่อชี้เมาส์ค้าง (ไม่ต้องคลิก)
@@ -302,9 +364,16 @@
     const advAmt = (d.advMap[String(empId)] || {})[day] || 0;
     const cell = document.getElementById(`v96c-${empId}-${day}`);
     if (cell) {
-      cell.innerHTML = v96CellInner(st, advAmt);
-      const tip = v96CellTip(st, r ? r.note : '', advAmt);
-      if (tip) cell.setAttribute('data-tip', tip); else cell.removeAttribute('data-tip');
+      if (cell.classList.contains('v96-mdot')) {
+        // มือถือ: จุดสี
+        cell.style.background = st && ST[st] ? ST[st].c : '#e8edf3';
+        cell.title = st && ST[st] ? ST[st].label : '';
+        cell.innerHTML = `<b>${day}</b>` + (advAmt ? '<span class="v96-dotadv"></span>' : '');
+      } else {
+        cell.innerHTML = v96CellInner(st, advAmt);
+        const tip = v96CellTip(st, r ? r.note : '', advAmt);
+        if (tip) cell.setAttribute('data-tip', tip); else cell.removeAttribute('data-tip');
+      }
     }
     const days = d.map[String(empId)] || {};
     let wd = 0; Object.keys(days).forEach(k => { if (isWorking(normSt(days[k].status))) wd++; });
@@ -360,7 +429,7 @@
 
   window.v96FilterRows = function (q) {
     const term = String(q || '').trim().toLowerCase();
-    document.querySelectorAll('#v96-tbody tr').forEach(tr => {
+    document.querySelectorAll('#v96-tbody tr, #v96-tbody .v96-mcard').forEach(tr => {
       const name = tr.getAttribute('data-name') || '';
       tr.style.display = (!term || name.includes(term)) ? '' : 'none';
     });

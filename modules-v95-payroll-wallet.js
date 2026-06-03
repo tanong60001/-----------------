@@ -137,6 +137,21 @@
       .v95-tbl tbody tr{cursor:pointer;}
       .v95-tbl tbody tr.paid-row .v95-name{border-left:3px solid #10b981;}
       .v95-foot td{background:#f8fafc;font-weight:900;color:#1e293b;height:42px;border-top:2px solid #e2e8f0;}
+      /* ── การ์ดมือถือ (จ่ายเงินเดือน) ── */
+      .v95-mcard{background:#fff;border:1px solid #eef2f7;border-radius:16px;padding:13px 14px;margin-bottom:10px;box-shadow:0 2px 10px rgba(15,23,42,.05);cursor:pointer;}
+      .v95-mcard:active{transform:scale(.99);}
+      .v95-mcard.settled{border-color:#a7f3d0;background:#f0fdf4;}
+      .v95-mc-head{display:flex;align-items:center;gap:11px;}
+      .v95-mc-av{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);color:#475569;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:19px;flex:0 0 auto;}
+      .v95-mc-name{font-weight:900;color:#1e293b;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .v95-mc-sub{font-size:11.5px;color:#94a3b8;font-weight:700;}
+      .v95-mc-pay{font-size:21px;font-weight:900;color:#059669;line-height:1;}
+      .v95-mc-foot{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px dashed #eef2f7;}
+      .v95-mc-chip{font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;}
+      .v95-mc-chip.debt{background:#fff7ed;color:#c2410c;}
+      .v95-mc-chip.adv{background:#fef9c3;color:#a16207;}
+      .v95-mc-go{margin-left:auto;font-size:12.5px;font-weight:800;color:#2563eb;}
+      .v95-mcard.settled .v95-mc-go{color:#059669;}
       @media(max-width:680px){
         .v95-tbl{font-size:10px;}
         .v95-tbl .v95-name{width:96px;padding:5px 5px;}
@@ -474,6 +489,9 @@
         </div>
 
         <div id="v95-grid">
+          ${isMobile() ? `
+            <div id="v95-tbody">${wallets.map(w => payMobileCard(w)).join('')}</div>
+          ` : `
           <div class="v95-table-wrap">
             <table class="v95-tbl">
               <thead>
@@ -509,7 +527,7 @@
             <span style="color:#dc2626;font-weight:800;">✗ ขาด</span>
             <span style="color:#c2410c;font-weight:800;">ตัวเลขส้ม = ยอดเบิกวันนั้น </span>
             <span style="margin-left:auto;">แตะที่แถวเพื่อจ่ายเงินเดือน</span>
-          </div>
+          </div>`}
         </div>
         <div id="v95-detail" style="display:none;margin-top:18px;"></div>
       </div>`;
@@ -568,6 +586,34 @@
       </tr>`;
   }
 
+  function isMobile() { return window.innerWidth <= 768; }
+
+  // ── การ์ดจ่ายเงินเดือนสำหรับมือถือ (ไม่เลื่อนซ้ายขวา · แตะเพื่อจ่าย) ──
+  function payMobileCard(w) {
+    const { emp, wd, wageRemaining, carriedDebt, monthAdvSum, hasPaid, fullySettled } = w;
+    const payable = wageRemaining;
+    const safeName = `${emp.name} ${emp.lastname || ''}`.trim();
+    return `
+      <div class="v95-mcard${fullySettled ? ' settled' : ''}" data-name="${safeName.toLowerCase()}" onclick="window.v95ShowDetail('${emp.id}')">
+        <div class="v95-mc-head">
+          <div class="v95-mc-av">${(emp.name || '?')[0]}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="v95-mc-name">${safeName} ${hasPaid ? '<span style="color:#10b981;font-size:11px;">●</span>' : ''}</div>
+            <div class="v95-mc-sub">${emp.pay_type || ''} · ${wd} วัน</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:#94a3b8;font-weight:700;">ต้องจ่าย</div>
+            <div class="v95-mc-pay">฿${money(payable)}</div>
+          </div>
+        </div>
+        <div class="v95-mc-foot">
+          ${carriedDebt > 0 ? `<span class="v95-mc-chip debt">หนี้เดิม ฿${money(carriedDebt)}</span>` : ''}
+          ${monthAdvSum > 0 ? `<span class="v95-mc-chip adv">เบิกเดือนนี้ ฿${money(monthAdvSum)}</span>` : ''}
+          <span class="v95-mc-go">${fullySettled ? 'เคลียร์ครบ ✓' : 'แตะเพื่อจ่าย ›'}</span>
+        </div>
+      </div>`;
+  }
+
   // ── ย้อน/เดินหน้าเดือน (ย้อนหลังเฉพาะแอดมิน, ไม่เกินเดือนปัจจุบัน) ──
   window.v95ShiftMonth = function (delta) {
     const target = new Date(v95View.getFullYear(), v95View.getMonth() + delta, 1);
@@ -580,7 +626,7 @@
 
   window.v95FilterRows = function (q) {
     const term = String(q || '').trim().toLowerCase();
-    document.querySelectorAll('#v95-tbody tr').forEach(tr => {
+    document.querySelectorAll('#v95-tbody tr, #v95-tbody .v95-mcard').forEach(tr => {
       const name = tr.getAttribute('data-name') || '';
       tr.style.display = (!term || name.includes(term)) ? '' : 'none';
     });
