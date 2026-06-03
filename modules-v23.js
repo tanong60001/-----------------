@@ -800,7 +800,7 @@ window.v12NextStep = async function() {
           const spent = parseFloat(proj.total_goods_cost || 0) + parseFloat(proj.total_expenses || 0);
           const remaining = Math.max(0, budget - spent);
           if (v12State.total > remaining) {
-            await Swal.fire({
+            const _v23budgetRes = await Swal.fire({
               icon: 'warning',
               title: '⚠️ เกินงบประมาณโครงการ',
               html: `
@@ -829,14 +829,17 @@ window.v12NextStep = async function() {
                     </div>
                   </div>
                   <div style="margin-top:12px;font-size:12px;color:#64748b;text-align:center;">
-                    กรุณาลดจำนวนสินค้า หรือเพิ่มงบประมาณโครงการก่อน
+                    ยอดส่วนเกินจะถูกบันทึกเป็น <strong style="color:#d97706;">การลงทุนเพิ่ม</strong> ในโครงการ
                   </div>
                 </div>
               `,
-              confirmButtonText: 'เข้าใจแล้ว',
-              confirmButtonColor: '#dc2626',
+              showCancelButton: true,
+              confirmButtonText: 'ดำเนินการต่อ (ลงทุนเพิ่ม)',
+              cancelButtonText: 'ยกเลิก',
+              confirmButtonColor: '#d97706',
+              cancelButtonColor: '#64748b',
             });
-            return;
+            if (!_v23budgetRes.isConfirmed) return;
           }
         }
       } catch(e) {

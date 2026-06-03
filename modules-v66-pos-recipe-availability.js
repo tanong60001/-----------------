@@ -848,6 +848,17 @@
     return true;
   }
 
+  window.v66PickExtra = function (btn) {
+    const hidden = document.getElementById('v66ExtraName');
+    if (hidden) hidden.value = btn.dataset.name || '';
+    document.querySelectorAll('#v66ExtraPresets .v66-extra-preset').forEach(b => {
+      const on = b === btn;
+      b.style.background = on ? '#ef4444' : '';
+      b.style.color = on ? '#fff' : '';
+      b.style.borderColor = on ? '#ef4444' : '';
+    });
+  };
+
   function showExtraChargeModal() {
     const html = `
       <div class="v66-extra-modal">
@@ -859,17 +870,17 @@
           </div>
         </div>
         <div class="v66-extra-field">
-          <label>ชื่อรายการ</label>
-          <input id="v66ExtraName" class="v66-extra-input" placeholder="เช่น ค่าขนส่ง" autocomplete="off">
+          <label>ประเภทรายการ (เลือกได้เฉพาะ 3 อย่างนี้)</label>
+          <div class="v66-extra-presets" id="v66ExtraPresets">
+            <button type="button" class="v66-extra-preset" data-name="ค่าขนส่ง" onclick="window.v66PickExtra(this)"><i class="material-icons-round" style="font-size:16px;">local_shipping</i> ค่าขนส่ง</button>
+            <button type="button" class="v66-extra-preset" data-name="ค่าแรง" onclick="window.v66PickExtra(this)"><i class="material-icons-round" style="font-size:16px;">engineering</i> ค่าแรง</button>
+            <button type="button" class="v66-extra-preset" data-name="ค่าอุปกรณ์" onclick="window.v66PickExtra(this)"><i class="material-icons-round" style="font-size:16px;">construction</i> ค่าอุปกรณ์</button>
+          </div>
+          <input type="hidden" id="v66ExtraName">
         </div>
         <div class="v66-extra-field">
           <label>จำนวนเงิน</label>
           <input id="v66ExtraAmount" class="v66-extra-input" type="number" min="0" step="1" placeholder="0">
-        </div>
-        <div class="v66-extra-presets">
-          <button class="v66-extra-preset" onclick="document.getElementById('v66ExtraName').value='ค่าขนส่ง'">ค่าขนส่ง</button>
-          <button class="v66-extra-preset" onclick="document.getElementById('v66ExtraName').value='ค่าแรง'">ค่าแรง</button>
-          <button class="v66-extra-preset" onclick="document.getElementById('v66ExtraName').value='ค่าอุปกรณ์'">ค่าอุปกรณ์</button>
         </div>
         <div class="v66-extra-total"><span>ยอดที่จะเพิ่ม</span><b id="v66ExtraPreview">฿0</b></div>
       </div>`;
@@ -888,13 +899,13 @@
           const amount = document.getElementById('v66ExtraAmount');
           const preview = document.getElementById('v66ExtraPreview');
           amount?.addEventListener('input', () => { preview.textContent = money(amount.value); });
-          document.getElementById('v66ExtraName')?.focus();
+          amount?.focus();
         },
         preConfirm: () => {
           const name = document.getElementById('v66ExtraName')?.value || '';
           const amount = document.getElementById('v66ExtraAmount')?.value || 0;
           if (!String(name).trim()) {
-            Swal.showValidationMessage('กรุณากรอกชื่อรายการ');
+            Swal.showValidationMessage('กรุณาเลือกประเภทรายการ (ค่าขนส่ง / ค่าแรง / ค่าอุปกรณ์)');
             return false;
           }
           if (num(amount) <= 0) {

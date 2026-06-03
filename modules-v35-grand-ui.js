@@ -555,7 +555,7 @@
         <div class="v35-project-foot">
           <div><span>ต้นทุน</span><strong>฿${fmt(spent)}</strong></div>
           <div><span>คงเหลือ</span><strong>฿${fmt(Math.max(0, budget - spent))}</strong></div>
-          <div><span>${profit >= 0 ? 'กำไร' : 'ขาดทุน'}</span><strong style="color:${profit >= 0 ? '#10b981' : '#ef4444'}">฿${fmt(Math.abs(profit))}</strong></div>
+          <div><span>${profit >= 0 ? 'กำไร' : 'ลงทุนไปแล้ว'}</span><strong style="color:${profit >= 0 ? '#10b981' : '#ef4444'}">฿${fmt(Math.abs(profit))}</strong></div>
         </div>
       </div>`;
   }

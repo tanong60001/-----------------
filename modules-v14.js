@@ -1111,7 +1111,7 @@ async function v14LoadProjects() {
         <div class="v14-proj-nums">
           <div class="v14-proj-num"><div class="n-lbl">💸 รายจ่ายทั่วไป</div><div class="n-val" style="color:#ef4444;">฿${v14fmt(p.total_expenses || 0)}</div></div>
           <div class="v14-proj-num"><div class="n-lbl">📦 ต้นทุนสินค้า</div><div class="n-val" style="color:#f59e0b;">฿${v14fmt(p.total_goods_cost || 0)}</div></div>
-          <div class="v14-proj-num"><div class="n-lbl">${profit >= 0 ? '💰 กำไร' : '📉 ขาดทุน'}</div><div class="n-val" style="color:${profitColor};">฿${v14fmt(Math.abs(profit))}</div></div>
+          <div class="v14-proj-num"><div class="n-lbl">${profit >= 0 ? '💰 กำไร' : '📉 ลงทุนไปแล้ว'}</div><div class="n-val" style="color:${profitColor};">฿${v14fmt(Math.abs(profit))}</div></div>
         </div>
       </div>`;
     }).join('');
@@ -1344,7 +1344,7 @@ window.v14OpenProject = async function (projId) {
             <div style="font-size:20px;font-weight:900;margin-top:4px;color:#fde68a;">฿${v14fmt(proj.total_goods_cost || 0)}</div>
           </div>
           <div style="background:${profit >= 0 ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'};border-radius:12px;padding:14px;border:1.5px solid ${profit >= 0 ? 'rgba(34,197,94,.4)' : 'rgba(239,68,68,.4)'};">
-            <div style="font-size:11px;color:rgba(255,255,255,.7);">${profit >= 0 ? '💰 กำไร' : '📉 ขาดทุน'}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7);">${profit >= 0 ? '💰 กำไร' : '📉 ลงทุนไปแล้ว'}</div>
             <div style="font-size:20px;font-weight:900;margin-top:4px;color:${profit >= 0 ? '#86efac' : '#fca5a5'};">฿${v14fmt(Math.abs(profit))}</div>
           </div>
         </div>
@@ -1599,7 +1599,7 @@ window.v14CompleteProject = async function (projId) {
           <div>งบประมาณ: <strong>฿${v14fmt(proj.budget)}</strong></div>
           <div>ค่าใช้จ่ายรวม: <strong>฿${v14fmt(spent)}</strong></div>
           <div style="color:${profit >= 0 ? '#10b981' : '#ef4444'};grid-column:1/-1;font-size:15px;font-weight:800;">
-            ${profit >= 0 ? 'กำไร' : 'ขาดทุน'}: ฿${v14fmt(Math.abs(profit))}
+            ${profit >= 0 ? 'กำไร' : 'ลงทุนไปแล้ว'}: ฿${v14fmt(Math.abs(profit))}
           </div>
         </div>
       </div>

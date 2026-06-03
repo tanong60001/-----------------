@@ -361,7 +361,7 @@
             </div>
             <div class="v23-m">
               <i class="material-icons-round v23-m-ic">${profit >= 0 ? 'trending_up' : 'trending_down'}</i>
-              <div class="v23-m-lbl">${profit >= 0 ? 'กำไร' : 'ขาดทุน'}</div>
+              <div class="v23-m-lbl">${profit >= 0 ? 'กำไร' : 'ลงทุนไปแล้ว'}</div>
               <div class="v23-m-val" style="color:${profClr}">฿${pFmt(Math.abs(profit))}</div>
               <div class="v23-m-sub">จากยอดที่เบิกแล้ว</div>
             </div>

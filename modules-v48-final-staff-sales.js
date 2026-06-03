@@ -439,7 +439,7 @@
   }
 
   async function renderStaffSalesDashboard(input, selectedStaff) {
-    const sec = document.getElementById('page-att');
+    const sec = document.getElementById('att-body') || document.getElementById('page-att');
     if (!sec) return;
     injectStyle();
     const current = resolveBounds(input);
