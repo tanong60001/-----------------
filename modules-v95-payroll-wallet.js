@@ -624,7 +624,10 @@
       wb.creator = 'SK POS';
       const ws = wb.addWorksheet('ตารางเงินเดือน', {
         views: [{ state: 'frozen', xSplit: 1, ySplit: 3 }],
-        pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.2, right: 0.2, top: 0.3, bottom: 0.3, header: 0, footer: 0 } },
+        pageSetup: {
+          paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+          horizontalCentered: true, margins: { left: 0.2, right: 0.2, top: 0.3, bottom: 0.3, header: 0.1, footer: 0.1 },
+        },
       });
 
       // ชื่อ + วัน + (วันทำงาน, ค่าแรงจริง, หนี้เบิกยกมา, เบิกเดือนนี้, หักหนี้เบิก, รับจริง)
@@ -722,6 +725,20 @@
       noteRow.getCell(1).value = 'วิธีใช้: กรอกตัวเลขในช่อง "หักหนี้เบิก" (สีเหลือง) แล้วช่อง "พนักงานรับจริง" จะคำนวณให้อัตโนมัติ → นำยอดไปคีย์ในระบบ';
       ws.mergeCells(r + 2, 1, r + 2, lastCol);
       noteRow.getCell(1).font = { italic: true, size: 10, color: { argb: 'FF92400E' } };
+
+      // เส้นตารางทุกช่อง (หัวตาราง → แถวรวม) ให้สวยงาม
+      const thin = { style: 'thin', color: { argb: 'FFD9E1EC' } };
+      const med = { style: 'medium', color: { argb: 'FFB8C4D4' } };
+      for (let rr = 3; rr <= r; rr++) {
+        for (let cc = 1; cc <= lastCol; cc++) {
+          ws.getRow(rr).getCell(cc).border = {
+            top: rr === r ? med : thin,
+            bottom: rr === 3 ? med : thin,
+            left: cc === 1 ? med : thin,
+            right: cc === lastCol ? med : thin,
+          };
+        }
+      }
 
       ws.pageSetup.printArea = `A1:${colLetter(lastCol)}${r + 2}`;
 
