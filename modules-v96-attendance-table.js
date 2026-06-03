@@ -668,10 +668,29 @@
   // ──────────────────────────────────────
   // บันทึกช่องวันเดียว (+ จัดการค่าแรงโครงการ)
   // ──────────────────────────────────────
-  function calcDeduction(emp, status) {
+  // จำนวนวันทำงานของเดือน (หยุดเฉพาะอาทิตย์ = นับ จันทร์–เสาร์)
+  function workdaysInMonth(dateStr) {
+    const m = String(dateStr || '').match(/^(\d{4})-(\d{2})/);
+    const now = new Date();
+    const y = m ? +m[1] : now.getFullYear();
+    const mo = m ? +m[2] - 1 : now.getMonth();
+    const total = new Date(y, mo + 1, 0).getDate();
+    let c = 0;
+    for (let d = 1; d <= total; d++) if (new Date(y, mo, d).getDay() !== 0) c++; // 0 = อาทิตย์
+    return c || 26;
+  }
+  // อัตราต่อวันของพนักงานรายเดือน = เงินเดือน ÷ วันทำงาน(จันทร์–เสาร์) ของเดือนนั้น
+  function monthlyDayRate(emp, dateStr) { return num(emp.salary) / workdaysInMonth(dateStr); }
+  function isSunday(dateStr) {
+    const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]).getDay() === 0 : false;
+  }
+
+  function calcDeduction(emp, status, dateStr) {
     let ded = 0;
     if (emp.pay_type === 'รายเดือน') {
-      const dq = num(emp.salary) / 30;
+      if (isSunday(dateStr)) return 0; // อาทิตย์ = วันหยุด ไม่หักเงินเดือน
+      const dq = monthlyDayRate(emp, dateStr);
       if (status === 'ขาด') ded = dq;
       else if (status === 'ครึ่งวัน') ded = dq * 0.5;
       else if (status === 'มาสาย') ded = dq * 0.05;
@@ -682,9 +701,9 @@
     }
     return Math.round(ded);
   }
-  function laborCost(emp, status, deduction) {
+  function laborCost(emp, status, deduction, dateStr) {
     if (!isWorking(status)) return 0;
-    const base = emp.pay_type === 'รายเดือน' ? num(emp.salary) / 30 : num(emp.daily_wage);
+    const base = emp.pay_type === 'รายเดือน' ? monthlyDayRate(emp, dateStr) : num(emp.daily_wage);
     return Math.max(0, Math.round(base - num(deduction)));
   }
   function stripAssign(note) {
@@ -720,7 +739,7 @@
 
   async function saveCell(emp, dateKey, day, status, note, workplace, projectId, projectName, existing) {
     try {
-      const deduction = calcDeduction(emp, status);
+      const deduction = calcDeduction(emp, status, dateKey);
       const finalNote = isWorking(status) ? makeAssign(note, workplace, projectName) : stripAssign(note);
       const isToday = dateKey === keyOf(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
       const rec = {
@@ -739,7 +758,7 @@
       // จัดการค่าแรงโครงการ: ลบของเดิมก่อนเสมอ แล้วเพิ่มใหม่ถ้าเป็นโครงการ
       await removeProjectLabor(att.id);
       if (isWorking(status) && workplace === 'project' && projectId) {
-        await addProjectLabor(att, emp, projectId, laborCost(emp, status, deduction));
+        await addProjectLabor(att, emp, projectId, laborCost(emp, status, deduction, dateKey));
       }
       if (typeof logActivity === 'function') logActivity('เช็คชื่อ', `${emp.name} ${status} (${dateKey})`);
       notify(`บันทึก ${emp.name} · ${ST[status] ? ST[status].label : status}`, 'success');
