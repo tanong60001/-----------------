@@ -120,6 +120,28 @@
       .v96-wp-btn{border:2px solid #e2e8f0;border-radius:14px;padding:16px 10px;cursor:pointer;font-weight:900;color:#475569;background:#fff;display:flex;flex-direction:column;align-items:center;gap:6px;transition:.15s;}
       .v96-wp-btn.on{border-color:#0f172a;background:#0f172a;color:#fff;}
       .v96-wp-btn i{font-size:26px;}
+      /* ปฏิทินรายคน (ป็อปอัพ) — โปรเฟสชันแนล */
+      .v96-emp-card{border-radius:18px;overflow:hidden;border:1px solid #e8edf3;box-shadow:0 12px 40px rgba(15,23,42,.12);}
+      .v96-emp-head{background:linear-gradient(135deg,#1e293b 0%,#334155 60%,#475569 100%);padding:20px 18px 18px;color:#fff;text-align:center;position:relative;}
+      .v96-emp-av{width:60px;height:60px;border-radius:18px;background:rgba(255,255,255,.16);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#fff;margin:0 auto 10px;border:1px solid rgba(255,255,255,.25);}
+      .v96-emp-name{font-size:19px;font-weight:900;letter-spacing:.2px;}
+      .v96-emp-sub{font-size:12.5px;color:#cbd5e1;font-weight:600;margin-top:3px;}
+      .v96-emp-chips{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+      .v96-emp-chip{background:rgba(255,255,255,.14);border-radius:999px;padding:5px 13px;font-size:12px;font-weight:800;}
+      .v96-emp-body{background:#fff;padding:16px;}
+      .v96-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px;}
+      .v96-cal-dow span{font-size:11px;font-weight:800;color:#94a3b8;text-align:center;}
+      .v96-cal-dow span.we{color:#f87171;}
+      .v96-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+      .v96-cal-empty{aspect-ratio:1/1;}
+      .v96-cal-day{aspect-ratio:1/1;border-radius:11px;background:#f8fafc;display:flex;align-items:center;justify-content:center;position:relative;transition:.12s;}
+      .v96-cal-day .d{position:absolute;top:4px;left:6px;font-size:9px;font-weight:800;color:#94a3b8;}
+      .v96-cal-day.we .d{color:#fca5a5;}
+      .v96-cal-day .s{font-size:17px;font-weight:900;line-height:1;}
+      .v96-cal-day .a{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;font-weight:800;color:#c2410c;}
+      .v96-cal-day.today{outline:2px solid #f59e0b;outline-offset:-2px;}
+      .v96-cal-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;}
+      .v96-cal-legend span{font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:3px;}
       @media print{
         body *{visibility:hidden;}
         #v96-grid, #v96-grid *{visibility:visible;}
@@ -149,17 +171,19 @@
       const d = parseInt(String(a.date).slice(8, 10), 10);
       (map[String(a.employee_id)] = map[String(a.employee_id)] || {})[d] = a;
     });
-    const advMap = {}; // empId -> { day -> sumAmount }
+    const advMap = {}; // empId -> { day -> sumAmount } (ไม่รวมหนี้ยกมา — ตรงกับตาราง)
     const advTotal = {}; // empId -> total
+    const advRows = {}; // empId -> [ {date, amount, reason} ] (ทุกรายการ ไว้โชว์ในปฏิทินรายคน)
     (advR.data || []).forEach(a => {
+      const eid = String(a.employee_id);
+      (advRows[eid] = advRows[eid] || []).push(a);
       if (/ยกมา/.test(String(a.reason || ''))) return; // ข้ามหนี้เดิมยกมา (ไม่ใช่เบิกรายวัน)
       const d = parseInt(String(a.date).slice(8, 10), 10);
-      const eid = String(a.employee_id);
       const m = (advMap[eid] = advMap[eid] || {});
       m[d] = (m[d] || 0) + num(a.amount);
       advTotal[eid] = (advTotal[eid] || 0) + num(a.amount);
     });
-    return { emps, map, advMap, advTotal, y, mo, daysInMonth: new Date(y, mo + 1, 0).getDate() };
+    return { emps, map, advMap, advTotal, advRows, y, mo, daysInMonth: new Date(y, mo + 1, 0).getDate() };
   }
 
   // ──────────────────────────────────────
@@ -281,9 +305,9 @@
     return `
       <div class="v96-mcard" data-name="${safeName.toLowerCase()}">
         <div class="v96-mc-head">
-          <div class="v96-mc-av">${(emp.name || '?')[0]}</div>
-          <div style="flex:1;min-width:0;">
-            <div class="v96-mc-name">${safeName}</div>
+          <div class="v96-mc-av" style="cursor:pointer;" onclick="window.v96ShowEmpDetail('${emp.id}')">${(emp.name || '?')[0]}</div>
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="window.v96ShowEmpDetail('${emp.id}')">
+            <div class="v96-mc-name">${safeName} <i class="material-icons-round" style="font-size:13px;color:#cbd5e1;vertical-align:middle;">calendar_month</i></div>
             <div class="v96-mc-sub">${emp.position || 'พนักงาน'} · ฿${money(emp.daily_wage || 0)}/วัน</div>
           </div>
           <div style="text-align:right;">
@@ -399,8 +423,8 @@
     const safeName = `${emp.name} ${emp.lastname || ''}`.trim();
     return `
       <tr data-name="${safeName.toLowerCase()}">
-        <td class="v95-name">
-          <div class="v95-nm-top">${safeName}</div>
+        <td class="v95-name" style="cursor:pointer;" onclick="window.v96ShowEmpDetail('${emp.id}')" title="ดูปฏิทิน + รายการเบิก">
+          <div class="v95-nm-top">${safeName} <i class="material-icons-round" style="font-size:13px;color:#cbd5e1;vertical-align:middle;">calendar_month</i></div>
           <div class="v95-nm-sub">${emp.position || 'พนักงาน'} · ฿${money(emp.daily_wage || 0)}/วัน</div>
         </td>
         ${cells}
@@ -414,6 +438,73 @@
         </td>
       </tr>`;
   }
+
+  // ──────────────────────────────────────
+  // ปฏิทินรายคน + รายการเบิก (แตะพนักงาน) — ใช้ได้ทั้งมือถือ/คอม
+  // ──────────────────────────────────────
+  window.v96ShowEmpDetail = function (empId) {
+    const data = window._v96;
+    if (!data || typeof Swal === 'undefined') return;
+    const emp = data.emps.find(e => String(e.id) === String(empId));
+    if (!emp) return;
+    const { y, mo, daysInMonth } = data;
+    const days = data.map[String(empId)] || {};
+    const dayAdv = data.advMap[String(empId)] || {};
+    const ml = new Date(y, mo, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+    const todayD = isCurrentMonth(v96View) ? new Date().getDate() : -1;
+
+    // นับสถานะ (ไว้ทำชิป)
+    const cnt = { 'มา': 0, 'มาสาย': 0, 'ครึ่งวัน': 0, 'ลา': 0, 'ขาด': 0 };
+    for (let d = 1; d <= daysInMonth; d++) { const s = days[d] ? normSt(days[d].status) : null; if (s && cnt[s] !== undefined) cnt[s]++; }
+    const workDays = cnt['มา'] + cnt['มาสาย'] + cnt['ครึ่งวัน'];
+
+    // ปฏิทิน 7 คอลัมน์
+    const firstDow = new Date(y, mo, 1).getDay();
+    let cal = '';
+    for (let i = 0; i < firstDow; i++) cal += '<div class="v96-cal-empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const st = days[d] ? normSt(days[d].status) : null;
+      const meta = st && ST[st] ? ST[st] : null;
+      const adv = dayAdv[d];
+      const dow = new Date(y, mo, d).getDay();
+      const we = (dow === 0 || dow === 6) ? ' we' : '';
+      const td = (d === todayD) ? ' today' : '';
+      cal += `<div class="v96-cal-day${we}${td}" style="${meta ? `background:${meta.c}1A;` : ''}">
+        <div class="d">${d}</div>
+        ${meta ? `<div class="s" style="color:${meta.c}">${meta.s}</div>` : ''}
+        ${adv ? `<div class="a">${money(adv)}</div>` : ''}
+      </div>`;
+    }
+
+    Swal.fire({
+      width: 430,
+      padding: 0,
+      background: 'transparent',
+      showConfirmButton: true,
+      confirmButtonText: 'ปิด',
+      confirmButtonColor: '#64748b',
+      html: `
+        <div class="v96-emp-card">
+          <div class="v96-emp-head">
+            <div class="v96-emp-av">${(emp.name || '?')[0]}</div>
+            <div class="v96-emp-name">${emp.name} ${emp.lastname || ''}</div>
+            <div class="v96-emp-sub">${emp.position || 'พนักงาน'} · ${ml}</div>
+            <div class="v96-emp-chips">
+              <span class="v96-emp-chip">มา ${workDays} วัน</span>
+              ${cnt['ลา'] > 0 ? `<span class="v96-emp-chip">ลา ${cnt['ลา']}</span>` : ''}
+              ${cnt['ขาด'] > 0 ? `<span class="v96-emp-chip">ขาด ${cnt['ขาด']}</span>` : ''}
+            </div>
+          </div>
+          <div class="v96-emp-body">
+            <div class="v96-cal-dow"><span class="we">อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span class="we">ส</span></div>
+            <div class="v96-cal">${cal}</div>
+            <div class="v96-cal-legend">
+              ${Object.entries(ST).map(([k, v]) => `<span style="color:${v.c};">${v.s} ${v.label}</span>`).join('')}
+            </div>
+          </div>
+        </div>`,
+    });
+  };
 
   // ──────────────────────────────────────
   // เครื่องมือ: เดือน / ค้นหา / ลบ

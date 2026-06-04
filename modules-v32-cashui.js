@@ -773,6 +773,8 @@
       if (ins.error) throw ins.error;
       if (typeof toast === 'function') toast('เปิดลิ้นชักสำเร็จ — ยอดเปิด ฿' + _f(total), 'success');
       if (typeof logActivity === 'function') logActivity('เปิดลิ้นชัก', 'ยอดเปิด ฿' + _f(total));
+      // ส่งการ์ดเปิดลิ้นชัก + จำนวนแบงค์ เข้า LINE กลุ่ม
+      try { fetch('https://thfswrvnyhuqmdazjfhd.supabase.co/functions/v1/line-cashdrawer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'open', total: total, denominations: counts, user: _user() }) }).catch(function () {}); } catch (_) {}
       window.renderCashDrawer();
     } catch (e) {
       if (typeof toast === 'function') toast('เปิดลิ้นชักไม่ได้: ' + (e.message || e), 'error');

@@ -430,6 +430,10 @@
     notify('ปิดลิ้นชักเรียบร้อย เปิดใหม่ได้เมื่อเริ่มรอบ/วันใหม่', 'success');
     try { if (typeof renderCashDrawer === 'function') await renderCashDrawer(); } catch (_) {}
     try { if (typeof loadCashBalance === 'function') await loadCashBalance(); } catch (_) {}
+    // ส่งการ์ดปิดลิ้นชัก + จำนวนแบงค์ เข้า LINE กลุ่ม
+    try { fetch('https://thfswrvnyhuqmdazjfhd.supabase.co/functions/v1/line-cashdrawer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'close', total: countedTotal, expected: totals.balance, diff: diff, denominations: counts, user: user(), note: note }) }).catch(function () {}); } catch (_) {}
+    // ส่งสรุปยอดวันนี้เข้า LINE กลุ่ม (ตอนกดปิดลิ้นชัก)
+    try { fetch('https://thfswrvnyhuqmdazjfhd.supabase.co/functions/v1/line-daily-summary', { method: 'POST' }).catch(function () {}); } catch (_) {}
   }
 
   function deliveryModeText(bill) {
