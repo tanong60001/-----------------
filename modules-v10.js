@@ -1907,10 +1907,30 @@ window.renderPayables = async function () {
     .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-block; }
     .status-badge.pending { background: #fef2f2; color: #dc2626; }
     .status-badge.paid { background: #f0fdf4; color: #15803d; }
-    @media (max-width: 768px) { .payable-hero { flex-direction: column; align-items: flex-start; } .payable-stat-boxes { width: 100%; } }
+    .payable-tabs { display:flex; gap:8px; background:#f1f5f9; border-radius:14px; padding:6px; margin-bottom:16px; }
+    .payable-tab { flex:1; border:none; background:transparent; color:#64748b; font-weight:800; font-size:15px; padding:12px; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family:inherit; transition:.15s; }
+    .payable-tab:hover { color:#334155; }
+    .payable-tab.on { background:#fff; color:#1e293b; box-shadow:0 3px 10px rgba(15,23,42,.1); }
+    .payable-tab .cnt { font-size:12px; font-weight:900; padding:2px 9px; border-radius:999px; }
+    .payable-tab.on.pending .cnt { background:#fef2f2; color:#dc2626; }
+    .payable-tab.on.paid .cnt { background:#f0fdf4; color:#15803d; }
+    .payable-tab .cnt { background:#e2e8f0; color:#64748b; }
+    @media (max-width: 768px) { .payable-hero { flex-direction: column; align-items: flex-start; } .payable-stat-boxes { width: 100%; } .payable-tab { font-size:14px; padding:11px 6px; } }
   </style>`;
 
-  const tableRows = rows.map(r => {
+  function tableBlock(html, emptyText) {
+    if (!html) return `<div style="padding:60px;text-align:center;color:#64748b;">
+      <i class="material-icons-round" style="font-size:48px;color:#cbd5e1;margin-bottom:12px;">inbox</i>
+      <h3 style="margin:0;font-size:17px;color:#1e293b;">${emptyText}</h3></div>`;
+    return `<div class="payable-table-card"><table class="payable-table">
+      <thead><tr>
+        <th>ผู้จำหน่าย</th><th>วันที่</th><th>ครบกำหนด</th>
+        <th style="text-align:right;">ยอดรวม</th><th style="text-align:right;">ชำระแล้ว</th>
+        <th style="text-align:right;">คงค้าง</th><th style="text-align:center;">สถานะ</th><th style="text-align:center;">จัดการ</th>
+      </tr></thead><tbody>${html}</tbody></table></div>`;
+  }
+
+  function rowHTML(r) {
     const suppName = getSupplierName(r);
     const suppPhone = getSupplierPhone(r);
     const isOverdue = r.due_date && new Date(r.due_date) < new Date() && r.status === 'ค้างชำระ';
@@ -1952,7 +1972,12 @@ window.renderPayables = async function () {
           ` : `<span style="color:#94a3b8;font-size:12px;font-weight:600;"><i class="material-icons-round" style="font-size:16px;vertical-align:middle;color:#10b981;">check_circle</i> ชำระครบแล้ว</span>`}
         </td>
       </tr>`;
-  }).join('');
+  }
+  const pendingRows = rows.filter(r => r.status === 'ค้างชำระ');
+  const paidRows = rows.filter(r => r.status !== 'ค้างชำระ');
+  const pendingHTML = pendingRows.map(rowHTML).join('');
+  const paidHTML = paidRows.map(rowHTML).join('');
+  const paidTotal = paidRows.reduce((s, r) => s + parseFloat(r.paid_amount || r.amount || 0), 0);
 
   section.innerHTML = `${style}
     <div class="payable-container">
@@ -1981,34 +2006,33 @@ window.renderPayables = async function () {
         </div>
       </div>
 
-      <div class="payable-table-card">
-        ${rows.length === 0 ? `
-          <div style="padding:60px;text-align:center;color:#64748b;">
-            <i class="material-icons-round" style="font-size:48px;color:#cbd5e1;margin-bottom:12px;">storefront</i>
-            <h3 style="margin:0;font-size:18px;color:#1e293b;">ไม่มีรายการเจ้าหนี้</h3>
-            <p style="margin:8px 0 0;font-size:14px;">สถานะการเงินปกติ ไม่มีหนี้สินกับซัพพลายเออร์</p>
-          </div>
-        ` : `
-          <table class="payable-table">
-            <thead>
-              <tr>
-                <th>ผู้จำหน่าย</th>
-                <th>วันที่</th>
-                <th>ครบกำหนด</th>
-                <th style="text-align:right;">ยอดรวม</th>
-                <th style="text-align:right;">ชำระแล้ว</th>
-                <th style="text-align:right;">คงค้าง</th>
-                <th style="text-align:center;">สถานะ</th>
-                <th style="text-align:center;">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
-          </table>
-        `}
+      <div class="payable-tabs">
+        <button class="payable-tab pending on" id="payable-tab-btn-pending" onclick="window.v10PayableTab('pending')">
+          <i class="material-icons-round" style="font-size:20px;">hourglass_bottom</i> รอชำระ <span class="cnt">${pendingRows.length}</span>
+        </button>
+        <button class="payable-tab paid" id="payable-tab-btn-paid" onclick="window.v10PayableTab('paid')">
+          <i class="material-icons-round" style="font-size:20px;">check_circle</i> ชำระแล้ว <span class="cnt">${paidRows.length}</span>
+        </button>
       </div>
+
+      <div id="payable-pane-pending">${tableBlock(pendingHTML, 'ไม่มีบิลที่รอชำระ 🎉')}</div>
+      <div id="payable-pane-paid" style="display:none;">${tableBlock(paidHTML, 'ยังไม่มีบิลที่ชำระแล้ว')}</div>
     </div>`;
+
+  if (!window.v10PayableTab) {
+    window.v10PayableTab = function (tab) {
+      const pp = document.getElementById('payable-pane-pending');
+      const pd = document.getElementById('payable-pane-paid');
+      const bp = document.getElementById('payable-tab-btn-pending');
+      const bd = document.getElementById('payable-tab-btn-paid');
+      if (!pp || !pd) return;
+      const isPending = tab === 'pending';
+      pp.style.display = isPending ? '' : 'none';
+      pd.style.display = isPending ? 'none' : '';
+      if (bp) bp.classList.toggle('on', isPending);
+      if (bd) bd.classList.toggle('on', !isPending);
+    };
+  }
   } finally {
     window._isRenderingPayables = false;
   }

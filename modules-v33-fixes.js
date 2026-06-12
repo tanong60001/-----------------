@@ -742,10 +742,14 @@
 
       /* Executive summary banner */
       .v33-dash-hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #312e81 100%);
+        background:
+          radial-gradient(circle at 0% 0%, rgba(56,189,248,0.18), transparent 42%),
+          radial-gradient(circle at 100% 100%, rgba(168,85,247,0.22), transparent 46%),
+          linear-gradient(135deg, #0b1220 0%, #1e293b 52%, #2e1065 100%);
         color: #fff;
-        border-radius: 22px;
-        padding: 24px 28px;
+        border-radius: 24px;
+        border: 1px solid rgba(148,163,184,0.16);
+        padding: 26px 30px;
         margin-bottom: 24px;
         display: grid;
         grid-template-columns: 1fr auto;
@@ -765,36 +769,38 @@
         pointer-events: none;
       }
       .v33-dash-hero-title {
-        font-size: 13px; font-weight: 700;
-        color: rgba(255,255,255,0.7);
-        letter-spacing: 0.6px; text-transform: uppercase;
-        display: flex; align-items: center; gap: 8px;
-        margin-bottom: 10px;
+        font-size: 12.5px; font-weight: 800;
+        color: rgba(226,232,240,0.78);
+        letter-spacing: 1px; text-transform: uppercase;
+        display: flex; align-items: center; gap: 9px;
+        padding-bottom: 12px; margin-bottom: 14px;
+        border-bottom: 1px solid rgba(148,163,184,0.18);
       }
       .v33-dash-hero-msg {
-        font-size: 17px; font-weight: 600;
-        color: #e2e8f0; line-height: 1.65;
-        max-width: 720px; position: relative;
+        font-size: 16.5px; font-weight: 600;
+        color: #cbd5e1; line-height: 1.7;
+        max-width: 760px; position: relative;
       }
       .v33-dash-hero-msg b { color: #fff; font-weight: 800; }
       .v33-dash-hero-score {
         position: relative;
         text-align: right;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 18px;
-        padding: 16px 22px;
-        min-width: 180px;
-        backdrop-filter: blur(6px);
+        background: linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 20px;
+        padding: 18px 24px;
+        min-width: 200px;
+        backdrop-filter: blur(8px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.18);
       }
       .v33-dash-hero-score .lbl {
-        font-size: 11px; font-weight: 700;
-        color: rgba(255,255,255,0.65);
-        letter-spacing: 0.5px; text-transform: uppercase;
+        font-size: 11px; font-weight: 800;
+        color: rgba(226,232,240,0.7);
+        letter-spacing: 0.8px; text-transform: uppercase;
       }
       .v33-dash-hero-score .val {
-        font-size: 32px; font-weight: 900;
-        letter-spacing: -1px; margin-top: 4px;
+        font-size: 34px; font-weight: 950;
+        letter-spacing: -1px; margin-top: 5px; line-height: 1.05;
       }
       .v33-dash-hero-score .badge {
         display: inline-flex; align-items: center; gap: 4px;
@@ -861,7 +867,11 @@
     const valsByLabel = {};
     Array.from(cards).forEach(c => {
       const labelEl = c.querySelector('span');
-      const amtEl = c.querySelector('div[style*="font-size: 26px"]') || c.querySelector('div[style*="font-size:26px"]');
+      // ค่าเงิน KPI ปัจจุบันอยู่ใน .dash-v3-kpi-money/.dash-v3-money (เดิมเคยเป็น inline font-size:26px)
+      const amtEl = c.querySelector('.dash-v3-kpi-money')
+        || c.querySelector('.dash-v3-money')
+        || c.querySelector('div[style*="font-size: 26px"]')
+        || c.querySelector('div[style*="font-size:26px"]');
       const label = String(labelEl ? labelEl.textContent : '').trim();
       valsByLabel[label] = v33ParseAmount(amtEl ? amtEl.textContent : '');
     });

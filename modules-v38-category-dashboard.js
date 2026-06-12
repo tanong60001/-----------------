@@ -726,31 +726,35 @@ console.log('[v38] Category dashboard loaded');
 
   function categoryCard(row) {
     const active = state.category === row.key;
-    const warn = row.out > 0 ? `${fmt(row.out)} หมด` : row.low > 0 ? `${fmt(row.low)} ใกล้หมด` : 'สต็อกปกติ';
+    const sales = money(row.sales), gross = money(row.gross);
+    const margin = sales > 0 ? Math.round((gross / sales) * 100) : 0;
+    const status = row.out > 0
+      ? { cls: 'danger', txt: `${fmt(row.out)} หมดสต็อก` }
+      : row.low > 0
+        ? { cls: 'warn', txt: `${fmt(row.low)} ใกล้หมด` }
+        : { cls: 'ok', txt: 'สต็อกปกติ' };
     // หา catId จาก categories array
     const catRow = (Array.isArray(typeof categories !== 'undefined' ? categories : window.categories)
       ? (typeof categories !== 'undefined' ? categories : window.categories)
       : []).find(c => categoryKeyFromName(c.name) === row.key);
     const catId = catRow?.id || '';
-    return `<div class="v38-cat-card ${active ? 'active' : ''}" style="--cat:${esc(row.color)}">
-      <div class="v38-cat-card-actions">
-        ${catId ? `<button type="button" class="v38-cat-edit" onclick="event.stopPropagation();v38EditCategory('${js(catId)}')" title="แก้ไขหมวดหมู่">
-          <i class="material-icons-round">edit</i>
-        </button>` : ''}
-      </div>
-      <button type="button" class="v38-cat-card-body" onclick="v38SetInvCategory('${js(row.key)}')">
-        <div class="v38-cat-top">
-          <span class="v38-cat-dot"></span>
-          <strong>${esc(row.name)}</strong>
+    return `<div class="v38c-card ${active ? 'active' : ''}" style="--cat:${esc(row.color)}">
+      <button type="button" class="v38c-body" onclick="v38SetInvCategory('${js(row.key)}')">
+        <div class="v38c-head">
+          <span class="v38c-dot"></span>
+          <div class="v38c-name">${esc(row.name)}</div>
+          <span class="v38c-count">${fmt(row.count)} รายการ</span>
         </div>
-        <div class="v38-cat-grid">
-          <div><b>${fmt(row.count)}</b><span>สินค้า</span></div>
-          <div><b>฿${fmt(row.stockValue)}</b><span>มูลค่าสต็อก</span></div>
-          <div><b>฿${fmt(row.sales)}</b><span>ยอดขาย</span></div>
-          <div><b>฿${fmt(row.gross)}</b><span>กำไรขั้นต้น</span></div>
+        <div class="v38c-rows">
+          <div class="v38c-row"><span>มูลค่าสต็อก</span><b class="v38c-v stock">฿${fmt(Math.round(money(row.stockValue)))}</b></div>
+          <div class="v38c-row"><span>ยอดขาย</span><b class="v38c-v sales">฿${fmt(Math.round(sales))}</b></div>
+          <div class="v38c-row"><span>กำไรขั้นต้น</span><b class="v38c-v gross ${gross < 0 ? 'neg' : ''}">฿${fmt(Math.round(gross))}${margin > 0 ? ` <i>${margin}%</i>` : ''}</b></div>
         </div>
-        <div class="v38-cat-warn ${row.out > 0 ? 'danger' : row.low > 0 ? 'warn' : ''}">${esc(warn)}</div>
+        <div class="v38c-foot">
+          <span class="v38c-status ${status.cls}">${esc(status.txt)}</span>
+        </div>
       </button>
+      ${catId ? `<button type="button" class="v38c-edit" onclick="event.stopPropagation();v38EditCategory('${js(catId)}')" title="แก้ไขหมวดหมู่"><i class="material-icons-round">edit</i></button>` : ''}
     </div>`;
   }
 
