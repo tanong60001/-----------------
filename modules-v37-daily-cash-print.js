@@ -671,6 +671,29 @@
     const subtotal = rows.reduce((s, it) => s + money(it.total), 0);
     const discount = money(bill?.discount);
     const total = money(bill?.total || Math.max(0, subtotal - discount));
+    const billInfo = (() => {
+      try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
+    })();
+    const quoteVat = (() => {
+      if (bill?.quote_vat?.mode && bill.quote_vat.mode !== 'none') return bill.quote_vat;
+      if (billInfo?.quote_vat?.mode && billInfo.quote_vat.mode !== 'none') return billInfo.quote_vat;
+      const m = String(bill?.note || '').match(/\[quote_vat=([^;\]]+);rate=([0-9.]+);base=([0-9.]+);vat=([0-9.]+);total=([0-9.]+)\]/i);
+      if (!m) {
+        const net = Math.max(0, subtotal - discount);
+        const diff = money(total - net);
+        const expectedVat = money(net * 0.07);
+        if (diff > 0 && Math.abs(diff - expectedVat) <= 0.02) {
+          return { mode: 'exclusive', rate: 0.07, base: net, vat: diff, total };
+        }
+        return { mode: 'none', vat: 0, base: 0 };
+      }
+      return { mode: m[1], rate: money(m[2]), base: money(m[3]), vat: money(m[4]), total: money(m[5]) };
+    })();
+    const cleanQuoteNote = String(bill?.note || '')
+      .replace(/\[quote_vat=[^\]]*\]/ig, '')
+      .replace(/\[quote_customer=[^\]]*\]/ig, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     const payState = smartPaymentState(bill, total);
     const delivery = deliveryState(bill, rows);
     const deposit = payState.deposit;
@@ -689,24 +712,27 @@
     const discountRows = discount > 0
       ? `<div class="amount-row"><span>รวมก่อนส่วนลด</span><b>฿${fmt(subtotal)}</b></div><div class="amount-row"><span>ส่วนลด</span><b style="color:#dc2626">-฿${fmt(discount)}</b></div>`
       : '';
+    const quoteVatRows = quoteVat.mode !== 'none'
+      ? `<div class="amount-row"><span>ยอดก่อน VAT</span><b>฿${fmt(quoteVat.base)}</b></div><div class="amount-row"><span>${quoteVat.mode === 'inclusive' ? 'VAT 7% (รวมในราคา)' : 'VAT 7%'}</span><b style="color:#0f766e">฿${fmt(quoteVat.vat)}</b></div>`
+      : '';
     const billingRows = isBilling
       ? `<div class="amount-row"><span>ยอดหนี้เดิม</span><b>฿${fmt(billingOriginal)}</b></div>${billingPaid > 0 ? `<div class="amount-row"><span>ชำระแล้ว</span><b style="color:#059669">-฿${fmt(billingPaid)}</b></div>` : ''}`
       : '';
     const amountRowsHtml = isQuotation
-      ? `${discountRows}<div class="amount-row"><span>ยอดเสนอราคา</span><b>฿${fmt(total)}</b></div>`
+      ? `${discountRows}${quoteVatRows}<div class="amount-row"><span>ยอดเสนอราคา</span><b>฿${fmt(total)}</b></div>`
       : isBilling
       ? billingRows
-      : `${discountRows}<div class="amount-row"><span>ยอดสุทธิ</span><b>฿${fmt(total)}</b></div>${paidRow}`;
+      : `${discountRows}${quoteVatRows}<div class="amount-row"><span>ยอดสุทธิ</span><b>฿${fmt(total)}</b></div>${paidRow}`;
     const dueAmount = isQuotation || isBilling ? total : (remaining > 0 ? remaining : total);
     const payLabel = isQuotation ? 'ยอดเสนอราคา / QUOTED TOTAL' : (isBilling ? 'ยอดคงค้างที่ต้องชำระ' : (remaining > 0 ? 'ยอดที่ต้องชำระ' : 'ยอดชำระแล้ว'));
     const noteText = isQuotation
-      ? (bill?.note || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน')
+      ? (cleanQuoteNote || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน')
       : (ds?.note_text || 'สินค้าซื้อแล้วไม่รับเปลี่ยนหรือคืน');
     const footerText = ds?.footer_text || rc?.receipt_footer || 'ขอบคุณที่ใช้บริการ';
     const words = typeof v24NumberToThaiWords === 'function'
       ? v24NumberToThaiWords(total)
       : '';
-    const dueWords = typeof v24NumberToThaiWords === 'function' && remaining > 0
+    const dueWords = !isQuotation && typeof v24NumberToThaiWords === 'function' && remaining > 0
       ? v24NumberToThaiWords(remaining)
       : '';
     const title = isQuotation ? 'ใบเสนอราคา'

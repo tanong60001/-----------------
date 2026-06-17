@@ -748,6 +748,38 @@
     return cleanNote ? `${meta} | ${cleanNote}` : meta;
   }
 
+  function rowText(row) {
+    return String(row?.textContent || '').toLowerCase();
+  }
+
+  function amountFromExpenseElement(row) {
+    const target = row?.querySelector?.('.v23-exp-amt') || row;
+    const text = String(target?.textContent || '').replace(/,/g, '');
+    const match = text.match(/-?\d+(?:\.\d+)?/);
+    return match ? num(match[0]) : 0;
+  }
+
+  function updateVisibleExpenseTotal() {
+    const rows = Array.from(document.querySelectorAll('#page-projects .v23-exp-row,#page-projects .v14-expense-row'))
+      .filter(row => row.dataset.v67LaborBudgetRow !== '1' && row.style.display !== 'none');
+    const total = rows.reduce((sum, row) => sum + amountFromExpenseElement(row), 0);
+    const v23Count = document.querySelector('#v23t-exp .v23-tc');
+    if (v23Count) v23Count.textContent = String(rows.length);
+    const v22Count = document.querySelector('#v22tab-exp span');
+    if (v22Count) v22Count.textContent = String(rows.length);
+    const bar = document.querySelector('#page-projects #v23c-exp .v23-total-bar')
+      || document.querySelector('#page-projects #v22content-exp .v23-total-bar')
+      || document.querySelector('#page-projects .v14-expense-list')?.parentElement?.querySelector('.v23-total-bar');
+    if (!bar) return;
+    const label = bar.querySelector('.tl') || bar.firstElementChild;
+    const value = bar.querySelector('.tv') || bar.lastElementChild;
+    if (label) label.textContent = 'รวมรายจ่ายที่แสดง';
+    if (value) {
+      value.textContent = '฿' + fmt(total);
+      value.style.color = '#ef4444';
+    }
+  }
+
   function hideBudgetExpenseRows() {
     let visible = 0;
     document.querySelectorAll('#page-projects .v23-exp-row,.v14-expense-row').forEach(row => {
@@ -788,8 +820,9 @@
         row.style.display = 'none';
         return;
       }
-      row.style.display = !q || (row.textContent || '').toLowerCase().includes(q) ? '' : 'none';
+      row.style.display = !q || rowText(row).includes(q) ? '' : 'none';
     });
+    updateVisibleExpenseTotal();
   };
 
   async function decorateProjectPage(projectId) {
@@ -798,6 +831,7 @@
     if (!root) return;
     hideBudgetExpenseRows();
     installExpenseSearch();
+    window.v67FilterProjectExpenses();
     document.getElementById('v67-labor-panel')?.remove();
 
     const summary = await laborSummary(projectId);

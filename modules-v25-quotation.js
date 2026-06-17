@@ -16,6 +16,70 @@
 // TODO: เปลี่ยน UUID นี้เป็น ID จริงของสินค้า "สินค้านอกระบบ" ที่สร้างใน Supabase
 const DUMMY_PRODUCT_ID = '00000000-0000-0000-0000-000000000000';
 const _v25Esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const V25_VAT_RATE = 0.07;
+const V25_QUOTE_VAT_RE = /\[quote_vat=([^;\]]+);rate=([0-9.]+);base=([0-9.]+);vat=([0-9.]+);total=([0-9.]+)\]/i;
+const V25_QUOTE_CUSTOMER_RE = /\[quote_customer=([^\]]*)\]/i;
+
+function v25RoundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function v25QuoteTotals(subtotal, discount, mode = 'none') {
+  const base = Math.max(0, v25RoundMoney(subtotal) - v25RoundMoney(discount));
+  if (mode === 'exclusive') {
+    const vat = v25RoundMoney(base * V25_VAT_RATE);
+    return { subtotal: v25RoundMoney(subtotal), discount: v25RoundMoney(discount), base, vat, total: v25RoundMoney(base + vat), mode };
+  }
+  if (mode === 'inclusive') {
+    const vat = v25RoundMoney(base * V25_VAT_RATE / (1 + V25_VAT_RATE));
+    return { subtotal: v25RoundMoney(subtotal), discount: v25RoundMoney(discount), base: v25RoundMoney(base - vat), vat, total: base, mode };
+  }
+  return { subtotal: v25RoundMoney(subtotal), discount: v25RoundMoney(discount), base, vat: 0, total: base, mode: 'none' };
+}
+
+function v25VatMeta(totals) {
+  if (!totals || totals.mode === 'none') return '';
+  return `[quote_vat=${totals.mode};rate=${V25_VAT_RATE};base=${v25RoundMoney(totals.base)};vat=${v25RoundMoney(totals.vat)};total=${v25RoundMoney(totals.total)}]`;
+}
+
+function v25ParseVatMeta(note) {
+  const match = String(note || '').match(V25_QUOTE_VAT_RE);
+  if (!match) return { mode: 'none', rate: V25_VAT_RATE, base: 0, vat: 0, total: 0 };
+  return {
+    mode: match[1] || 'none',
+    rate: Number(match[2] || V25_VAT_RATE),
+    base: Number(match[3] || 0),
+    vat: Number(match[4] || 0),
+    total: Number(match[5] || 0),
+  };
+}
+
+function v25CleanQuoteNote(note) {
+  return String(note || '').replace(V25_QUOTE_VAT_RE, '').replace(V25_QUOTE_CUSTOMER_RE, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function v25CustomerMeta(details) {
+  const data = {
+    phone: String(details?.phone || '').trim(),
+    address: String(details?.address || '').trim(),
+  };
+  if (!data.phone && !data.address) return '';
+  return `[quote_customer=${encodeURIComponent(JSON.stringify(data))}]`;
+}
+
+function v25ParseCustomerMeta(note) {
+  const match = String(note || '').match(V25_QUOTE_CUSTOMER_RE);
+  if (!match) return { phone: '', address: '' };
+  try {
+    const data = JSON.parse(decodeURIComponent(match[1] || ''));
+    return {
+      phone: String(data?.phone || '').trim(),
+      address: String(data?.address || '').trim(),
+    };
+  } catch (_) {
+    return { phone: '', address: '' };
+  }
+}
 
 function v25InstallQuoteStyles() {
   if (document.getElementById('v25-quote-polish-style')) return;
@@ -37,6 +101,7 @@ function v25InstallQuoteStyles() {
     .v25q-panel.inset{padding:16px}.v25q-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
     .v25q-title{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:950;color:#172033}.v25q-title i{font-size:20px;color:#ef4444}
     .v25q-grid2{display:grid;grid-template-columns:1fr 220px;gap:12px}
+    .v25q-grid-contact{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px;margin-top:12px}
     .v25q-field label{display:block;font-size:12px;font-weight:900;color:#475569;margin-bottom:7px}
     .v25q-input{width:100%;height:48px;border:1.5px solid #cbd5e1;border-radius:13px;background:#fff;padding:0 14px;font:850 14px var(--font-thai,'Prompt'),sans-serif;color:#0f172a;outline:none;box-sizing:border-box}
     .v25q-input:focus{border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
@@ -61,7 +126,16 @@ function v25InstallQuoteStyles() {
     .v25q-summary{position:sticky;top:14px}.v25q-total-card{padding:18px;background:linear-gradient(135deg,#111827,#334155);border-radius:20px;color:#fff;box-shadow:0 18px 38px rgba(15,23,42,.2)}
     .v25q-total-card span{display:block;font-size:12px;font-weight:800;color:#cbd5e1}.v25q-total-card b{display:block;margin-top:6px;font-size:38px;line-height:1;color:#fff}
     .v25q-sumline{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:850;color:#475569}.v25q-sumline b{color:#0f172a}
+    .v25q-vatbox{padding:12px 0;border-bottom:1px solid #e2e8f0}
+    .v25q-vathead{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px}
+    .v25q-vathead span{font-size:13px;font-weight:950;color:#475569}.v25q-vathead small{font-size:10px;font-weight:850;color:#94a3b8}
+    .v25q-vatseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .v25q-vatbtn{min-height:40px;border:1.5px solid #dbe3ec;background:#fff;border-radius:12px;color:#475569;font:950 12px var(--font-thai,'Prompt'),sans-serif;cursor:pointer}
+    .v25q-vatbtn.on{border-color:#dc2626;background:#fff1f2;color:#b91c1c;box-shadow:0 0 0 3px rgba(220,38,38,.08)}
+    .v25q-sumline.vat{padding-top:9px;padding-bottom:9px}.v25q-sumline.vat b{color:#0f766e}
+    .v25q-sumline.vat-muted{font-size:12px;color:#64748b}
     .v25q-note{resize:vertical;min-height:86px;padding-top:12px;line-height:1.45}
+    .v25q-address{resize:vertical;min-height:48px;height:48px;padding-top:12px;line-height:1.45}
     .v25q-save{height:56px;width:100%;border:0;border-radius:16px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font:950 15px var(--font-thai,'Prompt'),sans-serif;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 16px 34px rgba(220,38,38,.22)}
     .v25q-save:hover{filter:brightness(.98);transform:translateY(-1px)}.v25q-save i{font-size:22px}
     .v25custom-popup{border-radius:22px!important;padding:0!important;overflow:hidden!important}
@@ -81,7 +155,7 @@ function v25InstallQuoteStyles() {
     .v25qc-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.v25qc-opt{border:2px solid #e2e8f0;border-radius:16px;background:#fff;padding:14px 10px;cursor:pointer;text-align:center;font:900 13px var(--font-thai,'Prompt'),sans-serif;color:#334155}.v25qc-opt i{display:block;font-size:26px;margin-bottom:6px;color:#94a3b8}.v25qc-opt.active{border-color:#dc2626;background:#fff1f2;color:#b91c1c}.v25qc-opt.active i{color:#dc2626}
     .v25qc-hint{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:14px;padding:12px 14px;font-size:13px;font-weight:850;line-height:1.55}
     .v25qc-footer{display:flex;justify-content:space-between;gap:10px;padding:16px 26px;border-top:1px solid #e2e8f0;background:#fff}.v25qc-btn{height:46px;border-radius:14px;border:1px solid #cbd5e1;background:#fff;color:#334155;padding:0 18px;font:950 13px var(--font-thai,'Prompt'),sans-serif;display:inline-flex;align-items:center;gap:7px;cursor:pointer}.v25qc-btn.primary{border:0;background:#dc2626;color:#fff}.v25qc-btn:disabled{opacity:.45;cursor:not-allowed}
-    @media(max-width:900px){.v25q-wrap{grid-template-columns:1fr}.v25q-grid2,.v25q-picker{grid-template-columns:1fr}.v25q-table-head{display:none}.v25q-row{grid-template-columns:1fr 1fr}.v25q-namecell,.v25q-line-total{grid-column:1/-1}.v25q-summary{position:static}}
+    @media(max-width:900px){.v25q-wrap{grid-template-columns:1fr}.v25q-grid2,.v25q-grid-contact,.v25q-picker{grid-template-columns:1fr}.v25q-table-head{display:none}.v25q-row{grid-template-columns:1fr 1fr}.v25q-namecell,.v25q-line-total{grid-column:1/-1}.v25q-summary{position:static}}
     @media(max-width:640px){.v25custom-grid,.v25qc-grid,.v25qc-options{grid-template-columns:1fr}.v25qc-progress{grid-template-columns:1fr}.v25qc-line{display:none}}
   `;
   document.head.appendChild(s);
@@ -122,6 +196,7 @@ window._v25QuotItems = [];
 
 window.v9ShowQuotModal = async function () {
   window._v25QuotItems = [];
+  window._v25QuoteVatMode = 'none';
   if (typeof openModal !== 'function') return;
   v25InstallQuoteStyles();
 
@@ -171,15 +246,23 @@ window.v9ShowQuotModal = async function () {
   const _calcTotal = () => {
     const sub = (window._v25QuotItems || []).reduce((s, i) => s + (i.qty * i.price), 0);
     const disc = parseFloat(document.getElementById('v25q-disc')?.value || 0);
-    const tot = Math.max(0, sub - disc);
+    const mode = window._v25QuoteVatMode || 'none';
+    const totals = v25QuoteTotals(sub, disc, mode);
     const el = document.getElementById('v25q-total');
-    if (el) el.textContent = `฿${typeof formatNum === 'function' ? formatNum(Math.round(tot)) : tot.toFixed(2)}`;
+    if (el) el.textContent = `฿${_fmt(totals.total)}`;
     const subEl = document.getElementById('v25q-subtotal');
     const discEl = document.getElementById('v25q-disc-show');
+    const vatBaseEl = document.getElementById('v25q-vat-base');
+    const vatEl = document.getElementById('v25q-vat');
+    const vatLabelEl = document.getElementById('v25q-vat-label');
     const countEl = document.getElementById('v25q-count');
-    if (subEl) subEl.textContent = `฿${_fmt(sub)}`;
-    if (discEl) discEl.textContent = `฿${_fmt(disc)}`;
+    if (subEl) subEl.textContent = `฿${_fmt(totals.subtotal)}`;
+    if (discEl) discEl.textContent = `฿${_fmt(totals.discount)}`;
+    if (vatBaseEl) vatBaseEl.textContent = `฿${_fmt(totals.base)}`;
+    if (vatEl) vatEl.textContent = mode === 'none' ? '฿0' : `฿${_fmt(totals.vat)}`;
+    if (vatLabelEl) vatLabelEl.textContent = mode === 'inclusive' ? 'VAT 7% (รวมในราคา)' : 'VAT 7%';
     if (countEl) countEl.textContent = `${(window._v25QuotItems || []).length} รายการ`;
+    document.querySelectorAll('.v25q-vatbtn').forEach(btn => btn.classList.toggle('on', btn.dataset.mode === mode));
     (window._v25QuotItems || []).forEach((it, i) => {
       const line = document.getElementById(`v25q-line-${i}`);
       if (line) line.textContent = `฿${_fmt((it.qty || 0) * (it.price || 0))}`;
@@ -188,6 +271,10 @@ window.v9ShowQuotModal = async function () {
 
   window._v25RenderItems = _render;
   window._v25CalcTotal = _calcTotal;
+  window._v25SetVatMode = (mode) => {
+    window._v25QuoteVatMode = ['exclusive', 'inclusive'].includes(mode) ? mode : 'none';
+    _calcTotal();
+  };
 
   // เพิ่มสินค้าจากคลัง (ไม่เช็ค stock)
   window._v25AddFromStock = (prodId) => {
@@ -384,6 +471,16 @@ window.v9ShowQuotModal = async function () {
                   value="${new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]}">
               </div>
             </div>
+            <div class="v25q-grid-contact">
+              <div class="v25q-field">
+                <label>เบอร์โทรลูกค้า</label>
+                <input class="v25q-input" id="v25q-phone" type="tel" placeholder="เช่น 08x-xxx-xxxx">
+              </div>
+              <div class="v25q-field">
+                <label>ที่อยู่ลูกค้า</label>
+                <textarea class="v25q-input v25q-address" id="v25q-address" placeholder="ที่อยู่สำหรับออกเอกสาร / จัดส่ง"></textarea>
+              </div>
+            </div>
           </section>
 
           <section class="v25q-panel inset">
@@ -435,6 +532,19 @@ window.v9ShowQuotModal = async function () {
                 class="v25q-input" style="width:118px;height:40px;text-align:right">
             </div>
             <div class="v25q-sumline"><span>ส่วนลดรวม</span><b id="v25q-disc-show">฿0</b></div>
+            <div class="v25q-vatbox">
+              <div class="v25q-vathead">
+                <span>ภาษีมูลค่าเพิ่ม</span>
+                <small>คำนวณ 7%</small>
+              </div>
+              <div class="v25q-vatseg">
+                <button type="button" class="v25q-vatbtn on" data-mode="none" onclick="window._v25SetVatMode('none')">ไม่มี VAT</button>
+                <button type="button" class="v25q-vatbtn" data-mode="exclusive" onclick="window._v25SetVatMode('exclusive')">VAT นอก</button>
+                <button type="button" class="v25q-vatbtn" data-mode="inclusive" onclick="window._v25SetVatMode('inclusive')">VAT ใน</button>
+              </div>
+            </div>
+            <div class="v25q-sumline vat-muted"><span>ยอดก่อน VAT</span><b id="v25q-vat-base">฿0</b></div>
+            <div class="v25q-sumline vat"><span id="v25q-vat-label">VAT 7%</span><b id="v25q-vat">฿0</b></div>
             <div class="v25q-field" style="margin-top:14px">
               <label>หมายเหตุ</label>
               <textarea class="v25q-input v25q-note" id="v25q-note" placeholder="เงื่อนไขราคา ระยะเวลาส่งของ หรือรายละเอียดเพิ่มเติม"></textarea>
@@ -468,9 +578,15 @@ window._v25SaveQuot = async function () {
   }
   const discount = parseFloat(document.getElementById('v25q-disc')?.value || 0);
   const subtotal = items.reduce((s, i) => s + (i.qty * i.price), 0);
-  const total = Math.max(0, subtotal - discount);
+  const totals = v25QuoteTotals(subtotal, discount, window._v25QuoteVatMode || 'none');
+  const total = totals.total;
   const valid = document.getElementById('v25q-valid')?.value || null;
-  const note = document.getElementById('v25q-note')?.value || '';
+  const userNote = document.getElementById('v25q-note')?.value?.trim() || '';
+  const customerPhone = document.getElementById('v25q-phone')?.value?.trim() || '';
+  const customerAddress = document.getElementById('v25q-address')?.value?.trim() || '';
+  const vatMeta = v25VatMeta(totals);
+  const customerMeta = v25CustomerMeta({ phone: customerPhone, address: customerAddress });
+  const note = [userNote, vatMeta, customerMeta].filter(Boolean).join(' ');
   const staff = typeof v9Staff === 'function' ? v9Staff() : ((typeof USER !== 'undefined' && USER) ? USER.username : '-');
 
   if (typeof v9ShowOverlay === 'function') v9ShowOverlay('กำลังบันทึก...');
@@ -507,6 +623,37 @@ window._v25SaveQuot = async function () {
 } finally { if (typeof v9HideOverlay === 'function') v9HideOverlay(); }
 };
 
+async function v25EnsureQuoteCustomer(quote) {
+  const name = String(quote?.customer_name || '').trim();
+  const meta = v25ParseCustomerMeta(quote?.note);
+  if (!name || name === 'ลูกค้าทั่วไป') return { id: null, name: name || 'ลูกค้าทั่วไป', ...meta };
+  try {
+    const { data: existing } = await db.from('customer')
+      .select('id,name,phone,address,total_purchase,visit_count,debt_amount')
+      .eq('name', name)
+      .maybeSingle();
+    if (existing?.id) {
+      const updates = {};
+      if (meta.phone && meta.phone !== (existing.phone || '')) updates.phone = meta.phone;
+      if (meta.address && meta.address !== (existing.address || '')) updates.address = meta.address;
+      if (Object.keys(updates).length) await db.from('customer').update(updates).eq('id', existing.id);
+      return { ...existing, ...updates, name };
+    }
+    const { data: created } = await db.from('customer').insert({
+      name,
+      phone: meta.phone || null,
+      address: meta.address || null,
+      total_purchase: 0,
+      visit_count: 0,
+      debt_amount: 0,
+    }).select('id,name,phone,address,total_purchase,visit_count,debt_amount').maybeSingle();
+    return created || { id: null, name, ...meta };
+  } catch (err) {
+    console.warn('[v25] quote customer save failed:', err);
+    return { id: null, name, ...meta };
+  }
+}
+
 function _v25Money(n) { return Number(n || 0).toLocaleString('th-TH'); }
 function _v25DenomTotal(obj) {
   return Object.entries(obj || {}).reduce((s, [v, c]) => s + Number(v) * Number(c || 0), 0);
@@ -517,6 +664,11 @@ function v25ShowQuoteCheckoutPopup(quot, itemCount) {
   return new Promise(resolve => {
     let step = 1;
     const state = { pay: 'cash', delivery: 'self' };
+    const vat = v25ParseVatMeta(quot.note);
+    const vatRows = vat.mode !== 'none'
+      ? `<div class="v25qc-row"><span>ยอดก่อน VAT</span><b>฿${_v25Money(vat.base)}</b></div>
+         <div class="v25qc-row"><span>${vat.mode === 'inclusive' ? 'VAT 7% (รวมในราคา)' : 'VAT 7%'}</span><b>฿${_v25Money(vat.vat)}</b></div>`
+      : '';
     const ov = document.createElement('div');
     ov.className = 'v25qc-overlay';
     document.body.appendChild(ov);
@@ -548,6 +700,7 @@ function v25ShowQuoteCheckoutPopup(quot, itemCount) {
             <div class="v25qc-row"><span>เลขที่</span><b>QT-${String(quot.id).slice(-6).toUpperCase()}</b></div>
             <div class="v25qc-row"><span>จำนวนรายการ</span><b>${itemCount} รายการ</b></div>
             <div class="v25qc-row"><span>สถานะ</span><b>${_v25Esc(quot.status || 'รออนุมัติ')}</b></div>
+            ${vatRows}
           </div>
           <div class="v25qc-card soft">
             <div style="font-size:12px;color:#64748b;font-weight:900;margin-bottom:8px">ยอดที่จะสร้างเป็นบิลขาย</div>
@@ -586,6 +739,7 @@ function v25ShowQuoteCheckoutPopup(quot, itemCount) {
           <div class="v25qc-card">
             <div class="v25qc-row"><span>วิธีชำระ</span><b>${payLabels[state.pay]}</b></div>
             <div class="v25qc-row"><span>วิธีจัดส่ง</span><b>${delLabels[state.delivery]}</b></div>
+            ${vatRows}
             <div class="v25qc-row"><span>ยอดบิล</span><b>฿${_v25Money(quot.total)}</b></div>
           </div>
           <div class="v25qc-card soft">
@@ -691,11 +845,23 @@ window.v9ConvertQuotation = async function (quotId, customerName) {
     const hasDelivery = deliveryChoice === 'deliver' || deliveryChoice === 'partial';
     const billStatus = isDebt ? 'ค้างชำระ' : (isCod ? 'ชำระหน้างาน' : 'สำเร็จ');
     const deliveryStatus = hasDelivery ? 'รอจัดส่ง' : 'สำเร็จ';
+    const vatMarker = String(quot.note || '').match(V25_QUOTE_VAT_RE)?.[0] || '';
+    const quoteVat = v25ParseVatMeta(quot.note);
+    const quoteCustomer = await v25EnsureQuoteCustomer(quot);
+    const quoteCustomerMeta = v25ParseCustomerMeta(quot.note);
+    const customerPhone = quoteCustomerMeta.phone || quoteCustomer.phone || '';
+    const customerAddress = quoteCustomerMeta.address || quoteCustomer.address || '';
+    const visibleNote = v25CleanQuoteNote(quot.note);
 
     // สร้างบิลขาย
     const { data: bill, error: be } = await db.from('บิลขาย').insert({
       bill_no: Date.now(),
       customer_name: quot.customer_name,
+      customer_id: quoteCustomer.id || null,
+      customer_phone: customerPhone || null,
+      customer_address: customerAddress || null,
+      delivery_phone: customerPhone || null,
+      delivery_address: customerAddress || null,
       total: quot.total,
       discount: quot.discount || 0,
       method: methodMap[payMode] || 'เงินสด',
@@ -709,9 +875,23 @@ window.v9ConvertQuotation = async function (quotId, customerName) {
       deposit_amount: 0,
       denominations: payMode === 'cash' ? cashInfo.denominations : null,
       change_denominations: payMode === 'cash' ? cashInfo.changeDenominations : null,
-      note: `สร้างจากใบเสนอราคา QT-${String(quotId).slice(-6).toUpperCase()}`,
+      return_info: quoteVat.mode !== 'none' ? { quote_vat: quoteVat } : null,
+      note: [`สร้างจากใบเสนอราคา QT-${String(quotId).slice(-6).toUpperCase()}`, visibleNote, vatMarker].filter(Boolean).join(' | '),
     }).select().single();
     if (be) throw new Error(be.message);
+
+    if (quoteCustomer.id) {
+      try {
+        const debtAdd = isDebt ? Number(quot.total || 0) : 0;
+        await db.from('customer').update({
+          total_purchase: Number(quoteCustomer.total_purchase || 0) + Number(quot.total || 0),
+          visit_count: Number(quoteCustomer.visit_count || 0) + 1,
+          debt_amount: Math.max(0, Number(quoteCustomer.debt_amount || 0) + debtAdd),
+        }).eq('id', quoteCustomer.id);
+      } catch (err) {
+        console.warn('[v25] quote customer totals failed:', err);
+      }
+    }
 
     // Insert รายการในบิล + ตัดสต็อกเฉพาะสินค้าจริง
     for (const it of (quotItems || [])) {
@@ -850,16 +1030,21 @@ window.v9PrintQuotation = async function (quotId) {
     if (!quot) { typeof toast === 'function' && toast('ไม่พบใบเสนอราคา', 'error'); return; }
 
     // แปลงข้อมูลเป็น format ที่ v24PrintDocument รับ
+    const customerMeta = v25ParseCustomerMeta(quot.note);
     const fakeBill = {
       bill_no: `QT-${String(quotId).slice(-6).toUpperCase()}`,
       date: quot.date || quot.created_at,
       customer_name: quot.customer_name || 'ลูกค้า',
+      customer_address: customerMeta.address || '',
+      customer_phone: customerMeta.phone || '',
       total: quot.total || 0,
       discount: quot.discount || 0,
       method: '-',
       staff_name: quot.staff_name || '-',
       status: 'ใบเสนอราคา',
-      note: quot.note || '',
+      note: v25CleanQuoteNote(quot.note),
+      quote_vat: v25ParseVatMeta(quot.note),
+      return_info: { quote_vat: v25ParseVatMeta(quot.note) },
     };
     const fakeItems = (items || []).map(i => ({
       name: i.name,

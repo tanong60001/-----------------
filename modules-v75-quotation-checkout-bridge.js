@@ -13,6 +13,32 @@
     return num(v).toLocaleString('th-TH', { maximumFractionDigits: 2 });
   };
 
+  const QUOTE_VAT_RE = /\[quote_vat=([^;\]]+);rate=([0-9.]+);base=([0-9.]+);vat=([0-9.]+);total=([0-9.]+)\]/i;
+  const QUOTE_CUSTOMER_RE = /\[quote_customer=([^\]]*)\]/i;
+
+  function parseQuoteVat(note) {
+    const match = String(note || '').match(QUOTE_VAT_RE);
+    if (!match) return { mode: 'none', rate: 0.07, base: 0, vat: 0, total: 0 };
+    return {
+      mode: match[1] || 'none',
+      rate: num(match[2] || 0.07),
+      base: num(match[3]),
+      vat: num(match[4]),
+      total: num(match[5]),
+    };
+  }
+
+  function parseQuoteCustomer(note) {
+    const match = String(note || '').match(QUOTE_CUSTOMER_RE);
+    if (!match) return { phone: '', address: '' };
+    try {
+      const data = JSON.parse(decodeURIComponent(match[1] || ''));
+      return { phone: String(data?.phone || '').trim(), address: String(data?.address || '').trim() };
+    } catch (_) {
+      return { phone: '', address: '' };
+    }
+  }
+
   function setGlobal(name, value) {
     try { window[name] = value; } catch (_) {}
     try { Function('n', 'v', 'window[n]=v; try { eval(n + " = v"); } catch(e) {}')(name, value); } catch (_) {}
@@ -117,25 +143,51 @@
 
   async function resolveCustomer(quote) {
     const name = String(quote?.customer_name || '').trim() || 'ลูกค้าทั่วไป';
+    const meta = parseQuoteCustomer(quote?.note);
     if (!name || name === 'ลูกค้าทั่วไป') return { type: 'general', id: null, name: 'ลูกค้าทั่วไป' };
     try {
       const { data } = await db.from('customer')
-        .select('id,name,phone,address,debt_amount,customer_type')
+        .select('id,name,phone,address,debt_amount,customer_type,total_purchase,visit_count')
         .eq('name', name)
         .maybeSingle();
       if (data?.id) {
+        const updates = {};
+        if (meta.phone && meta.phone !== (data.phone || '')) updates.phone = meta.phone;
+        if (meta.address && meta.address !== (data.address || '')) updates.address = meta.address;
+        if (Object.keys(updates).length) {
+          try { await db.from('customer').update(updates).eq('id', data.id); } catch (_) {}
+        }
         return {
           type: 'member',
           id: data.id,
           name: data.name || name,
-          phone: data.phone || '',
-          address: data.address || '',
+          phone: updates.phone || data.phone || meta.phone || '',
+          address: updates.address || data.address || meta.address || '',
           debt_amount: num(data.debt_amount),
           customer_type: data.customer_type || '',
         };
       }
+      const { data: created } = await db.from('customer').insert({
+        name,
+        phone: meta.phone || null,
+        address: meta.address || null,
+        total_purchase: 0,
+        visit_count: 0,
+        debt_amount: 0,
+      }).select('id,name,phone,address,debt_amount,customer_type').maybeSingle();
+      if (created?.id) {
+        return {
+          type: 'member',
+          id: created.id,
+          name: created.name || name,
+          phone: created.phone || '',
+          address: created.address || '',
+          debt_amount: num(created.debt_amount),
+          customer_type: created.customer_type || '',
+        };
+      }
     } catch (_) {}
-    return { type: 'member', id: null, name };
+    return { type: 'member', id: null, name, phone: meta.phone || '', address: meta.address || '' };
   }
 
   function patchCheckoutCustomer(customer, quote) {
@@ -149,6 +201,12 @@
       state.paymentType = state.paymentType || 'full';
       state.method = state.method || 'cash';
       state.__quote_id = quote.id;
+      const quoteVat = parseQuoteVat(quote.note);
+      if (quoteVat.mode !== 'none') {
+        state.total = num(quote.total) || state.total;
+        state.return_info = { ...(state.return_info || {}), quote_vat: quoteVat };
+        state.note = [`สร้างจากใบเสนอราคา QT-${String(quote.id).slice(-6).toUpperCase()}`, state.note || ''].filter(Boolean).join(' | ');
+      }
       if (state.itemModes && Array.isArray(getCart())) {
         getCart().forEach(item => {
           if (!state.itemModes[item.id]) state.itemModes[item.id] = { take: item.qty, deliver: 0 };
@@ -302,6 +360,7 @@
       if (quote.status && quote.status !== 'รออนุมัติ') throw new Error('ใบเสนอราคานี้ไม่อยู่ในสถานะรออนุมัติ');
 
       const quoteCart = await buildCartItems(quotId, items || []);
+      const quoteVat = parseQuoteVat(quote.note);
       if (!quoteCart.length) throw new Error('ใบเสนอราคานี้ยังไม่มีรายการสินค้า');
 
       const customer = await resolveCustomer(quote);
@@ -311,7 +370,8 @@
       window._v75PendingQuoteCheckout = {
         quoteId: quote.id,
         customerName: customer.name || quote.customer_name || '',
-        total: Math.max(0, quoteCart.reduce((s, item) => s + num(item.price) * num(item.qty), 0) - num(quote.discount)),
+        total: num(quote.total) || Math.max(0, quoteCart.reduce((s, item) => s + num(item.price) * num(item.qty), 0) - num(quote.discount)),
+        quoteVat,
         startedAt: new Date(Date.now() - 5000).toISOString(),
       };
 

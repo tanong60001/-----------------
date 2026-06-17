@@ -55,6 +55,34 @@ const _v24m = n => {
   const v = Number(n || 0);
   return Number.isFinite(v) ? v : 0;
 };
+const _v24DebtPaymentCredit = payment => {
+  const note = String(payment?.note || '');
+  const match = note.match(/\[debt_discount=([0-9]+(?:\.[0-9]+)?)\]/i);
+  return _v24m(payment?.amount) + (match ? _v24m(match[1]) : 0);
+};
+const _v24QuoteVatRe = /\[quote_vat=([^;\]]+);rate=([0-9.]+);base=([0-9.]+);vat=([0-9.]+);total=([0-9.]+)\]/i;
+function _v24QuoteVat(note, bill = null, subtotal = 0, discount = 0, total = 0) {
+  if (bill?.quote_vat?.mode && bill.quote_vat.mode !== 'none') {
+    return bill.quote_vat;
+  }
+  const match = String(note || '').match(_v24QuoteVatRe);
+  if (!match) {
+    const net = Math.max(0, _v24m(subtotal) - _v24m(discount));
+    const diff = _v24m(total) - net;
+    const expectedVat = net * 0.07;
+    if (diff > 0 && Math.abs(diff - expectedVat) <= 0.02) {
+      return { mode: 'exclusive', rate: 0.07, base: net, vat: diff, total: _v24m(total) };
+    }
+    return { mode: 'none', rate: 0.07, base: 0, vat: 0, total: 0 };
+  }
+  return {
+    mode: match[1] || 'none',
+    rate: _v24m(match[2] || 0.07),
+    base: _v24m(match[3]),
+    vat: _v24m(match[4]),
+    total: _v24m(match[5]),
+  };
+}
 const _v24e = v => String(v ?? '').replace(/[&<>"']/g, ch => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[ch]));
@@ -230,6 +258,7 @@ function v24Sum(bill, items, ds, rc) {
   const sub = items.reduce((s, i) => s + +(i.total || 0), 0);
   const disc = +(bill.discount || 0), total = +(bill.total || sub - disc);
   const rcv = +(bill.received || 0), chg = +(bill.change || 0), dep = +(bill.deposit_amount || 0);
+  const vat = _v24QuoteVat(bill.note, bill, sub, disc, total);
   const nt = ds?.note_text || 'สินค้าที่ส่งมอบแล้วไม่รับเปลี่ยนหรือคืน';
   
   let bankInfo = '';
@@ -245,6 +274,8 @@ function v24Sum(bill, items, ds, rc) {
   <div class="sum-r">
     <div class="sr"><span class="sr-l">รวมเงิน (Subtotal)</span><span class="sr-v">${_v24f(sub)}</span></div>
     ${disc > 0 ? `<div class="sr"><span class="sr-l">ส่วนลด</span><span class="sr-v" style="color:#dc2626">-${_v24f(disc)}</span></div>` : ''}
+    ${vat.mode !== 'none' ? `<div class="sr"><span class="sr-l">ยอดก่อน VAT</span><span class="sr-v">${_v24f(vat.base)}</span></div>
+    <div class="sr"><span class="sr-l">${vat.mode === 'inclusive' ? 'VAT 7% (รวมในราคา)' : 'VAT 7%'}</span><span class="sr-v" style="color:#0f766e">${_v24f(vat.vat)}</span></div>` : ''}
     ${dep > 0 ? `<div class="sr"><span class="sr-l">มัดจำ</span><span class="sr-v" style="color:#d97706">${_v24f(dep)}</span></div>` : ''}
     <div class="gt"><div class="gt-l">จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL</div><div class="gt-v">฿${_v24f(total)}</div></div>
     ${bill.method === 'เงินสด' && rcv > 0 ? `<div style="margin-top:4px">
@@ -411,7 +442,7 @@ async function v24BuildDebtBreakdown(custId, opts = {}) {
   if (!custId) return { map: new Map(), rows: [], totalDebt: 0, originalTotal: 0, paidTotal: 0, customer: null };
 
   const [{ data: pays }, { data: bills }, { data: customer }] = await Promise.all([
-    db.from('ชำระหนี้').select('amount').eq('customer_id', custId),
+    db.from('ชำระหนี้').select('amount,note').eq('customer_id', custId),
     db.from('บิลขาย')
     .select('*')
     .eq('customer_id', custId)
@@ -421,7 +452,7 @@ async function v24BuildDebtBreakdown(custId, opts = {}) {
     db.from('customer').select('name,address,phone,debt_amount').eq('id', custId).maybeSingle(),
   ]);
 
-  let paidPool = (pays || []).reduce((s, p) => s + _v24m(p.amount), 0);
+  let paidPool = (pays || []).reduce((s, p) => s + _v24DebtPaymentCredit(p), 0);
   const result = new Map();
   const allRows = [];
 

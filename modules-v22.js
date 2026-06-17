@@ -1126,6 +1126,8 @@ window.v14CompleteProject = async function(projId) {
   const remaining   = Math.max(0, budget - totalBilled);
   const totalCost   = (parseFloat(proj.total_goods_cost || 0)) + (parseFloat(proj.total_expenses || 0));
   const projProfit  = budget - totalCost;  // กำไรรวม (ถ้าเบิกครบ)
+  const profitLabel = projProfit >= 0 ? 'กำไรรวม (ประมาณ)' : 'ขาดทุนรวม (ประมาณ)';
+  const profitLogLabel = projProfit >= 0 ? 'กำไร' : 'ขาดทุน';
 
   // ใช้ Swal ถ้ามี หรือ confirm ธรรมดา
   const hasSwal = typeof Swal !== 'undefined';
@@ -1146,7 +1148,7 @@ window.v14CompleteProject = async function(projId) {
               เหลือค้าง: <strong>฿${_v22f(remaining)}</strong>
             </div>
             <div style="color:${projProfit >= 0 ? '#22c55e' : '#ef4444'};grid-column:1/-1;font-size:15px;font-weight:800;margin-top:4px;">
-              กำไรรวม (ประมาณ): ฿${_v22f(Math.abs(projProfit))}
+              ${profitLabel}: ฿${_v22f(Math.abs(projProfit))}
             </div>
           </div>
         </div>
@@ -1236,7 +1238,7 @@ window.v14CompleteProject = async function(projId) {
 
     typeof logActivity === 'function' && logActivity(
       'ปิดโครงการ',
-      `${proj.name} | เบิกรวม ฿${_v22f(budget)} | กำไร ฿${_v22f(projProfit)}`,
+      `${proj.name} | เบิกรวม ฿${_v22f(budget)} | ${profitLogLabel} ฿${_v22f(Math.abs(projProfit))}`,
       projId, 'โครงการ'
     );
 
@@ -1354,4 +1356,3 @@ console.log(
   else apply();
   setTimeout(apply, 800);
 })();
-

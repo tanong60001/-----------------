@@ -340,6 +340,25 @@
     }
   }
 
+  async function refreshDebtAfterCancel() {
+    try {
+      if (typeof window.v68SyncCustomerTotals === 'function') {
+        await window.v68SyncCustomerTotals(true);
+      }
+    } catch (e) {
+      console.warn('[v92] refreshDebtAfterCancel sync:', e);
+    }
+    try {
+      if (typeof window.v68RenderDebts === 'function') {
+        await window.v68RenderDebts({ silent: true });
+      } else if (typeof window.renderDebts === 'function') {
+        await window.renderDebts({ silent: true });
+      }
+    } catch (e) {
+      console.warn('[v92] refreshDebtAfterCancel render:', e);
+    }
+  }
+
   function patchCancelBill() {
     // กันการ wrap ซ้ำเมื่อ install() ถูกเรียกหลายรอบ (DOMContentLoaded + setTimeout x3)
     // และเมื่อ v79 ทำ wrap ทับ v92 ภายหลัง — chain จะโตเรื่อย ๆ ถ้าไม่กัน
@@ -394,6 +413,7 @@
 
           // 3) clear delivery queue
           await clearDeliveryStatusOnCancel(billId);
+          await refreshDebtAfterCancel();
 
           // refresh UI
           try { window.v12BMCLoad?.(); } catch (_) {}

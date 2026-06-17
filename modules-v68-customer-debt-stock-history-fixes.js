@@ -39,6 +39,13 @@
     return Math.max(0, num(info.new_total ?? bill?.total));
   }
 
+  function debtPaymentCredit(payment) {
+    const amount = num(payment?.amount);
+    const note = String(payment?.note || '');
+    const match = note.match(/\[debt_discount=([0-9]+(?:\.[0-9]+)?)\]/i);
+    return amount + (match ? num(match[1]) : 0);
+  }
+
   function isPartialReturnBill(bill) {
     const status = String(bill?.status || '');
     const info = parseInfo(bill?.return_info);
@@ -176,7 +183,7 @@
       events.push({ kind: 'debt', source: 'bill', date: bill.date || '', bill });
     });
     (payments || []).forEach(p => {
-      events.push({ kind: 'pay', date: p.date || '', amount: num(p.amount) });
+      events.push({ kind: 'pay', date: p.date || '', amount: debtPaymentCredit(p) });
     });
     events.sort((a, b) => {
       const cmp = String(a.date || '').localeCompare(String(b.date || ''));
@@ -329,7 +336,7 @@
     const [{ data: customers, error: custErr }, { data: bills, error: billErr }, { data: payments, error: payErr }, { data: openingDebts, error: openingErr }] = await Promise.all([
       db.from(CUSTOMER_TABLE).select('id,name,phone,address,total_purchase,visit_count,debt_amount,credit_limit,customer_type').limit(10000),
       db.from(BILL_TABLE).select('id,bill_no,date,total,method,status,delivery_status,deposit_amount,customer_id,customer_name,delivery_phone,project_id,return_info').order('date', { ascending: true }).limit(10000),
-      db.from(PAYMENT_TABLE).select('customer_id,amount,date').limit(10000),
+      db.from(PAYMENT_TABLE).select('customer_id,amount,date,note').limit(10000),
       db.from(OPENING_DEBT_TABLE).select('customer_id,customer_name,debt_amount,brought_forward_date,source').limit(10000),
     ]);
     if (custErr) throw custErr;
@@ -366,11 +373,14 @@
       const visitCount = purchaseBills.length;
       const rawBillDebt = debtBillRows(custBills, 0).reduce((sum, row) => sum + row.remaining, 0);
       const tableOpeningDebt = num(openingByCustomer.get(String(customer.id)));
-      const fallbackOpeningDebt = hasOpeningRows ? 0 : Math.max(0, num(customer.debt_amount) - rawBillDebt);
+      const allowLegacyOpeningDebt = !hasOpeningRows && (
+        rawBillDebt > 0 || (custBills.length === 0 && custPays.length === 0)
+      );
+      const fallbackOpeningDebt = allowLegacyOpeningDebt ? Math.max(0, num(customer.debt_amount) - rawBillDebt) : 0;
       const openingDebt = tableOpeningDebt > 0 ? tableOpeningDebt : fallbackOpeningDebt;
       const rows = buildDebtRows(custBills, custPays, openingDebt, customer.id);
       const computedDebtAmount = rows.reduce((sum, row) => sum + row.remaining, 0);
-      const debtAmount = !hasOpeningRows && num(customer.debt_amount) > computedDebtAmount
+      const debtAmount = allowLegacyOpeningDebt && num(customer.debt_amount) > computedDebtAmount
         ? num(customer.debt_amount)
         : computedDebtAmount;
       rows.forEach(row => {

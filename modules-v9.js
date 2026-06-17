@@ -19145,8 +19145,13 @@ window.v9AutoUpdateBillStatus = async function (customerId) {
   if (!customerId) return;
   try {
     // 1. Get total paid amount from 'ชำระหนี้' table
-    const { data: pays } = await db.from('ชำระหนี้').select('amount').eq('customer_id', customerId);
-    let totalPaid = (pays || []).reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+    const debtPaymentCredit = (payment) => {
+      const note = String(payment?.note || '');
+      const match = note.match(/\[debt_discount=([0-9]+(?:\.[0-9]+)?)\]/i);
+      return parseFloat(payment?.amount || 0) + (match ? parseFloat(match[1] || 0) : 0);
+    };
+    const { data: pays } = await db.from('ชำระหนี้').select('amount,note').eq('customer_id', customerId);
+    let totalPaid = (pays || []).reduce((s, p) => s + debtPaymentCredit(p), 0);
 
     // 2. Get all debt bills (ค้างชำระ) for this customer, sorted oldest first
     const { data: bills } = await db.from('บิลขาย')

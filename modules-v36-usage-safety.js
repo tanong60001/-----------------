@@ -5129,6 +5129,29 @@ console.log('[v36] Usage safety patch loaded');
     const promoInfo = (() => {
       try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
     })();
+    const quoteVat = (() => {
+      if (bill?.quote_vat?.mode && bill.quote_vat.mode !== 'none') return bill.quote_vat;
+      if (promoInfo?.quote_vat?.mode && promoInfo.quote_vat.mode !== 'none') return promoInfo.quote_vat;
+      const m = String(bill?.note || '').match(/\[quote_vat=([^;\]]+);rate=([0-9.]+);base=([0-9.]+);vat=([0-9.]+);total=([0-9.]+)\]/i);
+      if (!m) {
+        const net = Math.max(0, subtotal - discount);
+        const diff = money(total - net);
+        const expectedVat = money(net * 0.07);
+        if (diff > 0 && Math.abs(diff - expectedVat) <= 0.02) {
+          return { mode: 'exclusive', rate: 0.07, base: net, vat: diff, total };
+        }
+        return { mode: 'none', vat: 0, base: 0 };
+      }
+      return { mode: m[1], rate: money(m[2]), base: money(m[3]), vat: money(m[4]), total: money(m[5]) };
+    })();
+    const cleanQuoteNote = String(bill?.note || '')
+      .replace(/\[quote_vat=[^\]]*\]/ig, '')
+      .replace(/\[quote_customer=[^\]]*\]/ig, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    const quoteVatRows = quoteVat.mode !== 'none'
+      ? `<div class="sum-row"><span>ยอดก่อน VAT</span><b>${fmt(quoteVat.base)}</b></div><div class="sum-row"><span>${quoteVat.mode === 'inclusive' ? 'VAT 7% (รวมในราคา)' : 'VAT 7%'}</span><b style="color:#0f766e">${fmt(quoteVat.vat)}</b></div>`
+      : '';
     const itemDiscounts = Array.isArray(promoInfo.item_discounts) ? promoInfo.item_discounts : [];
     const promoMapForPrint = (() => {
       try { return JSON.parse(localStorage.getItem('sk_pos_product_promotions_v1') || '{}') || {}; } catch (_) { return {}; }
@@ -5205,7 +5228,7 @@ console.log('[v36] Usage safety patch loaded');
   <div class="rule"></div>
   <section class="cust"><div class="cust-h">ข้อมูลลูกค้า / CUSTOMER</div><div class="cust-b"><div><div class="cust-name">${htmlAttr(bill?.customer_name || 'ลูกค้าทั่วไป')}</div><div class="muted">${htmlAttr(customerAddress || '-')}</div>${customerPhone ? `<div class="phone">☎ ${htmlAttr(customerPhone)}</div>` : ''}</div><div><div class="info-row"><span class="muted">พนักงานขาย:</span><b>${htmlAttr(bill?.staff_name || userName())}</b></div><div class="info-row"><span class="muted">วิธีชำระเงิน:</span><b>${htmlAttr(method)}</b></div></div></div></section>
   <table><thead><tr><th style="width:38px">#</th><th>รายละเอียด / DESCRIPTION</th><th style="width:70px">จำนวน</th><th style="width:70px">หน่วย</th><th style="width:90px">ราคา/หน่วย</th><th style="width:95px">จำนวนเงิน</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="mid"><div><div class="words">จำนวนเงิน (ตัวอักษร)<b>${htmlAttr(words)}</b></div><div class="note"><b>📝 หมายเหตุ</b>${htmlAttr(isQuotationDoc ? (bill?.note || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน') : 'สินค้าโปรโมชันมากมายสอบถามได้เลย')}</div></div><div></div><div class="summary"><div class="sum-row"><span>${isBillingDoc ? 'ยอดหนี้เดิม' : 'รวมเงิน (Subtotal)'}</span><b>${fmt(isBillingDoc ? billingOriginal : subtotal)}</b></div>${billingPaidRow}${discount ? `<div class="sum-row"><span>ส่วนลด</span><b>-${fmt(discount)}</b></div>` : ''}<div class="grand"><span>${isQuotationDoc ? 'ยอดเสนอราคา / QUOTED TOTAL' : (isBillingDoc ? 'ยอดคงค้างที่ต้องชำระ / BALANCE DUE' : 'จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL')}</span><b>฿${fmt(total)}</b></div></div></div>
+  <div class="mid"><div><div class="words">จำนวนเงิน (ตัวอักษร)<b>${htmlAttr(words)}</b></div><div class="note"><b>📝 หมายเหตุ</b>${htmlAttr(isQuotationDoc ? (cleanQuoteNote || 'ใบเสนอราคานี้ยังไม่ใช่ใบเสร็จรับเงิน และยังไม่มีการรับชำระเงิน') : 'สินค้าโปรโมชันมากมายสอบถามได้เลย')}</div></div><div></div><div class="summary"><div class="sum-row"><span>${isBillingDoc ? 'ยอดหนี้เดิม' : 'รวมเงิน (Subtotal)'}</span><b>${fmt(isBillingDoc ? billingOriginal : subtotal)}</b></div>${billingPaidRow}${discount ? `<div class="sum-row"><span>ส่วนลด</span><b>-${fmt(discount)}</b></div>` : ''}${quoteVatRows}<div class="grand"><span>${isQuotationDoc ? 'ยอดเสนอราคา / QUOTED TOTAL' : (isBillingDoc ? 'ยอดคงค้างที่ต้องชำระ / BALANCE DUE' : 'จำนวนเงินรวมทั้งสิ้น / GRAND TOTAL')}</span><b>฿${fmt(total)}</b></div></div></div>
   <div class="pay-slot">${paymentBlock}</div>
   <div class="bottom-line"><div class="sigs"><div class="sig"><div class="sig-line"></div><b>ผู้รับของ / Received By</b><small>วันที่ / Date ........../........../..........</small></div><div class="sig"><div class="sig-line"></div><b>ผู้อนุมัติ / Authorized</b><small>วันที่ / Date ........../........../..........</small></div></div><div class="foot">${htmlAttr(footer)}</div></div><div class="pg">1/1</div>
 </div><script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close()},1500)},700)}<\/script></body></html>`);

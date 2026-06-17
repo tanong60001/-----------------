@@ -461,6 +461,7 @@
           const method = document.getElementById('v45-debt-method')?.value || 'เงินสด';
           const note = document.getElementById('v45-debt-note')?.value?.trim();
           const discountNote = discountAmt > 0 ? ` ส่วนลด ฿${fmt(discountAmt)}` : '';
+          const paymentNote = `${customerName} debt payment${discountAmt > 0 ? ` [debt_discount=${discountAmt}]` : ''}${note ? ' - ' + note : ''}`;
 
           if (paidAmt <= 0) { toast?.('กรุณากรอกยอดรับชำระ', 'warning'); return; }
           if (paidAmt > debt) { toast?.('ยอดรับชำระมากกว่ายอดหนี้', 'warning'); return; }
@@ -489,6 +490,7 @@
                   amount: finalPaid,
                   method,
                   staff_name: debtStaffName(),
+                  note: paymentNote,
                 }).select('id').maybeSingle();
                 if (payError) throw payError;
 
@@ -531,6 +533,7 @@
               amount: paidAmt,
               method,
               staff_name: debtStaffName(),
+              note: paymentNote,
             });
             if (payError) throw payError;
 
