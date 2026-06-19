@@ -593,6 +593,7 @@ window.v24PrintBillingNote = async function (custId, custName) {
     const paidText = paid > 0 ? ` / ชำระแล้ว ฿${fn(paid)}` : '';
     
     return {
+      source_bill_id: row.id,
       name: `บิล #${row.bill_no} — ${_v24d(row.date)} (ยอดบิล ฿${fn(original)}${returnText}${paidText} / คงเหลือ ฿${fn(remaining)})`,
       qty: 1,
       unit: 'บิล',

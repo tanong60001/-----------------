@@ -254,8 +254,10 @@ async function openCustomerDisplay(autoDetect = false) {
     return;
   }
 
+  const url = 'customer-display.html?v=13';
   let left = 0, top = 0, w = 1920, h = 1080;
   let hasMultipleScreens = false;
+  if (autoDetect && window.screen && 'isExtended' in window.screen && window.screen.isExtended !== true) return;
 
   try {
     // Window Management API (Chrome 100+ / Edge 100+) — ตรวจจอที่ 2 โดยตรง
@@ -270,14 +272,21 @@ async function openCustomerDisplay(autoDetect = false) {
       }
 
       const sec = sd.screens.find(s => !s.isPrimary) ?? sd.screens[sd.screens.length - 1];
-      left = sec.left   ?? sec.availLeft ?? 0;
-      top  = sec.top    ?? sec.availTop  ?? 0;
-      w    = sec.width  || sec.availWidth  || 1920;
-      h    = sec.height || sec.availHeight || 1080;
+      left = sec.availLeft ?? sec.left ?? 0;
+      top  = sec.availTop  ?? sec.top  ?? 0;
+      w    = sec.availWidth  || sec.width  || 1920;
+      h    = sec.availHeight || sec.height || 1080;
     } else {
       // ถ้าเบราว์เซอร์ไม่รองรับ API เช็คจำนวนหน้าจอ และเป็นการตั้งค่าเปิดออโต้ ให้ยกเลิกป้องกันจอเด้งทับจอหลัก
-      if (autoDetect) return;
-      throw new Error('api unavailable');
+      if (autoDetect && !(window.screen && window.screen.isExtended === true)) return;
+      if (autoDetect && window.screen && window.screen.isExtended === true) {
+        left = (window.screen.availLeft || 0) + window.screen.width;
+        top  = window.screen.availTop  || 0;
+        w    = window.screen.width;
+        h    = window.screen.height;
+      } else {
+        throw new Error('api unavailable');
+      }
     }
   } catch (_) {
     if (autoDetect) return; // ยกเลิกเปิดออโต้ถ้ามี Error
@@ -289,10 +298,17 @@ async function openCustomerDisplay(autoDetect = false) {
   }
 
   customerDisplayWindow = window.open(
-    'customer-display.html?v=8',
+    url,
     'CustomerDisplay',
-    `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=yes`
+    `width=${w},height=${h},left=${left},top=${top},screenX=${left},screenY=${top},toolbar=no,menubar=no,location=no,status=no,scrollbars=no,resizable=yes,popup=yes,fullscreen=yes`
   );
+  if (customerDisplayWindow && !customerDisplayWindow.closed) {
+    try { customerDisplayWindow.moveTo(left, top); } catch (_) {}
+    try { customerDisplayWindow.resizeTo(w, h); } catch (_) {}
+    setTimeout(() => {
+      try { customerDisplayWindow.postMessage({ type: 'fullscreen' }, '*'); } catch (_) {}
+    }, 900);
+  }
 }
 
 // Send data to customer display window
@@ -459,6 +475,7 @@ function go(page) {
     case 'home': updateHomeStats(); break;
     case 'pos':
       renderProductGrid(); renderCart();
+      openCustomerDisplay(true);
       document.getElementById('page-actions').innerHTML = `
         <button class="btn btn-outline" onclick="openCustomerDisplay()" style="gap:6px;">
           <i class="material-icons-round" style="font-size:18px;">tv</i> หน้าจอลูกค้า

@@ -39,6 +39,13 @@
       });
     } catch (_) { return '-'; }
   };
+  const addMinutesDateTime = (value, minutes = 30) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    d.setMinutes(d.getMinutes() + minutes);
+    return dateTime(d);
+  };
   const denoms = [
     [1000, '1,000', 'ใบ'], [500, '500', 'ใบ'], [100, '100', 'ใบ'], [50, '50', 'ใบ'], [20, '20', 'ใบ'],
     [10, '10', 'เหรียญ'], [5, '5', 'เหรียญ'], [2, '2', 'เหรียญ'], [1, '1', 'เหรียญ'],
@@ -495,6 +502,160 @@
     }
   }
 
+  const MIX_RECIPE_TABLE = '\u0e2a\u0e39\u0e15\u0e23\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32';
+  const MIX_PRODUCT_TABLE = '\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32';
+  const MIX_BILL_ITEM_TABLE = '\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e43\u0e19\u0e1a\u0e34\u0e25';
+
+  const itemProductId = item => item?.product_id || item?.productId || item?.id || '';
+  const unitName = value => String(value || '').trim().toLowerCase();
+  const mixDisplayName = value => String(value ?? '').replace(/หิน\s*1(?![0-9/])/g, 'หิน3/4');
+  const isMadeToOrderMix = value => /ตามบิล|make\s*to\s*order|mto/i.test(String(value || ''));
+  const unitConv = unit => {
+    const raw = unit?.conv_rate ?? unit?.conversion_rate ?? unit?.rate ?? unit?.base_qty ?? 1;
+    const n = money(raw);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  };
+
+  async function buildMixRecipePlan(items) {
+    if (typeof db === 'undefined') return [];
+    let saleItems = (items || [])
+      .map((item, index) => ({ ...item, __mixOriginalIndex: index }))
+      .filter(item => itemProductId(item));
+    if (!saleItems.length) {
+      const sourceBillIds = [...new Set((items || [])
+        .map(item => item?.source_bill_id || item?.sourceBillId || '')
+        .filter(Boolean)
+        .map(String))];
+      if (sourceBillIds.length) {
+        try {
+          const { data, error } = await db.from(MIX_BILL_ITEM_TABLE).select('*').in('bill_id', sourceBillIds);
+          if (error) throw error;
+          saleItems = (data || []).map((item, index) => ({ ...item, __mixOriginalIndex: index }));
+        } catch (error) {
+          console.warn('[v37] cannot load source bill items for mix print', error);
+          saleItems = [];
+        }
+      }
+    }
+    const productIds = [...new Set(saleItems.map(item => String(itemProductId(item))).filter(Boolean))];
+    if (!productIds.length) return [];
+
+    let recipeRows = [];
+    try {
+      const { data, error } = await db.from(MIX_RECIPE_TABLE)
+        .select('id,product_id,material_id,quantity,unit')
+        .in('product_id', productIds);
+      if (error) throw error;
+      recipeRows = data || [];
+    } catch (error) {
+      console.warn('[v37] cannot load mix recipes for print', error);
+      return [];
+    }
+    if (!recipeRows.length) return [];
+
+    const recipeByProduct = new Map();
+    const materialIds = [];
+    recipeRows.forEach(row => {
+      const pid = String(row.product_id || '');
+      if (!pid) return;
+      if (!recipeByProduct.has(pid)) recipeByProduct.set(pid, []);
+      recipeByProduct.get(pid).push(row);
+      if (row.material_id) materialIds.push(String(row.material_id));
+    });
+
+    const productMap = new Map();
+    try {
+      const lookupIds = [...new Set([...productIds, ...materialIds])];
+      if (lookupIds.length) {
+        const { data } = await db.from(MIX_PRODUCT_TABLE)
+          .select('id,name,unit,cost,barcode,category,product_type')
+          .in('id', lookupIds);
+        (data || []).forEach(product => productMap.set(String(product.id), product));
+      }
+    } catch (error) {
+      console.warn('[v37] cannot load mix materials for print', error);
+    }
+
+    let units = [];
+    try {
+      const { data } = await db.from('product_units').select('*').in('product_id', productIds);
+      units = data || [];
+    } catch (_) {
+      units = [];
+    }
+
+    const unitsByProduct = new Map();
+    units.forEach(unit => {
+      const pid = String(unit.product_id || '');
+      if (!pid) return;
+      if (!unitsByProduct.has(pid)) unitsByProduct.set(pid, []);
+      unitsByProduct.get(pid).push(unit);
+    });
+
+    return saleItems.map((item, index) => {
+      const pid = String(itemProductId(item));
+      const rows = recipeByProduct.get(pid) || [];
+      if (!rows.length) return null;
+      const itemUnit = item.unit || item.unit_name || 'ชิ้น';
+      const matchedUnit = (unitsByProduct.get(pid) || []).find(unit => {
+        const names = [unit.unit_name, unit.name, unit.unit].map(unitName).filter(Boolean);
+        return names.includes(unitName(itemUnit));
+      });
+      const conv = money(item.conv_rate || item.conversion_rate || item.rate || unitConv(matchedUnit) || 1);
+      const qty = money(item.qty || 1);
+      const lines = rows
+        .filter(row => money(row.quantity) > 0 && row.material_id)
+        .map(row => {
+          const material = productMap.get(String(row.material_id)) || {};
+          const perBase = money(row.quantity);
+          return {
+            name: material.name || row.material_id,
+            perUnit: perBase * (conv > 0 ? conv : 1),
+            unit: row.unit || material.unit || '',
+          };
+        });
+      if (!lines.length) return null;
+      return {
+        index: Number.isInteger(item.__mixOriginalIndex) ? item.__mixOriginalIndex + 1 : index + 1,
+        name: item.name || productMap.get(pid)?.name || pid,
+        isMadeToOrder: isMadeToOrderMix(item.product_type || productMap.get(pid)?.product_type) || !!(item.__v66_recipe_sale || item.recipe_sale || item.recipe_product),
+        qty,
+        unit: itemUnit,
+        lines,
+      };
+    }).filter(Boolean);
+  }
+
+  function renderMixRecipePlanA4(plan, planDepartureText = '') {
+    if (!plan?.length) return '';
+    const totalLines = plan.reduce((sum, group) => sum + group.lines.length, 0);
+    return `<section class="mix-block">
+      <div class="mix-head"><div><span>Mix Design Profile</span><b>Per-unit material ratio • ${totalLines} materials</b></div></div>
+      <div class="mix-grid">${plan.map(group => `
+        <div class="mix-card">
+          <div class="mix-title"><b>${esc(mixDisplayName(group.name))}</b><span>ต่อ 1 ${esc(group.unit)}</span></div>
+          ${group.isMadeToOrder && planDepartureText ? `<div class="mix-plan-time"><span>Plant Departure</span><b>${esc(planDepartureText)}</b></div>` : ''}
+          <div class="mix-materials">${group.lines.map(line => `<div class="mix-material"><span>${esc(mixDisplayName(line.name))}</span><b>${intFmt(line.perUnit)} ${esc(line.unit)}</b></div>`).join('')}</div>
+        </div>`).join('')}
+      </div>
+    </section>`;
+  }
+
+  async function enrichItemsWithMixFor80(items) {
+    const plan = await buildMixRecipePlan(items);
+    if (!plan.length) return items || [];
+    const byIndex = new Map(plan.map(group => [group.index - 1, group]));
+    return (items || []).map((item, index) => {
+      const group = byIndex.get(index);
+      if (!group) return item;
+      const text = group.lines.slice(0, 5)
+        .map(line => `${esc(mixDisplayName(line.name))} ${intFmt(line.perUnit)} ${esc(line.unit)}`)
+        .join(' / ');
+      const more = group.lines.length > 5 ? ` / +${group.lines.length - 5} รายการ` : '';
+      return { ...item, name: `${item.name || ''}<div class="mix80">Mix Design / 1 ${esc(group.unit)}: ${text}${more}</div>` };
+    });
+  }
+
   function billIsPaid(bill, total, deposit) {
     const status = String(bill?.status || '');
     const method = String(bill?.method || bill?.payment_method || '');
@@ -668,6 +829,10 @@
     const rc = await loadShopConfig();
     const ds = await loadDocSettings(docType);
     const rows = applyLegacyReturnRowsV37(bill, items || []);
+    const mixPlan = await buildMixRecipePlan(rows);
+    const planDepartureText = bill?.date ? addMinutesDateTime(bill.date, 30) : '';
+    const mixRecipeHtml = renderMixRecipePlanA4(mixPlan, planDepartureText);
+    const mixLineCount = mixPlan.reduce((sum, group) => sum + group.lines.length, 0);
     const subtotal = rows.reduce((s, it) => s + money(it.total), 0);
     const discount = money(bill?.discount);
     const total = money(bill?.total || Math.max(0, subtotal - discount));
@@ -753,17 +918,24 @@
       : 'RECEIPT';
     const showDeliveryCols = !isQuotation && (docType === 'delivery' || isDeliveryDueDoc)
       && (rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || '')));
-    const itemCount = rows.length;
-    const compact = itemCount > 10;
-    const dense = itemCount > 18;
+    const itemCount = rows.length + Math.ceil(mixLineCount * 0.55) + (mixPlan.length ? 2 : 0);
+    const hasMixBlock = mixPlan.length > 0;
+    const hasPaymentQr = !isQuotation && dueAmount > 0 && itemCount <= 18;
+    const fitOnePage = hasMixBlock || (hasPaymentQr && itemCount > 4);
+    const tightLayout = fitOnePage || itemCount > 14;
+    const compact = itemCount > 10 || fitOnePage;
+    const dense = itemCount > 18 || (hasMixBlock && hasPaymentQr);
     const tiny = itemCount > 30;
     const ultra = itemCount > 45;
-    const bodyFs = ultra ? 7 : tiny ? 8.2 : dense ? 9 : compact ? 10 : 11.5;
-    const tableFs = ultra ? 5.8 : tiny ? 7.2 : dense ? 8 : compact ? 9 : 10.5;
-    const cellPad = ultra ? '1px 3px' : tiny ? '2px 4px' : dense ? '3px 5px' : compact ? '4px 6px' : '6px 7px';
-    const pagePad = ultra ? '4mm 5mm 3mm' : tiny ? '6mm 7mm 4mm' : dense ? '7mm 8mm 5mm' : compact ? '8mm 9mm 6mm' : '10mm';
-    const qrScale = ultra ? 56 : tiny ? 72 : dense ? 86 : compact ? 100 : 118;
-    const pageZoom = itemCount > 70 ? 0.62 : ultra ? 0.76 : itemCount > 30 ? 0.88 : 1;
+    const bodyFs = ultra ? 7.8 : tiny ? 9 : dense ? 10.2 : compact ? 10.8 : 12;
+    const tableFs = ultra ? 7 : tiny ? 8.4 : dense ? 9.6 : compact ? 10.2 : 11;
+    const cellPad = ultra ? '1px 3px' : tiny ? '2px 4px' : dense ? '2px 5px' : compact ? '4px 6px' : '6px 7px';
+    const pagePad = ultra ? '4mm 5mm 3mm' : tiny ? '5mm 6mm 4mm' : dense ? '6mm 7mm 4mm' : compact ? '7mm 8mm 5mm' : '10mm';
+    const pageXPad = ultra ? '5mm' : tiny ? '6mm' : dense ? '7mm' : compact ? '8mm' : '10mm';
+    const tailBottom = ultra ? '14mm' : tiny ? '16mm' : dense ? '16mm' : compact ? '18mm' : '20mm';
+    const tailReserve = ultra ? '18mm' : tiny ? '21mm' : tightLayout ? '23mm' : '30mm';
+    const qrScale = ultra ? 86 : tiny ? 96 : 118;
+    const pageZoom = itemCount > 70 ? 0.68 : ultra ? 0.8 : tiny ? 0.9 : dense ? 0.96 : 1;
     const deliveryAddressHtml = bill?.delivery_address
       ? `<span class="muted">สถานที่จัดส่ง:</span><b class="addr">${esc(bill.delivery_address)}</b>`
       : '';
@@ -792,12 +964,16 @@
     win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>${esc(title)} #${esc(bill?.bill_no || '')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Sarabun,sans-serif;color:#0f172a;margin:0;font-size:${bodyFs}px}.page{width:calc(210mm / ${pageZoom});height:calc(297mm / ${pageZoom});overflow:hidden;padding:${pagePad};display:flex;flex-direction:column;transform:scale(${pageZoom});transform-origin:top left}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:${tiny ? 5 : 9}px}.shop h1{margin:0;color:#dc2626;font-size:${tiny ? 17 : dense ? 19 : 23}px;line-height:1.05}.muted{color:#64748b}.badge{background:#dc2626;color:#fff;border-radius:8px;padding:${tiny ? '8px 18px' : '12px 26px'};text-align:center;min-width:${tiny ? 160 : 210}px;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.5px}.badge b{font-size:${tiny ? 14 : 20}px;line-height:1.1;font-weight:900}.badge span{display:block;font-size:${tiny ? 8 : 10}px;opacity:.85;margin-top:3px;letter-spacing:1.5px}.status-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:${tiny ? 5 : 8}px}.status-card{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '4px 7px' : '7px 9px'};background:#f8fafc}.status-card span{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px}.status-card b{font-size:${tiny ? 9 : 12}px}.box{border:1px solid #e2e8f0;border-radius:7px;margin-top:${tiny ? 5 : 9}px;overflow:hidden}.box-h{background:#fff1f2;color:#dc2626;font-weight:900;padding:${tiny ? '4px 8px' : '6px 10px'}}.box-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:${tiny ? '6px 9px' : '9px 11px'}}.addr{white-space:pre-line;text-align:right}.info{display:grid;grid-template-columns:105px 1fr;gap:6px;line-height:1.55}.info b{text-align:right}table{width:100%;border-collapse:collapse;margin-top:${tiny ? 5 : 9}px;font-size:${tableFs}px}th{background:#dc2626;color:#fff;padding:${cellPad};font-weight:900}td{padding:${cellPad};border-bottom:1px solid #e5e7eb;vertical-align:top;line-height:1.22}tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.small{font-size:${Math.max(6.5, tableFs - 1)}px;color:#64748b;margin-top:1px}.ok{color:#059669;font-weight:900}.warn{color:#d97706;font-weight:900}.bottom{display:grid;grid-template-columns:1fr ${tiny ? 205 : dense ? 225 : 255}px;gap:${tiny ? 10 : 18}px;margin-top:${tiny ? 6 : 11}px}.amount-panel{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#fff}.amount-row{display:flex;justify-content:space-between;gap:12px;padding:${tiny ? '6px 8px' : '9px 12px'};border-bottom:1px solid #eef2f7;color:#64748b;font-weight:900}.amount-row b{color:#0f172a}.amount-row.pay{border-bottom:none;background:${remaining > 0 ? '#fff7ed' : '#ecfdf5'};color:${remaining > 0 ? '#9a3412' : '#047857'}}.amount-row.pay b{font-size:${tiny ? 16 : 24}px;color:${remaining > 0 ? '#c2410c' : '#059669'}}.words{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '5px 7px' : '8px 10px'};margin-top:7px}.words b{display:block;color:#dc2626}.qrbox{text-align:center;border:3px solid #16b8d4;border-radius:18px;padding:0 0 ${tiny ? 5 : 8}px;margin-top:7px;background:#fff;overflow:hidden}.thaiqr-head{background:#183d73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;height:${tiny ? 26 : 38}px;font-size:${tiny ? 8 : 12}px;font-weight:900;line-height:1.05}.thaiqr-mark{width:${tiny ? 22 : 30}px;height:${tiny ? 18 : 24}px;border:3px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center}.pp-badge{display:inline-block;border:2px solid #183d73;color:#183d73;margin:${tiny ? '5px 0 3px' : '8px 0 5px'};padding:1px 8px;line-height:.95;font-size:${tiny ? 7 : 10}px;font-weight:900}.pp-badge b{font-size:${tiny ? 11 : 17}px}.qrbox img{width:${qrScale}px;height:${qrScale}px;display:block;margin:2px auto}.qr-sub,.bank-lines{font-size:${tiny ? 6.5 : 9}px;color:#334155;line-height:1.25}.paid-stamp,.qr-missing{text-align:center;border:1px solid #e2e8f0;border-radius:8px;padding:${tiny ? '8px 6px' : '14px 8px'};margin-top:7px;font-size:${tiny ? 12 : 16}px;font-weight:900;color:#059669;background:#f8fafc}.paid-stamp small,.qr-missing small{display:block;font-size:${tiny ? 7 : 9}px;color:#94a3b8;margin-top:2px}.qr-missing{color:#dc2626}.sig{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:${tiny ? 8 : 16}px;display:flex;justify-content:space-around}.sig div{text-align:center;min-width:150px}.line{height:${tiny ? 18 : 28}px;border-bottom:1px solid #64748b;margin-bottom:4px}.foot{text-align:center;color:#94a3b8;font-size:${tiny ? 7 : 9}px;border-top:1px solid #eef2f7;margin-top:8px;padding-top:5px}@media print{body{margin:0}.page{page-break-after:avoid;break-after:avoid}}
+@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Sarabun,sans-serif;color:#0f172a;margin:0;font-size:${bodyFs}px}.page{width:calc(210mm / ${pageZoom});height:calc(297mm / ${pageZoom});overflow:hidden;padding:${pagePad};display:flex;flex-direction:column;transform:scale(${pageZoom});transform-origin:top left}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:${tiny ? 5 : 9}px}.shop h1{margin:0;color:#dc2626;font-size:${tiny ? 17 : dense ? 19 : 23}px;line-height:1.05}.muted{color:#64748b}.badge{background:#dc2626;color:#fff;border-radius:8px;padding:${tiny ? '8px 18px' : '12px 26px'};text-align:center;min-width:${tiny ? 160 : 210}px;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.5px}.badge b{font-size:${tiny ? 14 : 20}px;line-height:1.1;font-weight:900}.badge span{display:block;font-size:${tiny ? 8 : 10}px;opacity:.85;margin-top:3px;letter-spacing:1.5px}.status-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:${tiny ? 5 : 8}px}.status-card{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '4px 7px' : '7px 9px'};background:#f8fafc}.status-card span{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px}.status-card b{font-size:${tiny ? 9 : 12}px}.box{border:1px solid #e2e8f0;border-radius:7px;margin-top:${tiny ? 5 : 9}px;overflow:hidden}.box-h{background:#fff1f2;color:#dc2626;font-weight:900;padding:${tiny ? '4px 8px' : '6px 10px'}}.box-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:${tiny ? '6px 9px' : '9px 11px'}}.addr{white-space:pre-line;text-align:right}.info{display:grid;grid-template-columns:105px 1fr;gap:6px;line-height:1.55}.info b{text-align:right}table{width:100%;border-collapse:collapse;margin-top:${tiny ? 5 : 9}px;font-size:${tableFs}px}th{background:#dc2626;color:#fff;padding:${cellPad};font-weight:900}td{padding:${cellPad};border-bottom:1px solid #e5e7eb;vertical-align:top;line-height:1.22}tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.small{font-size:${Math.max(6.5, tableFs - 1)}px;color:#64748b;margin-top:1px}.ok{color:#059669;font-weight:900}.warn{color:#d97706;font-weight:900}.bottom{display:grid;grid-template-columns:1fr ${tiny ? 205 : dense ? 225 : 255}px;gap:${tiny ? 10 : 18}px;margin-top:${tiny ? 6 : 11}px}.amount-panel{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#fff}.amount-row{display:flex;justify-content:space-between;gap:12px;padding:${tiny ? '6px 8px' : '9px 12px'};border-bottom:1px solid #eef2f7;color:#64748b;font-weight:900}.amount-row b{color:#0f172a}.amount-row.pay{border-bottom:none;background:${remaining > 0 ? '#fff7ed' : '#ecfdf5'};color:${remaining > 0 ? '#9a3412' : '#047857'}}.amount-row.pay b{font-size:${tiny ? 16 : 24}px;color:${remaining > 0 ? '#c2410c' : '#059669'}}.words{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '5px 7px' : '8px 10px'};margin-top:7px}.words b{display:block;color:#dc2626}.qrbox{text-align:center;border:3px solid #16b8d4;border-radius:18px;padding:0 0 ${tiny ? 5 : 8}px;margin-top:7px;background:#fff;overflow:hidden}.thaiqr-head{background:#183d73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;height:${tiny ? 26 : 38}px;font-size:${tiny ? 8 : 12}px;font-weight:900;line-height:1.05}.thaiqr-mark{width:${tiny ? 22 : 30}px;height:${tiny ? 18 : 24}px;border:3px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center}.pp-badge{display:inline-block;border:2px solid #183d73;color:#183d73;margin:${tiny ? '5px 0 3px' : '8px 0 5px'};padding:1px 8px;line-height:.95;font-size:${tiny ? 7 : 10}px;font-weight:900}.pp-badge b{font-size:${tiny ? 11 : 17}px}.qrbox img{width:${qrScale}px;height:${qrScale}px;display:block;margin:2px auto}.qr-sub,.bank-lines{font-size:${tiny ? 6.5 : 9}px;color:#334155;line-height:1.25}.paid-stamp,.qr-missing{text-align:center;border:1px solid #e2e8f0;border-radius:8px;padding:${tiny ? '8px 6px' : '14px 8px'};margin-top:7px;font-size:${tiny ? 12 : 16}px;font-weight:900;color:#059669;background:#f8fafc}.paid-stamp small,.qr-missing small{display:block;font-size:${tiny ? 7 : 9}px;color:#94a3b8;margin-top:2px}.qr-missing{color:#dc2626}.sig{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:${tiny ? 8 : 16}px;display:flex;justify-content:space-around}.sig div{text-align:center;min-width:150px}.line{height:${tiny ? 18 : 28}px;border-bottom:1px solid #64748b;margin-bottom:4px}.foot{text-align:center;color:#94a3b8;font-size:${tiny ? 7 : 9}px;border-top:1px solid #eef2f7;margin-top:8px;padding-top:5px}.mix-block{margin-top:${tiny ? 5 : 8}px;border:1px solid #fecaca;border-radius:9px;overflow:hidden;background:#fff}.mix-head{display:flex;justify-content:space-between;gap:10px;align-items:center;background:linear-gradient(135deg,#fff1f2,#fff);border-bottom:1px solid #fee2e2;padding:${tiny ? '5px 8px' : '8px 10px'}}.mix-head span{display:block;color:#dc2626;font-weight:900}.mix-head b{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px;margin-top:1px}.mix-head em{font-style:normal;color:#991b1b;background:#fff;border:1px solid #fecaca;border-radius:999px;padding:3px 8px;font-weight:900;white-space:nowrap}.mix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tiny ? 4 : 7}px;padding:${tiny ? 5 : 8}px}.mix-card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}.mix-title{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:${tiny ? '4px 6px' : '6px 8px'};background:#f8fafc}.mix-title b{font-weight:900;color:#0f172a}.mix-title span{color:#dc2626;font-weight:900;white-space:nowrap}.mix-table{margin-top:0!important;font-size:${Math.max(6.2, tableFs - 1)}px}.mix-table th{background:#1f2937;padding:${tiny ? '2px 4px' : '3px 5px'}}.mix-table td{padding:${tiny ? '2px 4px' : '3px 5px'}}.mix80{font-size:9px;color:#555;line-height:1.35;margin-top:2px;font-weight:400}@media print{body{margin:0}.page{page-break-after:avoid;break-after:avoid}}
+.mix-block{border-color:#e2e8f0;border-radius:7px;background:#fff}.mix-head{display:block;background:#fff;border-bottom:1px solid #e2e8f0}.mix-head span{color:#0f172a}.mix-head b{color:#64748b}.mix-head em{display:none}.mix-grid{grid-template-columns:1fr;gap:${tiny ? 3 : 6}px}.mix-card{border-color:#e5e7eb;border-radius:6px}.mix-title{background:#fff;border-bottom:1px solid #eef2f7}.mix-title span{color:#64748b}.mix-plan-time{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:${tiny ? '4px 6px' : '6px 8px'};border-bottom:1px solid #eef2f7;background:#f8fafc;color:#64748b;font-weight:900}.mix-plan-time span{font-size:${tiny ? 7 : 9}px;text-transform:uppercase;letter-spacing:.4px}.mix-plan-time b{color:#0f172a}.mix-table{table-layout:fixed}.mix-table th{background:#f8fafc!important;color:#475569;border-bottom:1px solid #e2e8f0}.mix-table th:first-child,.mix-table td:first-child{width:50%;text-align:left}.mix-table th:last-child,.mix-table td:last-child{width:50%;text-align:right}.mix-table td{background:#fff!important}.mix-table tr:nth-child(even) td{background:#fbfdff!important}
+.top{gap:${tightLayout ? 12 : 18}px;padding-bottom:${tightLayout ? 5 : tiny ? 5 : 9}px}.badge{border-radius:7px;min-width:${tightLayout ? 188 : tiny ? 160 : 210}px;padding:${tightLayout ? '8px 18px' : tiny ? '8px 18px' : '12px 26px'}}.status-strip{gap:${tightLayout ? 6 : 8}px;margin-top:${tightLayout ? 5 : tiny ? 5 : 8}px}.status-card{padding:${tightLayout ? '4px 7px' : tiny ? '4px 7px' : '7px 9px'}}.box{margin-top:${tightLayout ? 6 : tiny ? 5 : 9}px}.box-b{grid-template-columns:1.18fr .82fr;gap:${tightLayout ? 9 : 12}px;padding:${tightLayout ? '7px 10px' : tiny ? '6px 9px' : '9px 11px'}}.box-b>div:first-child b{font-size:${tiny ? 12 : compact ? 14 : 15}px!important}.info{grid-template-columns:${tightLayout ? 88 : 105}px 1fr;gap:${tightLayout ? 3 : 6}px;line-height:${tightLayout ? 1.35 : 1.55}}table td:nth-child(2) b{font-size:${ultra ? 7.2 : tiny ? 8.8 : dense ? 10 : compact ? 10.8 : 11.5}px;line-height:1.2}.bottom{grid-template-columns:1fr ${tightLayout ? 190 : tiny ? 205 : dense ? 225 : 255}px;gap:${tightLayout ? 8 : tiny ? 10 : 18}px;margin-top:${tightLayout ? 6 : tiny ? 6 : 11}px}.amount-row{padding:${tightLayout ? '5px 8px' : tiny ? '6px 8px' : '9px 12px'}}.amount-row.pay b{font-size:${tightLayout ? 20 : tiny ? 16 : 24}px}.words{padding:${tightLayout ? '6px 8px' : tiny ? '5px 7px' : '8px 10px'};margin-top:${tightLayout ? 5 : 7}px}.qrbox{border-width:2px;border-radius:13px;margin-top:${tightLayout ? 5 : 7}px;padding-bottom:${tightLayout ? 4 : tiny ? 5 : 8}px}.thaiqr-head{height:${tightLayout ? 24 : tiny ? 26 : 38}px;font-size:${tightLayout ? 8 : tiny ? 8 : 12}px}.pp-badge{margin:${tightLayout ? '4px 0 2px' : tiny ? '5px 0 3px' : '8px 0 5px'}}.page{position:relative!important;padding-bottom:${tailReserve}!important}.print-tail{position:absolute!important;left:${pageXPad};right:${pageXPad};bottom:${tailBottom};margin:0!important;break-inside:avoid;page-break-inside:avoid;flex-shrink:0}.sig{margin-top:0!important;padding-top:${tightLayout ? 8 : tiny ? 9 : 16}px;break-inside:avoid;page-break-inside:avoid}.sig div{min-width:${tightLayout ? 132 : 150}px}.sig b{display:block;margin-bottom:${tightLayout ? 3 : 4}px;font-size:${ultra ? 7 : tiny ? 8 : 9}px;line-height:1.1}.line{height:${tightLayout ? 16 : tiny ? 18 : 24}px}.foot{margin-top:0;padding-top:${tightLayout ? 2 : 4}px;break-inside:avoid;page-break-inside:avoid}.mix-block{margin-top:${tightLayout ? 6 : tiny ? 5 : 8}px}.mix-head{padding:${tightLayout ? '5px 8px' : tiny ? '5px 8px' : '8px 10px'}}.mix-grid{padding:${tightLayout ? 5 : tiny ? 5 : 8}px}.mix-title{padding:${tightLayout ? '4px 7px' : tiny ? '4px 6px' : '6px 8px'}}.mix-plan-time{padding:${tightLayout ? '4px 7px' : tiny ? '4px 6px' : '6px 8px'}}.mix-table th,.mix-table td{padding:${tightLayout ? '2px 5px' : tiny ? '2px 4px' : '3px 5px'}}
+.mix-block{border:1px solid #cbd5e1;border-radius:8px;overflow:hidden}.mix-head{padding:${tightLayout ? '7px 10px' : '9px 12px'};background:#fff}.mix-head span{font-size:${ultra ? 8 : tiny ? 10 : dense ? 11 : 12}px}.mix-head b{font-size:${ultra ? 6.8 : tiny ? 8 : 9}px}.mix-grid{padding:0!important;display:block}.mix-card{border:0!important;border-radius:0!important}.mix-card+.mix-card{border-top:1px solid #cbd5e1!important}.mix-title{padding:${tightLayout ? '7px 10px' : '8px 12px'};background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}.mix-title b{font-size:${ultra ? 8 : tiny ? 10 : dense ? 11 : 12}px}.mix-title span{font-size:${ultra ? 7 : tiny ? 8.5 : 9.5}px}.mix-materials{display:grid;grid-template-columns:repeat(auto-fit,minmax(${tiny ? 78 : 92}px,1fr));background:#fff}.mix-material{padding:${tightLayout ? '7px 8px' : '9px 10px'};min-height:${tightLayout ? 42 : 48}px;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7}.mix-material span{display:block;color:#334155;font-size:${ultra ? 7.2 : tiny ? 8.8 : dense ? 10 : 10.8}px;font-weight:900;line-height:1.15;white-space:normal}.mix-material b{display:block;margin-top:4px;color:#0f172a;font-size:${ultra ? 7.6 : tiny ? 9.3 : dense ? 10.8 : 11.4}px;font-weight:950;line-height:1.15}
 </style></head><body><div class="page">
   <div class="top"><div class="shop"><h1>${esc(rc.shop_name || 'ร้านค้า')}</h1><div class="muted">${esc(rc.address || '')}<br>${rc.phone ? `โทร: ${esc(rc.phone)}` : ''}</div></div><div><div class="badge"><b>${esc(title)}</b><span>${esc(titleEn)}</span></div><div class="muted" style="text-align:right;margin-top:8px;line-height:1.6">เลขที่: <b>${esc(bill?.bill_no || '-')}</b><br>วันที่: <b>${esc(dateTime(bill?.date))}</b><br>พิมพ์เมื่อ: ${esc(dateTime(new Date()))}</div></div></div>
   <div class="status-strip"><div class="status-card"><span>สถานะชำระเงิน</span><b style="color:${payStatusTone}">${esc(payStatusLabel)}</b></div><div class="status-card"><span>${esc(rightStatusLabel)}</span><b style="color:${rightStatusTone}">${esc(rightStatusText)}</b></div></div>
   <section class="box"><div class="box-h">${esc(customerBoxTitle)}</div><div class="box-b"><div><b style="font-size:${tiny ? 12 : 15}px">${esc(bill?.customer_name || 'ลูกค้าทั่วไป')}</b><div class="muted" style="white-space:pre-line">${esc(bill?.customer_address || '-')}</div>${bill?.customer_phone || bill?.delivery_phone ? `<div><b>โทร:</b> ${esc(bill.customer_phone || bill.delivery_phone)}</div>` : ''}</div><div><div class="info"><span class="muted">พนักงาน:</span><b>${esc(bill?.staff_name || user())}</b><span class="muted">ชำระ:</span><b>${esc(bill?.method || '-')}</b><span class="muted">รูปแบบส่ง:</span><b>${esc(deliveryModeText(bill))}</b>${bill?.delivery_date ? `<span class="muted">วันที่นัดส่ง:</span><b>${esc(bill.delivery_date)}</b>` : ''}${deliveryAddressHtml}</div></div></div></section>
   <table><thead><tr><th style="width:34px">#</th><th>รายการสินค้า</th><th style="width:60px">รวม</th>${showDeliveryCols ? '<th style="width:72px">รับกลับแล้ว</th><th style="width:72px">ต้องไปส่ง</th>' : ''}<th style="width:58px">หน่วย</th><th style="width:82px">ราคา</th><th style="width:92px">จำนวนเงิน</th></tr></thead><tbody>${tr}</tbody></table>
+  ${mixRecipeHtml}
   <div class="bottom"><div><b>หมายเหตุ / เงื่อนไข</b><div class="muted">${esc(noteText)}</div>${words ? `<div class="words">จำนวนเงินรวมทั้งสิ้น (ตัวอักษร)<b>${esc(words)}</b>${dueWords ? `<span class="muted">ยอดคงเหลือที่ต้องชำระ (ตัวอักษร)</span><b>${esc(dueWords)}</b>` : ''}</div>` : ''}</div><div>
     <div class="amount-panel">
       ${amountRowsHtml}
@@ -805,8 +981,7 @@
     </div>
     ${!isQuotation && dueAmount > 0 && itemCount <= 18 ? qrPaymentBlock(rc, dueAmount, payState) : ''}
   </div></div>
-  <div class="sig"><div><div class="line"></div><b>ผู้รับสินค้า / ลูกค้า</b></div><div><div class="line"></div><b>ผู้ส่งสินค้า / ผู้ขาย</b></div></div>
-  <div class="foot">${esc(footerText)}</div>
+  <div class="print-tail"><div class="foot">${esc(footerText)}</div><div class="sig"><div><b>ผู้รับสินค้า / ลูกค้า</b><div class="line"></div></div><div><b>ผู้ส่งสินค้า / ผู้ขาย</b><div class="line"></div></div></div></div>
 </div><script>window.onload=function(){try{window.focus()}catch(e){} setTimeout(function(){try{window.focus()}catch(e){} window.print();setTimeout(function(){window.close()},1400)},600)}<\/script></body></html>`);
     win.document.close();
     try { win.focus(); } catch (_) {}
@@ -900,8 +1075,10 @@
     }
     const original80 = window.print80mmv2;
     if (typeof original80 === 'function' && !original80.__v37Enriched) {
-      window.print80mmv2 = function (bill, items, rc) {
-        return original80.call(this, bill, enrichItemsForPrint(items, 'receipt'), rc);
+      window.print80mmv2 = async function (bill, items, rc) {
+        const enriched = enrichItemsForPrint(items, 'receipt');
+        const withMix = await enrichItemsWithMixFor80(enriched);
+        return original80.call(this, bill, withMix, rc);
       };
       window.print80mmv2.__v37Enriched = true;
       try { print80mmv2 = window.print80mmv2; } catch (_) {}

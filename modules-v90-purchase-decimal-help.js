@@ -10,8 +10,8 @@
 
     const value = text.match(DECIMAL_VALUE_RE)?.[1];
     return [
-      'บันทึกไม่สำเร็จ: จำนวนสต็อกมีทศนิยม' + (value ? ` (${value})` : ''),
-      'ฐานข้อมูลยังตั้งช่องจำนวนเป็นจำนวนเต็มอยู่ กรุณารันไฟล์ migrations/decimal_stock_quantities.sql ใน Supabase SQL Editor 1 ครั้ง',
+      'บันทึกไม่สำเร็จ: พบค่าทศนิยม' + (value ? ` (${value})` : ''),
+      'ฐานข้อมูลยังมีบางช่องเป็นจำนวนเต็มอยู่ กรุณารันไฟล์ migrations/decimal_stock_quantities.sql เวอร์ชันล่าสุดใน Supabase SQL Editor อีกครั้ง',
     ].join(' - ');
   }
 

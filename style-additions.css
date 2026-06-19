@@ -1109,3 +1109,26 @@ select.form-input {
   box-shadow: 0 6px 16px rgba(0,0,0,0.1);
 }
 .btn:active:not(:disabled) { transform: scale(0.96); }
+
+@media (min-width: 769px) {
+  #page-actions {
+    display: flex !important;
+    position: static !important;
+    width: auto !important;
+    min-width: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 0 !important;
+    gap: 8px !important;
+    z-index: auto !important;
+  }
+
+  #page-actions .btn {
+    width: auto !important;
+    justify-content: center !important;
+  }
+}

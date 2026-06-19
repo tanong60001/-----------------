@@ -19438,6 +19438,149 @@ window.v9AutoUpdateBillStatus = async function (customerId) {
   injectStyle();
 })();
 
+// Purchase receiving: admin can update current sale price while receiving stock.
+(function v9Pur24SalePriceDuringReceive() {
+  'use strict';
+
+  const isAdmin = () => (typeof USER !== 'undefined' && USER?.role === 'admin');
+  const num = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+  const money = (v) => typeof formatNum === 'function'
+    ? formatNum(Math.round(num(v) * 100) / 100)
+    : String(Math.round(num(v) * 100) / 100);
+
+  function ensureStyle() {
+    if (document.getElementById('v9p24-sale-price-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v9p24-sale-price-style';
+    st.textContent = `
+      .v9p24-price-card{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;align-items:center;border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#ecfeff);border-radius:16px;padding:14px 16px;margin:0 0 14px;box-shadow:0 12px 26px rgba(37,99,235,.08)}
+      .v9p24-price-title{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:950;color:#1e3a8a}
+      .v9p24-price-title i{width:34px;height:34px;border-radius:12px;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:19px}
+      .v9p24-price-sub{font-size:12px;color:#64748b;margin-top:4px;line-height:1.5}
+      .v9p24-price-input-wrap{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+      .v9p24-price-input-wrap .v9p24-lbl{color:#1e40af}
+      .v9p24-price-lock{height:50px;border-radius:13px;border:1px solid #dbeafe;background:#fff;color:#64748b;display:flex;align-items:center;gap:7px;padding:0 13px;font-size:12px;font-weight:850;white-space:nowrap}
+      .v9p24-price-lock.admin{color:#15803d;background:#f0fdf4;border-color:#bbf7d0}
+      @media(max-width:900px){.v9p24-price-card{grid-template-columns:1fr}.v9p24-price-input-wrap{grid-template-columns:1fr}.v9p24-price-lock{justify-content:center}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function injectExistingPriceControl() {
+    ensureStyle();
+    const prod = window._v9Pur?.selectedProd;
+    const qtyInput = document.getElementById('v9p24-ex-qty');
+    if (!prod || !qtyInput || document.getElementById('v9p24-ex-sale-price-card')) return;
+
+    const section = qtyInput.closest('.v9p24-section');
+    if (!section) return;
+    const admin = isAdmin();
+    const currentPrice = num(prod.price || 0);
+    const card = document.createElement('div');
+    card.id = 'v9p24-ex-sale-price-card';
+    card.className = 'v9p24-price-card';
+    card.innerHTML = `
+      <div>
+        <div class="v9p24-price-title">
+          <i class="material-icons-round">sell</i>
+          <span>ราคาขายปัจจุบัน</span>
+        </div>
+        <div class="v9p24-price-sub">
+          ราคาเดิม ฿${money(currentPrice)} / ${prod.unit || 'หน่วย'}${admin ? ' · แก้ไขแล้วจะอัปเดตหลังบันทึกรับสินค้า' : ' · พนักงานดูได้อย่างเดียว'}
+        </div>
+      </div>
+      <div class="v9p24-price-input-wrap">
+        <div>
+          <div class="v9p24-lbl">ราคาขายใหม่ / ${prod.unit || 'หน่วย'}</div>
+          <input class="v9p24-fi" type="number" id="v9p24-ex-sale-price" value="${currentPrice}" min="0" step="0.01" ${admin ? '' : 'disabled'}>
+        </div>
+        <div class="v9p24-price-lock ${admin ? 'admin' : ''}">
+          <i class="material-icons-round" style="font-size:17px;">${admin ? 'admin_panel_settings' : 'lock'}</i>
+          ${admin ? 'แอดมินแก้ไขได้' : 'ล็อกสำหรับพนักงาน'}
+        </div>
+      </div>`;
+    const calc = document.getElementById('v9p24-ex-calc');
+    if (calc) section.insertBefore(card, calc);
+    else section.appendChild(card);
+  }
+
+  const originalSelectExisting = window.v9Pur24SelectExisting;
+  if (typeof originalSelectExisting === 'function' && !originalSelectExisting.__salePricePatch) {
+    const patched = async function () {
+      const result = await originalSelectExisting.apply(this, arguments);
+      setTimeout(injectExistingPriceControl, 40);
+      return result;
+    };
+    patched.__salePricePatch = true;
+    window.v9Pur24SelectExisting = patched;
+  }
+
+  const originalAddItem = window.v9Pur24AddItemToList;
+  if (typeof originalAddItem === 'function' && !originalAddItem.__salePricePatch) {
+    const patched = async function (mode) {
+      const prod = window._v9Pur?.selectedProd;
+      const beforeLen = window._v9Pur?.items?.length || 0;
+      const nextPrice = num(document.getElementById('v9p24-ex-sale-price')?.value || prod?.price || 0);
+      const oldPrice = num(prod?.price || 0);
+      const result = await originalAddItem.apply(this, arguments);
+
+      if (mode !== 'new' && isAdmin() && prod && nextPrice >= 0 && nextPrice !== oldPrice) {
+        const items = window._v9Pur?.items || [];
+        const added = items.length > beforeLen ? items[items.length - 1] : null;
+        if (added && added.prodId === prod.id) {
+          added.salePriceUpdate = nextPrice;
+          added.salePriceOld = oldPrice;
+        }
+      }
+      return result;
+    };
+    patched.__salePricePatch = true;
+    window.v9Pur24AddItemToList = patched;
+  }
+
+  const originalSave = window.v9Pur24Save;
+  if (typeof originalSave === 'function' && !originalSave.__salePricePatch) {
+    const patched = async function () {
+      const updates = (window._v9Pur?.items || [])
+        .filter(item => isAdmin() && Number.isFinite(Number(item.salePriceUpdate)) && Number(item.salePriceUpdate) >= 0);
+
+      const result = await originalSave.apply(this, arguments);
+      const saved = !(window._v9Pur?.items || []).length;
+      if (!updates.length || !saved) return result;
+
+      for (const item of updates) {
+        const nextPrice = num(item.salePriceUpdate);
+        const { error } = await db.from('สินค้า').update({
+          price: nextPrice,
+          updated_at: new Date().toISOString(),
+        }).eq('id', item.prodId);
+        if (error) {
+          typeof toast === 'function' && toast(`รับสินค้าแล้ว แต่อัปเดตราคาขาย "${item.prodName}" ไม่สำเร็จ: ${error.message}`, 'warning');
+          continue;
+        }
+
+        const prod = v9GetProducts?.().find(p => p.id === item.prodId);
+        if (prod) prod.price = nextPrice;
+      }
+
+      if (updates.length) {
+        try {
+          window._v9ProductsCache = null;
+          if (typeof loadProducts === 'function') await loadProducts();
+        } catch (_) { }
+      }
+
+      return result;
+    };
+    patched.__salePricePatch = true;
+    window.v9Pur24Save = patched;
+    window.savePurchaseOrder = patched;
+    window.submitPurchaseOrder = patched;
+  }
+
+  setTimeout(injectExistingPriceControl, 100);
+})();
+
 // Last override: promo popup must be select-first large workspace.
 (function () {
   const PROMO_KEY = 'sk_pos_product_promotions_v1';
