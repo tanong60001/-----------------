@@ -190,6 +190,38 @@
     if (m) return parseInt(m[1], 10);
     const d = new Date(value); return Number.isNaN(d.getTime()) ? 0 : d.getDate();
   }
+  function attDateKey(row) {
+    const raw = String(row && row.date || '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const d = new Date(row && row.date);
+    return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : dateKey(d);
+  }
+  function normStatus(status) {
+    const st = String(status || '').trim();
+    return st === 'มาครึ่งวัน' ? 'ครึ่งวัน' : st;
+  }
+  function isWorkStatus(status) {
+    const st = normStatus(status);
+    return !!st && st !== 'ขาด' && st !== 'ลา';
+  }
+  function attendanceStamp(row, fallback) {
+    const value = row && (row.updated_at || row.created_at || row.time_out || row.time_in || row.date || row.id);
+    const time = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(time) ? time : fallback;
+  }
+  function normalizeAttendanceRows(rows) {
+    const map = new Map();
+    (rows || []).forEach((row, index) => {
+      const empId = String(row && row.employee_id || '');
+      const day = attDateKey(row);
+      if (!empId || !day) return;
+      const key = empId + '|' + day;
+      const next = Object.assign({}, row, { __dateKey: day, __rowStamp: attendanceStamp(row, index) });
+      const old = map.get(key);
+      if (!old || next.__rowStamp >= old.__rowStamp) map.set(key, next);
+    });
+    return Array.from(map.values());
+  }
 
   // ════════════════════════════════════════
   // CORE: คำนวณกระเป๋าเงิน + ข้อมูลรายวันของทุกคน (ตามเดือนที่ดู)
@@ -211,13 +243,13 @@
       db.from(ADV_TABLE).select('*').eq('status', 'อนุมัติ').lte('date', meAt),
       db.from(PAY_TABLE).select('*').eq('month', ms),
     ]);
-    const att = attR.data || [], monthAdv = monthAdvR.data || [],
+    const att = normalizeAttendanceRows(attR.data || []), monthAdv = monthAdvR.data || [],
       outAdv = outAdvR.data || [], paid = paidR.data || [];
 
     return emps.map(emp => {
       const eid = String(emp.id);
       const ma = att.filter(a => String(a.employee_id) === eid);
-      const wd = ma.filter(a => a.status !== 'ขาด' && a.status !== 'ลา').length;
+      const wd = ma.filter(a => isWorkStatus(a.status)).length;
       const td = ma.reduce((s, a) => s + num(a.deduction), 0);
 
       let earn;
@@ -227,7 +259,7 @@
 
       // แผนผังรายวัน: สถานะ + ยอดเบิกรวมต่อวัน
       const dayStatus = {}, dayAdv = {};
-      ma.forEach(a => { dayStatus[dayOf(a.date)] = a.status; });
+      ma.forEach(a => { dayStatus[dayOf(a.date)] = normStatus(a.status); });
       let monthAdvSum = 0;
       // ไม่นับ "หนี้เดิมยกมา" เป็นการเบิกรายวันของเดือนนี้ (แต่ยังเป็นหนี้ใน debtRemaining)
       monthAdv.filter(a => String(a.employee_id) === eid && !isCarried(a)).forEach(a => {

@@ -825,10 +825,167 @@
   window.v37OpenA4PrintWindow = openPrintWindowV37;
   window.v37CloseA4PrintWindow = closePrintWindowV37;
 
+  function billingDetailRows(items) {
+    const rows = [];
+    (items || []).forEach((billItem, billIndex) => {
+      const details = Array.isArray(billItem.billing_details) ? billItem.billing_details : [];
+      rows.push({ type: 'bill', billItem, billIndex });
+      if (details.length) {
+        details.forEach(detail => rows.push({ type: 'detail', billItem, detail, billIndex }));
+      } else {
+        rows.push({ type: 'detail', billItem, detail: { name: 'ไม่มีรายละเอียดสินค้าในบิลนี้', qty: 0, unit: '', price: 0, total: 0 }, billIndex, empty: true });
+      }
+    });
+    return rows;
+  }
+
+  function billingPages(displayRows) {
+    const pages = [];
+    let pageRows = [];
+    let used = 0;
+    const pushPage = () => {
+      if (!pageRows.length) return;
+      pages.push(pageRows);
+      pageRows = [];
+      used = 0;
+    };
+    displayRows.forEach(row => {
+      const weight = row.type === 'bill' ? 1.8 : 1;
+      const limit = pages.length ? 27 : 23;
+      if (used + weight > limit && pageRows.length) pushPage();
+      pageRows.push(row);
+      used += weight;
+    });
+    pushPage();
+    return pages.length ? pages : [[]];
+  }
+
+  function billingQrBlock(rc, amountDue) {
+    const s = localPaymentSettings(rc);
+    const src = promptpaySrc(s.promptpay, amountDue);
+    const bankLines = [
+      s.bankName,
+      s.bankAccount ? `เลขบัญชี ${s.bankAccount}` : '',
+      s.bankAccountName ? `ชื่อบัญชี ${s.bankAccountName}` : '',
+    ].filter(Boolean).map(line => `<div>${esc(line)}</div>`).join('');
+    if (!src && !bankLines) return '';
+    return `<div class="bn-qr">
+      <div class="bn-qr-head">THAI QR PAYMENT</div>
+      ${src ? `<img src="${src}" alt="QR Payment"><div class="bn-qr-sub">สแกนชำระยอด ฿${fmt(amountDue)}</div><div class="bn-qr-sub">PromptPay: ${esc(s.promptpay)}</div>` : '<div class="bn-qr-miss">กรุณาโอนเข้าบัญชีด้านล่าง</div>'}
+      ${bankLines ? `<div class="bn-bank">${bankLines}</div>` : ''}
+    </div>`;
+  }
+
+  function printBillingNoteDetailed(bill, items, rc, targetWin = null) {
+    const rows = applyLegacyReturnRowsV37(bill, items || []);
+    const subtotal = rows.reduce((s, it) => s + money(it.total), 0);
+    const total = money(bill?.total || subtotal);
+    const original = money(bill?.billing_original_total || total);
+    const paid = money(bill?.billing_paid_total || 0);
+    const displayRows = billingDetailRows(rows);
+    const pages = billingPages(displayRows);
+    const footerText = rc?.receipt_footer || 'ขอบคุณที่ใช้บริการ';
+    const words = typeof v24NumberToThaiWords === 'function' ? v24NumberToThaiWords(total) : '';
+    const qrHtml = billingQrBlock(rc, total);
+    const win = targetWin || openPrintWindowV37();
+    if (!win) { notify('กรุณาอนุญาต popup เพื่อพิมพ์เอกสาร', 'error'); return; }
+
+    const header = (pageNo, totalPages) => `
+      <div class="bn-top">
+        <div>
+          <h1>${esc(rc.shop_name || 'ร้านค้า')}</h1>
+          <div class="muted">${esc(rc.address || '')}${rc.phone ? `<br>โทร: ${esc(rc.phone)}` : ''}</div>
+        </div>
+        <div class="bn-title">
+          <div class="badge"><b>ใบวางบิล</b><span>BILLING NOTE</span></div>
+          <div class="meta">เลขที่: <b>${esc(bill?.bill_no || '-')}</b><br>วันที่: <b>${esc(dateTime(bill?.date))}</b><br>หน้า: <b>${pageNo}/${totalPages}</b></div>
+        </div>
+      </div>
+      <section class="cust">
+        <div>
+          <span>ลูกค้า / CUSTOMER</span>
+          <b>${esc(bill?.customer_name || 'ลูกค้าทั่วไป')}</b>
+          <p>${esc(bill?.customer_address || '-')}</p>
+          ${bill?.customer_phone ? `<p><b>โทร:</b> ${esc(bill.customer_phone)}</p>` : ''}
+        </div>
+        <div class="cust-info">
+          <span>พนักงาน</span><b>${esc(bill?.staff_name || user())}</b>
+          <span>ประเภท</span><b>ค้างชำระ / วางบิล</b>
+          <span>พิมพ์เมื่อ</span><b>${esc(dateTime(new Date()))}</b>
+        </div>
+      </section>`;
+
+    const rowHtml = row => {
+      if (row.type === 'bill') {
+        const it = row.billItem;
+        return `<tr class="bill-row">
+          <td class="c">${row.billIndex + 1}</td>
+          <td colspan="4">
+            <b>บิล #${esc(it.source_bill_no || it.source_bill_id || '-')}</b>
+            <span>${esc(dateTime(it.source_bill_date || ''))}</span>
+          </td>
+          <td class="r">ยอดบิล ฿${fmt(it.bill_total || it.total)}</td>
+          <td class="r due">คงเหลือ ฿${fmt(it.bill_remaining || it.total)}</td>
+        </tr>`;
+      }
+      const d = row.detail || {};
+      return `<tr class="${row.empty ? 'empty-row' : ''}">
+        <td></td>
+        <td class="indent">${esc(d.name || '')}</td>
+        <td class="c">${d.qty ? intFmt(d.qty) : '-'}</td>
+        <td class="c">${esc(d.unit || '')}</td>
+        <td class="r">${d.price ? fmt(d.price) : '-'}</td>
+        <td class="r">${d.total ? fmt(d.total) : '-'}</td>
+        <td></td>
+      </tr>`;
+    };
+
+    const pageHtml = pages.map((pageRows, pageIndex) => {
+      const isLast = pageIndex === pages.length - 1;
+      return `<div class="bn-page">
+        ${header(pageIndex + 1, pages.length)}
+        <table>
+          <thead><tr>
+            <th style="width:34px">#</th><th>รายละเอียดรายการ</th><th style="width:58px">จำนวน</th><th style="width:55px">หน่วย</th><th style="width:78px">ราคา</th><th style="width:88px">จำนวนเงิน</th><th style="width:100px">ยอดคงเหลือ</th>
+          </tr></thead>
+          <tbody>${pageRows.map(rowHtml).join('')}</tbody>
+        </table>
+        ${isLast ? `<div class="bn-bottom ${qrHtml ? 'has-qr' : ''}">
+          <div>
+            <h3>หมายเหตุ / เงื่อนไข</h3>
+            <p>ใบวางบิลฉบับนี้แสดงยอดค้างชำระตามบิลขายที่ยังเปิดอยู่ พร้อมรายละเอียดสินค้าในแต่ละบิล</p>
+            ${words ? `<div class="words">จำนวนเงินคงค้าง (ตัวอักษร)<b>${esc(words)}</b></div>` : ''}
+          </div>
+          <div class="sum">
+            <div><span>ยอดหนี้ตามบิล</span><b>฿${fmt(original)}</b></div>
+            ${paid > 0 ? `<div><span>ชำระแล้ว</span><b class="paid">-฿${fmt(paid)}</b></div>` : ''}
+            <div class="grand"><span>ยอดคงค้างที่ต้องชำระ</span><b>฿${fmt(total)}</b></div>
+          </div>
+          ${qrHtml}
+        </div>
+        <div class="tail">
+          <div class="foot">${esc(footerText)}</div>
+          <div class="sig"><div><span></span><b>ผู้วางบิล / ผู้ขาย</b></div><div><span></span><b>ผู้รับวางบิล / ลูกค้า</b></div></div>
+        </div>` : `<div class="cont">มีรายละเอียดต่อหน้าถัดไป</div>`}
+      </div>`;
+    }).join('');
+
+    win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบวางบิล #${esc(bill?.bill_no || '')}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;background:#fff;color:#0f172a;font-family:Sarabun,sans-serif;font-size:10.5px}.bn-page{width:210mm;min-height:297mm;padding:10mm 11mm 11mm;display:flex;flex-direction:column;page-break-after:always;break-after:page}.bn-page:last-child{page-break-after:auto;break-after:auto}.bn-top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:9px}.bn-top h1{margin:0;color:#dc2626;font-size:23px;line-height:1.05}.muted{color:#64748b;line-height:1.45}.bn-title{text-align:right}.badge{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:190px;border-radius:8px;background:#dc2626;color:#fff;padding:11px 24px}.badge b{font-size:20px;font-weight:900;line-height:1.1}.badge span{font-size:10px;letter-spacing:1.8px;opacity:.9}.meta{margin-top:7px;color:#64748b;line-height:1.6}.meta b{color:#0f172a}.cust{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;margin:10px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}.cust>div{padding:9px 11px}.cust span{display:block;color:#94a3b8;font-size:9px;font-weight:800}.cust b{display:block;font-size:14px;font-weight:900}.cust p{margin:2px 0 0;color:#475569;white-space:pre-line}.cust-info{display:grid;grid-template-columns:82px 1fr;gap:4px 8px;background:#f8fafc}.cust-info span{font-size:9px}.cust-info b{text-align:right;font-size:10.5px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#dc2626;color:#fff;padding:6px 7px;font-weight:900}td{border-bottom:1px solid #e5e7eb;padding:5px 7px;vertical-align:top;line-height:1.25}tr:nth-child(even):not(.bill-row) td{background:#fbfdff}.c{text-align:center}.r{text-align:right}.bill-row td{background:#fff1f2!important;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca;font-weight:900}.bill-row span{color:#64748b;margin-left:8px;font-weight:700}.due{color:#dc2626}.indent{padding-left:24px;position:relative}.indent:before{content:'•';position:absolute;left:12px;color:#94a3b8}.empty-row td{color:#94a3b8}.bn-bottom{display:grid;grid-template-columns:1fr 250px;gap:16px;margin-top:12px}.bn-bottom.has-qr{grid-template-columns:1fr 230px 170px}.bn-bottom h3{margin:0 0 4px;font-size:12px}.bn-bottom p{margin:0;color:#64748b}.words{margin-top:8px;border:1px solid #e2e8f0;border-radius:7px;padding:8px 10px;color:#64748b}.words b{display:block;color:#dc2626;font-size:12px}.sum{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden}.sum div{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid #eef2f7;font-weight:900}.sum div:last-child{border-bottom:0}.sum span{color:#64748b}.sum b{color:#0f172a}.sum .paid{color:#059669}.sum .grand{display:block;background:#fff7ed}.sum .grand span{display:block;color:#9a3412}.sum .grand b{display:block;text-align:right;color:#c2410c;font-size:24px;line-height:1.15}.bn-qr{border:2px solid #2563eb;border-radius:12px;overflow:hidden;text-align:center;background:#fff;align-self:start}.bn-qr-head{background:#17457d;color:#fff;font-size:10px;font-weight:950;padding:7px}.bn-qr img{display:block;width:118px;height:118px;margin:8px auto 5px}.bn-qr-sub{font-size:8.5px;color:#475569;line-height:1.25}.bn-bank{margin-top:6px;padding:6px 8px;border-top:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;font-size:8.5px;font-weight:850;line-height:1.35}.bn-qr-miss{padding:14px 8px;color:#dc2626;font-weight:900;font-size:10px}.tail{margin-top:auto}.foot{text-align:center;color:#94a3b8;border-top:1px solid #eef2f7;padding-top:5px;margin-bottom:10px}.sig{display:flex;justify-content:space-around;gap:36px}.sig div{text-align:center;min-width:175px}.sig span{display:block;height:28px;border-bottom:1px solid #64748b;margin-bottom:4px}.sig b{font-size:10px}.cont{margin-top:auto;text-align:center;color:#94a3b8;border-top:1px solid #eef2f7;padding-top:8px}@media print{body{margin:0}.bn-page{break-inside:avoid;page-break-inside:avoid}}
+</style></head><body>${pageHtml}<script>window.onload=function(){try{window.focus()}catch(e){} setTimeout(function(){try{window.focus()}catch(e){} window.print();setTimeout(function(){window.close()},1400)},600)}<\/script></body></html>`);
+    win.document.close();
+    try { win.focus(); } catch (_) {}
+  }
+
   async function printA4Detailed(bill, items, docType = 'receipt', targetWin = null) {
     const rc = await loadShopConfig();
     const ds = await loadDocSettings(docType);
     const rows = applyLegacyReturnRowsV37(bill, items || []);
+    if (docType === 'billing') {
+      return printBillingNoteDetailed(bill, rows, rc, targetWin);
+    }
     const mixPlan = await buildMixRecipePlan(rows);
     const planDepartureText = bill?.date ? addMinutesDateTime(bill.date, 30) : '';
     const mixRecipeHtml = renderMixRecipePlanA4(mixPlan, planDepartureText);

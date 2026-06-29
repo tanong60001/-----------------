@@ -39,9 +39,13 @@
   var p31IsMonthly = function (emp) {
     return String(emp.pay_type || '').trim() === 'รายเดือน';
   };
+  var p31NormStatus = function (status) {
+    var st = String(status || '').trim();
+    return st === 'มาครึ่งวัน' ? 'ครึ่งวัน' : st;
+  };
   var p31IsWorkday = function (row) {
-    var st = String(row && row.status || '').trim();
-    return st !== 'ขาด' && st !== 'ลา';
+    var st = p31NormStatus(row && row.status);
+    return !!st && st !== 'ขาด' && st !== 'ลา';
   };
   var p31EmpName = function (emp) {
     return [emp && emp.name, emp && emp.lastname].filter(Boolean).join(' ').trim();
@@ -61,6 +65,23 @@
       });
     });
     return out;
+  };
+  var p31AttendanceStamp = function (row, fallback) {
+    var value = row && (row.updated_at || row.created_at || row.time_out || row.time_in || row.date || row.id);
+    var time = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(time) ? time : fallback;
+  };
+  var p31NormalizeAttendanceRows = function (rows) {
+    var map = {};
+    (rows || []).forEach(function (row, index) {
+      var empId = String(row && row.employee_id || '');
+      var day = p31DateKey(row && row.date);
+      if (!empId || !day) return;
+      var key = empId + '|' + day;
+      var next = Object.assign({}, row, { __dateKey: day, __rowStamp: p31AttendanceStamp(row, index) });
+      if (!map[key] || next.__rowStamp >= map[key].__rowStamp) map[key] = next;
+    });
+    return Object.keys(map).map(function (key) { return map[key]; });
   };
   var p31PayLimit = function (s) {
     return Math.max(0, p31Num(s && s.earn) - p31Num(s && s.sumPaidNet) - p31Num(s && s.sumPaidWithdraw));
@@ -309,7 +330,8 @@
       db.from('จ่ายเงินเดือน').select('*').gte('paid_date', range.startAt).lte('paid_date', range.endAt).order('paid_date', { ascending: true }),
     ]).then(function (results) {
       var emps    = (results[0] || []).filter(p31ActiveEmployee);
-      var att     = p31MergeRows(results[1].data || [], results[2].data || []).filter(function (a) { return p31InMonth(a.date, ms, me); });
+      var rawAtt  = p31MergeRows(results[1].data || [], results[2].data || []).filter(function (a) { return p31InMonth(a.date, ms, me); });
+      var att     = p31NormalizeAttendanceRows(rawAtt);
       var adv     = (results[3].data || []).filter(function (a) { return p31InMonth(a.date, ms, me); });
       var paid    = p31MergeRows(results[4].data || [], results[5].data || []).filter(function (p) {
         return p.month === ms || p31InMonth(p.paid_date || p.month, ms, me);

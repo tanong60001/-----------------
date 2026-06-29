@@ -41,6 +41,29 @@
   function keyOf(y, mo, d) { return `${y}-${pad(mo + 1)}-${pad(d)}`; }
   function isWorking(st) { return st && st !== 'ขาด' && st !== 'ลา'; }
   function normSt(st) { return st === 'มาครึ่งวัน' ? 'ครึ่งวัน' : st; } // รวมข้อมูลเก่า
+  function attDateKey(row) {
+    const raw = String(row && row.date || '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const d = new Date(row && row.date);
+    return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : keyOf(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function attendanceStamp(row, fallback) {
+    const value = row && (row.updated_at || row.created_at || row.time_out || row.time_in || row.date || row.id);
+    const time = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(time) ? time : fallback;
+  }
+  function normalizeAttendanceRows(rows) {
+    const map = {};
+    (rows || []).forEach((row, index) => {
+      const empId = String(row && row.employee_id || '');
+      const day = attDateKey(row);
+      if (!empId || !day) return;
+      const key = empId + '|' + day;
+      const next = Object.assign({}, row, { status: normSt(row.status), __dateKey: day, __rowStamp: attendanceStamp(row, index) });
+      if (!map[key] || next.__rowStamp >= map[key].__rowStamp) map[key] = next;
+    });
+    return Object.keys(map).map(key => map[key]);
+  }
   // อ่านสถานที่ทำงานจากโน้ต: [สถานที่ทำงาน:หน้าร้าน] หรือ [สถานที่ทำงาน:โครงการ:ชื่อ]
   function parseWorkplace(note) {
     const m = String(note || '').match(/\[สถานที่ทำงาน:([^\]]+)\]/);
@@ -167,8 +190,8 @@
       db.from('เบิกเงิน').select('employee_id,amount,date,reason').gte('date', ms + 'T00:00:00').lte('date', me + 'T23:59:59'),
     ]);
     const map = {};    // empId -> { day -> row }
-    (attR.data || []).forEach(a => {
-      const d = parseInt(String(a.date).slice(8, 10), 10);
+    normalizeAttendanceRows(attR.data || []).forEach(a => {
+      const d = parseInt(String(a.__dateKey || a.date).slice(8, 10), 10);
       (map[String(a.employee_id)] = map[String(a.employee_id)] || {})[d] = a;
     });
     const advMap = {}; // empId -> { day -> sumAmount } (ไม่รวมหนี้ยกมา — ตรงกับตาราง)

@@ -531,6 +531,42 @@ window.v24ApplyDebtPaymentsFIFO = async function (custId) {
 
 window.v9AutoUpdateBillStatus = window.v24ApplyDebtPaymentsFIFO;
 
+function v24BillingConcreteKey(name) {
+  const text = String(name || '').toLowerCase();
+  const ksc = text.match(/(\d{2,4})\s*ksc/i);
+  if (ksc && /(คอนกรีต|concrete|cube|slump|ksc)/i.test(text)) return `concrete:${ksc[1]}`;
+  return '';
+}
+
+function v24CompactBillingItems(rows) {
+  const map = new Map();
+  (rows || []).forEach((it, index) => {
+    const name = String(it.name || '').trim();
+    if (!name) return;
+    const concreteKey = v24BillingConcreteKey(name);
+    const key = concreteKey || `item:${name.toLowerCase()}|${String(it.unit || '').toLowerCase()}|${_v24m(it.price)}`;
+    const qty = _v24m(it.qty || 1);
+    const total = _v24m(it.total || (_v24m(it.price) * qty));
+    if (!map.has(key)) {
+      map.set(key, {
+        name,
+        qty,
+        unit: it.unit || 'ชิ้น',
+        price: _v24m(it.price || (qty ? total / qty : 0)),
+        total,
+        isConcreteGroup: !!concreteKey,
+        firstIndex: index
+      });
+      return;
+    }
+    const old = map.get(key);
+    old.qty += qty;
+    old.total += total;
+    old.price = old.qty ? old.total / old.qty : old.price;
+  });
+  return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
+}
+
 window.v24PrintBillingNote = async function (custId, custName) {
   const printWin = typeof window.v37OpenA4PrintWindow === 'function'
     ? window.v37OpenA4PrintWindow()
@@ -580,6 +616,24 @@ window.v24PrintBillingNote = async function (custId, custName) {
     return;
   }
 
+  const billIds = breakdown.rows.map(row => row.id).filter(Boolean);
+  let billItemMap = new Map();
+  if (billIds.length) {
+    try {
+      const { data: billItems } = await db.from('รายการในบิล')
+        .select('bill_id,name,qty,unit,price,total')
+        .in('bill_id', billIds);
+      (billItems || []).forEach(it => {
+        const key = String(it.bill_id || '');
+        if (!billItemMap.has(key)) billItemMap.set(key, []);
+        billItemMap.get(key).push(it);
+      });
+    } catch (err) {
+      console.warn('[v24] cannot load billing item details', err);
+      billItemMap = new Map();
+    }
+  }
+
   let billingOriginalTotal = 0;
   let billingPaidTotal = 0;
   const items = breakdown.rows.map(row => {
@@ -594,6 +648,12 @@ window.v24PrintBillingNote = async function (custId, custName) {
     
     return {
       source_bill_id: row.id,
+      source_bill_no: row.bill_no,
+      source_bill_date: row.date,
+      bill_total: original,
+      bill_paid: paid,
+      bill_remaining: remaining,
+      billing_details: v24CompactBillingItems(billItemMap.get(String(row.id)) || []),
       name: `บิล #${row.bill_no} — ${_v24d(row.date)} (ยอดบิล ฿${fn(original)}${returnText}${paidText} / คงเหลือ ฿${fn(remaining)})`,
       qty: 1,
       unit: 'บิล',

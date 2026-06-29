@@ -69,6 +69,52 @@
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
     return palette[h % palette.length];
   }
+  function itemKey(name, unit, price) {
+    const text = String(name || '').toLowerCase();
+    const ksc = text.match(/(\d{2,4})\s*ksc/i);
+    if (ksc && /(คอนกรีต|concrete|cube|slump|ksc)/i.test(text)) return `concrete:${ksc[1]}`;
+    return `item:${text}|${String(unit || '').toLowerCase()}|${num(price)}`;
+  }
+  function compactItems(items) {
+    const map = new Map();
+    (items || []).forEach((it, index) => {
+      const name = String(it.name || '').trim();
+      if (!name) return;
+      const qty = num(it.qty || 1);
+      const total = num(it.total || (num(it.price) * qty));
+      const key = itemKey(name, it.unit, it.price);
+      if (!map.has(key)) {
+        map.set(key, { name, qty, unit: it.unit || 'ชิ้น', price: num(it.price || (qty ? total / qty : 0)), total, firstIndex: index });
+        return;
+      }
+      const old = map.get(key);
+      old.qty += qty;
+      old.total += total;
+      old.price = old.qty ? old.total / old.qty : old.price;
+    });
+    return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
+  }
+  async function attachBillItems(group) {
+    const ids = (group?.rows || []).map(row => row.bill?.id).filter(Boolean);
+    if (!ids.length || group.__itemsLoaded) return group;
+    try {
+      const { data } = await db.from('รายการในบิล').select('bill_id,name,qty,unit,price,total').in('bill_id', ids);
+      const byBill = new Map();
+      (data || []).forEach(it => {
+        const key = String(it.bill_id || '');
+        if (!byBill.has(key)) byBill.set(key, []);
+        byBill.get(key).push(it);
+      });
+      group.rows.forEach(row => {
+        row.billing_details = compactItems(byBill.get(String(row.bill?.id || '')) || []);
+      });
+      group.__itemsLoaded = true;
+    } catch (err) {
+      console.warn('[v98] cannot load debt bill item details', err);
+      group.rows.forEach(row => { row.billing_details = row.billing_details || []; });
+    }
+    return group;
+  }
 
   function injectStyle() {
     if (document.getElementById('v98-debt-style')) return;
@@ -160,6 +206,15 @@
       .v98-bill2-foot{display:flex;gap:20px;margin-top:10px;font-size:12.5px;font-weight:800;color:#64748b}
       .v98-bill2-foot b{color:#0f172a;font-weight:950}
       .v98-bill2-foot b.g{color:#059669}
+      .v98-bill2-details{margin-top:12px;border:1px solid #eef2f7;border-radius:12px;overflow:hidden;background:#fbfdff}
+      .v98-bill2-detail-head,.v98-bill2-detail-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 56px 88px;gap:8px;align-items:center}
+      .v98-bill2-detail-head{padding:8px 11px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:950;border-bottom:1px solid #eef2f7}
+      .v98-bill2-detail-row{padding:8px 11px;border-bottom:1px solid #f1f5f9;font-size:12px;font-weight:800;color:#334155}
+      .v98-bill2-detail-row:last-child{border-bottom:0}
+      .v98-bill2-detail-row .name{color:#0f172a;font-weight:900;line-height:1.25}
+      .v98-bill2-detail-row .muted{text-align:center;color:#64748b}
+      .v98-bill2-detail-row .money{text-align:right;color:#0f172a;font-weight:950}
+      .v98-bill2-more{padding:7px 11px;background:#fff;color:#94a3b8;font-size:11px;font-weight:850;text-align:center;border-top:1px solid #f1f5f9}
 
       /* ── ขวา: การ์ดสรุป (sticky) ── */
       .v98-d2-side{position:sticky;top:18px}
@@ -199,6 +254,7 @@
         .v98-mobilebar .acts{flex-direction:column}
         .v98-mobilebar .acts .v98-btn{width:100%;justify-content:center}
         .v98-bill2-amt b{font-size:18px}
+        .v98-bill2-detail-head,.v98-bill2-detail-row{grid-template-columns:minmax(0,1fr) 50px 42px 70px;font-size:10.5px;gap:5px;padding-left:8px;padding-right:8px}
       }
       /* ── FIX: popup รับชำระ v45 บนมือถือ (กริด 2 คอลัมน์บีบจนใช้ไม่ได้) ── */
       @media(max-width:860px){
@@ -317,6 +373,21 @@
       const total = num(row.total), paid = num(row.paid), remaining = num(row.remaining);
       const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
       const partial = paid > 0 && remaining > 0;
+      const details = Array.isArray(row.billing_details) ? row.billing_details : [];
+      const shownDetails = details.slice(0, 8);
+      const detailHtml = details.length ? `
+        <div class="v98-bill2-details">
+          <div class="v98-bill2-detail-head"><span>รายละเอียดสินค้า</span><span style="text-align:center">จำนวน</span><span style="text-align:center">หน่วย</span><span style="text-align:right">รวม</span></div>
+          ${shownDetails.map(it => `
+            <div class="v98-bill2-detail-row">
+              <div class="name">${esc(it.name || '-')}</div>
+              <div class="muted">${fmt(it.qty || 0)}</div>
+              <div class="muted">${esc(it.unit || '')}</div>
+              <div class="money">฿${fmt(it.total || 0)}</div>
+            </div>`).join('')}
+          ${details.length > shownDetails.length ? `<div class="v98-bill2-more">มีรายการเพิ่มเติมอีก ${details.length - shownDetails.length} รายการ ดูครบในใบวางบิล</div>` : ''}
+        </div>`
+        : `<div class="v98-bill2-details"><div class="v98-bill2-more">ไม่มีรายละเอียดสินค้าในบิลนี้</div></div>`;
       return `
         <div class="v98-bill2">
           <div class="v98-bill2-top">
@@ -330,6 +401,7 @@
           </div>
           <div class="v98-bar"><div style="width:${pct}%"></div></div>
           <div class="v98-bill2-foot"><span>ยอดบิล <b>฿${fmt(total)}</b></span><span>ชำระแล้ว <b class="g">฿${fmt(paid)}</b></span></div>
+          ${detailHtml}
         </div>`;
     }).join('');
 
@@ -422,6 +494,12 @@
       g = (window.__v98.groups || []).find(x => String(x.customer.id) === String(id));
     }
     if (g && section) {
+      if (!g.__itemsLoaded) {
+        section.innerHTML = `<div class="v98-wrap"><div style="padding:50px;text-align:center;color:#94a3b8;font-weight:850">
+          <i class="material-icons-round v98-spin" style="font-size:36px;margin-bottom:10px">sync</i>
+          กำลังโหลดรายละเอียดสินค้าในบิล...</div></div>`;
+        await attachBillItems(g);
+      }
       section.innerHTML = detailHTML(g);
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
     } else {

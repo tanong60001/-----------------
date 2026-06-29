@@ -32,6 +32,42 @@
   function safeName(v) {
     return String(v || 'export').replace(/[\\/:*?"<>|\[\]]+/g, '-').replace(/\s+/g, '_').slice(0, 26);
   }
+  function localDateKeyFromValue(value) {
+    if (!value) return '';
+    const raw = String(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : localDateKey(d);
+  }
+  function attDateKey(row) {
+    return localDateKeyFromValue(row && row.date);
+  }
+  function normStatus(status) {
+    const st = String(status || '').trim();
+    return st === 'มาครึ่งวัน' ? 'ครึ่งวัน' : st;
+  }
+  function isWorkStatus(status) {
+    const st = normStatus(status);
+    return !!st && st !== 'ขาด' && st !== 'ลา';
+  }
+  function rowStamp(row, fallback) {
+    const value = row && (row.updated_at || row.created_at || row.time_out || row.time_in || row.date || row.id);
+    const time = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(time) ? time : fallback;
+  }
+  function normalizeAttendanceRows(rows) {
+    const map = new Map();
+    (rows || []).forEach((row, index) => {
+      const empId = String(row && row.employee_id || '');
+      const day = attDateKey(row);
+      if (!empId || !day) return;
+      const key = empId + '|' + day;
+      const next = Object.assign({}, row, { __dateKey: day, __rowStamp: rowStamp(row, index) });
+      const old = map.get(key);
+      if (!old || next.__rowStamp >= old.__rowStamp) map.set(key, next);
+    });
+    return Array.from(map.values());
+  }
 
   // ค่าสี/สัญลักษณ์ของแต่ละสถานะ (ARGB ไม่มี #)
   function statusMeta(status) {
@@ -82,18 +118,19 @@
       db.from(PAY_TABLE).select('*').lte('month', ms),
     ]);
 
-    const att = attRes.data || [];
+    const rawAtt = attRes.data || [];
+    const att = normalizeAttendanceRows(rawAtt);
     const adv = advRes.data || [];
     const pays = payRes.data || [];
 
     const rows = emps.map(emp => {
-      const myAtt = att.filter(a => a.employee_id === emp.id);
+      const myAtt = att.filter(a => String(a.employee_id) === String(emp.id));
 
       // ── ลงเวลา ──
       const perDay = {};
-      myAtt.forEach(a => { perDay[a.date] = { status: a.status, deduction: n(a.deduction), note: a.note || '' }; });
-      const count = k => myAtt.filter(a => a.status === k).length;
-      const workDays = myAtt.filter(a => a.status !== 'ขาด' && a.status !== 'ลา').length;
+      myAtt.forEach(a => { perDay[a.__dateKey || attDateKey(a)] = { status: normStatus(a.status), deduction: n(a.deduction), note: a.note || '' }; });
+      const count = k => myAtt.filter(a => normStatus(a.status) === k).length;
+      const workDays = myAtt.filter(a => isWorkStatus(a.status)).length;
       const lateAbsentDeduct = r2(myAtt.reduce((s, a) => s + n(a.deduction), 0));
 
       // ── ค่าจ้าง ──
@@ -124,7 +161,7 @@
       return {
         emp, isMonthly, wage, gross, workDays, lateAbsentDeduct,
         present: count('มา'), late: count('มาสาย'),
-        half: count('ครึ่งวัน') + count('มาครึ่งวัน'),
+        half: count('ครึ่งวัน'),
         leave: count('ลา'), absent: count('ขาด'),
         advThis, carried, ss, other, net, paid, paidDate, perDay,
         advThisList,
