@@ -86,6 +86,21 @@ function _v24QuoteVat(note, bill = null, subtotal = 0, discount = 0, total = 0) 
 const _v24e = v => String(v ?? '').replace(/[&<>"']/g, ch => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[ch]));
+function _v24HasConcreteItem(items) {
+  return (items || []).some(it => /(คอนกรีต|concrete|ksc|slump|cube)/i.test(String([
+    it?.name,
+    it?.product_name,
+    it?.description,
+    it?.category,
+    it?.unit,
+  ].filter(Boolean).join(' '))));
+}
+function _v24ConcreteCareNote(items) {
+  if (!_v24HasConcreteItem(items)) return '';
+  const curing = 'เพื่อให้คอนกรีตพัฒนากำลังอัดได้เต็มประสิทธิภาพ และลดโอกาสการแตกร้าวจากการสูญเสียน้ำเร็วเกินไป ควรทำการบ่มคอนกรีตอย่างต่อเนื่องหลังจากผิวคอนกรีตเริ่มแข็งตัว โดยพรมน้ำ คลุมกระสอบเปียก หรือใช้วิธีบ่มที่เหมาะสม อย่างน้อย 7 วัน โดยเฉพาะในช่วงอากาศร้อน แดดจัด หรือมีลมแรง';
+  const siteControl = 'กำลังอัดและคุณภาพของคอนกรีตขึ้นอยู่กับการควบคุมหน้างานร่วมด้วย เช่น การห้ามเติมน้ำเพิ่มเกินความจำเป็น การเท การจี้ การแต่งผิว และการบ่มคอนกรีตอย่างถูกวิธี';
+  return `<div class="ccare"><b>คำแนะนำหลังการเทคอนกรีต</b><p>${_v24e(curing)}</p><p><strong>หมายเหตุ:</strong> ${_v24e(siteControl)}</p></div>`;
+}
 const _v24js = v => String(v ?? '')
   .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -143,6 +158,8 @@ table.it tbody td{padding:${tp};font-size:${fs}px;vertical-align:middle}
 .wb-v{font-size:${fs}px;font-weight:700;color:${C}}
 .nb{background:#fff;border:none;border-radius:0;padding:0;font-size:${fs - 1}px}
 .nb b{color:#334155} .nb p{color:#475569;line-height:1.4;margin-top:1px}
+.ccare{margin-top:7px;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;background:#fff7ed;padding:8px 10px;color:#7c2d12;font-size:${fs - 1}px;line-height:1.38;break-inside:avoid;page-break-inside:avoid}
+.ccare>b{display:block;color:#c2410c;margin-bottom:2px}.ccare p{margin:3px 0}.ccare strong{color:#9a3412}
 .sr{display:flex;justify-content:space-between;padding:2px 0;font-size:${fs}px;border-bottom:.5px solid #f1f5f9}
 .sr-l{color:#64748b} .sr-v{font-weight:600}
 .gt{background:${C};color:#fff;border-radius:7px;padding:8px 12px;margin-top:5px;text-align:center}
@@ -269,6 +286,7 @@ function v24Sum(bill, items, ds, rc) {
   return `<div class="sum"><div class="sum-l">
     <div class="wb"><div class="wb-l">จำนวนเงิน (ตัวอักษร)</div><div class="wb-v">${v24NumberToThaiWords(total)}</div></div>
     <div class="nb"><b>📝 หมายเหตุ</b><p>${nt}</p></div>
+    ${_v24ConcreteCareNote(items)}
     ${bankInfo}
   </div><div id="v24qr" style="text-align:center;min-width:90px;flex-shrink:0"></div>
   <div class="sum-r">
@@ -567,6 +585,12 @@ function v24CompactBillingItems(rows) {
   return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
 }
 
+function v24DebtBillId(row) {
+  if (row?.bill?.__openingDebt) return '';
+  const id = row?.id || row?.bill?.id || row?.bill_id || row?.source_bill_id || '';
+  return /^opening-/i.test(String(id)) ? '' : String(id);
+}
+
 window.v24PrintBillingNote = async function (custId, custName) {
   const printWin = typeof window.v37OpenA4PrintWindow === 'function'
     ? window.v37OpenA4PrintWindow()
@@ -616,7 +640,7 @@ window.v24PrintBillingNote = async function (custId, custName) {
     return;
   }
 
-  const billIds = breakdown.rows.map(row => row.id).filter(Boolean);
+  const billIds = [...new Set(breakdown.rows.map(v24DebtBillId).filter(Boolean))];
   let billItemMap = new Map();
   if (billIds.length) {
     try {
@@ -653,7 +677,7 @@ window.v24PrintBillingNote = async function (custId, custName) {
       bill_total: original,
       bill_paid: paid,
       bill_remaining: remaining,
-      billing_details: v24CompactBillingItems(billItemMap.get(String(row.id)) || []),
+      billing_details: v24CompactBillingItems(billItemMap.get(v24DebtBillId(row)) || []),
       name: `บิล #${row.bill_no} — ${_v24d(row.date)} (ยอดบิล ฿${fn(original)}${returnText}${paidText} / คงเหลือ ฿${fn(remaining)})`,
       qty: 1,
       unit: 'บิล',

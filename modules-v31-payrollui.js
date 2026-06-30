@@ -53,6 +53,26 @@
   var p31MoneyInput = function (id) {
     return p31Num(document.getElementById(id) && document.getElementById(id).value);
   };
+  var p31NoteExtraDeductions = function (note) {
+    var text = String(note || '');
+    var marked = text.match(/\[payroll_extra_deduct=([0-9,]+(?:\.\d+)?)\]/gi);
+    if (marked && marked.length) {
+      return marked.reduce(function (sum, raw) {
+        var match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
+        return sum + p31Num(String((match && match[1]) || '').replace(/,/g, ''));
+      }, 0);
+    }
+    var patterns = [
+      /(?:หัก)?ประกันสังคม\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+      /(?:หัก)?อื่น\s*ๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+      /(?:หัก)?อื่นๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi
+    ];
+    return patterns.reduce(function (sum, re) {
+      var match;
+      while ((match = re.exec(text))) sum += p31Num(String(match[1] || '').replace(/,/g, ''));
+      return sum;
+    }, 0);
+  };
   var p31MergeRows = function () {
     var seen = {};
     var out = [];
@@ -84,7 +104,7 @@
     return Object.keys(map).map(function (key) { return map[key]; });
   };
   var p31PayLimit = function (s) {
-    return Math.max(0, p31Num(s && s.earn) - p31Num(s && s.sumPaidNet) - p31Num(s && s.sumPaidWithdraw));
+    return Math.max(0, p31Num(s && s.earn) - p31Num(s && s.sumPaidNet) - p31Num(s && s.sumPaidWithdraw) - p31Num(s && s.sumTotalDeduct));
   };
 
   /* ══════════════════════════════════════════════════════════════
@@ -350,9 +370,9 @@
         var pastPays     = paid.filter(function (p) { return String(p.employee_id) === empId; });
         var sumPaidNet   = pastPays.reduce(function (s, p) { return s + p31Num(p.net_paid); }, 0);
         var sumPaidWithdraw  = pastPays.reduce(function (s, p) { return s + p31Num(p.deduct_withdraw); }, 0);
-        var sumTotalDeduct   = 0;
+        var sumTotalDeduct   = pastPays.reduce(function (s, p) { return s + p31NoteExtraDeductions(p.note); }, 0);
         var taLeft = Math.max(0, taGross - sumPaidWithdraw);
-        var net   = Math.max(0, earn - sumPaidNet - sumPaidWithdraw);
+        var net   = Math.max(0, earn - sumPaidNet - sumPaidWithdraw - sumTotalDeduct);
         var emoji = emojis[emp.id.charCodeAt(0) % emojis.length];
         return { emp: emp, wd: wd, td: td, earn: earn, ta: taLeft, taGross: taGross, myA: myA, net: net,
           pastPays: pastPays, sumPaidNet: sumPaidNet, sumPaidWithdraw: sumPaidWithdraw,
@@ -493,6 +513,13 @@
     var oth = p31MoneyInput('v26o-' + eid);
     var total = recv + debt + ss + oth;
     var limit = p31PayLimit(s);
+    var recvInput = document.getElementById('v26r-' + eid);
+    var activeId = document.activeElement && document.activeElement.id;
+    if (total > limit && activeId !== 'v26r-' + eid && recvInput) {
+      recv = Math.max(0, limit - debt - ss - oth);
+      recvInput.value = recv;
+      total = recv + debt + ss + oth;
+    }
     var maxDebt = p31Num(s.ta);
     var msg = document.getElementById('v26vm-' + eid);
     var btn = document.getElementById('v26pb-' + eid);
@@ -585,6 +612,7 @@
     noteBits.push('จ่ายทาง ' + method);
     if (ss) noteBits.push('หักประกันสังคม ฿' + ss);
     if (oth) noteBits.push('หักอื่น ๆ ฿' + oth + (oNote ? ' (' + oNote + ')' : ''));
+    if (ss + oth > 0) noteBits.push('[payroll_extra_deduct=' + (ss + oth) + ']');
     var ins = {
       employee_id: eid,
       month: ms,

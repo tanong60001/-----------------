@@ -54,6 +54,26 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function notify(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
+  function noteExtraDeductions(note) {
+    const text = String(note || '');
+    const marked = text.match(/\[payroll_extra_deduct=([0-9,]+(?:\.\d+)?)\]/gi);
+    if (marked?.length) {
+      return marked.reduce((sum, raw) => {
+        const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
+        return sum + num(String(match?.[1] || '').replace(/,/g, ''));
+      }, 0);
+    }
+    const patterns = [
+      /(?:หัก)?ประกันสังคม\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+      /(?:หัก)?อื่น\s*ๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+      /(?:หัก)?อื่นๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+    ];
+    return patterns.reduce((sum, re) => {
+      let match;
+      while ((match = re.exec(text))) sum += num(String(match[1] || '').replace(/,/g, ''));
+      return sum;
+    }, 0);
+  }
 
   // ──────────────────────────────────────
   // CSS
@@ -268,7 +288,7 @@
 
       // ตาราง 'จ่ายเงินเดือน' เก็บเฉพาะ net_paid + deduct_withdraw เป็นคอลัมน์
       const myPaid = paid.filter(p => String(p.employee_id) === eid);
-      const consumedEarn = myPaid.reduce((s, p) => s + num(p.net_paid) + num(p.deduct_withdraw), 0);
+      const consumedEarn = myPaid.reduce((s, p) => s + num(p.net_paid) + num(p.deduct_withdraw) + noteExtraDeductions(p.note), 0);
       const wageRemaining = Math.max(0, earn - consumedEarn);
 
       // หนี้เบิกคงค้าง (ข้ามเดือน, ถึงสิ้นเดือนที่ดู) — เรียงเก่า→ใหม่ (ใช้ตัด FIFO)
@@ -1086,7 +1106,8 @@
       if (debt > 0) noteParts.push(`หักหนี้ ฿${money(debt)}`);
       if (ss > 0) noteParts.push(`ประกันสังคม ฿${money(ss)}`);
       if (oth > 0) noteParts.push(`อื่นๆ ฿${money(oth)}${oNote ? ' (' + oNote + ')' : ''}`);
-      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}`.trim();
+      const extraMarker = ss + oth > 0 ? ` [payroll_extra_deduct=${ss + oth}]` : '';
+      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${extraMarker}`.trim();
 
       // merge-or-insert: เดือนละ 1 แถวต่อคน (สะสมยอด) — ตรงกับ v33
       // ตาราง 'จ่ายเงินเดือน' ไม่มีคอลัมน์ deduct_ss/deduct_other → เก็บใน note

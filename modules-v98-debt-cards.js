@@ -94,8 +94,13 @@
     });
     return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
   }
+  function debtBillId(row) {
+    if (row?.bill?.__openingDebt) return '';
+    const id = row?.bill?.id || row?.id || row?.bill_id || row?.source_bill_id || '';
+    return /^opening-/i.test(String(id)) ? '' : String(id);
+  }
   async function attachBillItems(group) {
-    const ids = (group?.rows || []).map(row => row.bill?.id).filter(Boolean);
+    const ids = [...new Set((group?.rows || []).map(debtBillId).filter(Boolean))];
     if (!ids.length || group.__itemsLoaded) return group;
     try {
       const { data } = await db.from('รายการในบิล').select('bill_id,name,qty,unit,price,total').in('bill_id', ids);
@@ -106,7 +111,7 @@
         byBill.get(key).push(it);
       });
       group.rows.forEach(row => {
-        row.billing_details = compactItems(byBill.get(String(row.bill?.id || '')) || []);
+        row.billing_details = compactItems(byBill.get(debtBillId(row)) || []);
       });
       group.__itemsLoaded = true;
     } catch (err) {
