@@ -818,6 +818,8 @@
   let _lastInjectedSig = '';
 
   async function injectRefundOnDashboard() {
+    // Dashboard V4 รวมเงินคืนไว้ในสูตร cash-out และยอดสุทธิแล้ว ไม่แทรก DOM ซ้ำ
+    if (document.querySelector('#page-dash [data-dashboard-version="4"]')) return;
     const { startIso, endIso, days } = getDashRangeIso();
     const total = await fetchRefundTotal(startIso, endIso);
 
@@ -875,6 +877,7 @@
 
   /* รอ truth panel โหลดเสร็จ (skeleton หาย) แล้วค่อย inject ครั้งเดียว */
   function waitAndInject(retries = 30) {
+    if (document.querySelector('#page-dash [data-dashboard-version="4"]')) return;
     const truthBody = findTruthBody();
     if (!truthBody || truthBody.querySelector('.dash-v3-skeleton')) {
       if (retries > 0) setTimeout(() => waitAndInject(retries - 1), 500);

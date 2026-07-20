@@ -956,6 +956,8 @@
     if (typeof orig !== 'function' || orig.__v33dashenhanced) return;
     const wrapped = async function () {
       const r = await orig.apply(this, arguments);
+      // Dashboard V4 มี executive summary และ KPI ของตัวเอง ไม่ poll/แทรก hero รุ่นเดิมซ้ำ
+      if (document.querySelector('#page-dash [data-dashboard-version="4"]')) return r;
       // KPIs populate asynchronously inside loadData; poll briefly.
       let tries = 0;
       const t = setInterval(function () {

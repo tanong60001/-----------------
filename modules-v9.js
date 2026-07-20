@@ -5809,7 +5809,7 @@ window.renderUserPerms = async function (container) {
 // หน้า Manage — tabs
 const _v9ManageTabs = [
   { key: 'cats', label: 'หมวดหมู่', icon: 'category', desc: 'จัดการหมวดหมู่สินค้า', color: '#6366f1', bg: '#eef2ff' },
-  { key: 'recipe', label: 'สูตรสินค้า', icon: 'science', desc: 'BOM วัตถุดิบต่อสินค้า', color: '#059669', bg: '#f0fdf4' },
+  { key: 'recipe', label: 'สูตรคอนกรีต', icon: 'science', desc: 'ส่วนผสม ความจุรถ และค่าคิวว่าง', color: '#059669', bg: '#f0fdf4' },
   { key: 'supplier', label: 'ซัพพลายเออร์', icon: 'local_shipping', desc: 'จัดการผู้จำหน่าย', color: '#d97706', bg: '#fffbeb' },
   { key: 'produce', label: 'ผลิตสินค้า', icon: 'precision_manufacturing', desc: 'สั่งผลิตตามสูตร', color: '#dc2626', bg: '#fef2f2' },
 ];
@@ -5906,7 +5906,7 @@ window.v9LoadManageStats = async function () {
     el.innerHTML = [
       { icon: 'category', clr: '#6366f1', label: 'หมวดหมู่', val: catRes.count || 0 },
       { icon: 'straighten', clr: '#0891b2', label: 'หน่วยนับ', val: unitRes.count || 0 },
-      { icon: 'science', clr: '#059669', label: 'สูตรสินค้า', val: recipeRes.count || 0 },
+      { icon: 'science', clr: '#059669', label: 'สูตรคอนกรีต', val: recipeRes.count || 0 },
       { icon: 'local_shipping', clr: '#d97706', label: 'ซัพพลายเออร์', val: suppRes.count || 0 },
       { icon: 'precision_manufacturing', clr: '#dc2626', label: 'วัตถุดิบ', val: rawCount },
     ].map(s => `

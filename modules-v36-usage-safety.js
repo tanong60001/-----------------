@@ -9,7 +9,7 @@ console.log('[v36] Usage safety patch loaded');
 
   const txt = {
     product: 'สินค้า',
-    recipe: 'สูตรสินค้า',
+    recipe: 'สูตรคอนกรีต',
     bill: 'บิลขาย',
     billItem: 'รายการในบิล',
     sale: 'ขาย',
@@ -2248,7 +2248,7 @@ console.log('[v36] Usage safety patch loaded');
         if (recipeRes.error) throw recipeRes.error;
 
         const recipes = (recipeRes.data || []).filter(row => row.material_id && money(row.quantity) > 0);
-        if (!recipes.length) throw new Error(`สินค้าตามบิลยังไม่มีสูตรสินค้า: ${it.name || prod.name}`);
+        if (!recipes.length) throw new Error(`สินค้าตามบิลยังไม่มีสูตรคอนกรีต: ${it.name || prod.name}`);
 
         const materialNeeds = new Map();
         recipes.forEach(recipe => {

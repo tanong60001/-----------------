@@ -328,6 +328,25 @@
         if (c) await db.from(CUSTOMER_TABLE).update({ total_purchase: Math.max(0, num(c.total_purchase) - totalReturn) }).eq('id', bill.customer_id);
       }
 
+      // เก็บเหตุการณ์คืนเงินจริงไว้ในรายจ่ายด้วย เพื่อให้รายงานเงินสดครอบคลุมทั้งเงินสดและโอน
+      // Dashboard V4 จะจับคู่กับ cash_transaction ของเงินสดและกันการนับซ้ำเอง
+      if ((settlement === 'cash' || settlement === 'transfer') && totalReturn > 0) {
+        try {
+          const refundExpense = await db.from('รายจ่าย').insert({
+            description: `คืนเงินสินค้า บิล #${bill.bill_no}`,
+            amount: totalReturn,
+            category: 'คืนเงินลูกค้า',
+            method: refundMethod,
+            date: new Date().toISOString(),
+            note: reason || null,
+            staff_name: staff(),
+          });
+          if (refundExpense?.error) console.warn('[v77] refund expense log:', refundExpense.error);
+        } catch (expenseError) {
+          console.warn('[v77] refund expense log:', expenseError);
+        }
+      }
+
       if ((settlement === 'cash' || settlement === 'transfer') && bill.customer_id) {
         const { data: c } = await db.from(CUSTOMER_TABLE).select('total_purchase').eq('id', bill.customer_id).maybeSingle();
         if (c) await db.from(CUSTOMER_TABLE).update({ total_purchase: Math.max(0, num(c.total_purchase) - totalReturn) }).eq('id', bill.customer_id);

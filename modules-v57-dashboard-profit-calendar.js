@@ -167,6 +167,12 @@
   async function loadMonthProfit(info) {
     if (typeof db === 'undefined') throw new Error('ระบบฐานข้อมูลยังไม่พร้อม');
 
+    // Dashboard V4 เป็นแหล่งสูตรกลาง เพื่อให้ปฏิทินและหน้าวิเคราะห์ได้ตัวเลขชุดเดียวกัน
+    if (window.DashboardAnalyticsV4?.loadRange) {
+      const report = await window.DashboardAnalyticsV4.loadRange(info.start, info.end, { silent: true });
+      return report.daily;
+    }
+
     const { startIso, endIso } = localDayRangeIso(info.start, info.end);
 
     const [billR, expR, attR, advR, projExpR, projMsR, debtPayR] = await Promise.all([

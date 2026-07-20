@@ -59,7 +59,7 @@
   }
 
   function uniqueCopyRecipeName(baseName, list = productsList()) {
-    const base = String(baseName || 'สูตรสินค้า').trim() || 'สูตรสินค้า';
+    const base = String(baseName || 'สูตรคอนกรีต').trim() || 'สูตรคอนกรีต';
     const first = `${base} สำเนา`;
     if (!recipeNameExists(first, list)) return first;
     for (let i = 2; i < 1000; i += 1) {
@@ -80,6 +80,18 @@
     return product?.is_raw === true || type.includes('raw') || type.includes('both') || type.includes('วัตถุดิบ') || type.includes('ทั้ง');
   }
 
+  function stoneVariant(product) {
+    const name = String(product?.name || '').trim().toLowerCase();
+    if (!name.includes('หิน')) return '';
+    if (/3\s*\/\s*4|¾|สามส่วนสี่/.test(name)) return 'stone_3_4';
+    if (/หิน\s*(?:เบอร์\s*)?(?:1|๑)(?:\D|$)/.test(name)) return 'stone_1';
+    return '';
+  }
+
+  function isSelectableStone(product) {
+    return !!stoneVariant(product);
+  }
+
   function isSellProduct(product) {
     return product && !isRaw(product);
   }
@@ -94,7 +106,8 @@
     const lines = rows.map(row => {
       const mat = map[row.material_id] || {};
       const qty = num(row.quantity);
-      const stock = num(mat.stock);
+      const stoneOptions = isSelectableStone(mat) ? Object.values(map).filter(isSelectableStone) : [];
+      const stock = stoneOptions.length ? Math.max(...stoneOptions.map(option => num(option.stock))) : num(mat.stock);
       const unitCost = num(mat.cost);
       const lineCost = qty * unitCost;
       const canMake = qty > 0 ? stock / qty : Infinity;
@@ -123,6 +136,11 @@
       .v65-hero-stat span{display:block;color:#cbd5e1;font-size:12px;font-weight:800}
       .v65-hero-stat b{display:block;margin-top:4px;font-size:24px;font-weight:950}
       .v65-recipe-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+      .v65-workflow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+      .v65-workflow-card{position:relative;overflow:hidden;border:1px solid #dbeafe;background:linear-gradient(145deg,#fff,#f8fafc);border-radius:18px;padding:15px;display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;box-shadow:0 8px 22px rgba(15,23,42,.04)}
+      .v65-workflow-card:after{content:"";position:absolute;right:-24px;bottom:-28px;width:80px;height:80px;border-radius:50%;background:var(--flow-bg,#ecfdf5)}
+      .v65-workflow-icon{width:44px;height:44px;border-radius:14px;background:var(--flow,#0f766e);color:#fff;display:grid;place-items:center;box-shadow:0 10px 20px rgba(15,23,42,.14)}
+      .v65-workflow-icon i{font-size:23px}.v65-workflow-card span{display:block;color:#94a3b8;font-size:10px;font-weight:950;letter-spacing:.6px}.v65-workflow-card b{display:block;color:#0f172a;font-size:15px;font-weight:950;margin-top:2px}.v65-workflow-card small{display:block;color:#64748b;font-size:11px;font-weight:750;margin-top:3px;line-height:1.4}
       .v65-btn{height:44px;border-radius:14px;border:1px solid #cbd5e1;background:#fff;color:#334155;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:900;cursor:pointer;font-family:var(--font-thai,'Prompt'),sans-serif}
       .v65-btn.primary{background:#ef4444;color:#fff;border-color:#ef4444;box-shadow:0 12px 24px rgba(239,68,68,.18)}
       .v65-btn.copy{background:#eef6ff;color:#2563eb;border-color:#bfdbfe}
@@ -150,6 +168,7 @@
       .v65-box.good b{color:#059669}.v65-box.bad b{color:#dc2626}
       .v65-lines{display:grid;gap:8px}
       .v65-line{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid #eef2f7;border-radius:16px;padding:11px;background:#fff}
+      .v65-line-stone{border-color:#fdba74;background:linear-gradient(135deg,#fff7ed,#fff)}.v65-line-stone .v65-line-name{color:#c2410c;display:flex;align-items:center;gap:6px}.v65-line-stone .v65-line-name i{font-size:16px}
       .v65-line-name{font-weight:950;color:#111827}
       .v65-line-sub{margin-top:4px;color:#64748b;font-size:12px;font-weight:750}
       .v65-line-cost{text-align:right;font-weight:950;color:#0f172a}
@@ -191,14 +210,20 @@
       .v65-material-empty{padding:12px;border-radius:12px;background:#f8fafc;color:#94a3b8;font-weight:850;text-align:center}
       .v65-edit-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
       .v65-edit-row{display:grid;grid-template-columns:1fr 110px 120px 42px;gap:8px;align-items:end;border:1px solid #dbeafe;background:linear-gradient(135deg,#ffffff,#f8fbff);border-radius:18px;padding:12px}
+      .v65-edit-row.is-stone-slot{border-color:#fdba74;background:linear-gradient(135deg,#fff7ed,#fff)}.v65-edit-row.is-stone-slot .v65-material-search{border-color:#fb923c!important;background:#fff7ed!important;color:#9a3412!important;font-weight:950}.v65-stone-lock-label{display:inline-flex;align-items:center;gap:4px;margin-left:6px;border-radius:999px;background:#ffedd5;color:#c2410c;padding:2px 7px;font-size:9px;font-weight:950}.v65-stone-slot-note{margin-top:5px;color:#c2410c;font-size:10px;font-weight:850}
       .v65-icon-btn{width:42px;height:42px;border-radius:12px;border:1px solid #fecaca;background:#fff;color:#dc2626;display:flex;align-items:center;justify-content:center;cursor:pointer}
-      @media(max-width:760px){.v65-recipe-hero,.v65-form-banner,.v65-workspace{grid-template-columns:1fr}.v65-form-pill{justify-self:start}.v65-hero-stats,.v65-summary,.v65-edit-summary{grid-template-columns:1fr}.v65-grid{grid-template-columns:1fr}.v65-modal-hero,.v65-edit-row,.v65-image-drop{grid-template-columns:1fr}.v65-capacity{text-align:left}}
+      .v65-concrete-config{border:1px solid #99f6e4;background:linear-gradient(135deg,#f0fdfa,#fff);border-radius:20px;padding:15px;display:grid;gap:13px}
+      .v65-concrete-config-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.v65-concrete-config-head>div{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:950;color:#115e59}.v65-concrete-config-head i{color:#0f766e}.v65-concrete-config-head span{font-size:11px;color:#64748b;font-weight:850}
+      .v65-concrete-config-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.v65-toggle-card{border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer}.v65-toggle-card input{width:20px;height:20px;accent-color:#0f766e}.v65-toggle-card b,.v65-toggle-card small{display:block}.v65-toggle-card b{color:#0f172a}.v65-toggle-card small{margin-top:2px;color:#64748b;font-size:10px}
+      .v65-transport-strip{margin-top:10px;display:flex;gap:7px;flex-wrap:wrap}.v65-transport-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #99f6e4;background:#f0fdfa;color:#0f766e;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:950}.v65-transport-chip i{font-size:14px}
+      @media(max-width:760px){.v65-recipe-hero,.v65-form-banner,.v65-workspace{grid-template-columns:1fr}.v65-form-pill{justify-self:start}.v65-hero-stats,.v65-summary,.v65-edit-summary,.v65-concrete-config-grid,.v65-workflow{grid-template-columns:1fr}.v65-grid{grid-template-columns:1fr}.v65-modal-hero,.v65-edit-row,.v65-image-drop{grid-template-columns:1fr}.v65-capacity{text-align:left}}
     `;
     document.head.appendChild(style);
   }
 
   async function loadRecipeData() {
     const products = productsList();
+    try { await window.v103LoadConcreteConfigs?.(false); } catch (_) {}
     const { data, error } = await db.from(RECIPE_TABLE).select('id,product_id,material_id,quantity,unit');
     if (error) throw new Error(error.message);
     return { products, recipes: data || [], map: productMap(products) };
@@ -211,7 +236,7 @@
   window.v9AdminRecipe = async function (container) {
     if (!container) return;
     installStyles();
-    container.innerHTML = typeof v9AdminLoading === 'function' ? v9AdminLoading('โหลดสูตรสินค้า...') : 'Loading...';
+    container.innerHTML = typeof v9AdminLoading === 'function' ? v9AdminLoading('โหลดสูตรคอนกรีต...') : 'Loading...';
 
     let products = [], recipes = [], map = {};
     try {
@@ -232,18 +257,33 @@
       <div class="v65-recipe-page">
         <section class="v65-recipe-hero">
           <div>
-            <h2>สูตรสินค้า</h2>
-            <p>ดูต้นทุน กำไร และกำลังผลิตจากสต็อกวัตถุดิบจริงก่อนขายหรือผลิตตามบิล</p>
+            <h2>สูตรคอนกรีต</h2>
+            <p>จัดการวัตถุดิบ ต้นทุน กำลังผลิต ความจุรถ และค่าคิวว่างในจุดเดียว</p>
           </div>
           <div>
             <div class="v65-hero-stats">
-              <div class="v65-hero-stat"><span>สูตรทั้งหมด</span><b>${ids.length}</b></div>
+              <div class="v65-hero-stat"><span>สูตรคอนกรีต</span><b>${ids.length}</b></div>
               <div class="v65-hero-stat"><span>วัตถุดิบ</span><b>${products.filter(isRaw).length}</b></div>
               <div class="v65-hero-stat"><span>ต้นทุนรวม/ชุด</span><b>${baht(totalCost)}</b></div>
             </div>
             <div class="v65-recipe-actions" style="margin-top:12px">
-              <button class="v65-btn primary" onclick="v9RecipeShowCreate?.()"><i class="material-icons-round">add</i> สร้างสูตรใหม่</button>
+              <button class="v65-btn primary" onclick="v9RecipeShowCreate?.()"><i class="material-icons-round">add</i> สร้างสูตรคอนกรีต</button>
             </div>
+          </div>
+        </section>
+
+        <section class="v65-workflow">
+          <div class="v65-workflow-card" style="--flow:#2563eb;--flow-bg:#eff6ff">
+            <div class="v65-workflow-icon"><i class="material-icons-round">science</i></div>
+            <div><span>STEP 1</span><b>กำหนดส่วนผสมต่อ 1 คิว</b><small>ระบบตัดวัตถุดิบและคำนวณต้นทุนจากปริมาณจริง</small></div>
+          </div>
+          <div class="v65-workflow-card" style="--flow:#0f766e;--flow-bg:#f0fdfa">
+            <div class="v65-workflow-icon"><i class="material-icons-round">local_shipping</i></div>
+            <div><span>STEP 2</span><b>ตั้งความจุรถต่อเที่ยว</b><small>แบ่งรอบ 4 คิวหรือตามค่าของรถในสูตรนี้</small></div>
+          </div>
+          <div class="v65-workflow-card" style="--flow:#ea580c;--flow-bg:#fff7ed">
+            <div class="v65-workflow-icon"><i class="material-icons-round">price_change</i></div>
+            <div><span>STEP 3</span><b>ควบคุมค่าคิวว่าง</b><small>ตั้งจุดเริ่มคิดและราคาต่อคิว เพิ่มลงบิลอัตโนมัติ</small></div>
           </div>
         </section>
 
@@ -252,7 +292,7 @@
         </section>` : `
           <div class="v65-empty">
             <i class="material-icons-round" style="font-size:44px;display:block;margin-bottom:10px;color:#94a3b8">science</i>
-            ยังไม่มีสูตรสินค้า
+            ยังไม่มีสูตรคอนกรีต
           </div>`}
       </div>
     `;
@@ -262,6 +302,7 @@
     if (!product) return '';
     const stats = recipeStats(product, rows, map);
     const profitClass = stats.profit >= 0 ? 'good' : 'bad';
+    const concrete = window.v103GetConcreteConfig?.(product.id) || { truck_capacity_m3: 4, charge_empty_space: false, empty_threshold_m3: 0, empty_fee_per_m3: 0 };
     return `
       <article class="v65-card">
         <header class="v65-card-head" data-v65-toggle-recipe="${esc(product.id)}">
@@ -272,6 +313,10 @@
               <span class="v65-chip"><i class="material-icons-round" style="font-size:15px">category</i>${esc(product.category || '-')}</span>
               <span class="v65-chip">หน่วยขาย ${esc(product.unit || 'ชิ้น')}</span>
               <span class="v65-chip">${esc(product.product_type || 'สินค้าขาย')}</span>
+            </div>
+            <div class="v65-transport-strip">
+              <span class="v65-transport-chip"><i class="material-icons-round">local_shipping</i>รถเต็ม ${fmt(concrete.truck_capacity_m3)} คิว/เที่ยว</span>
+              <span class="v65-transport-chip"><i class="material-icons-round">price_change</i>${concrete.charge_empty_space ? `คิวว่าง ${baht(concrete.empty_fee_per_m3)}/คิว` : 'ไม่คิดคิวว่าง'}</span>
             </div>
           </div>
           <div class="v65-capacity">
@@ -284,7 +329,7 @@
           <div class="v65-summary">
             <div class="v65-box"><span>ราคาขาย</span><b>${baht(stats.price)}</b></div>
             <div class="v65-box"><span>ต้นทุนสูตร</span><b>${baht(stats.cost)}</b></div>
-            <div class="v65-box ${profitClass}"><span>กำไร/ชิ้น</span><b>${baht(stats.profit)} (${fmt(stats.margin)}%)</b></div>
+            <div class="v65-box ${profitClass}"><span>กำไร/คิว</span><b>${baht(stats.profit)} (${fmt(stats.margin)}%)</b></div>
           </div>
           <div class="v65-lines">
             ${stats.lines.map(line => materialLineHtml(line, product)).join('')}
@@ -301,14 +346,14 @@
 
   function materialLineHtml(line, product) {
     const low = line.canMake <= 0;
+    const stone = isSelectableStone(line.mat);
     return `
-      <div class="v65-line">
+      <div class="v65-line ${stone ? 'v65-line-stone' : ''}">
         <div>
-          <div class="v65-line-name">${esc(line.mat?.name || line.row.material_id)}</div>
+          <div class="v65-line-name">${stone ? '<i class="material-icons-round">lock</i> ช่องหิน — เลือก หิน 1 / หิน 3/4 ตอนขาย' : esc(line.mat?.name || line.row.material_id)}</div>
           <div class="v65-line-sub">
             ใช้ ${fmt(line.qty)} ${esc(line.row.unit || line.mat?.unit || '')} / ${esc(product.unit || 'หน่วย')}
-            · คงเหลือ ${fmt(line.stock)} ${esc(line.mat?.unit || line.row.unit || '')}
-            · ผลิตได้ ${low ? '0' : fmtWhole(line.canMake)} ${esc(product.unit || '')}
+            ${stone ? '· ตัดจากกองหินที่พนักงานเลือก' : `· คงเหลือ ${fmt(line.stock)} ${esc(line.mat?.unit || line.row.unit || '')} · ผลิตได้ ${low ? '0' : fmtWhole(line.canMake)} ${esc(product.unit || '')}`}
           </div>
         </div>
         <div class="v65-line-cost">
@@ -508,19 +553,27 @@
     const product = isCreate
       ? (copyMode
         ? { ...sourceProduct, id: '', name: uniqueCopyRecipeName(sourceProduct.name, products), stock: 0, product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' }
-        : { id: '', name: '', price: 0, unit: '', category: '\u0e04\u0e2d\u0e19\u0e01\u0e23\u0e35\u0e15\u0e1c\u0e2a\u0e21\u0e40\u0e2a\u0e23\u0e47\u0e08', img_url: '', product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' })
+        : { id: '', name: '', price: 0, unit: '\u0e04\u0e34\u0e27', category: '\u0e04\u0e2d\u0e19\u0e01\u0e23\u0e35\u0e15\u0e1c\u0e2a\u0e21\u0e40\u0e2a\u0e23\u0e47\u0e08', img_url: '', product_type: '\u0e15\u0e32\u0e21\u0e1a\u0e34\u0e25' })
       : map[productId];
     const rows = copyMode ? recipeRowsFor(recipes, productId) : (isCreate ? [] : recipeRowsFor(recipes, productId));
+    const concrete = window.v103GetConcreteConfig?.(copyMode ? productId : product?.id) || {
+      truck_capacity_m3: 4,
+      charge_empty_space: false,
+      empty_threshold_m3: 0.001,
+      empty_fee_per_m3: 0,
+    };
 
     const rowHtml = (row = {}) => {
       const mat = map[row.material_id] || {};
+      const stoneLocked = isSelectableStone(mat);
       return `
-        <div class="v65-edit-row" data-v65-edit-row="1">
+        <div class="v65-edit-row ${stoneLocked ? 'is-stone-slot' : ''}" data-v65-edit-row="1" data-v65-stone-slot="${stoneLocked ? '1' : '0'}">
           <div class="v65-field v65-smart-cell">
-            <label>วัตถุดิบ</label>
+            <label>วัตถุดิบ ${stoneLocked ? '<span class="v65-stone-lock-label"><i class="material-icons-round" style="font-size:11px">lock</i> ล็อกช่องหิน</span>' : ''}</label>
             <input type="hidden" data-v65-material value="${esc(row.material_id || '')}">
-            <input class="v65-input v65-material-search" data-v65-material-search value="${esc(materialLabel(mat))}" placeholder="ค้นชื่อ / บาร์โค้ด / หมวดหมู่วัตถุดิบ">
+            <input class="v65-input v65-material-search" data-v65-material-search value="${stoneLocked ? 'ช่องหิน — เลือก หิน 1 / หิน 3/4 ตอนขาย' : esc(materialLabel(mat))}" placeholder="ค้นชื่อ / บาร์โค้ด / หมวดหมู่วัตถุดิบ" ${stoneLocked ? 'readonly' : ''}>
             <div class="v65-material-suggestions" data-v65-material-suggestions></div>
+            ${stoneLocked ? '<div class="v65-stone-slot-note">ระบบใช้จำนวนด้านขวาเท่าเดิม แล้วตัดสต็อกจากหินที่พนักงานเลือก</div>' : ''}
           </div>
           <div class="v65-field">
             <label>จำนวนที่ใช้</label>
@@ -530,7 +583,7 @@
             <label>หน่วยฐาน</label>
             <input class="v65-input" data-v65-unit value="${esc(mat.unit || row.unit || '')}" readonly>
           </div>
-          <button type="button" class="v65-icon-btn" onclick="this.closest('[data-v65-edit-row]').remove();v65RecipeRecalcModal()">
+          <button type="button" class="v65-icon-btn" data-v65-remove-material onclick="this.closest('[data-v65-edit-row]').remove();v65RecipeRecalcModal()" title="${stoneLocked ? 'ลบช่องหินออกจากสูตร' : 'ลบวัตถุดิบ'}">
             <i class="material-icons-round">close</i>
           </button>
         </div>
@@ -554,8 +607,8 @@
             <div class="v65-form-icon"><i class="material-icons-round">science</i></div>
             <div>
               <div class="v65-form-kicker">BOM RECIPE</div>
-              <div class="v65-form-title">${copyMode ? 'คัดลอกสูตรสินค้า' : (isCreate ? 'สร้างสูตรสินค้าใหม่' : 'แก้ไขสูตรสินค้า')}</div>
-              <div class="v65-form-desc">กำหนดสินค้าที่ขาย ราคา หน่วย หมวด รูปภาพ และวัตถุดิบที่ต้องตัดสต็อกต่อ 1 หน่วยขาย</div>
+              <div class="v65-form-title">${copyMode ? 'คัดลอกสูตรคอนกรีต' : (isCreate ? 'สร้างสูตรคอนกรีตใหม่' : 'แก้ไขสูตรคอนกรีต')}</div>
+              <div class="v65-form-desc">กำหนดราคา ส่วนผสมต่อคิว ความจุรถ และค่าส่วนต่างคิวว่างในสูตรเดียว</div>
             </div>
             <div class="v65-form-pill">ผลิตตามบิล • ไม่แก้สต็อกจากคลัง</div>
           </section>
@@ -595,8 +648,32 @@
             </div>
           </section>
           <section class="v65-edit-summary" id="v65-edit-summary"></section>
+          <section class="v65-concrete-config">
+            <div class="v65-concrete-config-head">
+              <div><i class="material-icons-round">local_shipping</i> แผนเที่ยวส่งและคิวว่าง</div>
+              <span>ใช้ค่านี้เฉพาะสูตรนี้</span>
+            </div>
+            <div class="v65-concrete-config-grid">
+              <div class="v65-field">
+                <label>ความจุรถสูงสุดต่อเที่ยว (คิว)</label>
+                <input class="v65-input" id="v65-truck-capacity" type="number" min="0.1" step="0.1" value="${esc(concrete.truck_capacity_m3 || 4)}">
+              </div>
+              <div class="v65-field">
+                <label>เริ่มคิดเมื่อมีคิวว่างอย่างน้อย</label>
+                <input class="v65-input" id="v65-empty-threshold" type="number" min="0" step="0.1" value="${esc(concrete.empty_threshold_m3 || 0)}">
+              </div>
+              <div class="v65-field">
+                <label>ค่าส่วนต่างต่อคิวที่ว่าง (บาท)</label>
+                <input class="v65-input" id="v65-empty-fee" type="number" min="0" step="1" value="${esc(concrete.empty_fee_per_m3 || 0)}">
+              </div>
+            </div>
+            <label class="v65-toggle-card">
+              <input id="v65-charge-empty" type="checkbox" ${concrete.charge_empty_space ? 'checked' : ''}>
+              <span><b>เปิดคิดค่าคิวว่างในรถ</b><small>คิดเฉพาะออเดอร์ 1–2 คิว จากคิวว่าง × ราคาต่อคิว และเพิ่มเป็นรายการในบิลอัตโนมัติ (ตั้งแต่ 3 คิวขึ้นไปหรือหลายเที่ยวไม่คิด)</small></span>
+            </label>
+          </section>
           <div class="v65-side-note">
-            ระบบจะใช้สินค้านี้เฉพาะหน้าขายและคำนวณจากสูตร วัตถุดิบจะถูกตัดตามจำนวนที่ขายจริง จึงไม่ควรแก้สต็อกสินค้าสูตรจากหน้าคลังสินค้าโดยตรง
+            เมื่อเพิ่ม “หิน 1” หรือ “หิน 3/4” ลงสูตร ระบบจะล็อกเป็นช่องหินอัตโนมัติ พนักงานต้องเลือกชนิดหินตอนขาย จากนั้นระบบจึงตรวจสต็อก ตัดวัตถุดิบ และสร้าง Mix Design ตามกองหินที่เลือกจริง
           </div>
           <section>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -609,7 +686,7 @@
         </div>
       `,
       didOpen: () => {
-        window._v65RecipeEditContext = { products, map, productId: isCreate ? null : productId, sourceProductId: copyMode ? productId : null, isCreate, copyMode, rowHtml };
+        window._v65RecipeEditContext = { products, map, productId: isCreate ? null : productId, sourceProductId: copyMode ? productId : null, isCreate, copyMode, rowHtml, concrete };
         installRecipeImagePaste(product);
         window.v65WireMaterialSearch();
         window.v65RecipeRecalcModal();
@@ -647,7 +724,23 @@
 
       const choose = product => {
         hidden.value = product?.id || '';
-        search.value = materialLabel(product);
+        const stoneLocked = isSelectableStone(product);
+        row.dataset.v65StoneSlot = stoneLocked ? '1' : '0';
+        row.classList.toggle('is-stone-slot', stoneLocked);
+        search.value = stoneLocked ? 'ช่องหิน — เลือก หิน 1 / หิน 3/4 ตอนขาย' : materialLabel(product);
+        search.readOnly = stoneLocked;
+        const remove = row.querySelector('[data-v65-remove-material]');
+        if (remove) {
+          remove.disabled = false;
+          remove.title = stoneLocked ? 'ลบช่องหินออกจากสูตร' : 'ลบวัตถุดิบ';
+        }
+        const label = row.querySelector('.v65-field>label');
+        if (label && stoneLocked && !label.querySelector('.v65-stone-lock-label')) {
+          label.insertAdjacentHTML('beforeend', '<span class="v65-stone-lock-label"><i class="material-icons-round" style="font-size:11px">lock</i> ล็อกช่องหิน</span>');
+        }
+        if (stoneLocked && !row.querySelector('.v65-stone-slot-note')) {
+          box.insertAdjacentHTML('afterend', '<div class="v65-stone-slot-note">ระบบใช้จำนวนด้านขวาเท่าเดิม แล้วตัดสต็อกจากหินที่พนักงานเลือก</div>');
+        }
         if (unit) unit.value = product?.unit || '';
         box.classList.remove('open');
         box.innerHTML = '';
@@ -655,6 +748,11 @@
       };
 
       const render = () => {
+        if (row.dataset.v65StoneSlot === '1') {
+          box.classList.remove('open');
+          box.innerHTML = '';
+          return;
+        }
         const selectedIds = Array.from(document.querySelectorAll('[data-v65-material]'))
           .map(input => String(input.value || ''))
           .filter(id => id && id !== String(hidden.value || ''));
@@ -696,9 +794,15 @@
     const ctx = window._v65RecipeEditContext || {};
     const name = document.getElementById('v65-prod-name')?.value?.trim();
     const price = num(document.getElementById('v65-prod-price')?.value);
-    const unit = document.getElementById('v65-prod-unit')?.value?.trim() || '\u0e0a\u0e34\u0e49\u0e19';
+    const unit = document.getElementById('v65-prod-unit')?.value?.trim() || '\u0e04\u0e34\u0e27';
     const category = document.getElementById('v65-prod-category')?.value?.trim() || '';
     const imgUrl = document.getElementById('v65-prod-img')?.value?.trim() || '';
+    const concrete = {
+      truck_capacity_m3: Math.max(0.001, num(document.getElementById('v65-truck-capacity')?.value || 4)),
+      charge_empty_space: document.getElementById('v65-charge-empty')?.checked === true,
+      empty_threshold_m3: Math.max(0, num(document.getElementById('v65-empty-threshold')?.value || 0)),
+      empty_fee_per_m3: Math.max(0, num(document.getElementById('v65-empty-fee')?.value || 0)),
+    };
     const rows = Array.from(document.querySelectorAll('[data-v65-edit-row]')).map(row => ({
       material_id: row.querySelector('[data-v65-material]')?.value,
       quantity: num(row.querySelector('[data-v65-qty]')?.value),
@@ -720,7 +824,16 @@
       Swal.showValidationMessage('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');
       return false;
     }
-    return { productId, name, price, unit, category, imgUrl, rows, copyMode: !!ctx.copyMode };
+    const stoneRows = rows.filter(row => isSelectableStone((ctx.map || {})[row.material_id]));
+    if (stoneRows.length > 1) {
+      Swal.showValidationMessage('สูตรใช้ช่องหินเพียง 1 รายการ ระบบจะให้พนักงานเลือก หิน 1 หรือ หิน 3/4 ตอนขาย');
+      return false;
+    }
+    if (concrete.charge_empty_space && concrete.empty_fee_per_m3 <= 0) {
+      Swal.showValidationMessage('เปิดคิดค่าคิวว่างแล้ว กรุณาระบุราคาต่อคิวให้มากกว่า 0');
+      return false;
+    }
+    return { productId, name, price, unit, category, imgUrl, rows, concrete, copyMode: !!ctx.copyMode };
   }
 
   window.v65RecipeRecalcModal = function () {
@@ -730,7 +843,9 @@
     const rows = Array.from(document.querySelectorAll('[data-v65-edit-row]')).map(row => {
       const mat = ctx.map[row.querySelector('[data-v65-material]')?.value] || {};
       const qty = num(row.querySelector('[data-v65-qty]')?.value);
-      const canMake = qty > 0 ? num(mat.stock) / qty : 0;
+      const stoneOptions = isSelectableStone(mat) ? Object.values(ctx.map).filter(isSelectableStone) : [];
+      const availableStock = stoneOptions.length ? Math.max(...stoneOptions.map(option => num(option.stock))) : num(mat.stock);
+      const canMake = qty > 0 ? availableStock / qty : 0;
       return { mat, qty, cost: qty * num(mat.cost), canMake };
     });
     const cost = rows.reduce((sum, row) => sum + row.cost, 0);
@@ -741,7 +856,7 @@
     const unit = document.getElementById('v65-prod-unit')?.value || '';
     summary.innerHTML = `
       <div class="v65-box"><span>ต้นทุนสูตร</span><b>${baht(cost)}</b></div>
-      <div class="v65-box ${profit >= 0 ? 'good' : 'bad'}"><span>กำไรต่อหน่วย</span><b>${baht(profit)}</b></div>
+      <div class="v65-box ${profit >= 0 ? 'good' : 'bad'}"><span>กำไรต่อคิว</span><b>${baht(profit)}</b></div>
       <div class="v65-box"><span>กำไร</span><b>${fmt(margin)}%</b></div>
       <div class="v65-box good"><span>ผลิตได้จากสต็อก</span><b>${fmtWhole(capacity)} ${esc(unit)}</b></div>
     `;
@@ -800,10 +915,17 @@
         });
         if (error) throw new Error(error.message);
       }
+      let concreteSavedRemote = true;
+      if (typeof window.v103SaveConcreteConfig === 'function') {
+        const saved = await window.v103SaveConcreteConfig(productId, value.concrete || {});
+        concreteSavedRemote = saved?.remote !== false;
+      }
       if (typeof loadProducts === 'function') await loadProducts();
       if (typeof window.v66ReloadRecipes === 'function') await window.v66ReloadRecipes();
       try { if (typeof products !== 'undefined') window._v9ProductsCache = products; } catch (_) {}
-      typeof toast === 'function' && toast('บันทึกสูตรสำเร็จ', 'success');
+      typeof toast === 'function' && toast(concreteSavedRemote
+        ? 'บันทึกสูตรคอนกรีตและแผนรถสำเร็จ'
+        : 'บันทึกสูตรแล้ว • ค่ารถถูกเก็บในเครื่องนี้จนกว่าจะรัน migration', concreteSavedRemote ? 'success' : 'warning');
       await refreshRecipePage();
     } catch (error) {
       typeof toast === 'function' && toast('บันทึกสูตรไม่สำเร็จ: ' + error.message, 'error');
@@ -853,6 +975,7 @@
     try {
       const { error: recipeError } = await db.from(RECIPE_TABLE).delete().eq('product_id', productId);
       if (recipeError) throw new Error(recipeError.message);
+      try { await window.v103DeleteConcreteConfig?.(productId); } catch (_) {}
       const { error: productError } = await db.from(PRODUCT_TABLE).delete().eq('id', productId);
       if (productError) throw new Error(productError.message);
       try { window.__v62ClearRecipeCache?.(); } catch (_) {}

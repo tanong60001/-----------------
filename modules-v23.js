@@ -102,6 +102,12 @@ function _v23SnapshotCart() {
         id: item.id, name: item.name, price: item.price,
         cost: item.cost || 0, qty: item.qty,
         unit: item.unit || 'ชิ้น', stock: item.stock,
+        conv_rate: item.conv_rate || 1,
+        recipe_product: item.recipe_product === true,
+        __v66_recipe_sale: item.__v66_recipe_sale === true,
+        __v103_concrete_sale: item.__v103_concrete_sale === true,
+        concrete_stone_choice: item.concrete_stone_choice ? { ...item.concrete_stone_choice } : null,
+        concrete_request_mix_design: item.concrete_request_mix_design === true,
       }));
       console.log('[v23] ✅ Cart snapshot:', window._v23CartSnapshot.length, 'items');
       return;
@@ -307,6 +313,12 @@ function _v23IsMto(product) {
   return type === 'ตามบิล' || type.includes('ตามบิล') || type.includes('make to order') || type.includes('mto');
 }
 
+function _v23SelectableStone(product) {
+  const name = String(product?.name || '').trim().toLowerCase();
+  if (!name.includes('หิน')) return false;
+  return /3\s*\/\s*4|¾|สามส่วนสี่|หิน\s*(?:เบอร์\s*)?(?:1|๑)(?:\D|$)/.test(name);
+}
+
 async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
   const plan = { byIndex: new Map(), deductions: new Map(), errors: [] };
   if (!cartArr?.length) return plan;
@@ -355,7 +367,8 @@ async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
     }
 
     const modes = (itemModes || {})[item.id] || { take: item.qty, deliver: 0 };
-    const takeQty = Number(modes.take || 0);
+    // คอนกรีตผลิตตามจำนวนทั้งบิล แม้ระบบจะจัดรายการเป็น "รอจัดส่ง"
+    const takeQty = item?.__v103_concrete_sale ? Number(item.qty || 0) : Number(modes.take || 0);
     const sellUnit = item.unit || recipeProduct.unit || cartProduct.unit || 'ชิ้น';
     const baseQty = _v23BaseQty(takeQty, sellUnit, item.id, um, bm);
     const oneBaseQty = _v23BaseQty(1, sellUnit, item.id, um, bm);
@@ -363,7 +376,11 @@ async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
     const lines = [];
 
     recipeRowsForProduct.forEach(recipe => {
-      const material = productsById.get(String(recipe.material_id));
+      const originalMaterial = productsById.get(String(recipe.material_id));
+      const selectedStoneId = item?.concrete_stone_choice?.material_id || '';
+      const material = selectedStoneId && _v23SelectableStone(originalMaterial)
+        ? productsById.get(String(selectedStoneId))
+        : originalMaterial;
       const recipeQty = Number(recipe.quantity || 0);
       if (!material || recipeQty <= 0) {
         plan.errors.push(`${item.name || recipeProduct.name}: สูตรมีวัตถุดิบไม่ครบ`);
@@ -372,7 +389,7 @@ async function _v23BuildRecipePlan(cartArr, itemModes, um, bm) {
       const needed = Number((recipeQty * baseQty).toFixed(6));
       const unitCost = Number(material.cost || 0);
       costPerUnit += recipeQty * oneBaseQty * unitCost;
-      lines.push({ recipe, material, needed });
+      lines.push({ recipe: material === originalMaterial ? recipe : { ...recipe, material_id: material.id }, material, needed });
       if (needed > 0) addDeduction(material, needed, `${item.name || recipeProduct.name} x ${takeQty} ${sellUnit}`);
     });
 

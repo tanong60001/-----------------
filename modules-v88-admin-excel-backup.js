@@ -17,6 +17,7 @@
     { key: 'projectExpenses', table: 'รายจ่ายโครงการ', sheet: 'รายจ่ายโครงการ', dateField: 'created_at', kind: 'time' },
     { key: 'milestones', table: 'งวดงาน', sheet: 'งวดงาน', dateField: 'billed_at', kind: 'time' },
     { key: 'logs', table: 'log_กิจกรรม', sheet: 'บันทึกกิจกรรม', dateField: 'time', kind: 'time' },
+    { key: 'concretePlans', table: 'concrete_delivery_plans', sheet: 'แผนส่งคอนกรีต', dateField: 'created_at', kind: 'time' },
   ];
   const SNAPSHOT_SPECS = [
     { key: 'products', table: 'สินค้า', sheet: 'สินค้า' },
@@ -31,6 +32,7 @@
     { key: 'users', table: 'ผู้ใช้งาน', sheet: 'ผู้ใช้งาน' },
     { key: 'permissions', table: 'สิทธิ์การเข้าถึง', sheet: 'สิทธิ์เข้าถึง' },
     { key: 'shop', table: 'ตั้งค่าร้านค้า', sheet: 'ตั้งค่าร้าน' },
+    { key: 'concreteRecipeSettings', table: 'concrete_recipe_settings', sheet: 'ค่าสูตรคอนกรีต' },
   ];
   const LINKED_SPECS = [
     { key: 'saleItems', table: 'รายการในบิล', sheet: 'รายการบิลขาย', parentKey: 'sales', idKey: 'bill_id' },

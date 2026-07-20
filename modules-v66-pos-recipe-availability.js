@@ -232,6 +232,47 @@
     return state.recipeMap.get(String(productId)) || [];
   }
 
+  function stoneVariant(product) {
+    const name = String(product?.name || '').trim().toLowerCase();
+    if (!name.includes('หิน')) return '';
+    if (/3\s*\/\s*4|¾|สามส่วนสี่/.test(name)) return 'stone_3_4';
+    if (/หิน\s*(?:เบอร์\s*)?(?:1|๑)(?:\D|$)/.test(name)) return 'stone_1';
+    return '';
+  }
+
+  function isSelectableStone(product) {
+    return !!stoneVariant(product);
+  }
+
+  function stoneOptionsForRecipe(productId) {
+    const map = productMap();
+    const hasStoneSlot = recipeRows(productId).some(row => isSelectableStone(map.get(String(row.material_id))));
+    if (!hasStoneSlot) return [];
+    const best = new Map();
+    productsList().forEach(product => {
+      const variant = stoneVariant(product);
+      if (!variant) return;
+      const current = best.get(variant);
+      if (!current || num(product.stock) > num(current.stock)) best.set(variant, product);
+    });
+    return ['stone_1', 'stone_3_4'].map(variant => best.get(variant)).filter(Boolean);
+  }
+
+  function recipeCapacityWithStone(productId, stoneMaterialId = '') {
+    const rows = recipeRows(productId);
+    if (!rows.length) return null;
+    const map = productMap();
+    const selectedStone = stoneMaterialId ? map.get(String(stoneMaterialId)) : null;
+    let capacity = Infinity;
+    rows.forEach(row => {
+      const original = map.get(String(row.material_id)) || {};
+      const material = selectedStone && isSelectableStone(original) ? selectedStone : original;
+      const qty = num(row.quantity);
+      if (qty > 0) capacity = Math.min(capacity, num(material.stock) / qty);
+    });
+    return Number.isFinite(capacity) ? Math.max(0, capacity) : 0;
+  }
+
   function hasRecipe(productId) {
     return recipeRows(productId).length > 0;
   }
@@ -257,17 +298,13 @@
     }, 0);
   }
 
-  function recipeCapacity(productId) {
-    const rows = recipeRows(productId);
-    if (!rows.length) return null;
-    const map = productMap();
-    let capacity = Infinity;
-    rows.forEach(row => {
-      const material = map.get(String(row.material_id)) || {};
-      const qty = num(row.quantity);
-      if (qty > 0) capacity = Math.min(capacity, num(material.stock) / qty);
-    });
-    return Number.isFinite(capacity) ? Math.max(0, capacity) : 0;
+  function recipeCapacity(productId, stoneMaterialId = '') {
+    if (stoneMaterialId) return recipeCapacityWithStone(productId, stoneMaterialId);
+    const options = stoneOptionsForRecipe(productId);
+    if (options.length) {
+      return Math.max(...options.map(option => recipeCapacityWithStone(productId, option.id) || 0));
+    }
+    return recipeCapacityWithStone(productId, '');
   }
 
   function reservedRecipeBaseQty(productId) {
@@ -383,6 +420,14 @@
     </div>`;
   }
 
+  function recipePriceHtml(product, compact = false) {
+    if (!hasRecipe(product.id)) return '';
+    const unit = esc(product.unit || 'คิว');
+    return `<div class="v66-recipe-price ${compact ? 'compact' : ''}">
+      <span>ราคาขาย</span><b>${money(product.price)}<small>/${unit}</small></b>
+    </div>`;
+  }
+
   function productIdFromCard(card) {
     const dataId = card?.dataset?.v66ProductId;
     if (dataId) return dataId;
@@ -442,6 +487,20 @@
       if (value && value.textContent !== nextValue) value.textContent = nextValue;
     }
 
+    let price = card.querySelector('.v66-recipe-price');
+    if (!price && cap) {
+      const compact = card.classList.contains('product-list-item');
+      cap.insertAdjacentHTML('beforebegin', recipePriceHtml(recipeProduct, compact));
+      price = card.querySelector('.v66-recipe-price');
+    }
+    if (price) {
+      const label = price.querySelector('span');
+      const value = price.querySelector('b');
+      const unitLabel = recipeProduct.unit || 'คิว';
+      if (label) label.textContent = 'ราคาขาย';
+      if (value) value.innerHTML = `${money(recipeProduct.price)}<small>/${esc(unitLabel)}</small>`;
+    }
+
     const inCart = cartItemFor(recipeProduct.id);
     const badgeHost = card.querySelector('.product-img') || card.querySelector('.product-list-right') || card;
     let qtyBadge = card.querySelector('.product-badge');
@@ -454,6 +513,11 @@
       if (inCart) qtyBadge.textContent = fmt(inCart.qty);
       else qtyBadge.remove();
     }
+
+    // การ์ดสูตรใช้ราคาแดงด้านล่างเพียงจุดเดียว ไม่ให้ footer/ป้ายกำลังผลิตเดิมซ้อนทับ
+    card.querySelector('.product-footer')?.remove();
+    card.querySelector('.v66-recipe-capacity')?.remove();
+    card.querySelector('.product-sku')?.remove();
   }
 
   function decorateMaterialPlaceholderCard(card) {
@@ -509,6 +573,8 @@
     const badge = recipe ? '<span class="v66-recipe-badge">ขายตามสูตร</span>' : '';
     const stockStyle = recipe && !out ? 'style="color:#047857"' : '';
     const sku = recipe ? `สูตร • ต้นทุน ${money(recipeCost(product.id))}` : esc(product.barcode || '-');
+    const price = recipePriceHtml(product);
+    const listPrice = recipePriceHtml(product, true);
     const capacity = recipeCapacityHtml(product);
     const listCapacity = recipeCapacityHtml(product, true);
     const attrs = `data-v66-product-id="${esc(product.id)}" data-v66-recipe="${recipe ? '1' : '0'}"`;
@@ -524,7 +590,7 @@
         <div class="product-list-info">
           <div class="product-name">${esc(product.name)}</div>
           <div class="product-sku">${sku}</div>
-          ${listCapacity}
+          ${listPrice}${listCapacity}
         </div>
         <div class="product-list-right">
           <span class="product-price">${money(product.price)}</span>
@@ -540,7 +606,7 @@
       <div class="product-info">
         <div class="product-name">${esc(product.name)}</div>
         <div class="product-sku">${sku}</div>
-        ${capacity}
+        ${price}${capacity}
         <div class="product-footer">
           <span class="product-price">${money(product.price)}</span>
           <span class="product-stock ${low ? 'low' : ''} ${out ? 'out' : ''}" ${stockStyle}>${esc(stockText(product))}</span>
@@ -615,16 +681,10 @@
       .sort((a, b) => unitConv(a) - unitConv(b));
   }
 
-  function addRecipeLine(product, unit, qty = 1) {
+  function addRecipeLine(product, unit, qty = 1, metadata = {}) {
     const normalizedUnit = normalizeSellUnit(unit || {});
     const conv = Math.max(0.000001, unitConv(normalizedUnit));
     const neededBase = num(qty) * conv;
-    const remaining = remainingRecipeBaseQty(product.id);
-    if (remaining === null || neededBase > remaining + 0.000001) {
-      typeof toast === 'function' && toast('วัตถุดิบในสูตรไม่พอ', 'error');
-      return false;
-    }
-
     const list = cartList();
     const unitName = normalizedUnit.unit_name || product.unit || 'หน่วย';
     const price = unitPrice(normalizedUnit) || num(product.price);
@@ -633,11 +693,24 @@
       String(item.id) === String(product.id) &&
       String(item.unit_name || item.unit) === String(unitName)
     );
+    const selectedStoneId = metadata?.concrete_stone_choice?.material_id
+      || existing?.concrete_stone_choice?.material_id
+      || '';
+    const capacity = recipeCapacity(product.id, selectedStoneId);
+    const existingBase = existing ? num(existing.qty) * Math.max(0.000001, num(existing.conv_rate || conv)) : 0;
+    const reservedByOtherLines = Math.max(0, reservedRecipeBaseQty(product.id) - existingBase);
+    const availableForLine = capacity === null ? null : Math.max(0, capacity - reservedByOtherLines);
+    if (availableForLine === null || neededBase > availableForLine + 0.000001) {
+      const stoneName = metadata?.concrete_stone_choice?.material_name || existing?.concrete_stone_choice?.material_name || '';
+      typeof toast === 'function' && toast(stoneName ? `${stoneName} หรือวัตถุดิบอื่นในสูตรไม่พอ` : 'วัตถุดิบในสูตรไม่พอ', 'error');
+      return false;
+    }
 
     if (existing) {
-      existing.qty = num(existing.qty) + num(qty);
+      existing.qty = metadata.replaceQty ? num(qty) : num(existing.qty) + num(qty);
+      Object.assign(existing, metadata);
     } else {
-      list.push({
+      const created = {
         ...product,
         qty: num(qty),
         price,
@@ -646,15 +719,19 @@
         unit: unitName,
         unit_label: unitName,
         conv_rate: conv,
-        stock: Math.max(1, Math.floor((remaining || 0) / conv)),
+        stock: Math.max(1, Math.floor((availableForLine || 0) / conv)),
         is_mto: true,
         recipe_product: true,
         recipe_sale: true,
         __v66_recipe_sale: true,
         recipe_product_id: product.id,
         recipe_capacity: recipeCapacity(product.id),
-      });
+        ...metadata,
+      };
+      list.push(created);
     }
+    const concreteLine = existing || list[list.length - 1];
+    try { window.v103SyncConcreteCart?.(list, concreteLine); } catch (error) { console.warn('[v66] sync concrete cart', error); }
     setCart(list);
     window.renderCart?.();
     setTimeout(enhanceCartControls, 0);
@@ -697,15 +774,49 @@
     syncRecipeFields();
     if (!hasRecipe(product.id)) {
       if (isMadeToOrderType(product)) {
-        typeof toast === 'function' && toast('สินค้าตามบิลยังไม่มีสูตรสินค้า กรุณาสร้างสูตรก่อนขาย', 'error');
+        typeof toast === 'function' && toast('สินค้าตามบิลยังไม่มีสูตรคอนกรีต กรุณาสร้างสูตรก่อนขาย', 'error');
         return;
       }
       return addNormalProductLine(product);
     }
 
-    if (remainingRecipeBaseQty(product.id) <= 0) {
+    const currentConcreteLine = cartList().find(item => item?.recipe_product && String(item.id) === String(product.id) && !item.is_extra_charge);
+    if (remainingRecipeBaseQty(product.id) <= 0 && !currentConcreteLine) {
       typeof toast === 'function' && toast('วัตถุดิบในสูตรไม่พอ', 'error');
       return;
+    }
+
+    if (typeof window.v103PromptConcreteSale === 'function') {
+      const current = currentConcreteLine;
+      const currentQty = num(current?.qty || 0);
+      const currentBase = currentQty * Math.max(0.000001, num(current?.conv_rate || 1));
+      const reservedOther = Math.max(0, reservedRecipeBaseQty(product.id) - currentBase);
+      const stoneOptions = stoneOptionsForRecipe(product.id).map(option => ({
+        material_id: option.id,
+        material_name: option.name,
+        variant: stoneVariant(option),
+        stock: num(option.stock),
+        unit: option.unit || '',
+        max_quantity_m3: Math.max(0, num(recipeCapacityWithStone(product.id, option.id)) - reservedOther),
+      }));
+      const availableBase = stoneOptions.length
+        ? Math.max(...stoneOptions.map(option => num(option.max_quantity_m3)))
+        : Math.max(0, num(remainingRecipeBaseQty(product.id)) + currentBase);
+      const selection = await window.v103PromptConcreteSale(product, {
+        currentQty,
+        currentRequestMixDesign: current?.concrete_request_mix_design === true,
+        currentStoneChoice: current?.concrete_stone_choice || null,
+        stoneOptions,
+        maxQty: availableBase,
+        unit: product.unit || 'คิว',
+        price: product.price,
+      });
+      if (!selection) return;
+      return addRecipeLine(product, {
+        unit_name: product.unit || 'คิว',
+        conversion_rate: 1,
+        price: product.price,
+      }, selection.qty, selection);
     }
 
     const units = await getSellUnits(product);
@@ -793,6 +904,7 @@
     if (nextQty === 0) {
       const next = list.slice();
       next.splice(itemIndex, 1);
+      try { window.v103SyncConcreteCart?.(next, null, item.id); } catch (_) {}
       setCart(next);
       window.renderCart?.();
       setTimeout(enhanceCartControls, 0);
@@ -801,13 +913,16 @@
       return;
     }
     const needed = nextQty * Math.max(0.000001, num(item.conv_rate || 1));
-    const capacity = recipeCapacity(item.id);
+    const capacity = recipeCapacity(item.id, item?.concrete_stone_choice?.material_id || '');
     const otherReserved = reservedRecipeBaseQty(item.id) - num(item.qty) * Math.max(0.000001, num(item.conv_rate || 1));
     if (capacity !== null && needed + otherReserved > capacity + 0.000001) {
-      typeof toast === 'function' && toast('วัตถุดิบในสูตรไม่พอ', 'error');
+      const stoneName = item?.concrete_stone_choice?.material_name || '';
+      typeof toast === 'function' && toast(stoneName ? `${stoneName} หรือวัตถุดิบอื่นในสูตรไม่พอ` : 'วัตถุดิบในสูตรไม่พอ', 'error');
       return;
     }
     item.qty = nextQty;
+    try { window.v103SyncConcreteCart?.(list, item); } catch (error) { console.warn('[v66] recalc concrete cart', error); }
+    setCart(list);
     window.renderCart?.();
     setTimeout(enhanceCartControls, 0);
     window.renderProductGrid?.();
@@ -980,8 +1095,18 @@
       btn.onclick = showExtraChargeModal;
       clearBtn?.parentNode ? clearBtn.parentNode.insertBefore(btn, clearBtn) : titleRow.appendChild(btn);
     }
-    document.querySelectorAll('.cart-item').forEach(row => {
+    document.querySelectorAll('.cart-item').forEach((row, index) => {
       if (row.textContent?.includes('รายการ')) row.classList.add('v66-extra-line');
+      const item = cartList()[index];
+      const stoneName = item?.concrete_stone_choice?.material_name || '';
+      row.querySelector('[data-v66-stone-badge]')?.remove();
+      if (stoneName) {
+        const badge = document.createElement('span');
+        badge.dataset.v66StoneBadge = '1';
+        badge.className = 'v66-stone-cart-badge';
+        badge.innerHTML = `<i class="material-icons-round">landscape</i> ใช้ ${esc(stoneName)}`;
+        (row.querySelector('.cart-item-info,.cart-item-name,.item-name') || row).appendChild(badge);
+      }
     });
   }
 
@@ -1186,11 +1311,36 @@
       .filter(item => item.discount_total > 0);
     const state = checkout();
     const promoDiscount = num(state.promo_discount ?? itemDiscounts.reduce((sum, item) => sum + item.discount_total, 0));
+    const concreteItems = (items || []).filter(item => item?.__v103_concrete_sale && !item.is_extra_charge);
+    const concretePlans = concreteItems.flatMap(item => (item.concrete_delivery_plans || []).map(plan => ({
+      ...plan,
+      product_id: item.id,
+      product_name: item.name,
+      request_mix_design: item.concrete_request_mix_design === true,
+    })));
+    const concreteDelivery = concreteItems.length ? {
+      version: 1,
+      created_at: new Date().toISOString(),
+      total_quantity_m3: Number(concreteItems.reduce((sum, item) => sum + num(item.qty), 0).toFixed(3)),
+      total_trips: concretePlans.length,
+      total_surcharge: Number(concretePlans.reduce((sum, plan) => sum + num(plan.surcharge), 0).toFixed(2)),
+      mix_design_requested: concreteItems.some(item => item.concrete_request_mix_design === true),
+      items: concreteItems.map(item => ({
+        product_id: item.id,
+        product_name: item.name,
+        quantity_m3: Number(num(item.qty).toFixed(3)),
+        request_mix_design: item.concrete_request_mix_design === true,
+        stone_choice: item.concrete_stone_choice || null,
+        config: item.concrete_config || null,
+      })),
+      plans: concretePlans,
+    } : null;
     return {
       ...(state.return_info && typeof state.return_info === 'object' ? state.return_info : {}),
       item_discounts: itemDiscounts,
       promo_discount: Number(promoDiscount.toFixed(2)),
       manual_discount: Number(currentBillDiscount().toFixed(2)),
+      ...(concreteDelivery ? { concrete_delivery: concreteDelivery } : {}),
     };
   }
 
@@ -1261,6 +1411,9 @@
     recipeMapForSale.forEach(rows => rows.forEach(row => {
       if (row.material_id) materialIds.push(row.material_id);
     }));
+    sellItems.forEach(item => {
+      if (item?.concrete_stone_choice?.material_id) materialIds.push(item.concrete_stone_choice.material_id);
+    });
     const materialMap = await fetchProductsByIds(materialIds);
     materialMap.forEach((value, key) => stockMap.set(key, value));
 
@@ -1295,17 +1448,21 @@
 
       if (requiresRecipe) {
         if (!positiveRows.length) {
-          errors.push(`${item.name || fresh.name || item.id}: ยังไม่มีสูตรสินค้าสำหรับตัดวัตถุดิบ`);
+          errors.push(`${item.name || fresh.name || item.id}: ยังไม่มีสูตรคอนกรีตสำหรับตัดวัตถุดิบ`);
           return;
         }
 
         let costPerSellUnit = 0;
         positiveRows.forEach(row => {
-          const material = stockMap.get(String(row.material_id));
+          const originalMaterial = stockMap.get(String(row.material_id));
+          const selectedStoneId = item?.concrete_stone_choice?.material_id || '';
+          const material = selectedStoneId && isSelectableStone(originalMaterial)
+            ? stockMap.get(String(selectedStoneId))
+            : originalMaterial;
           const perBase = num(row.quantity);
           const needed = Number((perBase * baseQty).toFixed(6));
           if (!material) {
-            errors.push(`${item.name}: ไม่พบวัตถุดิบ ${row.material_id}`);
+            errors.push(`${item.name}: ไม่พบวัตถุดิบ ${selectedStoneId || row.material_id}`);
             return;
           }
           costPerSellUnit += perBase * num(material.cost) * conv;
@@ -1327,6 +1484,7 @@
           cost: Number(costPerSellUnit.toFixed(6)),
           total: Number((num(item.price) * qty).toFixed(2)),
           unit: sellUnit,
+          ...(item.__v103_concrete_sale ? { take_qty: 0, deliver_qty: qty } : {}),
         });
         return;
       }
@@ -1392,6 +1550,16 @@
 
   async function insertSaleBill(info) {
     const state = checkout();
+    let deliveryState = {};
+    try { deliveryState = typeof v12State !== 'undefined' ? (v12State || {}) : {}; } catch (_) { deliveryState = {}; }
+    const hasConcreteDelivery = !!info?.concrete_delivery?.plans?.length;
+    let deliveryModeKey = state.deliveryMode || deliveryState.deliveryMode || 'self';
+    if (hasConcreteDelivery && deliveryModeKey === 'self') deliveryModeKey = 'deliver';
+    const deliveryModeMap = { self: 'รับเอง', deliver: 'จัดส่ง', partial: 'รับบางส่วน' };
+    const localToday = (() => {
+      const now = new Date();
+      return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    })();
     const payload = {
       date: new Date().toISOString(),
       method: methodTH[state.method] || 'เงินสด',
@@ -1401,8 +1569,11 @@
       change: num(state.change),
       customer_name: state.customer?.name || null,
       customer_id: state.customer?.id || null,
-      delivery_address: state.customer?.address || null,
-      delivery_phone: state.customer?.phone || null,
+      delivery_mode: deliveryModeMap[deliveryModeKey] || deliveryModeKey || 'รับเอง',
+      delivery_date: state.deliveryDate || deliveryState.deliveryDate || (hasConcreteDelivery ? localToday : null),
+      delivery_address: state.deliveryAddress || deliveryState.deliveryAddress || state.customer?.address || null,
+      delivery_phone: state.deliveryPhone || deliveryState.deliveryPhone || state.customer?.phone || null,
+      delivery_status: deliveryModeKey !== 'self' ? 'รอจัดส่ง' : 'สำเร็จ',
       staff_name: staffName(),
       status: state.method === 'debt' ? 'ค้างชำระ' : 'สำเร็จ',
     };
@@ -1498,6 +1669,7 @@
       bill = await insertSaleBill(info);
       const billRows = plan.billItems.map(item => ({ ...item, bill_id: bill.id }));
       if (billRows.length) await dbData(db.from('รายการในบิล').insert(billRows), 'บันทึกรายการในบิล');
+      try { await window.v103PersistConcretePlans?.({ ...bill, return_info: info }, snapshot); } catch (error) { console.warn('[v66] persist concrete plans', error); }
       for (const row of plan.deductions) {
         await applyStockDeduction(row, bill);
       }
@@ -1619,6 +1791,7 @@
       .product-card[data-v66-recipe="1"]:not(.out-of-stock){border-color:#dbeafe;box-shadow:0 8px 20px rgba(15,23,42,.05);background:#fff}
       .product-list-item[data-v66-recipe="1"]:not(.out-of-stock){border-color:#dbeafe;background:#fff}
       .product-card[data-v66-recipe="1"] .product-sku{color:#94a3b8;font-weight:750;font-size:11px}
+      /* ราคาในสูตรใช้หน้าตาเดียวกับการ์ดสินค้าปกติ */.product-card[data-v66-recipe="1"] .v66-recipe-price{margin-top:auto;padding:0;border:0;background:transparent;display:flex;align-items:baseline;gap:3px}.product-card[data-v66-recipe="1"] .v66-recipe-price span{display:none}.product-card[data-v66-recipe="1"] .v66-recipe-price b{font-size:16px!important;line-height:1;color:var(--primary,#dc2626);font-weight:800;white-space:nowrap}.product-card[data-v66-recipe="1"] .v66-recipe-price b small{font-size:10px;margin-left:3px;color:#94a3b8;font-weight:800}.product-card[data-v66-recipe="1"] .v66-recipe-capacity,.product-card[data-v66-recipe="1"] .product-footer{display:none!important}.product-list-item[data-v66-recipe="1"] .v66-recipe-price{display:none}.product-list-item[data-v66-recipe="1"] .v66-recipe-capacity{display:none}
       .v66-recipe-capacity{margin:7px 0 6px;border:1px solid #dbeafe;background:#f8fafc;border-radius:10px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:none}
       .v66-recipe-capacity span{font-size:10px;line-height:1;color:#64748b;font-weight:900;letter-spacing:0;text-transform:none}
       .v66-recipe-capacity b{font-size:14px;line-height:1.1;color:#0f766e;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1633,6 +1806,7 @@
       .product-card[data-v66-recipe="1"] .product-stock:not(.out),.product-list-item[data-v66-recipe="1"] .product-stock:not(.out){display:inline-flex;align-items:center;border:1px solid #86efac;background:#f0fdf4;color:#047857!important;border-radius:999px;padding:3px 8px;font-weight:950}
       .product-card[data-v66-recipe="1"].out-of-stock .product-stock,.product-list-item[data-v66-recipe="1"].out-of-stock .product-stock{display:inline-flex;align-items:center;border:1px solid #fecaca;background:#fff1f2;color:#b91c1c!important;border-radius:999px;padding:3px 8px;font-weight:950}
       .v66-extra-btn{width:38px;height:38px;border:0;border-radius:12px;background:#fff;color:#dc2626;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+      .v66-stone-cart-badge{width:max-content;margin-top:5px;display:flex;align-items:center;gap:4px;border:1px solid #fdba74;background:#fff7ed;color:#c2410c;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:950}.v66-stone-cart-badge i{font-size:13px}
       .v66-extra-btn:hover{background:#fff1f2}
       .v66-extra-modal{display:grid;gap:16px;text-align:left}
       .v66-extra-hero{border:1px solid #fecaca;background:linear-gradient(135deg,#fff1f2,#f8fafc);border-radius:18px;padding:18px;display:flex;gap:14px;align-items:center}
@@ -1716,6 +1890,14 @@
       const id = recipeProductIdFor(productId);
       return id ? remainingRecipeBaseQty(id) : 0;
     });
+    setGlobal('v66ConcreteStoneOptions', productId => stoneOptionsForRecipe(productId).map(option => ({
+      material_id: option.id,
+      material_name: option.name,
+      variant: stoneVariant(option),
+      stock: num(option.stock),
+      unit: option.unit || '',
+      max_quantity_m3: recipeCapacityWithStone(productId, option.id),
+    })));
     setGlobal('v66RecipeStockText', productId => {
       const product = recipeProductFor(productId) || productById(productId);
       if (!product) return '';

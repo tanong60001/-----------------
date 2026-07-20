@@ -653,10 +653,20 @@
     const search = (document.getElementById('history-search')?.value || '').toLowerCase();
     let query = db.from(BILL_TABLE).select('*').order('date', { ascending: false });
     if (search) query = query.range(0, 4999);
-    else query = query.gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59');
+    else {
+      const [year, month, day] = String(date).split('-').map(Number);
+      const localStart = new Date(year, Math.max(0, month - 1), day, 0, 0, 0, 0);
+      const localEnd = new Date(year, Math.max(0, month - 1), day + 1, 0, 0, 0, 0);
+      query = query.gte('date', localStart.toISOString()).lt('date', localEnd.toISOString());
+    }
     const { data, error } = await query;
     if (error) throw error;
-    const scoped = search ? (data || []) : (data || []).filter(b => String(b.date || '').slice(0, 10) === date);
+    const scoped = search ? (data || []) : (data || []).filter(b => {
+      try {
+        if (window.SK_BILL?.localDateKey) return window.SK_BILL.localDateKey(b.date) === date;
+        return appLocalDateKey(new Date(b.date)) === date;
+      } catch (_) { return String(b.date || '').slice(0, 10) === date; }
+    });
     return scoped.filter(b => {
       const hay = `${b.bill_no || ''} ${b.customer_name || ''} ${b.staff_name || ''} ${b.method || ''} ${b.status || ''}`.toLowerCase();
       return !search || hay.includes(search);

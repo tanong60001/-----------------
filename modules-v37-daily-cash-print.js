@@ -527,15 +527,19 @@
 
   const itemProductId = item => item?.product_id || item?.productId || item?.id || '';
   const unitName = value => String(value || '').trim().toLowerCase();
-  const mixDisplayName = value => String(value ?? '').replace(/หิน\s*1(?![0-9/])/g, 'หิน3/4');
+  const mixDisplayName = value => String(value ?? '');
   const isMadeToOrderMix = value => /ตามบิล|make\s*to\s*order|mto/i.test(String(value || ''));
+  const isSelectableStoneMix = product => {
+    const name = String(product?.name || '').trim().toLowerCase();
+    return name.includes('หิน') && /3\s*\/\s*4|¾|สามส่วนสี่|หิน\s*(?:เบอร์\s*)?(?:1|๑)(?:\D|$)/.test(name);
+  };
   const unitConv = unit => {
     const raw = unit?.conv_rate ?? unit?.conversion_rate ?? unit?.rate ?? unit?.base_qty ?? 1;
     const n = money(raw);
     return Number.isFinite(n) && n > 0 ? n : 1;
   };
 
-  async function buildMixRecipePlan(items) {
+  async function buildMixRecipePlan(items, stoneChoices = new Map()) {
     if (typeof db === 'undefined') return [];
     let saleItems = (items || [])
       .map((item, index) => ({ ...item, __mixOriginalIndex: index }))
@@ -581,6 +585,14 @@
       recipeByProduct.get(pid).push(row);
       if (row.material_id) materialIds.push(String(row.material_id));
     });
+    const stoneChoiceFor = productId => {
+      if (stoneChoices instanceof Map) return stoneChoices.get(String(productId)) || null;
+      return stoneChoices?.[String(productId)] || null;
+    };
+    productIds.forEach(productId => {
+      const choice = stoneChoiceFor(productId);
+      if (choice?.material_id) materialIds.push(String(choice.material_id));
+    });
 
     const productMap = new Map();
     try {
@@ -625,7 +637,11 @@
       const lines = rows
         .filter(row => money(row.quantity) > 0 && row.material_id)
         .map(row => {
-          const material = productMap.get(String(row.material_id)) || {};
+          const originalMaterial = productMap.get(String(row.material_id)) || {};
+          const stoneChoice = stoneChoiceFor(pid);
+          const material = stoneChoice?.material_id && isSelectableStoneMix(originalMaterial)
+            ? (productMap.get(String(stoneChoice.material_id)) || originalMaterial)
+            : originalMaterial;
           const perBase = money(row.quantity);
           return {
             name: material.name || row.material_id,
@@ -660,8 +676,14 @@
     </section>`;
   }
 
-  async function enrichItemsWithMixFor80(items) {
-    const plan = await buildMixRecipePlan(items);
+  async function enrichItemsWithMixFor80(items, bill = null) {
+    const delivery = concreteDeliveryV37(bill);
+    // บิลเก่าไม่มีการยืนยันจากลูกค้า จึงต้องไม่พิมพ์ Mix Design อัตโนมัติ
+    if (!delivery || delivery.mix_design_requested !== true) return items || [];
+    const stoneChoices = new Map((delivery.items || [])
+      .filter(item => item?.product_id && item?.stone_choice?.material_id)
+      .map(item => [String(item.product_id), item.stone_choice]));
+    const plan = await buildMixRecipePlan(items, stoneChoices);
     if (!plan.length) return items || [];
     const byIndex = new Map(plan.map(group => [group.index - 1, group]));
     return (items || []).map((item, index) => {
@@ -690,6 +712,48 @@
     if (!raw) return {};
     if (typeof raw === 'object') return raw;
     try { return JSON.parse(raw); } catch (_) { return {}; }
+  }
+
+  function concreteDeliveryV37(bill) {
+    const info = parseBillInfoV37(bill);
+    return info?.concrete_delivery && typeof info.concrete_delivery === 'object'
+      ? info.concrete_delivery
+      : null;
+  }
+
+  function stoneChoiceMapV37(delivery) {
+    return new Map((delivery?.items || [])
+      .filter(item => item?.product_id && item?.stone_choice?.material_name)
+      .map(item => [String(item.product_id), item.stone_choice]));
+  }
+
+  function stoneNameForItemV37(item, delivery) {
+    const choice = stoneChoiceMapV37(delivery).get(String(itemProductId(item)));
+    return String(choice?.material_name || '').trim();
+  }
+
+  function enrichItemsWithStoneFor80(items, bill) {
+    const delivery = concreteDeliveryV37(bill);
+    if (!delivery) return items || [];
+    return (items || []).map(item => {
+      const stoneName = stoneNameForItemV37(item, delivery);
+      if (!stoneName) return item;
+      return {
+        ...item,
+        name: `${item.name || ''}<div style="margin-top:1px;font-size:8px;line-height:1.25;color:#94a3b8;font-weight:400">ชนิดหิน ${esc(stoneName)}</div>`,
+      };
+    });
+  }
+
+  function renderConcreteDeliveryPlanA4(delivery) {
+    const plans = Array.isArray(delivery?.plans) ? delivery.plans : [];
+    if (!plans.length) return '';
+    const totalQty = money(delivery.total_quantity_m3 || plans.reduce((sum, plan) => sum + money(plan.quantity_m3), 0));
+    const totalFee = money(delivery.total_surcharge || plans.reduce((sum, plan) => sum + money(plan.surcharge), 0));
+    return `<section class="concrete-plan">
+      <div class="concrete-plan-head"><div><span>CONCRETE DELIVERY PLAN</span><b>แผนผลิต/ส่งตามความจุรถจริง</b></div><div><strong>${fmt(totalQty)} คิว</strong><small>${plans.length} เที่ยว${totalFee > 0 ? ` • ค่ารถไม่เต็ม ฿${fmt(totalFee)}` : ''}</small></div></div>
+      <div class="concrete-plan-grid">${plans.map(plan => `<div class="concrete-trip"><span>เที่ยว ${intFmt(plan.plan_no)}/${intFmt(plan.total_plans || plans.length)}</span><b>${fmt(plan.quantity_m3)} คิว</b><small>${money(plan.empty_m3) > 0 ? `ว่าง ${fmt(plan.empty_m3)} คิว` : 'เต็มคัน'}${money(plan.surcharge) > 0 ? ` • +฿${fmt(plan.surcharge)}` : ''}</small></div>`).join('')}</div>
+    </section>`;
   }
 
   function returnItemKeyV37(row) {
@@ -1005,16 +1069,29 @@
     if (docType === 'billing') {
       return printBillingNoteDetailed(bill, rows, rc, targetWin);
     }
-    const mixPlan = await buildMixRecipePlan(rows);
+    const billInfo = parseBillInfoV37(bill);
+    const concreteDelivery = concreteDeliveryV37(bill);
+    const requestedMixProductIds = new Set((concreteDelivery?.items || [])
+      .filter(item => item?.request_mix_design === true)
+      .map(item => String(item.product_id || ''))
+      .filter(Boolean));
+    const mixRows = concreteDelivery && requestedMixProductIds.size
+      ? rows.filter(row => requestedMixProductIds.has(String(itemProductId(row))))
+      : rows;
+    const stoneChoices = new Map((concreteDelivery?.items || [])
+      .filter(item => item?.product_id && item?.stone_choice?.material_id)
+      .map(item => [String(item.product_id), item.stone_choice]));
+    // พิมพ์ Mix Design เฉพาะบิลใหม่ที่ลูกค้าเลือก "รับ Mix Design" เท่านั้น
+    const mixPlan = concreteDelivery?.mix_design_requested === true
+      ? await buildMixRecipePlan(mixRows, stoneChoices)
+      : [];
     const planDepartureText = bill?.date ? addMinutesDateTime(bill.date, 30) : '';
     const mixRecipeHtml = renderMixRecipePlanA4(mixPlan, planDepartureText);
+    const concretePlanHtml = renderConcreteDeliveryPlanA4(concreteDelivery);
     const mixLineCount = mixPlan.reduce((sum, group) => sum + group.lines.length, 0);
     const subtotal = rows.reduce((s, it) => s + money(it.total), 0);
     const discount = money(bill?.discount);
     const total = money(bill?.total || Math.max(0, subtotal - discount));
-    const billInfo = (() => {
-      try { return typeof bill?.return_info === 'string' ? JSON.parse(bill.return_info) : (bill?.return_info || {}); } catch (_) { return {}; }
-    })();
     const quoteVat = (() => {
       if (bill?.quote_vat?.mode && bill.quote_vat.mode !== 'none') return bill.quote_vat;
       if (billInfo?.quote_vat?.mode && billInfo.quote_vat.mode !== 'none') return billInfo.quote_vat;
@@ -1042,6 +1119,11 @@
     const isBilling = docType === 'billing';
     const isQuotation = docType === 'quotation';
     const isPaymentDoc = docType === 'payment';
+    // ใบเสร็จเดิมยังใช้ HTML เดิมทั้งหมด แล้วต่อใบเที่ยวคอนกรีตเป็นหน้าถัดไป
+    // เพื่อให้พิมพ์/บันทึก PDF ได้เป็นชุดเดียวกันโดยไม่กระทบรูปแบบใบเสร็จ
+    const concreteTripAppendHtml = !isQuotation && typeof window.v103BuildConcreteTripPagesHtml === 'function'
+      ? window.v103BuildConcreteTripPagesHtml(bill)
+      : '';
     const isDebtNotice = docType === 'debt_notice';
     const isDeliveryDueDoc = docType === 'delivery_due';
     const isInvoiceDoc = !isDebtNotice && (isDeliveryDueDoc || (isPaymentDoc && remaining > 0 && deposit <= 0));
@@ -1095,7 +1177,8 @@
     const showDeliveryCols = !isQuotation && (docType === 'delivery' || isDeliveryDueDoc)
       && (rows.some(it => money(it.deliver_qty) > 0) || /deliver|partial|จัดส่ง|ส่ง|รับบางส่วน/i.test(String(bill?.delivery_mode || '')));
     const hasConcreteCare = hasConcreteItemV37(rows);
-    const itemCount = rows.length + Math.ceil(mixLineCount * 0.55) + (mixPlan.length ? 2 : 0) + (hasConcreteCare ? 4 : 0);
+    const concretePlanCount = Array.isArray(concreteDelivery?.plans) ? concreteDelivery.plans.length : 0;
+    const itemCount = rows.length + Math.ceil(mixLineCount * 0.55) + (mixPlan.length ? 2 : 0) + Math.ceil(concretePlanCount * 0.45) + (concretePlanCount ? 2 : 0) + (hasConcreteCare ? 4 : 0);
     const hasMixBlock = mixPlan.length > 0;
     const hasPaymentQr = !isQuotation && dueAmount > 0 && itemCount <= 18;
     const fitOnePage = hasMixBlock || (hasPaymentQr && itemCount > 4);
@@ -1127,9 +1210,10 @@
       const qty = money(it.qty || 1);
       const take = money(it.take_qty ?? (showDeliveryCols ? qty : 0));
       const deliver = money(it.deliver_qty ?? 0);
+      const stoneName = stoneNameForItemV37(it, concreteDelivery);
       return `<tr>
         <td class="c">${i + 1}</td>
-        <td><b>${esc(it.name || '')}</b>${showDeliveryCols ? `<div class="small">รับกลับแล้ว ${intFmt(take)} · ต้องเอาไปส่ง ${intFmt(deliver)}</div>` : ''}</td>
+        <td><b>${esc(it.name || '')}</b>${stoneName ? `<div class="stone-note">ชนิดหิน: ${esc(stoneName)}</div>` : ''}${showDeliveryCols ? `<div class="small">รับกลับแล้ว ${intFmt(take)} · ต้องเอาไปส่ง ${intFmt(deliver)}</div>` : ''}</td>
         <td class="c">${intFmt(qty)}</td>
         ${showDeliveryCols ? `<td class="c ok">${intFmt(take)}</td><td class="c warn">${intFmt(deliver)}</td>` : ''}
         <td class="c">${esc(it.unit || 'ชิ้น')}</td>
@@ -1142,7 +1226,7 @@
     win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>${esc(title)} #${esc(bill?.bill_no || '')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Sarabun,sans-serif;color:#0f172a;margin:0;font-size:${bodyFs}px}.page{width:calc(210mm / ${pageZoom});height:calc(297mm / ${pageZoom});overflow:hidden;padding:${pagePad};display:flex;flex-direction:column;transform:scale(${pageZoom});transform-origin:top left}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:${tiny ? 5 : 9}px}.shop h1{margin:0;color:#dc2626;font-size:${tiny ? 17 : dense ? 19 : 23}px;line-height:1.05}.muted{color:#64748b}.badge{background:#dc2626;color:#fff;border-radius:8px;padding:${tiny ? '8px 18px' : '12px 26px'};text-align:center;min-width:${tiny ? 160 : 210}px;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.5px}.badge b{font-size:${tiny ? 14 : 20}px;line-height:1.1;font-weight:900}.badge span{display:block;font-size:${tiny ? 8 : 10}px;opacity:.85;margin-top:3px;letter-spacing:1.5px}.status-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:${tiny ? 5 : 8}px}.status-card{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '4px 7px' : '7px 9px'};background:#f8fafc}.status-card span{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px}.status-card b{font-size:${tiny ? 9 : 12}px}.box{border:1px solid #e2e8f0;border-radius:7px;margin-top:${tiny ? 5 : 9}px;overflow:hidden}.box-h{background:#fff1f2;color:#dc2626;font-weight:900;padding:${tiny ? '4px 8px' : '6px 10px'}}.box-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:${tiny ? '6px 9px' : '9px 11px'}}.addr{white-space:pre-line;text-align:right}.info{display:grid;grid-template-columns:105px 1fr;gap:6px;line-height:1.55}.info b{text-align:right}table{width:100%;border-collapse:collapse;margin-top:${tiny ? 5 : 9}px;font-size:${tableFs}px}th{background:#dc2626;color:#fff;padding:${cellPad};font-weight:900}td{padding:${cellPad};border-bottom:1px solid #e5e7eb;vertical-align:top;line-height:1.22}tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.small{font-size:${Math.max(6.5, tableFs - 1)}px;color:#64748b;margin-top:1px}.ok{color:#059669;font-weight:900}.warn{color:#d97706;font-weight:900}.bottom{display:grid;grid-template-columns:1fr ${tiny ? 205 : dense ? 225 : 255}px;gap:${tiny ? 10 : 18}px;margin-top:${tiny ? 6 : 11}px}.amount-panel{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#fff}.amount-row{display:flex;justify-content:space-between;gap:12px;padding:${tiny ? '6px 8px' : '9px 12px'};border-bottom:1px solid #eef2f7;color:#64748b;font-weight:900}.amount-row b{color:#0f172a}.amount-row.pay{border-bottom:none;background:${remaining > 0 ? '#fff7ed' : '#ecfdf5'};color:${remaining > 0 ? '#9a3412' : '#047857'}}.amount-row.pay b{font-size:${tiny ? 16 : 24}px;color:${remaining > 0 ? '#c2410c' : '#059669'}}.words{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '5px 7px' : '8px 10px'};margin-top:7px}.words b{display:block;color:#dc2626}.concrete-care{margin-top:${tiny ? 5 : 8}px;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;background:#fff7ed;padding:${tiny ? '6px 8px' : '9px 11px'};color:#7c2d12;line-height:1.42;break-inside:avoid;page-break-inside:avoid}.concrete-care-title{font-weight:900;color:#c2410c;margin-bottom:3px}.concrete-care p{margin:3px 0}.concrete-care b{color:#9a3412}.concrete-care.compact{font-size:${Math.max(7, bodyFs - 1.4)}px;line-height:1.32}.qrbox{text-align:center;border:3px solid #16b8d4;border-radius:18px;padding:0 0 ${tiny ? 5 : 8}px;margin-top:7px;background:#fff;overflow:hidden}.thaiqr-head{background:#183d73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;height:${tiny ? 26 : 38}px;font-size:${tiny ? 8 : 12}px;font-weight:900;line-height:1.05}.thaiqr-mark{width:${tiny ? 22 : 30}px;height:${tiny ? 18 : 24}px;border:3px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center}.pp-badge{display:inline-block;border:2px solid #183d73;color:#183d73;margin:${tiny ? '5px 0 3px' : '8px 0 5px'};padding:1px 8px;line-height:.95;font-size:${tiny ? 7 : 10}px;font-weight:900}.pp-badge b{font-size:${tiny ? 11 : 17}px}.qrbox img{width:${qrScale}px;height:${qrScale}px;display:block;margin:2px auto}.qr-sub,.bank-lines{font-size:${tiny ? 6.5 : 9}px;color:#334155;line-height:1.25}.paid-stamp,.qr-missing{text-align:center;border:1px solid #e2e8f0;border-radius:8px;padding:${tiny ? '8px 6px' : '14px 8px'};margin-top:7px;font-size:${tiny ? 12 : 16}px;font-weight:900;color:#059669;background:#f8fafc}.paid-stamp small,.qr-missing small{display:block;font-size:${tiny ? 7 : 9}px;color:#94a3b8;margin-top:2px}.qr-missing{color:#dc2626}.sig{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:${tiny ? 8 : 16}px;display:flex;justify-content:space-around}.sig div{text-align:center;min-width:150px}.line{height:${tiny ? 18 : 28}px;border-bottom:1px solid #64748b;margin-bottom:4px}.foot{text-align:center;color:#94a3b8;font-size:${tiny ? 7 : 9}px;border-top:1px solid #eef2f7;margin-top:8px;padding-top:5px}.mix-block{margin-top:${tiny ? 5 : 8}px;border:1px solid #fecaca;border-radius:9px;overflow:hidden;background:#fff}.mix-head{display:flex;justify-content:space-between;gap:10px;align-items:center;background:linear-gradient(135deg,#fff1f2,#fff);border-bottom:1px solid #fee2e2;padding:${tiny ? '5px 8px' : '8px 10px'}}.mix-head span{display:block;color:#dc2626;font-weight:900}.mix-head b{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px;margin-top:1px}.mix-head em{font-style:normal;color:#991b1b;background:#fff;border:1px solid #fecaca;border-radius:999px;padding:3px 8px;font-weight:900;white-space:nowrap}.mix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tiny ? 4 : 7}px;padding:${tiny ? 5 : 8}px}.mix-card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}.mix-title{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:${tiny ? '4px 6px' : '6px 8px'};background:#f8fafc}.mix-title b{font-weight:900;color:#0f172a}.mix-title span{color:#dc2626;font-weight:900;white-space:nowrap}.mix-table{margin-top:0!important;font-size:${Math.max(6.2, tableFs - 1)}px}.mix-table th{background:#1f2937;padding:${tiny ? '2px 4px' : '3px 5px'}}.mix-table td{padding:${tiny ? '2px 4px' : '3px 5px'}}.mix80{font-size:9px;color:#555;line-height:1.35;margin-top:2px;font-weight:400}@media print{body{margin:0}.page{page-break-after:avoid;break-after:avoid}}
+@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Sarabun,sans-serif;color:#0f172a;margin:0;font-size:${bodyFs}px}.page{width:calc(210mm / ${pageZoom});height:calc(297mm / ${pageZoom});overflow:hidden;padding:${pagePad};display:flex;flex-direction:column;transform:scale(${pageZoom});transform-origin:top left}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #dc2626;padding-bottom:${tiny ? 5 : 9}px}.shop h1{margin:0;color:#dc2626;font-size:${tiny ? 17 : dense ? 19 : 23}px;line-height:1.05}.muted{color:#64748b}.badge{background:#dc2626;color:#fff;border-radius:8px;padding:${tiny ? '8px 18px' : '12px 26px'};text-align:center;min-width:${tiny ? 160 : 210}px;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.5px}.badge b{font-size:${tiny ? 14 : 20}px;line-height:1.1;font-weight:900}.badge span{display:block;font-size:${tiny ? 8 : 10}px;opacity:.85;margin-top:3px;letter-spacing:1.5px}.status-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:${tiny ? 5 : 8}px}.status-card{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '4px 7px' : '7px 9px'};background:#f8fafc}.status-card span{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px}.status-card b{font-size:${tiny ? 9 : 12}px}.box{border:1px solid #e2e8f0;border-radius:7px;margin-top:${tiny ? 5 : 9}px;overflow:hidden}.box-h{background:#fff1f2;color:#dc2626;font-weight:900;padding:${tiny ? '4px 8px' : '6px 10px'}}.box-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:${tiny ? '6px 9px' : '9px 11px'}}.addr{white-space:pre-line;text-align:right}.info{display:grid;grid-template-columns:105px 1fr;gap:6px;line-height:1.55}.info b{text-align:right}table{width:100%;border-collapse:collapse;margin-top:${tiny ? 5 : 9}px;font-size:${tableFs}px}th{background:#dc2626;color:#fff;padding:${cellPad};font-weight:900}td{padding:${cellPad};border-bottom:1px solid #e5e7eb;vertical-align:top;line-height:1.22}tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.r{text-align:right}.strong{font-weight:900}.small{font-size:${Math.max(6.5, tableFs - 1)}px;color:#64748b;margin-top:1px}.stone-note{font-size:${Math.max(6.4, tableFs - 1.7)}px;color:#94a3b8;font-weight:400;line-height:1.2;margin-top:2px}.ok{color:#059669;font-weight:900}.warn{color:#d97706;font-weight:900}.bottom{display:grid;grid-template-columns:1fr ${tiny ? 205 : dense ? 225 : 255}px;gap:${tiny ? 10 : 18}px;margin-top:${tiny ? 6 : 11}px}.amount-panel{border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#fff}.amount-row{display:flex;justify-content:space-between;gap:12px;padding:${tiny ? '6px 8px' : '9px 12px'};border-bottom:1px solid #eef2f7;color:#64748b;font-weight:900}.amount-row b{color:#0f172a}.amount-row.pay{border-bottom:none;background:${remaining > 0 ? '#fff7ed' : '#ecfdf5'};color:${remaining > 0 ? '#9a3412' : '#047857'}}.amount-row.pay b{font-size:${tiny ? 16 : 24}px;color:${remaining > 0 ? '#c2410c' : '#059669'}}.words{border:1px solid #e2e8f0;border-radius:7px;padding:${tiny ? '5px 7px' : '8px 10px'};margin-top:7px}.words b{display:block;color:#dc2626}.concrete-care{margin-top:${tiny ? 5 : 8}px;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;background:#fff7ed;padding:${tiny ? '6px 8px' : '9px 11px'};color:#7c2d12;line-height:1.42;break-inside:avoid;page-break-inside:avoid}.concrete-care-title{font-weight:900;color:#c2410c;margin-bottom:3px}.concrete-care p{margin:3px 0}.concrete-care b{color:#9a3412}.concrete-care.compact{font-size:${Math.max(7, bodyFs - 1.4)}px;line-height:1.32}.qrbox{text-align:center;border:3px solid #16b8d4;border-radius:18px;padding:0 0 ${tiny ? 5 : 8}px;margin-top:7px;background:#fff;overflow:hidden}.thaiqr-head{background:#183d73;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;height:${tiny ? 26 : 38}px;font-size:${tiny ? 8 : 12}px;font-weight:900;line-height:1.05}.thaiqr-mark{width:${tiny ? 22 : 30}px;height:${tiny ? 18 : 24}px;border:3px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center}.pp-badge{display:inline-block;border:2px solid #183d73;color:#183d73;margin:${tiny ? '5px 0 3px' : '8px 0 5px'};padding:1px 8px;line-height:.95;font-size:${tiny ? 7 : 10}px;font-weight:900}.pp-badge b{font-size:${tiny ? 11 : 17}px}.qrbox img{width:${qrScale}px;height:${qrScale}px;display:block;margin:2px auto}.qr-sub,.bank-lines{font-size:${tiny ? 6.5 : 9}px;color:#334155;line-height:1.25}.paid-stamp,.qr-missing{text-align:center;border:1px solid #e2e8f0;border-radius:8px;padding:${tiny ? '8px 6px' : '14px 8px'};margin-top:7px;font-size:${tiny ? 12 : 16}px;font-weight:900;color:#059669;background:#f8fafc}.paid-stamp small,.qr-missing small{display:block;font-size:${tiny ? 7 : 9}px;color:#94a3b8;margin-top:2px}.qr-missing{color:#dc2626}.sig{margin-top:auto;border-top:1px solid #cbd5e1;padding-top:${tiny ? 8 : 16}px;display:flex;justify-content:space-around}.sig div{text-align:center;min-width:150px}.line{height:${tiny ? 18 : 28}px;border-bottom:1px solid #64748b;margin-bottom:4px}.foot{text-align:center;color:#94a3b8;font-size:${tiny ? 7 : 9}px;border-top:1px solid #eef2f7;margin-top:8px;padding-top:5px}.mix-block{margin-top:${tiny ? 5 : 8}px;border:1px solid #fecaca;border-radius:9px;overflow:hidden;background:#fff}.mix-head{display:flex;justify-content:space-between;gap:10px;align-items:center;background:linear-gradient(135deg,#fff1f2,#fff);border-bottom:1px solid #fee2e2;padding:${tiny ? '5px 8px' : '8px 10px'}}.mix-head span{display:block;color:#dc2626;font-weight:900}.mix-head b{display:block;color:#64748b;font-size:${tiny ? 7 : 9}px;margin-top:1px}.mix-head em{font-style:normal;color:#991b1b;background:#fff;border:1px solid #fecaca;border-radius:999px;padding:3px 8px;font-weight:900;white-space:nowrap}.mix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tiny ? 4 : 7}px;padding:${tiny ? 5 : 8}px}.mix-card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}.mix-title{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:${tiny ? '4px 6px' : '6px 8px'};background:#f8fafc}.mix-title b{font-weight:900;color:#0f172a}.mix-title span{color:#dc2626;font-weight:900;white-space:nowrap}.mix-table{margin-top:0!important;font-size:${Math.max(6.2, tableFs - 1)}px}.mix-table th{background:#1f2937;padding:${tiny ? '2px 4px' : '3px 5px'}}.mix-table td{padding:${tiny ? '2px 4px' : '3px 5px'}}.mix80{font-size:9px;color:#555;line-height:1.35;margin-top:2px;font-weight:400}.concrete-plan{margin-top:${tiny ? 5 : 8}px;border:1px solid #99f6e4;border-radius:8px;overflow:hidden;background:#fff}.concrete-plan-head{padding:${tiny ? '5px 8px' : '7px 10px'};background:#f0fdfa;display:flex;justify-content:space-between;align-items:center;gap:10px}.concrete-plan-head span{display:block;color:#0f766e;font-size:${tiny ? 7 : 9}px;font-weight:950;letter-spacing:.5px}.concrete-plan-head b{display:block;color:#475569;font-size:${tiny ? 7 : 9}px}.concrete-plan-head>div:last-child{text-align:right}.concrete-plan-head strong{display:block;color:#115e59;font-size:${tiny ? 11 : 14}px}.concrete-plan-head small{display:block;color:#64748b}.concrete-plan-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}.concrete-trip{padding:${tiny ? '4px 6px' : '6px 8px'};border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0}.concrete-trip span,.concrete-trip b,.concrete-trip small{display:block}.concrete-trip span{color:#64748b;font-size:${tiny ? 6.5 : 8}px;font-weight:900}.concrete-trip b{color:#0f172a;font-size:${tiny ? 9 : 11}px}.concrete-trip small{color:#94a3b8;font-size:${tiny ? 6.5 : 8}px}@media print{body{margin:0}.page{page-break-after:avoid;break-after:avoid}}
 .mix-block{border-color:#e2e8f0;border-radius:7px;background:#fff}.mix-head{display:block;background:#fff;border-bottom:1px solid #e2e8f0}.mix-head span{color:#0f172a}.mix-head b{color:#64748b}.mix-head em{display:none}.mix-grid{grid-template-columns:1fr;gap:${tiny ? 3 : 6}px}.mix-card{border-color:#e5e7eb;border-radius:6px}.mix-title{background:#fff;border-bottom:1px solid #eef2f7}.mix-title span{color:#64748b}.mix-plan-time{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:${tiny ? '4px 6px' : '6px 8px'};border-bottom:1px solid #eef2f7;background:#f8fafc;color:#64748b;font-weight:900}.mix-plan-time span{font-size:${tiny ? 7 : 9}px;text-transform:uppercase;letter-spacing:.4px}.mix-plan-time b{color:#0f172a}.mix-table{table-layout:fixed}.mix-table th{background:#f8fafc!important;color:#475569;border-bottom:1px solid #e2e8f0}.mix-table th:first-child,.mix-table td:first-child{width:50%;text-align:left}.mix-table th:last-child,.mix-table td:last-child{width:50%;text-align:right}.mix-table td{background:#fff!important}.mix-table tr:nth-child(even) td{background:#fbfdff!important}
 .top{gap:${tightLayout ? 12 : 18}px;padding-bottom:${tightLayout ? 5 : tiny ? 5 : 9}px}.badge{border-radius:7px;min-width:${tightLayout ? 188 : tiny ? 160 : 210}px;padding:${tightLayout ? '8px 18px' : tiny ? '8px 18px' : '12px 26px'}}.status-strip{gap:${tightLayout ? 6 : 8}px;margin-top:${tightLayout ? 5 : tiny ? 5 : 8}px}.status-card{padding:${tightLayout ? '4px 7px' : tiny ? '4px 7px' : '7px 9px'}}.box{margin-top:${tightLayout ? 6 : tiny ? 5 : 9}px}.box-b{grid-template-columns:1.18fr .82fr;gap:${tightLayout ? 9 : 12}px;padding:${tightLayout ? '7px 10px' : tiny ? '6px 9px' : '9px 11px'}}.box-b>div:first-child b{font-size:${tiny ? 12 : compact ? 14 : 15}px!important}.info{grid-template-columns:${tightLayout ? 88 : 105}px 1fr;gap:${tightLayout ? 3 : 6}px;line-height:${tightLayout ? 1.35 : 1.55}}table td:nth-child(2) b{font-size:${ultra ? 7.2 : tiny ? 8.8 : dense ? 10 : compact ? 10.8 : 11.5}px;line-height:1.2}.bottom{grid-template-columns:1fr ${tightLayout ? 190 : tiny ? 205 : dense ? 225 : 255}px;gap:${tightLayout ? 8 : tiny ? 10 : 18}px;margin-top:${tightLayout ? 6 : tiny ? 6 : 11}px}.amount-row{padding:${tightLayout ? '5px 8px' : tiny ? '6px 8px' : '9px 12px'}}.amount-row.pay b{font-size:${tightLayout ? 20 : tiny ? 16 : 24}px}.words{padding:${tightLayout ? '6px 8px' : tiny ? '5px 7px' : '8px 10px'};margin-top:${tightLayout ? 5 : 7}px}.qrbox{border-width:2px;border-radius:13px;margin-top:${tightLayout ? 5 : 7}px;padding-bottom:${tightLayout ? 4 : tiny ? 5 : 8}px}.thaiqr-head{height:${tightLayout ? 24 : tiny ? 26 : 38}px;font-size:${tightLayout ? 8 : tiny ? 8 : 12}px}.pp-badge{margin:${tightLayout ? '4px 0 2px' : tiny ? '5px 0 3px' : '8px 0 5px'}}.page{position:relative!important;padding-bottom:${tailReserve}!important}.print-tail{position:absolute!important;left:${pageXPad};right:${pageXPad};bottom:${tailBottom};margin:0!important;break-inside:avoid;page-break-inside:avoid;flex-shrink:0}.sig{margin-top:0!important;padding-top:${tightLayout ? 8 : tiny ? 9 : 16}px;break-inside:avoid;page-break-inside:avoid}.sig div{min-width:${tightLayout ? 132 : 150}px}.sig b{display:block;margin-bottom:${tightLayout ? 3 : 4}px;font-size:${ultra ? 7 : tiny ? 8 : 9}px;line-height:1.1}.line{height:${tightLayout ? 16 : tiny ? 18 : 24}px}.foot{margin-top:0;padding-top:${tightLayout ? 2 : 4}px;break-inside:avoid;page-break-inside:avoid}.mix-block{margin-top:${tightLayout ? 6 : tiny ? 5 : 8}px}.mix-head{padding:${tightLayout ? '5px 8px' : tiny ? '5px 8px' : '8px 10px'}}.mix-grid{padding:${tightLayout ? 5 : tiny ? 5 : 8}px}.mix-title{padding:${tightLayout ? '4px 7px' : tiny ? '4px 6px' : '6px 8px'}}.mix-plan-time{padding:${tightLayout ? '4px 7px' : tiny ? '4px 6px' : '6px 8px'}}.mix-table th,.mix-table td{padding:${tightLayout ? '2px 5px' : tiny ? '2px 4px' : '3px 5px'}}
 .mix-block{border:1px solid #cbd5e1;border-radius:8px;overflow:hidden}.mix-head{padding:${tightLayout ? '7px 10px' : '9px 12px'};background:#fff}.mix-head span{font-size:${ultra ? 8 : tiny ? 10 : dense ? 11 : 12}px}.mix-head b{font-size:${ultra ? 6.8 : tiny ? 8 : 9}px}.mix-grid{padding:0!important;display:block}.mix-card{border:0!important;border-radius:0!important}.mix-card+.mix-card{border-top:1px solid #cbd5e1!important}.mix-title{padding:${tightLayout ? '7px 10px' : '8px 12px'};background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}.mix-title b{font-size:${ultra ? 8 : tiny ? 10 : dense ? 11 : 12}px}.mix-title span{font-size:${ultra ? 7 : tiny ? 8.5 : 9.5}px}.mix-materials{display:grid;grid-template-columns:repeat(auto-fit,minmax(${tiny ? 78 : 92}px,1fr));background:#fff}.mix-material{padding:${tightLayout ? '7px 8px' : '9px 10px'};min-height:${tightLayout ? 42 : 48}px;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7}.mix-material span{display:block;color:#334155;font-size:${ultra ? 7.2 : tiny ? 8.8 : dense ? 10 : 10.8}px;font-weight:900;line-height:1.15;white-space:normal}.mix-material b{display:block;margin-top:4px;color:#0f172a;font-size:${ultra ? 7.6 : tiny ? 9.3 : dense ? 10.8 : 11.4}px;font-weight:950;line-height:1.15}
@@ -1151,6 +1235,7 @@
   <div class="status-strip"><div class="status-card"><span>สถานะชำระเงิน</span><b style="color:${payStatusTone}">${esc(payStatusLabel)}</b></div><div class="status-card"><span>${esc(rightStatusLabel)}</span><b style="color:${rightStatusTone}">${esc(rightStatusText)}</b></div></div>
   <section class="box"><div class="box-h">${esc(customerBoxTitle)}</div><div class="box-b"><div><b style="font-size:${tiny ? 12 : 15}px">${esc(bill?.customer_name || 'ลูกค้าทั่วไป')}</b><div class="muted" style="white-space:pre-line">${esc(bill?.customer_address || '-')}</div>${bill?.customer_phone || bill?.delivery_phone ? `<div><b>โทร:</b> ${esc(bill.customer_phone || bill.delivery_phone)}</div>` : ''}</div><div><div class="info"><span class="muted">พนักงาน:</span><b>${esc(bill?.staff_name || user())}</b><span class="muted">ชำระ:</span><b>${esc(bill?.method || '-')}</b><span class="muted">รูปแบบส่ง:</span><b>${esc(deliveryModeText(bill))}</b>${bill?.delivery_date ? `<span class="muted">วันที่นัดส่ง:</span><b>${esc(bill.delivery_date)}</b>` : ''}${deliveryAddressHtml}</div></div></div></section>
   <table><thead><tr><th style="width:34px">#</th><th>รายการสินค้า</th><th style="width:60px">รวม</th>${showDeliveryCols ? '<th style="width:72px">รับกลับแล้ว</th><th style="width:72px">ต้องไปส่ง</th>' : ''}<th style="width:58px">หน่วย</th><th style="width:82px">ราคา</th><th style="width:92px">จำนวนเงิน</th></tr></thead><tbody>${tr}</tbody></table>
+  ${concretePlanHtml}
   ${mixRecipeHtml}
   <div class="bottom"><div><b>หมายเหตุ / เงื่อนไข</b><div class="muted">${esc(noteText)}</div>${words ? `<div class="words">จำนวนเงินรวมทั้งสิ้น (ตัวอักษร)<b>${esc(words)}</b>${dueWords ? `<span class="muted">ยอดคงเหลือที่ต้องชำระ (ตัวอักษร)</span><b>${esc(dueWords)}</b>` : ''}</div>` : ''}${concreteCareHtml}</div><div>
     <div class="amount-panel">
@@ -1160,7 +1245,7 @@
     ${!isQuotation && dueAmount > 0 && itemCount <= 18 ? qrPaymentBlock(rc, dueAmount, payState) : ''}
   </div></div>
   <div class="print-tail"><div class="foot">${esc(footerText)}</div><div class="sig"><div><b>ผู้รับสินค้า / ลูกค้า</b><div class="line"></div></div><div><b>ผู้ส่งสินค้า / ผู้ขาย</b><div class="line"></div></div></div></div>
-</div><script>window.onload=function(){try{window.focus()}catch(e){} setTimeout(function(){try{window.focus()}catch(e){} window.print();setTimeout(function(){window.close()},1400)},600)}<\/script></body></html>`);
+</div>${concreteTripAppendHtml}<script>window.onload=function(){try{window.focus()}catch(e){} setTimeout(function(){try{window.focus()}catch(e){} window.print();setTimeout(function(){window.close()},1400)},600)}<\/script></body></html>`);
     win.document.close();
     try { win.focus(); } catch (_) {}
   }
@@ -1255,7 +1340,8 @@
     if (typeof original80 === 'function' && !original80.__v37Enriched) {
       window.print80mmv2 = async function (bill, items, rc) {
         const enriched = enrichItemsForPrint(items, 'receipt');
-        const withMix = await enrichItemsWithMixFor80(enriched);
+        const withStone = enrichItemsWithStoneFor80(enriched, bill);
+        const withMix = await enrichItemsWithMixFor80(withStone, bill);
         return original80.call(this, bill, withMix, rc);
       };
       window.print80mmv2.__v37Enriched = true;
