@@ -6,6 +6,7 @@
   const RECIPE_TABLE = '\u0e2a\u0e39\u0e15\u0e23\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32';
   const UNIT_TABLE = 'product_units';
   const CACHE_MS = 30000;
+  const UNIT_CACHE_MS = 5 * 60 * 1000;
   const POS_LIMIT = 60;
   const RECIPE_TIMEOUT_MS = 3500;
   const UNIT_TIMEOUT_MS = 4500;
@@ -30,6 +31,10 @@
     extraOpeningAt: 0,
     decoratingCards: false,
     cardObserver: null,
+    recipeRefreshQueued: false,
+    unitsByProduct: new Map(),
+    unitsLoadedAt: 0,
+    unitsLoading: null,
   };
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -173,8 +178,22 @@
 
   async function loadRecipes(force = false) {
     if (typeof db === 'undefined') return state.recipes;
-    if (!force && Date.now() - state.loadedAt < CACHE_MS) return state.recipes;
-    if (state.loading && !force) return state.loading;
+    if (state.loading) {
+      // A first load must finish before recipe products can be identified. Once a
+      // usable map exists, clicks must never wait for a refresh from the network.
+      if (!force && state.loadedAt) return state.recipes;
+      return state.loading;
+    }
+    if (!force && state.loadedAt) {
+      if (Date.now() - state.loadedAt >= CACHE_MS && !state.recipeRefreshQueued) {
+        state.recipeRefreshQueued = true;
+        setTimeout(() => {
+          state.recipeRefreshQueued = false;
+          loadRecipes(true).catch(error => console.warn('[v66] background recipe refresh:', error));
+        }, 0);
+      }
+      return state.recipes;
+    }
 
     const fetchAllRecipeRows = async () => {
       if (typeof fetchAllRows === 'function') {
@@ -657,8 +676,95 @@
     }
   }
 
+  function rememberSellUnits(productId, rows) {
+    const key = String(productId || '');
+    const normalized = (rows || [])
+      .map(normalizeSellUnit)
+      .filter(unit => unitConv(unit) > 0)
+      .sort((a, b) => unitConv(a) - unitConv(b));
+    state.unitsByProduct.set(key, normalized);
+    if (window._v9UnitCache && typeof window._v9UnitCache === 'object') {
+      window._v9UnitCache[key] = normalized;
+    }
+    return normalized;
+  }
+
+  async function preloadSellUnits(force = false) {
+    if (typeof db === 'undefined') return state.unitsByProduct;
+    if (state.unitsLoading) return state.unitsLoading;
+    if (!force && state.unitsLoadedAt && Date.now() - state.unitsLoadedAt < UNIT_CACHE_MS) {
+      return state.unitsByProduct;
+    }
+
+    state.unitsLoading = (async () => {
+      let rows;
+      if (typeof fetchAllRows === 'function') {
+        const result = await withTimeout(
+          fetchAllRows(UNIT_TABLE, '*', query => query.order('product_id'))
+            .then(data => ({ data, timedOut: false })),
+          UNIT_TIMEOUT_MS,
+          { data: null, timedOut: true },
+          'all_product_units'
+        );
+        if (result.timedOut) return state.unitsByProduct;
+        rows = result.data || [];
+      } else {
+        const result = await withTimeout(
+          db.from(UNIT_TABLE).select('*').order('product_id'),
+          UNIT_TIMEOUT_MS,
+          { data: null, error: null, timedOut: true },
+          'all_product_units'
+        );
+        if (result?.timedOut) return state.unitsByProduct;
+        if (result?.error) throw result.error;
+        rows = result?.data || [];
+      }
+
+      const grouped = new Map();
+      (rows || []).forEach(row => {
+        const key = String(row.product_id || '');
+        if (!key) return;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(row);
+      });
+      productsList().forEach(product => rememberSellUnits(product.id, grouped.get(String(product.id)) || []));
+      grouped.forEach((units, productId) => {
+        if (!state.unitsByProduct.has(productId)) rememberSellUnits(productId, units);
+      });
+      state.unitsLoadedAt = Date.now();
+      return state.unitsByProduct;
+    })()
+      .catch(error => {
+        console.warn('[v66] cannot preload product units:', error);
+        return state.unitsByProduct;
+      })
+      .finally(() => { state.unitsLoading = null; });
+
+    return state.unitsLoading;
+  }
+
   async function getSellUnits(product) {
     if (typeof db === 'undefined') return [];
+    const key = String(product.id || '');
+    const sharedCache = window._v9UnitCache;
+    if (sharedCache && Object.prototype.hasOwnProperty.call(sharedCache, key)) {
+      return rememberSellUnits(key, sharedCache[key]);
+    }
+    // V36 already performs a batch existence check. Reuse a definitive "no
+    // special units" result so an ordinary product remains instant even while
+    // this module's richer unit preload is still in flight.
+    if (product.__v36UnitAware === false) return rememberSellUnits(key, []);
+    // v9 deletes its entry after a unit is edited. A missing shared entry is
+    // therefore an intentional invalidation and must fall through to the DB.
+    if ((!sharedCache || typeof sharedCache !== 'object') && state.unitsByProduct.has(key)) {
+      return state.unitsByProduct.get(key);
+    }
+    if (state.unitsLoading) {
+      await state.unitsLoading;
+      if (window._v9UnitCache && Object.prototype.hasOwnProperty.call(window._v9UnitCache, key)) {
+        return rememberSellUnits(key, window._v9UnitCache[key]);
+      }
+    }
     const { data, error, timedOut } = await withTimeout(
       db.from(UNIT_TABLE)
         .select('*')
@@ -675,10 +781,7 @@
       console.warn('[v66] cannot load product units:', error);
       return [];
     }
-    return (data || [])
-      .map(normalizeSellUnit)
-      .filter(unit => unitConv(unit) > 0)
-      .sort((a, b) => unitConv(a) - unitConv(b));
+    return rememberSellUnits(key, data || []);
   }
 
   function addRecipeLine(product, unit, qty = 1, metadata = {}) {
@@ -1922,6 +2025,9 @@
       setTimeout(protectRecipeInventoryRows, 0);
       scheduleRecipeCardDecorate();
     });
+    // Fetch every product's sell units once while the POS is becoming usable.
+    // Normal clicks then use memory instead of one network round-trip per click.
+    preloadSellUnits(false);
   }
 
   document.addEventListener('pointerdown', event => {

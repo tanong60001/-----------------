@@ -102,7 +102,7 @@
         <i class="material-icons-round">login</i>
         เข้าสู่ระบบ
       </button>
-      <div class="login-footer">SK POS v2.0 — Powered by Supabase</div>
+      <div class="login-footer">SK POS v2.0 — ใช้งานได้ทั้งออนไลน์และออฟไลน์</div>
     </div>
   </div>
   <script>
@@ -238,6 +238,11 @@
         <h1 class="page-title" id="page-title-text">🏠 หน้าหลัก</h1>
         <div class="header-actions">
           <div class="live-clock" id="live-clock"></div>
+          <!-- Small native window control for the offline kiosk launcher -->
+          <button id="minimize-pos-btn" class="pos-window-minimize" type="button"
+            onclick="minimizePosWindow()" title="ย่อหน้าต่างโปรแกรม" aria-label="ย่อหน้าต่างโปรแกรม">
+            <i class="material-icons-round">remove</i>
+          </button>
           <!-- Activity Inbox Button -->
           <button id="inbox-btn" onclick="toggleActivityInbox()"
             style="position:relative;width:40px;height:40px;border-radius:50%;border:none;background:var(--bg-hover);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:all .2s;flex-shrink:0;"
@@ -364,13 +369,6 @@
                     <i class="material-icons-round">qr_code_scanner</i>
                   </button>
                 </div>
-                <button type="button" id="v54-quick-inline-btn" class="v54-quick-btn v54-quick-toolbar-btn"
-                  title="เพิ่มสินค้าด่วน"
-                  onclick="window.v54OpenQuickProductModal ? window.v54OpenQuickProductModal() : alert('ระบบสินค้าด่วนยังโหลดไม่ครบ กรุณารีเฟรชหน้าอีกครั้ง')"
-                  style="height:52px;min-width:52px;border:0;border-radius:12px;background:#ef4444;color:#fff;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 14px;box-shadow:0 10px 24px rgba(239,68,68,.24);cursor:pointer;white-space:nowrap;align-self:stretch;">
-                  <i class="material-icons-round" style="font-size:19px">add_shopping_cart</i>
-                  <span style="font-size:13px;line-height:1">สินค้าด่วน</span>
-                </button>
                 <div class="view-toggle">
                   <button class="view-btn active" data-view="grid" title="Grid View">
                     <i class="material-icons-round">grid_view</i>
@@ -867,15 +865,16 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script defer
     src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script defer src="offline-db.js?v=1"></script>
   <script defer src="config.js"></script>
-  <script defer src="app.js?v=9"></script>
+  <script defer src="app.js?v=10"></script>
   <script defer src="modules.js?v=2"></script>
   <script defer src="modules-v2.js?v=2"></script>
   <script defer src="dashboard-v4.js?v=1"></script>
   <script defer src="modules-v2-patch.js"></script>
   <script defer src="modules-v3.js"></script>
   <script defer src="modules-v4-8.js?v=2"></script>
-  <script defer src="modules-v9.js?v=8"></script>
+  <script defer src="modules-v9.js?v=9"></script>
   <script defer src="modules-v10.js?v=4"></script>
   <script defer src="modules-v11.js?v=2"></script>
   <script defer src="modules-v12.js?v=7"></script>
@@ -904,7 +903,7 @@
   <script defer src="modules-v34-ui.js?v=5"></script>
   <script defer src="modules-v33-fixes.js?v=6"></script>
   <script defer src="modules-v35-grand-ui.js?v=2"></script>
-  <script defer src="modules-v36-usage-safety.js?v=73"></script>
+  <script defer src="modules-v36-usage-safety.js?v=74"></script>
   <script defer src="modules-v37-daily-cash-print.js?v=52"></script>
   <script defer src="modules-v38-category-dashboard.js?v=14"></script>
   <script defer src="modules-v39-sales-polish.js?v=5"></script>
@@ -923,7 +922,6 @@
   <script defer src="modules-v51-attendance-workplace.js?v=54"></script>
   <script defer src="modules-v52-stock-permission-login-fix.js?v=1"></script>
   <script defer src="modules-v53-admin-pin-fix.js?v=2"></script>
-  <script defer src="modules-v54-quick-pending-products.js?v=14"></script>
   <script defer src="modules-v55-smart-scanner.js?v=3"></script>
   <script defer src="modules-v56-hr-admin-stability.js?v=10"></script>
   <script defer src="modules-v57-dashboard-profit-calendar.js?v=9"></script>
@@ -935,7 +933,7 @@
   <script defer src="modules-v63-batch-production.js?v=6"></script>
   <script defer src="modules-v64-pos-unit-scanner-polish.js?v=3"></script>
   <script defer src="modules-v65-recipe-profit-capacity.js?v=13"></script>
-  <script defer src="modules-v66-pos-recipe-availability.js?v=40"></script>
+  <script defer src="modules-v66-pos-recipe-availability.js?v=41"></script>
   <script defer src="modules-v67-project-labor-limits.js?v=9"></script>
   <script defer src="modules-v68-customer-debt-stock-history-fixes.js?v=17"></script>
   <script defer src="modules-v69-customer-display-debt-polish.js?v=2"></script>
@@ -968,12 +966,13 @@
   <script defer src="modules-v99-delivery-mode-guard.js?v=1"></script>
   <script defer src="modules-v100-inventory-ui.js?v=4"></script>
   <script defer src="modules-v102-cancel-recipe-stock-restore.js?v=2"></script>
-  <script defer src="modules-v103-concrete-recipe-flow.js?v=12"></script>
-  <!-- Service Worker: Product Image Cache (ลด bandwidth 90%+) -->
+  <script defer src="modules-v103-concrete-recipe-flow.js?v=13"></script>
+  <script defer src="modules-v104-modern-product-ui.js?v=1"></script>
+  <!-- Service Worker: offline app shell + product image cache -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
           .then(reg => console.log('[SW] ✅ Registered:', reg.scope))
           .catch(err => console.warn('[SW] Registration failed:', err));
       });

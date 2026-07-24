@@ -11,8 +11,6 @@
 
   const TARGET_IDS = new Set([
     'pos-search',
-    'v54-quick-barcode',
-    'v54-clear-barcode',
     'prod-barcode',
   ]);
 
@@ -318,7 +316,6 @@
     document.addEventListener('click', event => {
       const target = event.target?.closest?.('.swal2-confirm,[type="submit"]');
       if (!target) return;
-      window.v55SmartScannerCommit('v54-quick-barcode');
       window.v55SmartScannerCommit('prod-barcode');
     }, true);
     wrapCameraScanner();

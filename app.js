@@ -311,6 +311,18 @@ async function openCustomerDisplay(autoDetect = false) {
   }
 }
 
+// The offline launcher runs Edge in kiosk mode, so the browser title bar is
+// intentionally hidden. This tiny header button asks the local server to
+// minimize only the dedicated SK POS Edge window.
+async function minimizePosWindow() {
+  try {
+    await fetch('/minimize', { method: 'POST', cache: 'no-store' });
+  } catch (_) {
+    // Keep the POS usable if it is opened from a normal web server.
+    try { window.blur(); } catch (_) {}
+  }
+}
+
 // Send data to customer display window
 function sendToDisplay(data) {
   if (customerDisplayWindow && !customerDisplayWindow.closed) {

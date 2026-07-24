@@ -11188,7 +11188,7 @@ window.v9SaveProduct = async function () {
       } else {
         finalImgUrl = null;
       }
-      if (oldImgUrl && oldImgUrl.includes('product-images/')) {
+      if (oldImgUrl && oldImgUrl.includes('product-images/') && !String(finalImgUrl || '').startsWith('data:image/')) {
         const oldFileName = oldImgUrl.substring(oldImgUrl.lastIndexOf('/') + 1);
         if (oldFileName && db?.storage) await db.storage.from('product-images').remove([oldFileName]).catch(() => { });
       }

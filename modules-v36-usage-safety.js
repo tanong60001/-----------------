@@ -1381,24 +1381,42 @@ console.log('[v36] Usage safety patch loaded');
   }
 
   async function uploadProductImageBlob(blob, nameHint) {
-    if (!db?.storage) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase Storage');
     const finalBlob = blob.type === 'image/webp' && blob.size <= 120 * 1024
       ? blob
       : (await compressProductImage(blob)).blob;
+    const useLocalImageFallback = async (reason) => {
+      window.__v36LastProductImageStorage = 'local';
+      console.warn('[Product image] ใช้รูปแบบออฟไลน์แทน Supabase Storage:', reason || 'storage unavailable');
+      const now = Date.now();
+      if (!window.__v36LastProductImageFallbackToastAt || now - window.__v36LastProductImageFallbackToastAt > 4000) {
+        window.__v36LastProductImageFallbackToastAt = now;
+        toastV36('บันทึกรูปไว้กับข้อมูลสินค้าแล้ว (โหมดออฟไลน์)', 'info');
+      }
+      return await blobToDataUrl(finalBlob);
+    };
+
+    if (!db?.storage) return await useLocalImageFallback('ยังไม่ได้เชื่อมต่อ Supabase Storage');
+
     const safeName = String(nameHint || 'product')
       .trim()
       .replace(/[^\w.-]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 42) || 'product';
     const fileName = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}.webp`;
-    const { error } = await db.storage.from('product-images').upload(fileName, finalBlob, {
-      contentType: 'image/webp',
-      cacheControl: '31536000',
-      upsert: false,
-    });
-    if (error) throw new Error('อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ' + error.message);
-    const { data } = db.storage.from('product-images').getPublicUrl(fileName);
-    return data.publicUrl;
+    try {
+      const { error } = await db.storage.from('product-images').upload(fileName, finalBlob, {
+        contentType: 'image/webp',
+        cacheControl: '31536000',
+        upsert: false,
+      });
+      if (error) throw new Error('อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ' + error.message);
+      const { data } = db.storage.from('product-images').getPublicUrl(fileName);
+      if (!data?.publicUrl) throw new Error('Supabase Storage ไม่ได้ส่ง URL รูปภาพกลับมา');
+      window.__v36LastProductImageStorage = 'remote';
+      return data.publicUrl;
+    } catch (error) {
+      return await useLocalImageFallback(error?.message || error);
+    }
   }
 
   async function compressAdImage(blob) {
@@ -1477,7 +1495,7 @@ console.log('[v36] Usage safety patch loaded');
     const imgValue = String(value || '').trim();
     if (!isImageDataUrl(imgValue)) return imgValue || null;
     const url = await uploadProductImageBlob(dataUrlToBlob(imgValue), nameHint);
-    await removeOldProductImage(oldValue);
+    if (!isImageDataUrl(url)) await removeOldProductImage(oldValue);
     return url;
   }
 
@@ -1596,7 +1614,12 @@ console.log('[v36] Usage safety patch loaded');
           if (meta) meta.textContent = 'กำลังอัปโหลดรูปไป Supabase Storage...';
           img.value = await uploadImageValueIfNeeded(img.value, oldImg?.value, name);
           if (oldImg) oldImg.value = img.value;
-          setV9ProductImagePreview(img.value, 'อัปโหลดแล้ว จะบันทึกเฉพาะ URL รูปภาพ');
+          setV9ProductImagePreview(
+            img.value,
+            isImageDataUrl(img.value)
+              ? 'บีบอัดและบันทึกรูปไว้กับข้อมูลสินค้า (โหมดออฟไลน์)'
+              : 'อัปโหลดแล้ว จะบันทึกเฉพาะ URL รูปภาพ'
+          );
         } else if (img && !String(img.value || '').trim() && oldImg?.value) {
           await removeOldProductImage(oldImg.value);
         }
@@ -1614,7 +1637,12 @@ console.log('[v36] Usage safety patch loaded');
           const meta = document.getElementById('v36-prod-img-meta');
           if (meta) meta.textContent = 'กำลังอัปโหลดรูปไป Supabase Storage...';
           img.value = await uploadImageValueIfNeeded(img.value, '', name);
-          setProductImagePreview(img.value, 'อัปโหลดแล้ว จะบันทึกเฉพาะ URL รูปภาพ');
+          setProductImagePreview(
+            img.value,
+            isImageDataUrl(img.value)
+              ? 'บีบอัดและบันทึกรูปไว้กับข้อมูลสินค้า (โหมดออฟไลน์)'
+              : 'อัปโหลดแล้ว จะบันทึกเฉพาะ URL รูปภาพ'
+          );
         }
         return await originalBaseSave.apply(this, arguments);
       };

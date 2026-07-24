@@ -6,7 +6,6 @@
   const ATT_TABLE = 'เช็คชื่อ';
   const ADV_TABLE = 'เบิกเงิน';
   const PAY_TABLE = 'จ่ายเงินเดือน';
-  const PENDING_CATEGORY = 'รอเคลียร์ทั้งหมด';
 
   const money = value => {
     const n = Number(value || 0);
@@ -1014,26 +1013,6 @@
     }
   };
 
-  function ensurePendingCategoryTab() {
-    const wrap = document.getElementById('pos-categories');
-    if (!wrap) return;
-    const tab = wrap.querySelector('[data-v54-pending-cat], [data-v56-pending-cat]');
-    if (tab) return;
-    if (typeof window.v54SetPendingCategory !== 'function') return;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'cat-tab v54-pending-cat';
-    btn.dataset.v56PendingCat = '1';
-    btn.dataset.cat = PENDING_CATEGORY;
-    btn.innerHTML = '<i class="material-icons-round" style="font-size:15px;vertical-align:-3px;margin-right:4px">pending_actions</i>' + PENDING_CATEGORY;
-    btn.addEventListener('click', event => {
-      event.preventDefault();
-      window.v54SetPendingCategory();
-    });
-    wrap.appendChild(btn);
-  }
-
   function wrapRenderAttendance() {
     if (window.renderAttendance?.__v56SafePolish) return;
     const original = window.renderAttendance;
@@ -1051,11 +1030,9 @@
   function boot() {
     injectStyle();
     wrapRenderAttendance();
-    ensurePendingCategoryTab();
     enhanceAttendancePage();
     [100, 400, 1000, 2000].forEach(delay => setTimeout(() => {
       wrapRenderAttendance();
-      ensurePendingCategoryTab();
       enhanceAttendancePage();
     }, delay));
   }

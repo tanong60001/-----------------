@@ -18,6 +18,7 @@
     settings: new Map(),
     loaded: false,
     loading: null,
+    localHydrated: false,
     tableWarningShown: false,
     deliveryFilter: 'today',
   };
@@ -70,12 +71,18 @@
     } catch (_) {}
   }
 
+  function hydrateLocalSettings() {
+    if (state.localHydrated) return;
+    const local = readLocalSettings();
+    Object.entries(local).forEach(([id, config]) => state.settings.set(String(id), normalizeConfig(config)));
+    state.localHydrated = true;
+  }
+
   async function loadSettings(force = false) {
+    hydrateLocalSettings();
     if (state.loaded && !force) return state.settings;
-    if (state.loading && !force) return state.loading;
+    if (state.loading) return state.loading;
     state.loading = (async () => {
-      const local = readLocalSettings();
-      Object.entries(local).forEach(([id, config]) => state.settings.set(String(id), normalizeConfig(config)));
       try {
         if (typeof db !== 'undefined') {
           const { data, error } = await db.from(SETTINGS_TABLE).select('*');
@@ -87,9 +94,8 @@
         console.warn('[v103] concrete settings table is not ready; using this device cache', error?.message || error);
       }
       state.loaded = true;
-      state.loading = null;
       return state.settings;
-    })();
+    })().finally(() => { state.loading = null; });
     return state.loading;
   }
 
@@ -214,7 +220,10 @@
 
   async function promptConcreteSale(product, options = {}) {
     if (typeof Swal === 'undefined' || !Swal.fire) return null;
-    await loadSettings(false);
+    // Local/default settings are available synchronously. Do not hold the first
+    // click for a remote settings request; that refresh already runs at boot.
+    hydrateLocalSettings();
+    loadSettings(false).catch(error => console.warn('[v103] background settings refresh', error));
     const config = getConfig(product?.id);
     const currentQty = Math.max(0, num(options.currentQty || 0));
     const suggested = currentQty > 0 ? currentQty : 1;
@@ -846,6 +855,7 @@
   installCancelPlanSync();
   installCartRemovalSync();
   installCheckoutBillSync();
+  hydrateLocalSettings();
   loadSettings(false);
   [600, 1600, 3200].forEach(delay => setTimeout(() => {
     installDeliveryDecorator();
