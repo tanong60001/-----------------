@@ -330,6 +330,44 @@ function sendToDisplay(data) {
   }
 }
 
+// หน้ารอเริ่มระบบ: ซ่อนหน้าแรกไว้จนข้อมูลหลักพร้อมใช้งานจริง
+window.SK_BOOT = window.SK_BOOT || (function () {
+  let shownAt = 0;
+  const el = id => document.getElementById(id);
+  function update(percent, step, message) {
+    const value = Math.max(5, Math.min(100, Number(percent) || 5));
+    if (el('sk-boot-progress')) el('sk-boot-progress').style.width = `${value}%`;
+    if (el('sk-boot-percent')) el('sk-boot-percent').textContent = `${Math.round(value)}%`;
+    if (step && el('sk-boot-step')) el('sk-boot-step').textContent = step;
+    if (message && el('sk-boot-message')) el('sk-boot-message').textContent = message;
+  }
+  function show(step = 'ตรวจสอบสิทธิ์ผู้ใช้งาน', message = 'กำลังเชื่อมต่อและตรวจสอบข้อมูลล่าสุด') {
+    shownAt = Date.now();
+    const screen = el('sk-boot-screen');
+    if (screen) {
+      screen.classList.remove('hidden');
+      screen.setAttribute('aria-busy', 'true');
+    }
+    update(12, step, message);
+  }
+  async function hide() {
+    update(100, 'พร้อมใช้งาน', 'โหลดข้อมูลเรียบร้อย กำลังเปิดหน้าหลัก');
+    const wait = Math.max(120, 520 - (Date.now() - shownAt));
+    await new Promise(resolve => setTimeout(resolve, wait));
+    const screen = el('sk-boot-screen');
+    if (screen) {
+      screen.classList.add('hidden');
+      screen.setAttribute('aria-busy', 'false');
+    }
+  }
+  function reset() {
+    const screen = el('sk-boot-screen');
+    if (screen) screen.classList.add('hidden');
+    update(12, 'เริ่มต้นระบบ', 'กำลังเชื่อมต่อและตรวจสอบข้อมูลล่าสุด');
+  }
+  return { show, update, hide, reset };
+})();
+
 // ══════════════════════════════════════════════════════════════════
 // 3. AUTHENTICATION & PERMISSIONS
 // ══════════════════════════════════════════════════════════════════
@@ -397,18 +435,28 @@ async function checkLogin() {
     const { data: perms } = await db.from('สิทธิ์การเข้าถึง').select('*').eq('user_id', data.id).single();
     USER_PERMS = perms || {};
     document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('app-layout').classList.remove('hidden');
+    document.getElementById('app-layout').classList.add('hidden');
+    window.SK_BOOT?.show('ยืนยันตัวตนสำเร็จ', `สวัสดี ${data.username} กำลังเตรียมข้อมูลร้านค้า`);
     document.getElementById('user-display-name').textContent = data.username;
     document.getElementById('user-display-role').textContent = data.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
     applyNavPermissions();
     await initApp();
+    document.getElementById('app-layout').classList.remove('hidden');
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await window.SK_BOOT?.hide();
     
     // Auto-open customer display if multiple screens detected
     openCustomerDisplay(true);
     
     toast(`ยินดีต้อนรับ ${data.username}`, 'success');
     logActivity('เข้าสู่ระบบ', data.username);
-  } catch (e) { console.error('Login error:', e); toast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error'); }
+  } catch (e) {
+    console.error('Login error:', e);
+    document.getElementById('app-layout')?.classList.add('hidden');
+    document.getElementById('login-screen')?.classList.remove('hidden');
+    window.SK_BOOT?.reset();
+    toast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
+  }
 }
 
 function logout() {
@@ -439,11 +487,19 @@ window.addEventListener('beforeunload', () => {
 // 4. INITIALIZATION
 // ══════════════════════════════════════════════════════════════════
 async function initApp() {
+  window.SK_BOOT?.update(24, 'โหลดข้อมูลหลัก', 'กำลังโหลดสินค้า หมวดหมู่ และยอดเงินสด');
   await Promise.all([loadProducts(), loadCategories(), loadCashBalance()]);
+  window.SK_BOOT?.update(72, 'จัดเตรียมหน้าหลัก', 'กำลังสรุปยอดขายและตรวจสอบรายการแจ้งเตือน');
   updateClock();
-  setInterval(updateClock, 1000);
-  go('home');
-  updateHomeStats();
+  if (!window.__skClockTimer) window.__skClockTimer = setInterval(updateClock, 1000);
+  window.__SK_BOOTING = true;
+  try {
+    go('home');
+    await updateHomeStats();
+  } finally {
+    window.__SK_BOOTING = false;
+  }
+  window.SK_BOOT?.update(94, 'ตรวจสอบความพร้อม', 'ข้อมูลล่าสุดพร้อมแล้ว กำลังเปิดพื้นที่ทำงาน');
 }
 
 function updateClock() {
@@ -469,6 +525,8 @@ function go(page) {
   }
 
   currentPage = page;
+  // เปิดให้โมดูล realtime รู้ว่าผู้ใช้กำลังดูหน้าใด (ตัวแปร let ไม่ถูกผูกกับ window อัตโนมัติ)
+  window.currentPage = page;
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page));
   document.querySelectorAll('.page-section').forEach(section => section.classList.add('hidden'));
   const targetPage = document.getElementById(`page-${page}`);
@@ -484,7 +542,7 @@ function go(page) {
   document.getElementById('page-title-text').textContent = titles[page] || page;
   document.getElementById('page-actions').innerHTML = '';
   switch (page) {
-    case 'home': updateHomeStats(); break;
+    case 'home': if (!window.__SK_BOOTING) updateHomeStats(); break;
     case 'pos':
       renderProductGrid(); renderCart();
       openCustomerDisplay(true);
@@ -553,7 +611,7 @@ async function updateHomeStats() {
     document.getElementById('home-orders').textContent = formatNum(ordersCount);
     document.getElementById('home-cash').textContent = `฿${formatNum(cashBalance)}`;
     document.getElementById('global-cash-balance').textContent = `฿${formatNum(cashBalance)}`;
-    updateAlerts();
+    await updateAlerts();
   } catch (e) { console.error('Stats error:', e); }
 }
 

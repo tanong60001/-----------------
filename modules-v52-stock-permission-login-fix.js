@@ -129,7 +129,9 @@
       .join('');
   }
 
+  let loginBusy = false;
   async function checkLoginV52(force = false) {
+    if (loginBusy) return;
     const pin = pinValue();
     if (pin.length !== 4) {
       toast?.('กรุณากรอก PIN 4 หลัก', 'error');
@@ -140,6 +142,9 @@
     }
 
     try {
+      loginBusy = true;
+      const loginButton = document.getElementById('login-btn');
+      if (loginButton) loginButton.disabled = true;
       const { data, error } = await db.from('ผู้ใช้งาน').select('*').eq('pin', pin).maybeSingle();
       if (error || !data) {
         toast?.('รหัส PIN ไม่ถูกต้อง', 'error');
@@ -152,18 +157,29 @@
       const { data: perms } = await db.from('สิทธิ์การเข้าถึง').select('*').eq('user_id', data.id).maybeSingle();
       USER_PERMS = perms || {};
       document.getElementById('login-screen')?.classList.add('hidden');
-      document.getElementById('app-layout')?.classList.remove('hidden');
+      document.getElementById('app-layout')?.classList.add('hidden');
+      window.SK_BOOT?.show('ยืนยันตัวตนสำเร็จ', `สวัสดี ${data.username} กำลังเตรียมข้อมูลร้านค้า`);
       const nameEl = document.getElementById('user-display-name');
       const roleEl = document.getElementById('user-display-role');
       if (nameEl) nameEl.textContent = data.username;
       if (roleEl) roleEl.textContent = data.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
       applyNavPermissions?.();
       await initApp?.();
+      document.getElementById('app-layout')?.classList.remove('hidden');
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await window.SK_BOOT?.hide();
       toast?.(`ยินดีต้อนรับ ${data.username}`, 'success');
       logActivity?.('เข้าสู่ระบบ', data.username);
     } catch (e) {
       console.error('[v52] login:', e);
+      document.getElementById('app-layout')?.classList.add('hidden');
+      document.getElementById('login-screen')?.classList.remove('hidden');
+      window.SK_BOOT?.reset();
       toast?.('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
+    } finally {
+      loginBusy = false;
+      const loginButton = document.getElementById('login-btn');
+      if (loginButton) loginButton.disabled = false;
     }
   }
 

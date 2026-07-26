@@ -119,6 +119,15 @@
     return /ยกเลิก|คืนสินค้า/.test(String(bill?.status || ''));
   }
 
+  function badDebtMeta(bill) {
+    const info = parseInfo(bill?.return_info);
+    return info?.bad_debt && info.bad_debt.recorded !== false ? info.bad_debt : null;
+  }
+
+  function isBadDebtBill(bill) {
+    return /หนี้เสีย|ตัดหนี้/i.test(`${bill?.status || ''} ${bill?.method || ''}`) || !!badDebtMeta(bill);
+  }
+
   function isProjectBill(bill) {
     if (!bill) return false;
     if (bill.project_id) return true;
@@ -127,16 +136,33 @@
   }
 
   function shouldCountPurchase(bill) {
-    return !!bill?.customer_id && !isTerminalBill(bill) && !isProjectBill(bill) && effectiveTotal(bill) > 0;
+    const info = parseInfo(bill?.return_info);
+    return !!bill?.customer_id
+      && !isTerminalBill(bill)
+      && !isProjectBill(bill)
+      && !info.bad_debt_record_only
+      && effectiveTotal(bill) > 0;
   }
 
   function isDebtCandidate(bill) {
-    if (!bill || isTerminalBill(bill) || isProjectBill(bill) || isPartialReturnBill(bill)) return false;
+    if (!bill || isTerminalBill(bill) || isProjectBill(bill) || isPartialReturnBill(bill) || isBadDebtBill(bill)) return false;
     const total = effectiveTotal(bill);
     if (total <= 0) return false;
     const deposit = num(bill.deposit_amount);
-    const text = `${bill.status || ''} ${bill.method || ''}`;
-    return /ค้าง|ชำระหน้างาน/.test(text) || (/บางส่วน/.test(text) && !/คืน/.test(text)) || (deposit > 0 && deposit < total);
+    const received = num(bill.received);
+    const info = parseInfo(bill.return_info);
+    const text = `${bill.status || ''} ${bill.method || ''} ${bill.delivery_payment_mode || ''} ${info.delivery_payment_mode || ''}`;
+    const deliveryText = `${bill.delivery_mode || ''} ${bill.delivery_status || ''}`;
+    const explicitDebt = /ค้าง|ชำระหน้างาน|เก็บปลายทาง|\bcod\b/i.test(text)
+      || (/บางส่วน/.test(text) && !/คืน/.test(text))
+      || (deposit > 0 && deposit < total);
+    // บิลจัดส่งรุ่นเก่าบางใบเก็บตัวเลือก COD ไม่ครบ แต่ยอดรับเงินจริงเป็น 0
+    // จึงถือเป็นลูกหนี้ทันทีตั้งแต่ยัง "รอจัดส่ง" โดยไม่ต้องรอกดจัดส่งสำเร็จ
+    const pendingDeliveryUnpaid = /รอจัดส่ง|รอส่ง|pending/i.test(deliveryText)
+      && /จัดส่ง|ส่ง|deliver|partial/i.test(deliveryText)
+      && Math.max(deposit, received, num(info.paid_amount)) < total - 0.009
+      && !/ชำระแล้ว|จ่ายแล้ว|paid/i.test(text);
+    return explicitDebt || pendingDeliveryUnpaid;
   }
 
   function billDate(value) {
@@ -153,19 +179,6 @@
 
   function remainingAfterBillPaid(bill) {
     return Math.max(0, effectiveTotal(bill) - num(bill.deposit_amount));
-  }
-
-  // ใช้สำหรับคำนวณ rawBillDebt เท่านั้น — แค่ยอดบิลค้างปัจจุบัน (ไม่หักการชำระ)
-  function debtBillRows(bills /*, startingPaidPool ignored — kept for backward compat */) {
-    return (bills || [])
-      .filter(isDebtCandidate)
-      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
-      .map(bill => {
-        const total = effectiveTotal(bill);
-        const billPaid = Math.min(total, num(bill.deposit_amount));
-        const remaining = Math.max(0, total - billPaid);
-        return { bill, total, paid: billPaid, billPaid, fifoPaid: 0, remaining };
-      });
   }
 
   // FIFO แบบเรียงตามเวลา (date-aware) — เงินที่จ่ายในวันที่ X
@@ -331,18 +344,35 @@
     return result;
   }
 
+  async function fetchAllPaged(makeQuery, pageSize = 1000) {
+    const all = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = data || [];
+      all.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return all;
+  }
+
   async function syncAllCustomers() {
     if (typeof db === 'undefined') return { rows: [], orphanRows: [], customers: [] };
-    const [{ data: customers, error: custErr }, { data: bills, error: billErr }, { data: payments, error: payErr }, { data: openingDebts, error: openingErr }] = await Promise.all([
-      db.from(CUSTOMER_TABLE).select('id,name,phone,address,total_purchase,visit_count,debt_amount,credit_limit,customer_type').limit(10000),
-      db.from(BILL_TABLE).select('id,bill_no,date,total,method,status,delivery_status,deposit_amount,customer_id,customer_name,delivery_phone,project_id,return_info').order('date', { ascending: true }).limit(10000),
-      db.from(PAYMENT_TABLE).select('customer_id,amount,date,note').limit(10000),
-      db.from(OPENING_DEBT_TABLE).select('customer_id,customer_name,debt_amount,brought_forward_date,source').limit(10000),
+    const [customers, bills, payments, openingDebts] = await Promise.all([
+      fetchAllPaged(() => db.from(CUSTOMER_TABLE)
+        .select('id,name,phone,address,total_purchase,visit_count,debt_amount,credit_limit,customer_type')
+        .order('id', { ascending: true })),
+      fetchAllPaged(() => db.from(BILL_TABLE)
+        .select('id,bill_no,date,total,method,status,delivery_mode,delivery_status,received,deposit_amount,customer_id,customer_name,delivery_phone,project_id,return_info')
+        .order('date', { ascending: true })
+        .order('id', { ascending: true })),
+      fetchAllPaged(() => db.from(PAYMENT_TABLE)
+        .select('customer_id,amount,date,note')
+        .order('date', { ascending: true })),
+      fetchAllPaged(() => db.from(OPENING_DEBT_TABLE)
+        .select('customer_id,customer_name,debt_amount,brought_forward_date,source')
+        .order('brought_forward_date', { ascending: true })),
     ]);
-    if (custErr) throw custErr;
-    if (billErr) throw billErr;
-    if (payErr) throw payErr;
-    if (openingErr) throw openingErr;
 
     await linkOrphanDebtBills(customers || [], bills || []);
     const openingByCustomer = openingDebtByCustomer(customers || [], openingDebts || []);
@@ -371,18 +401,13 @@
       const purchaseBills = custBills.filter(shouldCountPurchase);
       const totalPurchase = purchaseBills.reduce((sum, bill) => sum + effectiveTotal(bill), 0);
       const visitCount = purchaseBills.length;
-      const rawBillDebt = debtBillRows(custBills, 0).reduce((sum, row) => sum + row.remaining, 0);
       const tableOpeningDebt = num(openingByCustomer.get(String(customer.id)));
-      const allowLegacyOpeningDebt = !hasOpeningRows && (
-        rawBillDebt > 0 || (custBills.length === 0 && custPays.length === 0)
-      );
-      const fallbackOpeningDebt = allowLegacyOpeningDebt ? Math.max(0, num(customer.debt_amount) - rawBillDebt) : 0;
-      const openingDebt = tableOpeningDebt > 0 ? tableOpeningDebt : fallbackOpeningDebt;
-      const rows = buildDebtRows(custBills, custPays, openingDebt, customer.id);
+      const rows = buildDebtRows(custBills, custPays, tableOpeningDebt, customer.id);
       const computedDebtAmount = rows.reduce((sum, row) => sum + row.remaining, 0);
-      const debtAmount = allowLegacyOpeningDebt && num(customer.debt_amount) > computedDebtAmount
-        ? num(customer.debt_amount)
-        : computedDebtAmount;
+      // customer.debt_amount เป็นเพียงยอด cache สำหรับแสดงผล ไม่ใช่หลักฐานการเกิดหนี้
+      // ห้ามนำส่วนต่างกลับมาสร้างเป็น "ยอดเดิม" เพราะยอดที่ชำระแล้วจะฟื้นขึ้นมาอีก
+      // ยอดยกมาที่ถูกต้องต้องมีแถวในตาราง หนี้เดิมยกมา เท่านั้น
+      const debtAmount = computedDebtAmount;
       rows.forEach(row => {
         if (row.remaining > 0) debtRows.push({ customer, ...row });
       });

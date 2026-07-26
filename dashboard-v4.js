@@ -12,6 +12,7 @@
   const state = {
     requestId: 0,
     preset: 'today',
+    view: 'overview',
     start: '',
     end: '',
     report: null,
@@ -23,6 +24,7 @@
     return Number.isFinite(n) ? n : 0;
   };
   const fmt = value => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(Math.round(num(value)));
+  const fmtQty = value => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 3 }).format(num(value));
   const fmtMoney = value => `${num(value) < 0 ? '−' : ''}฿${fmt(Math.abs(num(value)))}`;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -205,7 +207,7 @@
       const batch = chunks.slice(i, i + 4);
       const results = await Promise.all(batch.map((chunk, batchIndex) => fetchPaged(
         `รายการในบิล ชุด ${i + batchIndex + 1}`,
-        () => db.from('รายการในบิล').select('id,bill_id,name,qty,price,cost,total').in('bill_id', chunk).order('id', { ascending: true }),
+        () => db.from('รายการในบิล').select('id,bill_id,product_id,name,qty,price,cost,total,unit').in('bill_id', chunk).order('id', { ascending: true }),
         { maxRows: Math.min(MAX_ITEM_ROWS, Math.max(PAGE_SIZE, chunk.length * 300)) }
       )));
       results.forEach(result => { rows.push(...result.rows); truncated = truncated || result.truncated; });
@@ -240,7 +242,8 @@
       fetchPaged('จ่ายเงินเดือน', () => db.from('จ่ายเงินเดือน')
         .select('id,net_paid,paid_date').gte('paid_date', startIso).lte('paid_date', endIso).order('paid_date', { ascending: true })),
       fetchPaged('รายจ่ายโครงการ', () => db.from('รายจ่ายโครงการ')
-        .select('id,project_id,description,category,type,bill_id,amount,paid_at,created_at').not('paid_at', 'is', null)
+        // ช่วงวันที่จะตัด paid_at ที่เป็น null ออกอยู่แล้ว และรองรับ offline adapter ที่ไม่มี .not()
+        .select('id,project_id,description,category,type,bill_id,amount,paid_at,created_at')
         .gte('paid_at', startIso).lte('paid_at', endIso).order('paid_at', { ascending: true })),
       fetchPaged('รับเงินงวดโครงการ', () => db.from('งวดงาน')
         .select('id,project_id,milestone_no,description,amount,billed_at,created_at,status').eq('status', 'billed')
@@ -283,6 +286,15 @@
     };
 
     const itemByBill = new Map();
+    const catalog = typeof products !== 'undefined' && Array.isArray(products) ? products : [];
+    const catalogById = new Map(catalog.map(product => [String(product.id), product]));
+    const catalogByName = new Map(catalog.map(product => [String(product.name || '').trim(), product]));
+    const saleUnit = item => String(
+      item?.unit
+      || catalogById.get(String(item?.product_id))?.unit
+      || catalogByName.get(String(item?.name || '').trim())?.unit
+      || 'ชิ้น'
+    ).trim() || 'ชิ้น';
     items.forEach(item => {
       const key = String(item.bill_id);
       if (!itemByBill.has(key)) itemByBill.set(key, []);
@@ -330,11 +342,13 @@
       const billProducts = new Map();
       billItems.forEach(item => {
         const name = String(item.name || 'ไม่ระบุชื่อ');
-        if (!billProducts.has(name)) billProducts.set(name, { qty: 0, revenue: 0, cost: 0 });
+        if (!billProducts.has(name)) billProducts.set(name, { qty: 0, revenue: 0, cost: 0, units: new Map() });
         const row = billProducts.get(name);
         row.qty += num(item.qty);
         row.revenue += num(item.price) * num(item.qty);
         row.cost += num(item.cost) * num(item.qty);
+        const unit = saleUnit(item);
+        row.units.set(unit, num(row.units.get(unit)) + num(item.qty));
       });
       if (!itemsAlreadyNet) returned.forEach(ret => {
         const name = String(ret.name || 'ไม่ระบุชื่อ');
@@ -344,16 +358,21 @@
         row.qty -= num(ret.qty);
         row.revenue -= num(ret.price || ret.sell_price || original?.price) * num(ret.qty);
         row.cost -= num(ret.cost || original?.cost) * num(ret.qty);
+        const unit = saleUnit({ ...original, ...ret, product_id: original?.product_id });
+        row.units.set(unit, num(row.units.get(unit)) - num(ret.qty));
       });
       // กระจายส่วนลดระดับบิลตามสัดส่วนยอดสินค้า เพื่อให้ Top Products รวมแล้วตรงยอดขายสุทธิ
       const netItemRevenue = [...billProducts.values()].reduce((sum, row) => sum + Math.max(0, row.revenue), 0);
       const revenueRatio = netItemRevenue > 0 ? revenue / netItemRevenue : 1;
       billProducts.forEach((billRow, name) => {
-        if (!productMap.has(name)) productMap.set(name, { qty: 0, revenue: 0, cost: 0 });
+        if (!productMap.has(name)) productMap.set(name, { qty: 0, revenue: 0, cost: 0, units: new Map() });
         const row = productMap.get(name);
         row.qty += Math.max(0, billRow.qty);
         row.revenue += Math.max(0, billRow.revenue) * revenueRatio;
         row.cost += Math.max(0, billRow.cost);
+        billRow.units.forEach((qty, unit) => {
+          row.units.set(unit, num(row.units.get(unit)) + Math.max(0, qty));
+        });
       });
     });
 
@@ -504,7 +523,12 @@
     const topProducts = [...productMap.entries()].map(([name, row]) => ({
       name, qty: Math.max(0, row.qty), revenue: Math.max(0, row.revenue),
       profit: row.revenue - row.cost,
-    })).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+      unitBreakdown: [...row.units.entries()]
+        .filter(([, qty]) => num(qty) > 0)
+        .map(([unit, qty]) => ({ unit, qty: num(qty) }))
+        .sort((a, b) => b.qty - a.qty),
+    })).filter(row => row.revenue > 0 || row.qty > 0)
+      .sort((a, b) => b.revenue - a.revenue).slice(0, 50);
 
     return {
       start, end, generatedAt: new Date(), warnings, daily, topProducts,
@@ -529,9 +553,11 @@
     style.textContent = `
       #page-dash .dash-v4{--d4-ink:#0f172a;--d4-muted:#64748b;--d4-line:#e2e8f0;--d4-card:#fff;max-width:1540px!important;margin:0 auto!important;padding:24px!important;border-radius:26px!important;background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%)!important;font-family:'Prompt','Inter',sans-serif;color:var(--d4-ink);min-height:calc(100vh - 80px)}
       .dash-v4 *{box-sizing:border-box}.dash-v4 button,.dash-v4 input{font:inherit}.d4-header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}.d4-brand{display:flex;align-items:center;gap:13px;min-width:0}.dash-v4 .dash-v3-icon-box{width:52px;height:52px;flex:0 0 52px;border-radius:16px;background:linear-gradient(135deg,#4f46e5,#7c3aed 55%,#db2777);color:#fff;display:grid;place-items:center;box-shadow:0 14px 28px rgba(79,70,229,.3);cursor:pointer}.d4-title{font-size:23px;font-weight:950;line-height:1.2;margin:0;letter-spacing:-.4px}.d4-subtitle{font-size:12px;font-weight:750;color:var(--d4-muted);margin:4px 0 0}.d4-head-actions{display:flex;gap:8px;align-items:center}.d4-ghost{height:40px;border:1px solid var(--d4-line);background:#fff;color:#334155;border-radius:11px;padding:0 13px;font-weight:900;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 6px 16px rgba(15,23,42,.04)}.d4-ghost:hover{border-color:#a5b4fc;color:#4338ca}.d4-filter{border:1px solid #dbeafe;background:rgba(255,255,255,.92);border-radius:18px;padding:12px;box-shadow:0 14px 34px rgba(15,23,42,.065);margin-bottom:16px}.d4-presets{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.d4-preset{height:38px;border:1px solid transparent;background:#f1f5f9;color:#475569;border-radius:10px;padding:0 14px;font-size:12px;font-weight:900;cursor:pointer}.d4-preset:hover{background:#e2e8f0}.d4-preset.active{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;box-shadow:0 8px 18px rgba(79,70,229,.28)}.d4-custom{display:none;grid-template-columns:auto minmax(150px,1fr) auto minmax(150px,1fr) auto;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--d4-line)}.d4-custom.show{display:grid}.d4-custom label{font-size:11px;font-weight:900;color:var(--d4-muted)}.d4-custom input{height:40px;border:1px solid var(--d4-line);border-radius:10px;padding:0 11px;color:#0f172a;background:#fff;min-width:0}.d4-apply{height:40px;border:0;border-radius:10px;background:#0f172a;color:#fff;padding:0 18px;font-size:12px;font-weight:900;cursor:pointer}.d4-range-line{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:10px;font-size:11px;font-weight:800;color:var(--d4-muted)}.d4-status{display:inline-flex;align-items:center;gap:6px}.d4-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 4px #d1fae5}.d4-alert{display:flex;align-items:flex-start;gap:10px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:13px;padding:11px 13px;margin-bottom:16px;font-size:11px;font-weight:800;line-height:1.55}.d4-alert.error{border-color:#fecaca;background:#fff1f2;color:#991b1b}.d4-kpis{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:13px!important;margin-bottom:16px}.d4-kpi{position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--tone) 22%,#e2e8f0);border-radius:17px;background:linear-gradient(145deg,color-mix(in srgb,var(--tone) 7%,#fff),#fff);padding:17px;min-width:0;box-shadow:0 10px 24px rgba(15,23,42,.05);cursor:pointer;text-align:left}.d4-kpi:after{content:'';position:absolute;width:92px;height:92px;border-radius:50%;right:-35px;top:-40px;background:color-mix(in srgb,var(--tone) 13%,transparent)}.d4-kpi:hover{transform:translateY(-2px);box-shadow:0 15px 30px rgba(15,23,42,.09)}.d4-kpi-top{display:flex;justify-content:space-between;gap:10px;align-items:center}.d4-kpi-label{font-size:11px;font-weight:950;color:#475569}.d4-kpi-icon{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;color:var(--tone);background:color-mix(in srgb,var(--tone) 12%,#fff);position:relative;z-index:1}.d4-value{font-size:27px;font-weight:950;line-height:1.12;margin-top:8px;letter-spacing:-.6px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.d4-kpi-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:7px;margin-top:5px;color:var(--d4-muted);font-size:10px;font-weight:800;line-height:1.35}.d4-trend{white-space:nowrap;border-radius:999px;padding:3px 7px}.d4-trend.up{background:#dcfce7;color:#047857}.d4-trend.down{background:#fee2e2;color:#b91c1c}.d4-main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,.75fr);gap:16px;align-items:start}.d4-stack{display:grid;gap:16px;min-width:0}.d4-card{background:#fff;border:1px solid var(--d4-line);border-radius:18px;box-shadow:0 10px 26px rgba(15,23,42,.05);overflow:hidden;min-width:0}.d4-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 17px;border-bottom:1px solid var(--d4-line)}.d4-card-title{font-size:14px;font-weight:950;display:flex;align-items:center;gap:8px}.d4-card-note{font-size:10px;color:var(--d4-muted);font-weight:800;text-align:right}.d4-card-body{padding:16px}.d4-tabs{display:inline-flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:10px}.d4-tab{height:32px;border:0;background:transparent;color:#64748b;border-radius:8px;padding:0 11px;font-size:11px;font-weight:900;cursor:pointer}.d4-tab.active{background:#fff;color:#0f172a;box-shadow:0 4px 12px rgba(15,23,42,.09)}.d4-ledger{display:grid;gap:1px}.d4-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 5px;border-bottom:1px dashed #e2e8f0}.d4-row:last-child{border-bottom:0}.d4-row-label{font-size:12px;font-weight:900;color:#334155}.d4-row-help{font-size:10px;color:#94a3b8;font-weight:750;margin-top:2px}.d4-row-value{font-size:14px;font-weight:950;text-align:right;font-variant-numeric:tabular-nums}.d4-total{margin-top:10px;border-radius:12px;padding:13px 12px;background:#f8fafc;border:1px solid #e2e8f0}.d4-total .d4-row-label{font-size:13px}.d4-total .d4-row-value{font-size:19px}.d4-split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.d4-mini{border-radius:13px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0}.d4-mini span{font-size:10px;font-weight:900;color:#64748b}.d4-mini strong{display:block;font-size:19px;font-weight:950;margin-top:3px}.d4-chart{height:230px;display:flex;align-items:stretch;gap:7px;padding:8px 2px 0;overflow-x:auto}.d4-chart-col{flex:1;min-width:30px;display:grid;grid-template-rows:1fr 21px;gap:5px;cursor:pointer}.d4-bars{display:flex;align-items:flex-end;justify-content:center;gap:3px;border-bottom:1px solid #cbd5e1;position:relative}.d4-bar{width:min(12px,35%);min-height:2px;border-radius:5px 5px 1px 1px}.d4-bar.in{background:linear-gradient(180deg,#34d399,#059669)}.d4-bar.out{background:linear-gradient(180deg,#fb7185,#e11d48)}.d4-chart-label{text-align:center;font-size:9px;font-weight:850;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.d4-chart-tip{display:none;position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);z-index:5;background:#0f172a;color:#fff;border-radius:9px;padding:7px 9px;font-size:10px;font-weight:800;white-space:nowrap;box-shadow:0 8px 20px rgba(15,23,42,.25)}.d4-chart-col:hover .d4-chart-tip,.d4-chart-col:focus .d4-chart-tip{display:block}.d4-legend{display:flex;justify-content:center;gap:16px;margin-top:10px;font-size:10px;font-weight:850;color:#64748b}.d4-legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px}.d4-product{margin-bottom:13px}.d4-product:last-child{margin-bottom:0}.d4-product-line{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.d4-product-name{font-size:11px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.d4-product-value{text-align:right;font-size:11px;font-weight:950;white-space:nowrap}.d4-track{height:5px;background:#f1f5f9;border-radius:999px;overflow:hidden;margin-top:6px}.d4-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#f97316);border-radius:999px}.d4-obligations{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.d4-obligation{border:1px solid #fed7aa;background:#fff7ed;border-radius:12px;padding:11px;min-width:0}.d4-obligation span{font-size:9px;font-weight:900;color:#9a3412;line-height:1.3}.d4-obligation strong{display:block;font-size:17px;font-weight:950;color:#c2410c;margin-top:4px;overflow-wrap:anywhere}.d4-loading{min-height:110px;border-radius:15px;background:linear-gradient(90deg,#eef2f7 25%,#fff 50%,#eef2f7 75%);background-size:800px 100%;animation:d4shimmer 1.5s linear infinite}.d4-modal{position:fixed;inset:0;background:rgba(15,23,42,.58);backdrop-filter:blur(4px);z-index:100000;display:grid;place-items:center;padding:14px}.d4-modal-box{width:min(620px,96vw);max-height:88vh;overflow:auto;background:#fff;border-radius:19px;box-shadow:0 30px 70px rgba(15,23,42,.3)}.d4-modal-head{display:flex;justify-content:space-between;align-items:center;padding:17px 19px;border-bottom:1px solid #e2e8f0}.d4-modal-head h3{font-size:16px;margin:0;font-weight:950}.d4-modal-close{width:34px;height:34px;border:0;border-radius:9px;background:#f1f5f9;cursor:pointer}.d4-modal-body{padding:16px 19px}.d4-detail-row{display:flex;justify-content:space-between;gap:15px;padding:11px 0;border-bottom:1px dashed #e2e8f0;font-size:12px;font-weight:850}.d4-detail-row:last-child{border-bottom:0}.d4-detail-row strong{font-size:14px}.d4-empty{text-align:center;color:#94a3b8;font-size:12px;font-weight:800;padding:26px}.d4-error-box{text-align:center;padding:32px 18px}.d4-error-box i{font-size:38px;color:#ef4444}.d4-error-box h3{margin:8px 0 5px;font-size:17px}.d4-error-box p{color:#64748b;font-size:12px}.d4-retry{height:39px;border:0;border-radius:10px;background:#0f172a;color:#fff;padding:0 16px;font-weight:900;cursor:pointer}
+      .d4-view-nav{display:flex;gap:7px;padding:5px;margin:0 0 16px;background:#e9eef8;border:1px solid #dbe3f1;border-radius:14px;width:max-content;max-width:100%}.d4-view-btn{height:42px;border:0;background:transparent;color:#64748b;border-radius:10px;padding:0 16px;font-size:12px;font-weight:950;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap}.d4-view-btn i{font-size:18px}.d4-view-btn.active{color:#fff;background:linear-gradient(135deg,#172554,#4338ca);box-shadow:0 8px 19px rgba(67,56,202,.25)}.d4-view[hidden]{display:none!important}
+      .d4-rank-hero{position:relative;overflow:hidden;background:linear-gradient(125deg,#172554 0%,#312e81 48%,#7c3aed 100%);color:#fff;border-radius:20px;padding:22px;margin-bottom:14px;box-shadow:0 18px 38px rgba(49,46,129,.2)}.d4-rank-hero:after{content:'';position:absolute;width:240px;height:240px;border-radius:50%;right:-75px;top:-110px;background:rgba(255,255,255,.1)}.d4-rank-eyebrow{font-size:10px;font-weight:950;letter-spacing:1.3px;color:#c7d2fe;text-transform:uppercase}.d4-rank-hero h3{font-size:22px;line-height:1.3;margin:5px 0 4px;font-weight:950}.d4-rank-hero p{font-size:11px;color:#e0e7ff;font-weight:750;margin:0}.d4-rank-summary{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}.d4-rank-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);border-radius:13px;padding:12px}.d4-rank-stat span{display:block;font-size:9px;font-weight:900;color:#c7d2fe}.d4-rank-stat strong{display:block;font-size:20px;font-weight:950;margin-top:3px;overflow-wrap:anywhere}.d4-ranking-card{background:#fff;border:1px solid #e2e8f0;border-radius:19px;box-shadow:0 12px 30px rgba(15,23,42,.06);overflow:hidden}.d4-ranking-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e2e8f0}.d4-ranking-title{display:flex;align-items:center;gap:10px}.d4-ranking-title i{width:36px;height:36px;border-radius:11px;background:#fff7ed;color:#ea580c;display:grid;place-items:center}.d4-ranking-title strong{display:block;font-size:14px;font-weight:950}.d4-ranking-title small{display:block;font-size:10px;color:#94a3b8;font-weight:800;margin-top:2px}.d4-rank-count{background:#eef2ff;color:#4338ca;border-radius:999px;padding:6px 10px;font-size:10px;font-weight:950}.d4-table-wrap{overflow-x:auto}.d4-rank-table{width:100%;border-collapse:collapse;min-width:680px}.d4-rank-table th{background:#f8fafc;color:#64748b;font-size:10px;font-weight:950;padding:11px 16px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}.d4-rank-table th:nth-child(n+3),.d4-rank-table td:nth-child(n+3){text-align:right}.d4-rank-table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#334155;vertical-align:middle}.d4-rank-table tbody tr:hover{background:#fafaff}.d4-rank-table tbody tr:last-child td{border-bottom:0}.d4-rank-no{width:42px;height:30px;border-radius:9px;background:#f1f5f9;color:#64748b;display:grid;place-items:center;font-size:11px;font-weight:950}.d4-rank-no.gold{background:linear-gradient(135deg,#fef3c7,#f59e0b);color:#92400e}.d4-rank-no.silver{background:linear-gradient(135deg,#f8fafc,#cbd5e1);color:#475569}.d4-rank-no.bronze{background:linear-gradient(135deg,#ffedd5,#c2410c);color:#fff}.d4-rank-product{font-weight:950;color:#0f172a;max-width:380px}.d4-rank-bar{height:4px;background:#eef2ff;border-radius:999px;margin-top:6px;overflow:hidden}.d4-rank-bar i{display:block;height:100%;background:linear-gradient(90deg,#6366f1,#a855f7);border-radius:999px}.d4-rank-money{font-size:13px;font-weight:950;color:#4338ca;white-space:nowrap}.d4-rank-qty{font-weight:950;color:#0f172a;font-variant-numeric:tabular-nums}.d4-unit-chips{display:flex;justify-content:flex-end;gap:4px;flex-wrap:wrap}.d4-unit-chip{display:inline-flex;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900;white-space:nowrap}
       @keyframes d4shimmer{from{background-position:-800px 0}to{background-position:800px 0}}
       @media(max-width:1100px){.d4-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.d4-main{grid-template-columns:1fr}.d4-side{grid-template-columns:1fr 1fr;display:grid}}
-      @media(max-width:700px){#page-dash .dash-v4{padding:12px!important;border-radius:0!important}.d4-header{align-items:flex-start}.d4-title{font-size:18px}.dash-v4 .dash-v3-icon-box{width:43px;height:43px;flex-basis:43px;border-radius:12px}.d4-head-actions{flex-direction:column;align-items:stretch}.d4-ghost{height:36px;padding:0 9px}.d4-ghost span{display:none}.d4-filter{border-radius:14px;padding:9px}.d4-presets{display:grid;grid-template-columns:repeat(3,1fr)}.d4-preset{padding:0 5px;height:36px}.d4-custom.show{grid-template-columns:1fr 1fr}.d4-custom label{display:none}.d4-custom .d4-apply{grid-column:1/-1}.d4-range-line{align-items:flex-start;flex-direction:column}.d4-kpis{grid-template-columns:1fr 1fr!important;gap:8px!important}.d4-kpi{padding:13px;border-radius:13px}.d4-value{font-size:20px}.d4-kpi-foot{display:block}.d4-trend{display:inline-block;margin-top:4px}.d4-card{border-radius:14px}.d4-card-head{align-items:flex-start;flex-direction:column;padding:13px}.d4-card-note{text-align:left}.d4-card-body{padding:13px}.d4-split{grid-template-columns:1fr}.d4-side{display:grid;grid-template-columns:1fr}.d4-obligations{grid-template-columns:1fr}.d4-chart{height:205px}.d4-row{padding:10px 2px}.d4-row-label{font-size:11px}.d4-row-value{font-size:13px}}
+      @media(max-width:700px){#page-dash .dash-v4{padding:12px!important;border-radius:0!important}.d4-header{align-items:flex-start}.d4-title{font-size:18px}.dash-v4 .dash-v3-icon-box{width:43px;height:43px;flex-basis:43px;border-radius:12px}.d4-head-actions{flex-direction:column;align-items:stretch}.d4-ghost{height:36px;padding:0 9px}.d4-ghost span{display:none}.d4-view-nav{width:100%}.d4-view-btn{flex:1;justify-content:center;padding:0 8px}.d4-filter{border-radius:14px;padding:9px}.d4-presets{display:grid;grid-template-columns:repeat(3,1fr)}.d4-preset{padding:0 5px;height:36px}.d4-custom.show{grid-template-columns:1fr 1fr}.d4-custom label{display:none}.d4-custom .d4-apply{grid-column:1/-1}.d4-range-line{align-items:flex-start;flex-direction:column}.d4-kpis{grid-template-columns:1fr 1fr!important;gap:8px!important}.d4-kpi{padding:13px;border-radius:13px}.d4-value{font-size:20px}.d4-kpi-foot{display:block}.d4-trend{display:inline-block;margin-top:4px}.d4-card{border-radius:14px}.d4-card-head{align-items:flex-start;flex-direction:column;padding:13px}.d4-card-note{text-align:left}.d4-card-body{padding:13px}.d4-split{grid-template-columns:1fr}.d4-side{display:grid;grid-template-columns:1fr}.d4-obligations{grid-template-columns:1fr}.d4-chart{height:205px}.d4-row{padding:10px 2px}.d4-row-label{font-size:11px}.d4-row-value{font-size:13px}.d4-rank-hero{padding:17px}.d4-rank-hero h3{font-size:18px}.d4-rank-summary{grid-template-columns:1fr 1fr}.d4-rank-stat:last-child{grid-column:1/-1}.d4-ranking-head{padding:13px}}
       @media(max-width:390px){.d4-kpis{grid-template-columns:1fr!important}.d4-presets{grid-template-columns:repeat(2,1fr)}}
     `;
     document.head.appendChild(style);
@@ -575,6 +601,10 @@
             <button class="d4-ghost" id="d4-refresh"><i class="material-icons-round" style="font-size:17px">refresh</i><span>รีเฟรช</span></button>
           </div>
         </header>
+        <nav class="d4-view-nav" aria-label="เมนูวิเคราะห์ธุรกิจ">
+          <button class="d4-view-btn active" data-view="overview"><i class="material-icons-round">dashboard</i>ภาพรวมธุรกิจ</button>
+          <button class="d4-view-btn" data-view="products"><i class="material-icons-round">emoji_events</i>สินค้าขายดี</button>
+        </nav>
         <section class="d4-filter">
           <div class="d4-presets" role="group" aria-label="เลือกช่วงเวลา">
             <button class="d4-preset active" data-preset="today">วันนี้</button>
@@ -592,6 +622,7 @@
           <div class="d4-range-line"><span id="dash-v3-date-label">กำลังเตรียมช่วงวันที่...</span><span class="d4-status" id="d4-data-status"><i class="d4-dot"></i>พร้อมโหลดข้อมูล</span></div>
         </section>
         <div id="d4-alert-wrap"></div>
+        <div class="d4-view" id="d4-view-overview">
         <section class="d4-kpis" id="dash-v3-kpi-container">${loadingCards(4)}</section>
         <section class="d4-main">
           <div class="d4-stack">
@@ -609,6 +640,10 @@
             <article class="d4-card"><div class="d4-card-head"><div class="d4-card-title"><i class="material-icons-round" style="color:#ea580c">pending_actions</i> ยอดที่ต้องติดตาม</div><div class="d4-card-note">ยอดช่วงนี้และยอดคงค้างปัจจุบัน</div></div><div class="d4-card-body" id="dash-v3-truth-container"><div class="d4-loading"></div></div></article>
           </aside>
         </section>
+        </div>
+        <div class="d4-view" id="d4-view-products" hidden>
+          <div id="d4-ranking-content"><div class="d4-loading"></div></div>
+        </div>
       </div>`;
   }
 
@@ -717,10 +752,59 @@
     const el = document.getElementById('dash-v3-top-products');
     if (!report.topProducts.length) { el.innerHTML = '<div class="d4-empty">ไม่มีสินค้าขายในช่วงนี้</div>'; return; }
     const max = Math.max(1, report.topProducts[0].revenue);
-    el.innerHTML = report.topProducts.map((row, index) => {
+    el.innerHTML = report.topProducts.slice(0, 8).map((row, index) => {
       const margin = row.revenue > 0 ? row.profit / row.revenue * 100 : 0;
       return `<div class="d4-product"><div class="d4-product-line"><div class="d4-product-name" title="${esc(row.name)}">${index + 1}. ${esc(row.name)}</div><div class="d4-product-value">${fmtMoney(row.revenue)}<div style="font-size:9px;color:${margin >= 0 ? '#059669' : '#dc2626'}">Margin ${margin.toFixed(1)}%</div></div></div><div class="d4-track"><div class="d4-fill" style="width:${Math.max(3, row.revenue / max * 100)}%"></div></div></div>`;
     }).join('');
+  }
+
+  function renderProductRanking(report) {
+    const el = document.getElementById('d4-ranking-content');
+    if (!el) return;
+    const products = report.topProducts || [];
+    if (!products.length) {
+      el.innerHTML = `<div class="d4-ranking-card"><div class="d4-empty"><i class="material-icons-round" style="display:block;font-size:38px;margin-bottom:8px;color:#cbd5e1">inventory_2</i>ยังไม่มีสินค้าขายในช่วงวันที่นี้</div></div>`;
+      return;
+    }
+    const totalRevenue = products.reduce((sum, row) => sum + num(row.revenue), 0);
+    const totalQty = products.reduce((sum, row) => sum + num(row.qty), 0);
+    const maxRevenue = Math.max(1, products[0].revenue);
+    const rows = products.map((row, index) => {
+      const rankClass = index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : '';
+      const units = row.unitBreakdown?.length
+        ? row.unitBreakdown.map(item => `<span class="d4-unit-chip" title="ขาย ${fmtQty(item.qty)} ${esc(item.unit)}">${esc(item.unit)}</span>`).join('')
+        : '<span class="d4-unit-chip">ชิ้น</span>';
+      return `<tr>
+        <td><span class="d4-rank-no ${rankClass}">${index + 1}</span></td>
+        <td><div class="d4-rank-product" title="${esc(row.name)}">${esc(row.name)}</div><div class="d4-rank-bar"><i style="width:${Math.max(2, row.revenue / maxRevenue * 100)}%"></i></div></td>
+        <td class="d4-rank-money">${fmtMoney(row.revenue)}</td>
+        <td class="d4-rank-qty">${fmtQty(row.qty)}</td>
+        <td><div class="d4-unit-chips">${units}</div></td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `
+      <section class="d4-rank-hero">
+        <div class="d4-rank-eyebrow">Top products · อันดับตามยอดขาย</div>
+        <h3><i class="material-icons-round" style="font-size:24px;vertical-align:-5px;color:#fbbf24">workspace_premium</i> ${esc(products[0].name)}</h3>
+        <p>สินค้าขายดีอันดับ 1 ทำยอด ${fmtMoney(products[0].revenue)} ในช่วงวันที่ที่เลือก</p>
+        <div class="d4-rank-summary">
+          <div class="d4-rank-stat"><span>ยอดขายรวมใน 50 อันดับ</span><strong>${fmtMoney(totalRevenue)}</strong></div>
+          <div class="d4-rank-stat"><span>จำนวนที่ขายรวม</span><strong>${fmtQty(totalQty)}</strong></div>
+          <div class="d4-rank-stat"><span>สินค้าที่ติดอันดับ</span><strong>${fmt(products.length)} รายการ</strong></div>
+        </div>
+      </section>
+      <section class="d4-ranking-card">
+        <div class="d4-ranking-head">
+          <div class="d4-ranking-title"><i class="material-icons-round">leaderboard</i><div><strong>50 อันดับสินค้าขายดี</strong><small>เรียงจากยอดขายสุทธิสูงสุด · หักรายการคืนและส่วนลดแล้ว</small></div></div>
+          <span class="d4-rank-count">${fmt(products.length)} / 50 อันดับ</span>
+        </div>
+        <div class="d4-table-wrap">
+          <table class="d4-rank-table">
+            <thead><tr><th>อันดับ</th><th>ชื่อสินค้า</th><th>ยอดขาย</th><th>จำนวนที่ขาย</th><th>หน่วยที่ขาย</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </section>`;
   }
 
   function renderObligations(report) {
@@ -754,7 +838,7 @@
 
   function renderReport(report, previous) {
     state.report = report; state.previous = previous;
-    renderKpis(report, previous); renderLedger('pl'); renderChart(report); renderProducts(report); renderObligations(report); renderWarnings(report);
+    renderKpis(report, previous); renderLedger('pl'); renderChart(report); renderProducts(report); renderProductRanking(report); renderObligations(report); renderWarnings(report);
     const status = document.getElementById('d4-data-status');
     status.innerHTML = `<i class="d4-dot"></i>อัปเดต ${report.generatedAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} · ${fmt(report.counts.bills)} บิล · ${fmt(report.counts.items)} รายการ`;
   }
@@ -767,6 +851,7 @@
     document.getElementById('dash-v3-chart-area').innerHTML = '<div class="d4-empty">ไม่มีกราฟจนกว่าข้อมูลจะครบ</div>';
     document.getElementById('dash-v3-top-products').innerHTML = '<div class="d4-empty">ไม่มีข้อมูล</div>';
     document.getElementById('dash-v3-truth-container').innerHTML = '<div class="d4-empty">ไม่มีข้อมูล</div>';
+    document.getElementById('d4-ranking-content').innerHTML = `<div class="d4-ranking-card"><div class="d4-error-box"><i class="material-icons-round">cloud_off</i><h3>โหลดอันดับสินค้าไม่สำเร็จ</h3><p>${safe}</p></div></div>`;
     document.getElementById('d4-retry')?.addEventListener('click', refresh);
   }
 
@@ -781,6 +866,7 @@
     document.getElementById('dash-v3-chart-area').innerHTML = '<div class="d4-loading" style="width:100%"></div>';
     document.getElementById('dash-v3-top-products').innerHTML = '<div class="d4-loading"></div>';
     document.getElementById('dash-v3-truth-container').innerHTML = '<div class="d4-loading"></div>';
+    document.getElementById('d4-ranking-content').innerHTML = '<div class="d4-loading"></div>';
     document.getElementById('d4-alert-wrap').innerHTML = '';
     try {
       const prevRange = previousRange(range.start, range.end);
@@ -797,6 +883,12 @@
   }
 
   function bindEvents(section) {
+    section.querySelectorAll('.d4-view-btn').forEach(button => button.addEventListener('click', () => {
+      state.view = button.dataset.view;
+      section.querySelectorAll('.d4-view-btn').forEach(item => item.classList.toggle('active', item === button));
+      document.getElementById('d4-view-overview').hidden = state.view !== 'overview';
+      document.getElementById('d4-view-products').hidden = state.view !== 'products';
+    }));
     section.querySelectorAll('.d4-preset').forEach(button => button.addEventListener('click', () => {
       section.querySelectorAll('.d4-preset').forEach(item => item.classList.remove('active'));
       button.classList.add('active');
@@ -838,6 +930,7 @@
     const section = document.getElementById('page-dash');
     if (!section) return;
     state.preset = 'today';
+    state.view = 'overview';
     section.innerHTML = shellHtml();
     bindEvents(section);
     await refresh();

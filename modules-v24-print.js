@@ -459,6 +459,55 @@ async function v24BuildDebtBreakdown(custId, opts = {}) {
   const updateBills = opts.updateBills !== false;
   if (!custId) return { map: new Map(), rows: [], totalDebt: 0, originalTotal: 0, paidTotal: 0, customer: null };
 
+  // ใช้ชุดบิลที่หน้าลูกหนี้ตรวจสอบและจับคู่แล้ว เพื่อให้ยอด/เลขบิลในใบวางบิลตรงกับหน้าจอ
+  if (typeof window.v98GetResolvedDebtGroup === 'function') {
+    try {
+      const group = await window.v98GetResolvedDebtGroup(custId);
+      if (group?.rows?.length) {
+        const rows = group.rows
+          .filter(source => source?.bill && source.remaining > 0.009)
+          .map(source => {
+            const bill = source.bill;
+            const info = v24ParseInfo(bill.return_info);
+            return {
+              id: bill.id,
+              bill,
+              bill_no: bill.bill_no,
+              date: bill.date,
+              total: _v24m(source.total),
+              paid: _v24m(source.paid),
+              billPaid: _v24m(source.billPaid),
+              fifoPaid: _v24m(source.fifoPaid),
+              adjustmentPaid: 0,
+              remaining: _v24m(source.remaining),
+              returnTotal: _v24m(info.return_total),
+              originalTotal: _v24m(info.original_total || source.total),
+              effectiveTotal: _v24m(source.total),
+            };
+          });
+        if (rows.length) {
+          const map = new Map(rows.map(row => [String(row.id), {
+            paid: row.paid,
+            remaining: row.remaining,
+            total: row.total,
+            row,
+          }]));
+          return {
+            map,
+            rows,
+            totalDebt: rows.reduce((sum, row) => sum + row.remaining, 0),
+            originalTotal: rows.reduce((sum, row) => sum + row.total, 0),
+            paidTotal: rows.reduce((sum, row) => sum + row.paid, 0),
+            customer: group.customer || null,
+            resolvedByV98: true,
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('[v24] resolved debt group unavailable; using legacy breakdown', error);
+    }
+  }
+
   const [{ data: pays }, { data: bills }, { data: customer }] = await Promise.all([
     db.from('ชำระหนี้').select('amount,note').eq('customer_id', custId),
     db.from('บิลขาย')
@@ -585,6 +634,34 @@ function v24CompactBillingItems(rows) {
   return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
 }
 
+function v24AlignBillingItems(rows, expectedTotal) {
+  const details = v24CompactBillingItems(rows);
+  const expected = _v24m(expectedTotal);
+  if (!details.length) {
+    return expected > 0 ? [{
+      name: 'ยอดสินค้าตามบิล',
+      qty: 1,
+      unit: 'รายการ',
+      price: expected,
+      total: expected,
+      isBillingFallback: true,
+    }] : [];
+  }
+  const detailTotal = details.reduce((sum, item) => sum + _v24m(item.total), 0);
+  const difference = Number((expected - detailTotal).toFixed(2));
+  if (Math.abs(difference) > 0.009) {
+    details.push({
+      name: difference < 0 ? 'ส่วนลด / ปรับยอดให้ตรงตามบิล' : 'ส่วนต่างปรับยอดตามบิล',
+      qty: 1,
+      unit: 'รายการ',
+      price: difference,
+      total: difference,
+      isBillingAdjustment: true,
+    });
+  }
+  return details;
+}
+
 function v24DebtBillId(row) {
   if (row?.bill?.__openingDebt) return '';
   const id = row?.id || row?.bill?.id || row?.bill_id || row?.source_bill_id || '';
@@ -677,7 +754,7 @@ window.v24PrintBillingNote = async function (custId, custName) {
       bill_total: original,
       bill_paid: paid,
       bill_remaining: remaining,
-      billing_details: v24CompactBillingItems(billItemMap.get(v24DebtBillId(row)) || []),
+      billing_details: v24AlignBillingItems(billItemMap.get(v24DebtBillId(row)) || [], original),
       name: `บิล #${row.bill_no} — ${_v24d(row.date)} (ยอดบิล ฿${fn(original)}${returnText}${paidText} / คงเหลือ ฿${fn(remaining)})`,
       qty: 1,
       unit: 'บิล',

@@ -28,6 +28,16 @@
       return d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
     } catch (_) { return String(value); }
   }
+  function parseInfo(value) {
+    if (!value) return {};
+    if (typeof value === 'object') return value || {};
+    try { return JSON.parse(value); } catch (_) { return {}; }
+  }
+  function daysSince(value) {
+    if (!value) return 0;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? Math.max(0, Math.floor((Date.now() - time) / 86400000)) : 0;
+  }
   function initials(name) {
     const s = String(name || '?').trim();
     return s ? s.slice(0, 1).toUpperCase() : '?';
@@ -94,10 +104,40 @@
     });
     return Array.from(map.values()).sort((a, b) => a.firstIndex - b.firstIndex);
   }
+  function alignedBillingDetails(items, expectedTotal) {
+    const details = compactItems(items);
+    const expected = num(expectedTotal);
+    if (!details.length) {
+      return expected > 0 ? [{ name: 'ยอดสินค้าตามบิล', qty: 1, unit: 'รายการ', price: expected, total: expected }] : [];
+    }
+    const detailTotal = details.reduce((sum, item) => sum + num(item.total), 0);
+    const difference = Number((expected - detailTotal).toFixed(2));
+    if (Math.abs(difference) > 0.009) {
+      details.push({
+        name: difference < 0 ? 'ส่วนลด / ปรับยอดให้ตรงตามบิล' : 'ส่วนต่างปรับยอดตามบิล',
+        qty: 1,
+        unit: 'รายการ',
+        price: difference,
+        total: difference,
+      });
+    }
+    return details;
+  }
   function debtBillId(row) {
     if (row?.bill?.__openingDebt) return '';
     const id = row?.bill?.id || row?.id || row?.bill_id || row?.source_bill_id || '';
     return /^opening-/i.test(String(id)) ? '' : String(id);
+  }
+  async function fetchPaged(makeQuery, pageSize = 1000) {
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = data || [];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
   }
   async function attachBillItems(group) {
     const ids = [...new Set((group?.rows || []).map(debtBillId).filter(Boolean))];
@@ -281,18 +321,97 @@
         .v98-paybar .acts{flex-direction:column}
         .v98-paybar .acts .v98-btn{justify-content:center;width:100%;padding:14px}
       }
+      /* professional accounting layout */
+      #page-debt{background:#f4f6f9!important}
+      .v98-wrap{max-width:1440px;padding:24px 28px 40px}
+      .v98-hero{background:linear-gradient(125deg,#111827,#1e293b 60%,#334155);border:0;border-radius:18px;color:#fff;box-shadow:0 16px 34px rgba(15,23,42,.16);padding:24px 28px}
+      .v98-hero h2{color:#fff;font-size:24px;letter-spacing:-.2px}
+      .v98-hero p{color:#cbd5e1;opacity:1;font-weight:650}
+      .v98-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);box-shadow:none}
+      .v98-stat .l{color:#cbd5e1}.v98-stat .v,.v98-stat.danger .v{color:#fff}
+      .v98-tabs{display:flex;gap:6px;margin-bottom:16px;background:#e9edf3;border-radius:12px;padding:5px;width:max-content;max-width:100%}
+      .v98-tab{height:40px;border:0;border-radius:9px;background:transparent;color:#64748b;padding:0 16px;display:inline-flex;align-items:center;gap:7px;font:850 12px inherit;cursor:pointer;white-space:nowrap}
+      .v98-tab i{font-size:17px}.v98-tab b{background:#d7dde7;border-radius:999px;padding:2px 7px;font-size:10px}
+      .v98-tab.active{background:#fff;color:#0f172a;box-shadow:0 3px 10px rgba(15,23,42,.08)}.v98-tab.active b{background:#e2e8f0}
+      .v98-toolbar{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:10px;margin-bottom:18px}
+      .v98-search{border:0;background:#f8fafc;border-radius:10px}.v98-search:focus-within{border-color:transparent;box-shadow:0 0 0 3px rgba(30,41,59,.1)}
+      .v98-hero-copy{max-width:520px}.v98-hero-copy .v98-hero-kicker{display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;color:#fca5a5;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+      .v98-stats{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));min-width:min(100%,390px)}
+      .v98-stat{padding:13px 17px}.v98-stat .v{font-size:23px}.v98-stat.warn .v{color:#fdba74}
+      .v98-filterbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+      .v98-filter{height:38px;padding:0 12px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;color:#64748b;font:inherit;font-size:11.5px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+      .v98-filter i{font-size:16px}.v98-filter:hover{background:#f8fafc;color:#0f172a}.v98-filter.active{background:#1e293b;border-color:#1e293b;color:#fff}
+      .v98-sort{height:38px;min-width:150px;padding:0 34px 0 12px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;color:#334155;font:800 11.5px Prompt,Arial,sans-serif;outline:none;cursor:pointer}
+      .v98-result-count{margin:-7px 0 13px;color:#64748b;font-size:11.5px;font-weight:800}.v98-result-count b{color:#0f172a}
+      .v98-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+      .v98-card{border-radius:15px;padding:0;border:1px solid #e2e8f0;box-shadow:0 5px 16px rgba(15,23,42,.045)}
+      .v98-card:before{content:'';display:block;height:4px;background:#334155}
+      .v98-card.watch:before{background:#f59e0b}.v98-card.urgent:before{background:#dc2626}
+      .v98-card-head{padding:18px 18px 15px}.v98-card-foot{padding:14px 18px 17px;background:#fafbfc}
+      .v98-ava,.v98-dava{background:#e2e8f0!important;color:#1e293b;font-size:16px;font-weight:950;border-radius:10px}
+      .v98-card-name{font-size:16px}.v98-card-bills{border-radius:7px;background:#eef2f6}
+      .v98-card-amt b{color:#0f172a;font-size:20px}.v98-card:hover .v98-chev{color:#0f172a}
+      .v98-card-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 18px 0;color:#64748b;font-size:10.5px;font-weight:800}
+      .v98-card-meta span{display:inline-flex;align-items:center;gap:4px}.v98-card-meta i{font-size:14px;color:#94a3b8}
+      .v98-risk{padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:10px;font-weight:900;white-space:nowrap}
+      .v98-risk.watch{background:#fffbeb;color:#b45309}.v98-risk.urgent{background:#fef2f2;color:#b91c1c}
+      .v98-d2{grid-template-columns:minmax(0,1fr) 380px;gap:20px}
+      .v98-bill2{border-radius:14px;box-shadow:0 4px 14px rgba(15,23,42,.035)}
+      .v98-bill2-status.r{background:#fff7ed;color:#b45309}
+      .v98-bill2-top{display:grid;grid-template-columns:42px minmax(0,1fr) auto minmax(125px,auto);gap:12px;align-items:center}
+      .v98-bill2-id{min-width:0}.v98-bill2-no{overflow-wrap:anywhere;word-break:break-word}
+      .v98-bill2-date{white-space:normal;line-height:1.4}
+      .v98-bill2-status{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+      .v98-bill2-amt{min-width:125px;padding:8px 11px;border-left:1px solid #e2e8f0;background:#fafbfc;border-radius:0 10px 10px 0}
+      .v98-bill2-amt b{font-size:clamp(17px,1.45vw,21px);white-space:nowrap}
+      .v98-bill2-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 18px}
+      .v98-bill2-details{max-width:100%;overflow-x:auto}
+      .v98-bill2-detail-head,.v98-bill2-detail-row{min-width:520px}
+      .v98-side-card{border-radius:16px;box-shadow:0 10px 28px rgba(15,23,42,.08)}
+      .v98-side-cust{background:#f8fafc}.v98-side-total{background:#fff}
+      .v98-side-total span{color:#64748b}.v98-side-total b{color:#0f172a;font-size:36px}
+      .v98-btn.bad{background:#fff;color:#9a3412;border:1px solid #fed7aa;justify-content:center}
+      .v98-btn.bad:hover{background:#fff7ed;border-color:#fdba74}
+      .v98-bad-list{display:flex;flex-direction:column;gap:10px}
+      .v98-bad-row{display:grid;grid-template-columns:minmax(240px,1.2fr) minmax(220px,1fr) 150px 170px;gap:16px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:17px 20px}
+      .v98-bad-person{display:flex;align-items:center;gap:12px}.v98-bad-person strong,.v98-bad-meta strong{display:block;color:#0f172a;font-size:14px}.v98-bad-person small,.v98-bad-meta small{display:block;color:#94a3b8;font-size:11px;margin-top:3px}
+      .v98-bad-reason{color:#475569;font-size:12px;font-weight:750;line-height:1.45}.v98-bad-amount{text-align:right;color:#9a3412;font-size:20px;font-weight:950}
+      .v98-bad-head{display:grid;grid-template-columns:minmax(240px,1.2fr) minmax(220px,1fr) 150px 170px;gap:16px;padding:0 20px 7px;color:#64748b;font-size:11px;font-weight:900}
+      @media(max-width:1200px){.v98-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      @media(max-width:1000px){.v98-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v98-bad-row{grid-template-columns:1fr 1fr}.v98-bad-head{display:none}.v98-bad-amount{text-align:left}}
+      @media(max-width:760px){.v98-toolbar{align-items:stretch}.v98-search{flex-basis:100%}.v98-filterbar{flex:1}.v98-sort{flex:1}.v98-stats{width:100%;min-width:0}}
+      @media(max-width:640px){.v98-wrap{padding:14px}.v98-grid{grid-template-columns:1fr}.v98-tabs{width:100%;overflow:auto}.v98-tab{flex:1;justify-content:center}.v98-bad-row{grid-template-columns:1fr;padding:15px}.v98-bad-amount{text-align:left}.v98-hero{padding:20px}.v98-filterbar{display:grid;grid-template-columns:repeat(2,1fr);width:100%}.v98-filter{justify-content:center}.v98-sort{grid-column:1/-1;width:100%}}
+      @media(max-width:720px){
+        .v98-bill2{padding:14px}
+        .v98-bill2-top{grid-template-columns:40px minmax(0,1fr) auto;gap:10px}
+        .v98-bill2-ic{width:40px;height:40px}
+        .v98-bill2-status{max-width:110px}
+        .v98-bill2-amt{grid-column:2/-1;width:100%;min-width:0;border-left:0;border-top:1px solid #e2e8f0;border-radius:0;padding:10px 0 0;text-align:left;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+        .v98-bill2-amt span{order:-1}
+      }
+      @media(max-width:430px){
+        .v98-bill2-top{grid-template-columns:38px minmax(0,1fr)}
+        .v98-bill2-status{grid-column:2;justify-self:start;max-width:100%;white-space:normal}
+        .v98-bill2-amt{grid-column:1/-1}
+        .v98-bill2-foot{flex-direction:column}
+      }
     `;
     document.head.appendChild(style);
   }
 
   /* ── state ── */
-  window.__v98 = window.__v98 || { search: '', selected: null, groups: [] };
+  window.__v98 = window.__v98 || { search: '', selected: null, groups: [], view: 'active', badDebts: [], filter: 'all', sort: 'amount' };
+  window.__v98.view = window.__v98.view || 'active';
+  window.__v98.badDebts = window.__v98.badDebts || [];
+  window.__v98.filter = window.__v98.filter || 'all';
+  window.__v98.sort = window.__v98.sort || 'amount';
 
   async function fetchGroups() {
     if (typeof window.v68SyncCustomerTotals !== 'function') {
       throw new Error('โมดูลคำนวณยอดลูกหนี้ (v68) ยังไม่พร้อม');
     }
-    const sync = await window.v68SyncCustomerTotals(false);
+    // หน้าเปิดใหม่ต้องใช้ยอดสดเสมอ ไม่ใช้ cache 15 วินาทีหลังเพิ่งออกบิล/รับชำระ
+    const sync = await window.v68SyncCustomerTotals(true);
     const grouped = new Map();
     (sync.rows || []).forEach(row => {
       const id = String(row.customer.id);
@@ -301,64 +420,274 @@
       g.rows.push(row);
       g.total += num(row.remaining);
     });
-    return [...grouped.values()]
+    const groups = [...grouped.values()]
       .filter(g => g.total > 0.009)
       .sort((a, b) => b.total - a.total);
+    await expandLegacyDebtRows(groups);
+    return groups.filter(g => g.total > 0.009).sort((a, b) => b.total - a.total);
+  }
+
+  function isDirectOpenDebtBill(bill) {
+    const info = parseInfo(bill?.return_info);
+    const total = Math.max(0, num(info.new_total ?? bill?.total));
+    if (!bill || total <= 0 || /ยกเลิก|คืนสินค้า|หนี้เสีย|ตัดหนี้/i.test(`${bill.status || ''} ${bill.method || ''}`)) return false;
+    if (info.bad_debt?.recorded !== false && info.bad_debt) return false;
+    if (/คืนบางส่วน/.test(String(bill.status || '')) || num(info.return_total) > 0) return false;
+    const text = `${bill.status || ''} ${bill.method || ''}`;
+    if (/ค้าง|จ่ายแล้วบางส่วน|ชำระหน้างาน|เก็บปลายทาง|\bcod\b/i.test(text)) {
+      // บิลที่มีหลักฐานปิดยอดแล้วต้องไม่ถูกเปิดกลับมา แม้วิธีเดิมจะเป็น COD
+      if (/สำเร็จ|ชำระแล้ว|จ่ายแล้ว|paid/i.test(String(bill.status || ''))
+        && Object.prototype.hasOwnProperty.call(info, 'remaining_amount')
+        && num(info.remaining_amount) <= 0.009) return false;
+      return true;
+    }
+    const delivery = `${bill.delivery_mode || ''} ${bill.delivery_status || ''}`;
+    return /รอจัดส่ง|รอส่ง|pending/i.test(delivery)
+      && /จัดส่ง|ส่ง|deliver|partial/i.test(delivery)
+      && Math.max(num(bill.deposit_amount), num(bill.received), num(info.paid_amount)) < total - 0.009;
+  }
+
+  function directDebtRow(bill) {
+    const info = parseInfo(bill.return_info);
+    const total = Math.max(0, num(info.new_total ?? bill.total));
+    const hasRemaining = Object.prototype.hasOwnProperty.call(info, 'remaining_amount');
+    const remaining = Math.max(0, hasRemaining
+      ? num(info.remaining_amount)
+      : total - Math.max(num(bill.deposit_amount), num(bill.received)));
+    const paid = Math.max(0, total - remaining);
+    return { bill, total, paid, billPaid: Math.min(total, num(bill.deposit_amount)), fifoPaid: Math.max(0, paid - num(bill.deposit_amount)), remaining };
+  }
+
+  function fitNewestRowsToAmount(rows, targetAmount) {
+    let target = Math.max(0, num(targetAmount));
+    if (target <= 0.009) return [];
+    const picked = [];
+    // เงินรับชำระแบบรวมจะปิดบิลเก่าก่อน จึงจับยอดคงเหลือจากบิลใหม่ย้อนกลับ
+    for (let index = rows.length - 1; index >= 0 && target > 0.009; index -= 1) {
+      const row = rows[index];
+      const take = Math.min(num(row.remaining), target);
+      if (take <= 0.009) continue;
+      const paid = Math.max(0, num(row.total) - take);
+      picked.unshift({
+        ...row,
+        paid,
+        fifoPaid: Math.max(0, paid - num(row.billPaid)),
+        remaining: take,
+      });
+      target -= take;
+    }
+    return picked;
+  }
+
+  async function expandLegacyDebtRows(groups) {
+    const targets = groups.filter(group => (group.rows || []).some(row => /^opening-legacy-/i.test(String(row.bill?.id || ''))));
+    if (!targets.length) return groups;
+    const ids = targets.map(group => String(group.customer.id)).filter(Boolean);
+    if (!ids.length) return groups;
+    try {
+      const data = await fetchPaged(() => db.from('บิลขาย')
+        .select('id,bill_no,date,total,received,deposit_amount,method,status,delivery_mode,delivery_status,customer_id,customer_name,return_info')
+        .in('customer_id', ids)
+        .order('date', { ascending: true })
+        .order('id', { ascending: true }));
+      const byCustomer = new Map();
+      (data || []).filter(isDirectOpenDebtBill).forEach(bill => {
+        const key = String(bill.customer_id || '');
+        if (!byCustomer.has(key)) byCustomer.set(key, []);
+        const row = directDebtRow(bill);
+        if (row.remaining > 0.009) byCustomer.get(key).push(row);
+      });
+      targets.forEach(group => {
+        const actual = byCustomer.get(String(group.customer.id)) || [];
+        if (!actual.length) return;
+        const legacyRows = group.rows.filter(row => /^opening-legacy-/i.test(String(row.bill?.id || '')));
+        const otherRows = group.rows.filter(row => !/^opening-legacy-/i.test(String(row.bill?.id || '')));
+        const legacyTotal = legacyRows.reduce((sum, row) => sum + num(row.remaining), 0);
+        const actualIds = new Set(otherRows.map(row => String(row.bill?.id || '')));
+        let recovered = actual.filter(row => !actualIds.has(String(row.bill.id)));
+        let recoveredTotal = recovered.reduce((sum, row) => sum + num(row.remaining), 0);
+        if (recoveredTotal > legacyTotal + 0.009) {
+          recovered = fitNewestRowsToAmount(recovered, legacyTotal);
+          recoveredTotal = recovered.reduce((sum, row) => sum + num(row.remaining), 0);
+        }
+        const difference = Math.max(0, legacyTotal - recoveredTotal);
+        const rows = [...otherRows, ...recovered];
+        if (difference > 0.009) {
+          const source = legacyRows[0];
+          rows.unshift({ ...source, total: difference, remaining: difference, paid: 0 });
+        }
+        group.rows = rows;
+        group.total = rows.reduce((sum, row) => sum + num(row.remaining), 0);
+        group.__legacyExpanded = true;
+      });
+    } catch (error) {
+      console.warn('[v98] expand legacy debt rows:', error);
+    }
+    return groups;
+  }
+
+  async function fetchBadDebts() {
+    const data = await fetchPaged(() => db.from('บิลขาย')
+      .select('id,bill_no,date,total,method,status,customer_id,customer_name,return_info')
+      .order('date', { ascending: false })
+      .order('id', { ascending: false }));
+    const rows = (data || []).map(bill => {
+      const info = parseInfo(bill.return_info);
+      const meta = info.bad_debt;
+      if (!meta || meta.recorded === false) return null;
+      return {
+        bill,
+        meta,
+        customerId: String(bill.customer_id || meta.customer_id || `name:${bill.customer_name || '-'}`),
+        customerName: bill.customer_name || meta.customer_name || '-',
+        amount: Math.max(0, num(meta.amount ?? bill.total)),
+        reason: meta.reason || 'ไม่ได้ระบุเหตุผล',
+        recordedAt: meta.recorded_at || bill.date,
+        recordedBy: meta.recorded_by || '-',
+      };
+    }).filter(Boolean);
+    const grouped = new Map();
+    rows.forEach(row => {
+      if (!grouped.has(row.customerId)) {
+        grouped.set(row.customerId, {
+          customerId: row.customerId,
+          customerName: row.customerName,
+          total: 0,
+          rows: [],
+          latestAt: row.recordedAt,
+        });
+      }
+      const group = grouped.get(row.customerId);
+      group.rows.push(row);
+      group.total += row.amount;
+      if (String(row.recordedAt || '') > String(group.latestAt || '')) group.latestAt = row.recordedAt;
+    });
+    return [...grouped.values()].sort((a, b) => String(b.latestAt || '').localeCompare(String(a.latestAt || '')));
+  }
+
+  function navTabs(active = 'active') {
+    const badCount = (window.__v98.badDebts || []).length;
+    return `<nav class="v98-tabs" aria-label="เมนูลูกหนี้">
+      <button class="v98-tab ${active === 'active' ? 'active' : ''}" onclick="v98SetView('active')"><i class="material-icons-round">account_balance_wallet</i>ลูกค้าค้างชำระ</button>
+      <button class="v98-tab ${active === 'bad' ? 'active' : ''}" onclick="v98SetView('bad')"><i class="material-icons-round">inventory</i>ทะเบียนหนี้เสีย<b>${badCount}</b></button>
+    </nav>`;
+  }
+
+  function badDebtHTML(groups) {
+    const total = groups.reduce((sum, group) => sum + group.total, 0);
+    const rows = groups.length ? groups.map(group => {
+      const last = group.rows[0] || {};
+      const refs = group.rows.map(row => row.meta?.source === 'ยอดเดิม'
+        ? 'ยอดเดิม'
+        : `#${row.bill?.bill_no || row.bill?.id || '-'}`).slice(0, 5).join(' · ');
+      return `<article class="v98-bad-row">
+        <div class="v98-bad-person"><div class="v98-ava">${esc(initials(group.customerName))}</div><div><strong>${esc(group.customerName)}</strong><small>${group.rows.length} รายการที่ตัดเป็นหนี้เสีย</small></div></div>
+        <div class="v98-bad-reason">${esc(last.reason || 'ไม่ได้ระบุเหตุผล')}<small style="display:block;margin-top:5px;color:#94a3b8">${esc(refs)}</small></div>
+        <div class="v98-bad-meta"><strong>${esc(billDate(group.latestAt))}</strong><small>โดย ${esc(last.recordedBy || '-')}</small></div>
+        <div class="v98-bad-amount">฿${fmt(group.total)}</div>
+      </article>`;
+    }).join('') : `<div class="v98-empty"><i class="material-icons-round">task_alt</i><h3>ยังไม่มีรายการหนี้เสีย</h3></div>`;
+    return `<div class="v98-wrap">
+      ${navTabs('bad')}
+      <section class="v98-hero">
+        <div><h2><i class="material-icons-round">inventory</i> ทะเบียนหนี้เสีย</h2><p>รายการที่แยกออกจากยอดลูกหนี้ปกติ เพื่อใช้ติดตามและตรวจสอบทางบัญชี</p></div>
+        <div class="v98-stats"><div class="v98-stat"><div class="l">ยอดหนี้เสียสะสม</div><div class="v">฿${fmt(total)}</div></div><div class="v98-stat"><div class="l">จำนวนลูกค้า</div><div class="v">${groups.length} ราย</div></div></div>
+      </section>
+      <div class="v98-bad-head"><span>ลูกค้า</span><span>เหตุผลล่าสุด</span><span>วันที่บันทึก</span><span style="text-align:right">ยอดหนี้เสีย</span></div>
+      <div class="v98-bad-list">${rows}</div>
+    </div>`;
   }
 
   /* ── STEP 1: card grid ── */
   function gridHTML(groups) {
     const search = String(window.__v98.search || '').toLowerCase();
-    const filtered = search
+    const groupAge = group => {
+      const dates = (group.rows || []).map(row => row.bill?.date).filter(Boolean).sort();
+      return dates.length ? daysSince(dates[0]) : 0;
+    };
+    let filtered = search
       ? groups.filter(g => {
           const c = g.customer;
           const hay = `${c.name || ''} ${c.phone || ''} ${g.rows.map(r => r.bill.bill_no).join(' ')}`.toLowerCase();
           return hay.includes(search);
         })
       : groups;
+    const activeFilter = window.__v98.filter || 'all';
+    if (activeFilter === 'overdue') filtered = filtered.filter(group => groupAge(group) >= 30);
+    if (activeFilter === 'high') filtered = filtered.filter(group => num(group.total) >= 10000);
+    const activeSort = window.__v98.sort || 'amount';
+    filtered = filtered.slice().sort((a, b) => {
+      if (activeSort === 'oldest') return groupAge(b) - groupAge(a) || num(b.total) - num(a.total);
+      if (activeSort === 'name') return String(a.customer?.name || '').localeCompare(String(b.customer?.name || ''), 'th');
+      return num(b.total) - num(a.total);
+    });
 
     const total = groups.reduce((s, g) => s + g.total, 0);
+    const overdue = groups.filter(group => groupAge(group) >= 30);
+    const overdueTotal = overdue.reduce((sum, group) => sum + num(group.total), 0);
+    const average = groups.length ? total / groups.length : 0;
     const cards = filtered.length
       ? filtered.map(g => {
           const c = g.customer;
-          const [bg, fg] = avatarColor(c.name);
+          const age = groupAge(g);
+          const risk = age >= 60 ? 'urgent' : (age >= 30 ? 'watch' : '');
+          const riskLabel = age >= 60 ? 'เร่งติดตาม' : (age >= 30 ? 'เกิน 30 วัน' : 'ติดตามปกติ');
           return `
-            <div class="v98-card" onclick="v98OpenCustomer('${js(String(c.id))}')">
+            <div class="v98-card ${risk}" onclick="v98OpenCustomer('${js(String(c.id))}')">
               <div class="v98-card-head">
-                <div class="v98-ava" style="background:${bg}">${customerEmoji(c.name)}</div>
+                <div class="v98-ava">${esc(initials(c.name))}</div>
                 <div class="v98-card-id">
                   <div class="v98-card-name">${esc(c.name || '-')}</div>
                   <div class="v98-card-phone"><i class="material-icons-round">${c.phone ? 'call' : 'phone_disabled'}</i>${esc(c.phone || 'ไม่มีเบอร์โทร')}</div>
                 </div>
                 <i class="material-icons-round v98-chev">chevron_right</i>
               </div>
+              <div class="v98-card-meta">
+                <span><i class="material-icons-round">receipt_long</i>${g.rows.length} รายการ</span>
+                <b class="v98-risk ${risk}">${riskLabel}</b>
+              </div>
               <div class="v98-card-foot">
-                <span class="v98-card-bills"><i class="material-icons-round">receipt_long</i> ${g.rows.length} บิลค้าง</span>
+                <span class="v98-card-bills"><i class="material-icons-round">schedule</i> ${age ? `${age} วัน` : `${g.rows.length} บิล`}</span>
                 <div class="v98-card-amt"><span>ยอดค้าง</span><b>฿${fmt(g.total)}</b></div>
               </div>
             </div>`;
         }).join('')
-      : `<div class="v98-empty"><i class="material-icons-round">${search ? 'search_off' : 'check_circle'}</i>
-          <h3>${search ? 'ไม่พบลูกค้าที่ค้นหา' : 'ไม่มีลูกค้าค้างชำระ'}</h3></div>`;
+      : `<div class="v98-empty"><i class="material-icons-round">${search || activeFilter !== 'all' ? 'search_off' : 'check_circle'}</i>
+          <h3>${search || activeFilter !== 'all' ? 'ไม่พบลูกหนี้ตามเงื่อนไขนี้' : 'ไม่มีลูกค้าค้างชำระ'}</h3></div>`;
 
     return `
       <div class="v98-wrap">
+        ${navTabs('active')}
         <div class="v98-hero">
-          <div>
+          <div class="v98-hero-copy">
+            <div class="v98-hero-kicker"><i class="material-icons-round" style="font-size:15px">verified</i> Accounts receivable</div>
             <h2><i class="material-icons-round">account_balance_wallet</i> ลูกค้าค้างชำระ</h2>
-            <p>แตะการ์ดชื่อลูกค้าเพื่อดูบิลค้าง ใบวางบิล และรับชำระเงิน</p>
+            <p>ติดตามยอดค้างตามอายุหนี้ ค้นหาบิล และรับชำระได้จากศูนย์กลางเดียว</p>
           </div>
           <div class="v98-stats">
             <div class="v98-stat danger"><div class="l">ยอดหนี้รวม</div><div class="v">฿${fmt(total)}</div></div>
             <div class="v98-stat"><div class="l">ลูกค้าค้างชำระ</div><div class="v">${groups.length} ราย</div></div>
+            <div class="v98-stat warn"><div class="l">เกิน 30 วัน</div><div class="v">${overdue.length} ราย</div></div>
+            <div class="v98-stat"><div class="l">เฉลี่ยต่อราย</div><div class="v">฿${fmt(average)}</div></div>
           </div>
         </div>
         <div class="v98-toolbar">
           <label class="v98-search"><i class="material-icons-round">search</i>
             <input id="v98-search" value="${esc(window.__v98.search || '')}" placeholder="ค้นหาชื่อลูกค้า เบอร์โทร หรือเลขบิล..." oninput="v98Search(this.value)">
           </label>
+          <div class="v98-filterbar">
+            <button class="v98-filter ${activeFilter === 'all' ? 'active' : ''}" onclick="v98SetFilter('all')"><i class="material-icons-round">groups</i>ทั้งหมด</button>
+            <button class="v98-filter ${activeFilter === 'overdue' ? 'active' : ''}" onclick="v98SetFilter('overdue')"><i class="material-icons-round">notification_important</i>เกิน 30 วัน</button>
+            <button class="v98-filter ${activeFilter === 'high' ? 'active' : ''}" onclick="v98SetFilter('high')"><i class="material-icons-round">trending_up</i>ตั้งแต่ ฿10,000</button>
+            <select class="v98-sort" onchange="v98SetSort(this.value)" aria-label="เรียงรายการลูกหนี้">
+              <option value="amount" ${activeSort === 'amount' ? 'selected' : ''}>ยอดสูงสุดก่อน</option>
+              <option value="oldest" ${activeSort === 'oldest' ? 'selected' : ''}>ค้างนานสุดก่อน</option>
+              <option value="name" ${activeSort === 'name' ? 'selected' : ''}>เรียงตามชื่อลูกค้า</option>
+            </select>
+          </div>
           <button class="v98-btn ghost" onclick="v98Refresh()"><i class="material-icons-round">sync</i> ซิงค์ยอด</button>
         </div>
+        <div class="v98-result-count">แสดง <b>${filtered.length}</b> จาก ${groups.length} ราย · ยอดเกิน 30 วัน ฿${fmt(overdueTotal)}</div>
         <div class="v98-grid">${cards}</div>
       </div>`;
   }
@@ -366,7 +695,6 @@
   /* ── STEP 2: customer detail ── */
   function detailHTML(group) {
     const c = group.customer;
-    const [bg] = avatarColor(c.name);
     const sorted = group.rows.slice().sort((a, b) => String(b.bill.date || '').localeCompare(String(a.bill.date || '')));
     const billCount = group.rows.length;
     const paidSum = group.rows.reduce((s, r) => s + num(r.paid), 0);
@@ -376,6 +704,13 @@
     const bills = sorted.map(row => {
       const b = row.bill;
       const total = num(row.total), paid = num(row.paid), remaining = num(row.remaining);
+      const deliveryLabel = /รอจัดส่ง|รอส่ง|pending/i.test(String(b.delivery_status || ''))
+        ? 'รอจัดส่ง'
+        : /จัดส่งสำเร็จ|ส่งแล้ว|delivered/i.test(String(b.delivery_status || ''))
+          ? 'จัดส่งแล้ว'
+          : /รับเอง|สำเร็จ/i.test(`${b.delivery_mode || ''} ${b.delivery_status || ''}`)
+            ? 'รับเอง'
+            : (b.delivery_status || '-');
       const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
       const partial = paid > 0 && remaining > 0;
       const details = Array.isArray(row.billing_details) ? row.billing_details : [];
@@ -399,7 +734,7 @@
             <span class="v98-bill2-ic"><i class="material-icons-round">receipt_long</i></span>
             <div class="v98-bill2-id">
               <div class="v98-bill2-no">#${esc(b.bill_no || '-')}</div>
-              <div class="v98-bill2-date">${esc(billDate(b.date))}</div>
+              <div class="v98-bill2-date">${esc(billDate(b.date))} · ${esc(deliveryLabel)}</div>
             </div>
             <span class="v98-bill2-status ${partial ? 'o' : 'r'}">${partial ? 'จ่ายบางส่วน' : 'ค้างชำระ'}</span>
             <div class="v98-bill2-amt"><b>฿${fmt(remaining)}</b><span>คงเหลือ</span></div>
@@ -429,7 +764,7 @@
           <aside class="v98-d2-side">
             <div class="v98-side-card">
               <div class="v98-side-cust">
-                <div class="v98-dava" style="background:${bg}">${customerEmoji(c.name)}</div>
+                <div class="v98-dava">${esc(initials(c.name))}</div>
                 <div style="min-width:0">
                   <div class="v98-side-name">${esc(c.name || '-')}</div>
                   ${contact ? `<div class="v98-side-contact">${contact}</div>` : ''}
@@ -448,6 +783,7 @@
               <div class="v98-side-acts">
                 <button class="v98-btn green" onclick="v98Pay('${cid}','${cname}')"><i class="material-icons-round">payments</i> รับชำระเงิน</button>
                 <button class="v98-btn ghost" onclick="v98PrintBilling('${cid}','${cname}')"><i class="material-icons-round">receipt_long</i> พิมพ์ใบวางบิล</button>
+                <button class="v98-btn bad" onclick="v98PromptBadDebt('${cid}')"><i class="material-icons-round">move_to_inbox</i> บันทึกเป็นหนี้เสีย</button>
               </div>
             </div>
           </aside>
@@ -457,6 +793,7 @@
           <div class="acts">
             <button class="v98-btn ghost" onclick="v98PrintBilling('${cid}','${cname}')"><i class="material-icons-round">receipt_long</i> ใบวางบิล</button>
             <button class="v98-btn green" onclick="v98Pay('${cid}','${cname}')"><i class="material-icons-round">payments</i> รับชำระเงิน</button>
+            <button class="v98-btn bad" onclick="v98PromptBadDebt('${cid}')"><i class="material-icons-round">move_to_inbox</i> หนี้เสีย</button>
           </div>
         </div>
       </div>`;
@@ -474,11 +811,11 @@
         กำลังซิงค์ยอดลูกหนี้จากบิลจริง...</div></div>`;
     }
     try {
-      const groups = await fetchGroups();
+      const [groups, badDebts] = await Promise.all([fetchGroups(), fetchBadDebts()]);
       window.__v98.groups = groups;
-      // เข้าหน้าลูกหนี้ → เริ่มที่หน้าการ์ดเสมอ
+      window.__v98.badDebts = badDebts;
       window.__v98.selected = null;
-      section.innerHTML = gridHTML(groups);
+      section.innerHTML = window.__v98.view === 'bad' ? badDebtHTML(badDebts) : gridHTML(groups);
       if (keepFocus) {
         const inp = document.getElementById('v98-search');
         if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) {} }
@@ -514,10 +851,28 @@
   };
 
   window.v98BackToGrid = function () {
+    window.__v98.view = 'active';
     window.__v98.selected = null;
     const section = document.getElementById('page-debt');
     if (section) section.innerHTML = gridHTML(window.__v98.groups || []);
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
+  };
+
+  window.v98SetView = async function (view) {
+    window.__v98.view = view === 'bad' ? 'bad' : 'active';
+    window.__v98.selected = null;
+    const section = document.getElementById('page-debt');
+    if (!section) return;
+    if (window.__v98.view === 'bad') {
+      try {
+        window.__v98.badDebts = await fetchBadDebts();
+        section.innerHTML = badDebtHTML(window.__v98.badDebts);
+      } catch (error) {
+        (window.toast || (() => {}))('โหลดทะเบียนหนี้เสียไม่สำเร็จ: ' + (error.message || error), 'error');
+      }
+    } else {
+      section.innerHTML = gridHTML(window.__v98.groups || []);
+    }
   };
 
   let searchTimer = null;
@@ -534,6 +889,20 @@
     }, 160);
   };
 
+  window.v98SetFilter = function (filter) {
+    window.__v98.filter = ['overdue', 'high'].includes(filter) ? filter : 'all';
+    window.__v98.selected = null;
+    const section = document.getElementById('page-debt');
+    if (section) section.innerHTML = gridHTML(window.__v98.groups || []);
+  };
+
+  window.v98SetSort = function (sort) {
+    window.__v98.sort = ['oldest', 'name'].includes(sort) ? sort : 'amount';
+    window.__v98.selected = null;
+    const section = document.getElementById('page-debt');
+    if (section) section.innerHTML = gridHTML(window.__v98.groups || []);
+  };
+
   window.v98Refresh = async function () {
     try {
       if (typeof window.v68SyncCustomerTotals === 'function') await window.v68SyncCustomerTotals(true);
@@ -542,12 +911,189 @@
     render({ silent: false });
   };
 
-  window.v98PrintBilling = function (cid, cname) {
+  // แหล่งข้อมูลกลางสำหรับใบวางบิล: ใช้ชุดบิลจริงเดียวกับที่ผู้ใช้เห็นบนหน้าจอ
+  window.v98GetResolvedDebtGroup = async function (customerId) {
+    const groups = await fetchGroups();
+    window.__v98.groups = groups;
+    return groups.find(group => String(group.customer.id) === String(customerId)) || null;
+  };
+
+  window.v98PromptBadDebt = async function (customerId) {
+    const group = (window.__v98.groups || []).find(item => String(item.customer.id) === String(customerId));
+    if (!group || group.total <= 0.009) {
+      (window.toast || (() => {}))('ไม่พบยอดค้างชำระของลูกค้ารายนี้', 'warning');
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'บันทึกเป็นหนี้เสีย?',
+      html: `<div style="text-align:left;line-height:1.65;color:#475569">
+        ลูกค้า <b style="color:#0f172a">${esc(group.customer.name || '-')}</b><br>
+        ยอดที่จะย้ายออกจากลูกหนี้ปกติ <b style="color:#9a3412">฿${fmt(group.total)}</b><br>
+        <small>รายการจะยังอยู่ในทะเบียนหนี้เสียเพื่อการตรวจสอบ และจะไม่รวมในยอดค้างรับปัจจุบัน</small>
+      </div>`,
+      input: 'textarea',
+      inputLabel: 'เหตุผล / หมายเหตุ',
+      inputPlaceholder: 'เช่น ติดตามหลายครั้งแล้วไม่สามารถเรียกเก็บได้',
+      inputValue: 'ติดตามแล้วไม่สามารถเรียกเก็บได้',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันบันทึกหนี้เสีย',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#9a3412',
+      inputValidator: value => String(value || '').trim() ? undefined : 'กรุณาระบุเหตุผล',
+    });
+    if (!result.isConfirmed) return;
+
+    const reason = String(result.value || '').trim();
+    const recordedAt = new Date().toISOString();
+    let openingAmount = 0;
+    let hasOpeningTableDebt = false;
+    try {
+      Swal.fire({ title: 'กำลังบันทึกหนี้เสีย...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      for (const row of group.rows) {
+        const bill = row.bill || {};
+        if (bill.__openingDebt || /^opening-/i.test(String(bill.id || ''))) {
+          openingAmount += num(row.remaining);
+          if (/^opening-(?!legacy-)/i.test(String(bill.id || ''))) hasOpeningTableDebt = true;
+          continue;
+        }
+        const info = parseInfo(bill.return_info);
+        info.bad_debt = {
+          recorded: true,
+          amount: Number(num(row.remaining).toFixed(2)),
+          reason,
+          recorded_at: recordedAt,
+          recorded_by: (() => { try { return USER?.username || USER?.name || 'system'; } catch (_) { return 'system'; } })(),
+          customer_id: group.customer.id,
+          customer_name: group.customer.name,
+          original_status: bill.status || '',
+        };
+        const updated = await db.from('บิลขาย').update({ status: 'หนี้เสีย', return_info: info }).eq('id', bill.id);
+        if (updated.error) throw updated.error;
+      }
+
+      if (openingAmount > 0.009) {
+        const recordedBy = (() => { try { return USER?.username || USER?.name || 'system'; } catch (_) { return 'system'; } })();
+        const inserted = await db.from('บิลขาย').insert({
+          date: recordedAt,
+          method: 'บันทึกหนี้เสีย',
+          total: Number(openingAmount.toFixed(2)),
+          discount: 0,
+          received: 0,
+          change: 0,
+          customer_name: group.customer.name || 'ลูกค้า',
+          customer_id: group.customer.id,
+          staff_name: recordedBy,
+          status: 'หนี้เสีย',
+          delivery_mode: 'รับเอง',
+          delivery_status: 'สำเร็จ',
+          deposit_amount: 0,
+          return_info: {
+            bad_debt_record_only: true,
+            bad_debt: {
+              recorded: true,
+              amount: Number(openingAmount.toFixed(2)),
+              reason,
+              recorded_at: recordedAt,
+              recorded_by: recordedBy,
+              customer_id: group.customer.id,
+              customer_name: group.customer.name,
+              source: 'ยอดเดิม',
+            },
+          },
+        });
+        if (inserted.error) throw inserted.error;
+      }
+
+      if (hasOpeningTableDebt) {
+        const byId = await db.from('หนี้เดิมยกมา').update({ debt_amount: 0 }).eq('customer_id', group.customer.id);
+        if (byId.error) throw byId.error;
+        // รองรับข้อมูลยกมารุ่นเก่าที่ผูกด้วยชื่อลูกค้าแทนรหัส
+        const byName = await db.from('หนี้เดิมยกมา').update({ debt_amount: 0 }).eq('customer_name', group.customer.name);
+        if (byName.error) throw byName.error;
+      }
+
+      const customerUpdate = await db.from('customer').update({ debt_amount: 0 }).eq('id', group.customer.id);
+      if (customerUpdate.error) throw customerUpdate.error;
+      try {
+        if (typeof logActivity === 'function') {
+          logActivity('บันทึกหนี้เสีย', `${group.customer.name || '-'} ยอด ฿${fmt(group.total)} — ${reason}`, group.customer.id, 'customer');
+        }
+      } catch (_) {}
+      if (typeof window.v68SyncCustomerTotals === 'function') await window.v68SyncCustomerTotals(true);
+      window.__v98.view = 'bad';
+      await render({ silent: true });
+      Swal.fire({ icon: 'success', title: 'บันทึกหนี้เสียแล้ว', text: 'ย้ายรายการไปยังทะเบียนหนี้เสียเรียบร้อย', confirmButtonColor: '#1e293b' });
+    } catch (error) {
+      console.error('[v98] bad debt:', error);
+      Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: error.message || String(error) });
+    }
+  };
+
+  window.v98PrintBilling = async function (cid, cname) {
     const name = String(cname).replace(/\\'/g, "'");
-    if (typeof window.v24PrintBillingNote === 'function') {
-      window.v24PrintBillingNote(cid, name);
-    } else {
-      (window.toast || (() => {}))('ยังไม่พบโมดูลพิมพ์ใบวางบิล', 'warning');
+    const printWin = typeof window.v37OpenA4PrintWindow === 'function'
+      ? window.v37OpenA4PrintWindow()
+      : null;
+    try {
+      if (typeof window.v37PrintA4Detailed !== 'function') {
+        if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
+        if (typeof window.v24PrintBillingNote === 'function') {
+          await window.v24PrintBillingNote(cid, name);
+          return;
+        }
+        throw new Error('ยังไม่พบระบบพิมพ์ใบวางบิล');
+      }
+      const group = await window.v98GetResolvedDebtGroup(cid);
+      if (!group?.rows?.length) throw new Error('ไม่พบบิลค้างชำระของลูกค้ารายนี้');
+      await attachBillItems(group);
+      const rows = group.rows
+        .filter(row => row.remaining > 0.009 && debtBillId(row))
+        .sort((a, b) => String(a.bill?.date || '').localeCompare(String(b.bill?.date || '')));
+      if (!rows.length) throw new Error('ไม่พบเลขบิลจริงสำหรับจัดทำใบวางบิล');
+
+      let originalTotal = 0;
+      let paidTotal = 0;
+      const docItems = rows.map(row => {
+        const total = num(row.total);
+        const paid = num(row.paid);
+        const remaining = num(row.remaining);
+        originalTotal += total;
+        paidTotal += paid;
+        return {
+          source_bill_id: row.bill.id,
+          source_bill_no: row.bill.bill_no,
+          source_bill_date: row.bill.date,
+          bill_total: total,
+          bill_paid: paid,
+          bill_remaining: remaining,
+          billing_details: alignedBillingDetails(row.billing_details || [], total),
+          name: `บิล #${row.bill.bill_no || row.bill.id}`,
+          qty: 1,
+          unit: 'บิล',
+          price: remaining,
+          total: remaining,
+        };
+      });
+      const amountDue = docItems.reduce((sum, item) => sum + num(item.total), 0);
+      const billDoc = {
+        bill_no: `BN-${Date.now().toString().slice(-8)}`,
+        date: new Date().toISOString(),
+        customer_name: name || group.customer.name || '-',
+        customer_address: group.customer.address || '',
+        customer_phone: group.customer.phone || '',
+        total: amountDue,
+        billing_original_total: originalTotal,
+        billing_paid_total: paidTotal,
+        discount: 0,
+        method: 'ค้างชำระ',
+        staff_name: (() => { try { return USER?.username || USER?.name || '-'; } catch (_) { return '-'; } })(),
+      };
+      await window.v37PrintA4Detailed(billDoc, docItems, 'billing', printWin);
+    } catch (error) {
+      if (printWin && typeof window.v37CloseA4PrintWindow === 'function') window.v37CloseA4PrintWindow(printWin);
+      console.error('[v98] direct billing print:', error);
+      (window.toast || (() => {}))('พิมพ์ใบวางบิลไม่สำเร็จ: ' + (error.message || error), 'error');
     }
   };
 

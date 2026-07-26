@@ -44,22 +44,89 @@
 
   let linkingPromise = null;
   let lastRunAt = 0;
+  let totalsPromise = null;
+  let lastTotalsAt = 0;
   const MIN_INTERVAL_MS = 60_000; // don't re-run more than once a minute
+
+  function parseInfo(value) {
+    if (!value) return {};
+    if (typeof value === 'object') return value || {};
+    try { return JSON.parse(value); } catch (_) { return {}; }
+  }
+
+  async function fetchAllPaged(makeQuery, pageSize = 1000) {
+    const all = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = data || [];
+      all.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return all;
+  }
+
+  async function rebuildCustomerPurchaseTotals(force = false) {
+    if (!force && Date.now() - lastTotalsAt < MIN_INTERVAL_MS) return { skipped: true, at: window.__v73CustomerTotalsAt || null };
+    if (totalsPromise) return totalsPromise;
+    totalsPromise = (async () => {
+      const [customers, bills] = await Promise.all([
+        fetchAllPaged(() => db.from(CUSTOMER_TABLE)
+          .select('id,total_purchase,visit_count')
+          .order('id', { ascending: true })),
+        fetchAllPaged(() => db.from(BILL_TABLE)
+          .select('id,total,status,method,project_id,customer_id,return_info')
+          .order('id', { ascending: true })),
+      ]);
+      const totals = new Map((customers || []).map(customer => [String(customer.id), { total: 0, visits: 0 }]));
+      (bills || []).forEach(bill => {
+        if (!bill.customer_id || bill.project_id) return;
+        if (/ยกเลิก|คืนสินค้า/.test(String(bill.status || ''))) return;
+        if (/โครงการ|จ่ายของให้โครงการ|ต้นทุนโครงการ/.test(String(bill.method || ''))) return;
+        const info = parseInfo(bill.return_info);
+        if (info.bad_debt_record_only) return;
+        const amount = Math.max(0, Number(info.new_total ?? bill.total) || 0);
+        if (amount <= 0) return;
+        const key = String(bill.customer_id);
+        if (!totals.has(key)) totals.set(key, { total: 0, visits: 0 });
+        const entry = totals.get(key);
+        entry.total += amount;
+        entry.visits += 1;
+      });
+      let updated = 0;
+      for (const customer of (customers || [])) {
+        const entry = totals.get(String(customer.id)) || { total: 0, visits: 0 };
+        if (Math.abs(Number(customer.total_purchase || 0) - entry.total) <= 0.009
+          && Number(customer.visit_count || 0) === entry.visits) continue;
+        const result = await db.from(CUSTOMER_TABLE).update({
+          total_purchase: Number(entry.total.toFixed(2)),
+          visit_count: entry.visits,
+        }).eq('id', customer.id);
+        if (result.error) throw result.error;
+        updated += 1;
+      }
+      window.__v73CustomerTotalsAt = new Date();
+      lastTotalsAt = Date.now();
+      console.info(tag, `customer totals rebuilt: updated=${updated}`);
+      return { updated, at: window.__v73CustomerTotalsAt };
+    })().finally(() => { totalsPromise = null; });
+    return totalsPromise;
+  }
 
   async function linkAllOrphanBills(force) {
     if (!force && Date.now() - lastRunAt < MIN_INTERVAL_MS) return { skipped: true };
     if (linkingPromise) return linkingPromise;
     linkingPromise = (async () => {
       try {
-        const [{ data: customers, error: cErr }, { data: bills, error: bErr }] = await Promise.all([
-          db.from(CUSTOMER_TABLE).select('id,name,phone').limit(10000),
-          db.from(BILL_TABLE)
+        const [customers, bills] = await Promise.all([
+          fetchAllPaged(() => db.from(CUSTOMER_TABLE)
+            .select('id,name,phone')
+            .order('id', { ascending: true })),
+          fetchAllPaged(() => db.from(BILL_TABLE)
             .select('id,customer_id,customer_name,delivery_phone,status,method,project_id')
             .is('customer_id', null)
-            .limit(10000),
+            .order('id', { ascending: true })),
         ]);
-        if (cErr) throw cErr;
-        if (bErr) throw bErr;
 
         // Build name → customers index
         const byName = new Map();
@@ -111,6 +178,7 @@
 
   // Expose for manual / programmatic use
   window.v73LinkOrphanBills = linkAllOrphanBills;
+  window.v73RebuildCustomerPurchaseTotals = rebuildCustomerPurchaseTotals;
 
   /* ─────────────────────────────────────────────────────────────
      Wrap loadCustomerData so visiting the customer page auto-links
@@ -120,13 +188,19 @@
     const orig = window.loadCustomerData;
     if (typeof orig !== 'function' || orig.__v73OrphanLink) return;
     const wrapped = async function (...args) {
-      // Fire orphan-link in the background; the displayed totals will get
-      // updated by the v68 sync chain v73 triggers on success.
-      linkAllOrphanBills(false).catch(() => {});
+      // ผูกบิลตกหล่นและสร้างยอดซื้อ/จำนวนครั้งใหม่จากบิลจริงก่อนแสดงหน้า
+      try {
+        await linkAllOrphanBills(false);
+        await rebuildCustomerPurchaseTotals();
+      } catch (error) {
+        console.warn(tag, 'customer totals refresh:', error);
+      }
       return orig.apply(this, args);
     };
     Object.defineProperty(wrapped, '__v73OrphanLink', { value: true });
     try { window.loadCustomerData = wrapped; } catch (_) {}
+    // app.js เรียกผ่านตัวแปรฟังก์ชันโดยตรง ไม่ได้อ่าน window ทุกครั้ง
+    try { loadCustomerData = wrapped; } catch (_) {}
   }
 
   /* ─────────────────────────────────────────────────────────────
