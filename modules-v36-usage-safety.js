@@ -9,7 +9,9 @@ console.log('[v36] Usage safety patch loaded');
 
   const txt = {
     product: 'สินค้า',
-    recipe: 'สูตรคอนกรีต',
+    // ตารางสูตรจริงของระบบคือ "สูตรสินค้า" (ใช้ร่วมกับโมดูล v65/v66)
+    // ชื่อเก่า "สูตรคอนกรีต" ไม่มีในฐานและทำให้รับชำระแล้วปิดงานจัดส่งไม่สำเร็จ
+    recipe: 'สูตรสินค้า',
     bill: 'บิลขาย',
     billItem: 'รายการในบิล',
     sale: 'ขาย',
@@ -2478,9 +2480,14 @@ console.log('[v36] Usage safety patch loaded');
         const total = effectiveTotal(bill);
         const paid = projectBill ? total : effectivePaidForDelivery(bill, total);
         const remaining = projectBill ? 0 : Math.max(0, total - paid);
-        let action = remaining > 0 ? 'pay' : 'done';
+        // ถ้ารอบก่อนรับชำระ/บันทึกเป็นหนี้สำเร็จ แต่ขั้นปิดงานล้มเหลว
+        // สถานะบิลจะเป็นค้างชำระอยู่แล้ว รอบ retry ต้องปิดงานต่อโดยไม่เปิดรับเงิน
+        // และห้ามบวก debt_amount ซ้ำอีกครั้ง
+        const debtAlreadyRecorded = remaining > 0
+          && /ค้าง|บางส่วน/.test(`${bill.status || ''} ${bill.method || ''}`);
+        let action = remaining > 0 ? (debtAlreadyRecorded ? 'debt' : 'pay') : 'done';
 
-        if (remaining > 0 && typeof v20BMCPayDebt === 'function') {
+        if (remaining > 0 && !debtAlreadyRecorded && typeof v20BMCPayDebt === 'function') {
           window.__v36DeliveryPendingPayment = window.__v36DeliveryPendingPayment || {};
           window.__v36DeliveryPendingPayment[billId] = { remaining, startedAt: new Date().toISOString() };
           toast?.('เปิดหน้ารับชำระก่อน ระบบจะปิดงานจัดส่งหลังบันทึกธุรกรรมสำเร็จ', 'info');
@@ -2492,7 +2499,12 @@ console.log('[v36] Usage safety patch loaded');
           const result = await Swal.fire({
             icon: 'question',
             title: 'ยืนยันจัดส่งสำเร็จ?',
-            html: remaining > 0
+            html: debtAlreadyRecorded
+              ? `<div style="text-align:left;line-height:1.8">
+                  <div>ยอดค้าง <b style="color:#dc2626">฿${fmt(remaining)}</b> ถูกบันทึกเป็นลูกหนี้แล้ว</div>
+                  <div style="color:#64748b">ระบบจะปิดงานจัดส่งต่อ โดยไม่บันทึกรับเงินหรือเพิ่มยอดหนี้ซ้ำ</div>
+                </div>`
+              : remaining > 0
               ? `<div style="text-align:left;line-height:1.8">
                   <div>ยอดบิล: <b>฿${fmt(total)}</b></div>
                   <div>มัดจำแล้ว: <b style="color:#16a34a">฿${fmt(paid)}</b></div>
@@ -2500,15 +2512,15 @@ console.log('[v36] Usage safety patch loaded');
                 </div>`
               : 'ระบบจะตัดสต็อกเฉพาะรายการที่ยังไม่เคยตัด และปิดสถานะจัดส่งให้',
             showCancelButton: true,
-            showDenyButton: remaining > 0,
-            confirmButtonText: remaining > 0 ? 'รับชำระตอนนี้' : 'ยืนยัน',
+            showDenyButton: remaining > 0 && !debtAlreadyRecorded,
+            confirmButtonText: debtAlreadyRecorded ? 'ปิดงานจัดส่ง' : (remaining > 0 ? 'รับชำระตอนนี้' : 'ยืนยัน'),
             denyButtonText: 'บันทึกเป็นหนี้',
             cancelButtonText: 'ยกเลิก',
             confirmButtonColor: '#10b981',
             denyButtonColor: '#f59e0b',
           });
           if (result.isDismissed) return;
-          action = result.isDenied ? 'debt' : (remaining > 0 ? 'pay' : 'done');
+          action = debtAlreadyRecorded ? 'debt' : (result.isDenied ? 'debt' : (remaining > 0 ? 'pay' : 'done'));
           if (remaining > 0 && action === 'pay' && typeof v20BMCPayDebt === 'function') {
             window.__v36DeliveryPendingPayment = window.__v36DeliveryPendingPayment || {};
             window.__v36DeliveryPendingPayment[billId] = { remaining, startedAt: new Date().toISOString() };
@@ -2538,7 +2550,7 @@ console.log('[v36] Usage safety patch loaded');
           status: projectBill ? (bill.status || txt.success) : (remaining > 0 ? txt.debt : txt.success),
         }).eq('id', billId), 'อัปเดตสถานะจัดส่ง');
 
-        if (remaining > 0 && action === 'debt' && bill.customer_id) {
+        if (remaining > 0 && action === 'debt' && bill.customer_id && !debtAlreadyRecorded) {
           const { data: cust } = await db.from('customer').select('debt_amount').eq('id', bill.customer_id).maybeSingle();
           await must(db.from('customer').update({
             debt_amount: money(cust?.debt_amount) + remaining,
