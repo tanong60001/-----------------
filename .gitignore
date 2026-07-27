@@ -1,0 +1,4 @@
+# Keep generated installer artifacts on the local machine only.
+SK POS Setup.exe
+installer/bin/
+installer/obj/
