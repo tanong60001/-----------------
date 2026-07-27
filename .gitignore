@@ -2,3 +2,10 @@
 SK POS Setup.exe
 installer/bin/
 installer/obj/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
