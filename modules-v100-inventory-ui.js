@@ -128,20 +128,38 @@
       #page-inv .v38-actions button.danger:hover{background:#fef2f2;border-color:#fecaca}
 
       @media(max-width:760px){
-        #page-inv .v38-head{padding:18px;border-radius:18px}
+        #page-inv{margin:-16px!important;padding:10px!important;overflow-x:hidden}
+        #page-inv .v38-inv{width:100%;max-width:none}
+        #page-inv .v38-head{
+          display:grid;grid-template-columns:minmax(0,1fr) auto;
+          align-items:start;gap:10px;padding:16px;border-radius:18px}
+        #page-inv .v38-title{min-width:0}
         #page-inv .v38-title h2{font-size:23px}
-        #page-inv .v38-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-        #page-inv .v38-stat{min-width:0;min-height:138px;padding:16px 14px}
+        #page-inv .v38-title div{
+          display:-webkit-box;max-width:100%;overflow:hidden;
+          -webkit-box-orient:vertical;-webkit-line-clamp:2;
+          font-size:11px;line-height:1.45}
+        #page-inv .v38-head-actions{width:auto;display:flex;gap:6px;justify-content:flex-end}
+        #page-inv .v38-head-actions .v38-btn{
+          width:44px!important;min-width:44px;height:44px;padding:0!important;
+          justify-content:center;font-size:0;border-radius:12px}
+        #page-inv .v38-head-actions .v38-btn i{font-size:21px}
+        #page-inv .v38-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+        #page-inv .v38-stat{min-width:0;min-height:112px;padding:14px 13px}
         #page-inv .v38-stat strong{
           display:block;max-width:100%;min-width:0;
-          font-size:clamp(24px,9vw,34px);line-height:1.08;
+          font-size:clamp(23px,8vw,31px);line-height:1.08;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           letter-spacing:-.7px;font-variant-numeric:tabular-nums}
         #page-inv .v38-stat span{display:block;max-width:100%;line-height:1.25;white-space:normal}
         #page-inv .v38-stat:nth-child(4) strong,
         #page-inv .v38-stat.success strong,
         #page-inv .v38-stat[style*="#16a34a"] strong{
-          font-size:clamp(20px,7vw,30px);letter-spacing:-.9px}
+          font-size:clamp(17px,5.2vw,24px);letter-spacing:-.8px}
+        #page-inv .v38-toolbar{padding:11px}
+        #page-inv .v38-search input{font-size:12px}
+        #page-inv .v38-chips{padding:10px;gap:6px}
+        #page-inv .v38-chip{min-width:42px;padding:8px 10px;overflow:hidden;text-overflow:ellipsis}
       }
 
       @media(max-width:390px){

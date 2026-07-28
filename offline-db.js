@@ -279,6 +279,12 @@
   function makeClient(url, key) {
     try { runtime.remote = originalCreateClient ? originalCreateClient(url, key) : null; } catch (_) { runtime.remote = null; }
     const client = {
+      // Keep the non-table Supabase services available to existing modules.
+      // Storage is required for product/ad image uploads. Auth and Functions
+      // are forwarded as well so wrapping the client does not remove SDK APIs.
+      get storage() { return runtime.remote?.storage || null; },
+      get auth() { return runtime.remote?.auth || null; },
+      get functions() { return runtime.remote?.functions || null; },
       from(table) { return new Builder(table); },
       rpc(name, args) {
         if (!isOffline() && runtime.remote?.rpc) return runtime.remote.rpc(name, args);

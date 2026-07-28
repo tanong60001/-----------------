@@ -11,6 +11,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const LINE_TOKEN = Deno.env.get("LINE_TOKEN")!;
 const LINE_GROUP_ID = Deno.env.get("LINE_GROUP_ID")!;
+// ปิดเป็นค่าเริ่มต้นเพื่อประหยัดโควต้า LINE — ให้กดดูจากเมนูผู้ช่วยแทน
+// หากต้องการเปิดการส่งอัตโนมัติอีกครั้งในอนาคต ให้ตั้ง ENABLE_LINE_SCHEDULED_PUSH=true
+const ENABLE_SCHEDULED_PUSH = Deno.env.get("ENABLE_LINE_SCHEDULED_PUSH") === "true";
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -57,6 +60,9 @@ const kv = (label: string, value: string, color = "#334155", bold = false, inden
 
 Deno.serve(async (req) => {
   try {
+    if (!ENABLE_SCHEDULED_PUSH) {
+      return new Response("automatic daily summary disabled; use assistant menu", { status: 200 });
+    }
     const url = new URL(req.url);
     const { start, end, label } = dayRangeTH(url.searchParams.get("date") || undefined);
 

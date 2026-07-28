@@ -998,8 +998,8 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script defer
     src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  <script defer src="offline-db.js?v=1"></script>
-  <script defer src="config.js"></script>
+  <script defer src="offline-db.js?v=2"></script>
+  <script defer src="config.js?v=2"></script>
   <script defer src="app.js?v=12"></script>
   <script defer src="modules.js?v=2"></script>
   <script defer src="modules-v2.js?v=2"></script>
@@ -1035,8 +1035,8 @@
   <script defer src="modules-v32-cashui.js?v=7"></script>
   <script defer src="modules-v34-ui.js?v=5"></script>
   <script defer src="modules-v33-fixes.js?v=6"></script>
-  <script defer src="modules-v35-grand-ui.js?v=2"></script>
-  <script defer src="modules-v36-usage-safety.js?v=75"></script>
+  <script defer src="modules-v35-grand-ui.js?v=4"></script>
+  <script defer src="modules-v36-usage-safety.js?v=76"></script>
   <script defer src="modules-v37-daily-cash-print.js?v=52"></script>
   <script defer src="modules-v38-category-dashboard.js?v=14"></script>
   <script defer src="modules-v39-sales-polish.js?v=5"></script>
@@ -1097,16 +1097,16 @@
   <script defer src="modules-v97-employee-debt-admin.js?v=3"></script>
   <script defer src="modules-v98-debt-cards.js?v=13"></script>
   <script defer src="modules-v99-delivery-mode-guard.js?v=1"></script>
-  <script defer src="modules-v100-inventory-ui.js?v=4"></script>
+  <script defer src="modules-v100-inventory-ui.js?v=5"></script>
   <script defer src="modules-v102-cancel-recipe-stock-restore.js?v=2"></script>
-  <script defer src="modules-v105-delivery-board.js?v=4"></script>
+  <script defer src="modules-v105-delivery-board.js?v=6"></script>
   <script defer src="modules-v103-concrete-recipe-flow.js?v=14"></script>
   <script defer src="modules-v104-modern-product-ui.js?v=1"></script>
   <!-- Service Worker: offline app shell + product image cache -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' })
+        navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
           .then(reg => console.log('[SW] ✅ Registered:', reg.scope))
           .catch(err => console.warn('[SW] Registration failed:', err));
       });

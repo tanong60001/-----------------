@@ -399,8 +399,78 @@
         .v35-project-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 640px) {
-        .v35-stage { padding: 22px; border-radius: 20px; }
-        .v35-title { font-size: 26px; }
+        #page-manage {
+          width: calc(100vw - 16px) !important;
+          max-width: calc(100vw - 16px) !important;
+          margin-left: calc(50% - 50vw + 8px) !important;
+          margin-right: 0 !important;
+          padding: 0 !important;
+          overflow-x: hidden;
+        }
+        #page-manage > .v35-grand {
+          width: 100% !important; max-width: none !important;
+          margin: 0 !important; padding: 0 0 22px !important;
+          align-self: stretch !important;
+        }
+        .v35-stage {
+          padding: 16px; border-radius: 18px; margin-bottom: 12px;
+          box-shadow: 0 16px 38px rgba(49,46,129,.18);
+        }
+        .v35-stage-inner {
+          display: grid; grid-template-columns: minmax(0,1fr) auto;
+          align-items: center; gap: 10px;
+        }
+        .v35-kicker, .v35-sub { display: none; }
+        .v35-title {
+          min-width: 0; font-size: 22px; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
+        }
+        .v35-stage-actions { display: grid; grid-template-columns: repeat(2,42px); gap: 6px; }
+        .v35-hero-btn {
+          width: 42px; min-width: 42px; min-height: 42px; height: 42px;
+          padding: 0; justify-content: center; border-radius: 12px; font-size: 0;
+        }
+        .v35-hero-btn i { font-size: 21px; }
+        .v35-manage-shell { gap: 10px; }
+        .v35-manage-menu {
+          display: grid; grid-template-columns: repeat(5,minmax(0,1fr));
+          gap: 5px; padding: 7px; border-radius: 16px;
+        }
+        .v35-manage-tab {
+          min-width: 0; min-height: 58px; height: 58px; padding: 5px;
+          display: grid; grid-template-columns: 1fr; place-items: center;
+          gap: 0; border-radius: 12px;
+        }
+        .v35-tab-icon {
+          width: 42px; height: 42px; max-width: 100%;
+          border-radius: 12px; box-shadow: none;
+        }
+        .v35-tab-icon i { font-size: 21px; }
+        .v35-manage-tab > div:nth-child(2),
+        .v35-manage-tab > i { display: none; }
+        .v35-side-summary {
+          margin-top: 7px; padding: 7px; border-radius: 14px;
+        }
+        .v35-summary-title { display: none; }
+        #v9m-stats-inner {
+          display: grid !important; grid-template-columns: repeat(5,minmax(0,1fr));
+          gap: 4px !important;
+        }
+        #v9m-stats-inner > div {
+          min-width: 0; min-height: 42px; padding: 5px 2px;
+          flex-direction: column; justify-content: center !important;
+          gap: 2px; border-radius: 9px; background: #f8fafc;
+        }
+        #v9m-stats-inner > div > div {
+          gap: 0 !important; font-size: 0 !important;
+        }
+        #v9m-stats-inner > div > div i { font-size: 16px !important; }
+        #v9m-stats-inner > div > strong { font-size: 11px !important; line-height: 1; }
+        .v35-workbench {
+          min-height: 0; padding: 10px; border-radius: 18px;
+        }
+        #v9-manage-content { min-height: 0 !important; }
+        .v35-empty { padding: 36px 14px; border-radius: 16px; }
         .v35-project-stats { grid-template-columns: 1fr; }
         .v35-project-grid { grid-template-columns: 1fr; }
       }

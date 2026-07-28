@@ -4,7 +4,8 @@
  */
 
 const SUPA_URL = 'https://thfswrvnyhuqmdazjfhd.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZnN3cnZueWh1cW1kYXpqZmhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDEzOTEsImV4cCI6MjA4OTUxNzM5MX0.9JdnkPbK6KbPYA1VvKmpclFr4f41YbWK4jmmJMvTw2Y';
+// Publishable key: safe for the browser. Never put an sb_secret_* key here.
+const SUPA_KEY = 'sb_publishable_61T_FNuzi5kyeyw7nYfRlQ_idZM_RNE';
 // Google Apps Script Web App URL สำหรับอัปโหลดรูปภาพไปยัง Google Drive
 // วิธีการติดตั้ง:
 // 1. ไปที่ Google Apps Script

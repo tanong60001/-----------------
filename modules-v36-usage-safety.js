@@ -3085,23 +3085,45 @@ console.log('[v36] Usage safety patch loaded');
     });
     document.getElementById('v36-customer-ad-form').onsubmit = async (ev) => {
       ev.preventDefault();
-      const urlImages = String(imagesEl.value || '').split(/\r?\n/)
-        .map(src => ({ src: src.trim() }))
-        .filter(x => x.src);
-      const images = dedupeAdImagesV36([...urlImages, ...storedImages]);
-      const data = {
-        enabled: document.getElementById('v36-ad-enabled').checked,
-        interval: Math.max(3, Number(document.getElementById('v36-ad-interval').value || 8)),
-        title: document.getElementById('v36-ad-title').value.trim(),
-        subtitle: document.getElementById('v36-ad-subtitle').value.trim(),
-        images,
-        updatedAt: new Date().toISOString(),
-      };
       try {
+        // รูปที่เคยตกไปเก็บใน IndexedDB ตอน Storage ใช้งานไม่ได้
+        // จะถูกย้ายขึ้น Supabase อัตโนมัติเมื่อกดบันทึกครั้งถัดไป
+        const syncedStoredImages = [];
+        for (const item of storedImages) {
+          if (item?.src && /^https?:\/\//i.test(item.src)) {
+            syncedStoredImages.push(item);
+            continue;
+          }
+          if (item?.id) {
+            adNotifyV36(`กำลังย้ายรูป ${item.name || ''} ขึ้น Supabase...`, 'info');
+            const dataUrl = await getCustomerAdImageSrcV36(item.id);
+            if (!dataUrl) throw new Error(`ไม่พบข้อมูลรูป ${item.name || item.id} ในเครื่อง`);
+            syncedStoredImages.push(await saveCustomerAdImageV36(
+              dataUrlToBlob(dataUrl),
+              item.name || item.id,
+            ));
+            continue;
+          }
+          syncedStoredImages.push(item);
+        }
+        storedImages = dedupeAdImagesV36(syncedStoredImages);
+        const urlImages = String(imagesEl.value || '').split(/\r?\n/)
+          .map(src => ({ src: src.trim() }))
+          .filter(x => x.src);
+        const images = dedupeAdImagesV36([...urlImages, ...storedImages]);
+        const data = {
+          enabled: document.getElementById('v36-ad-enabled').checked,
+          interval: Math.max(3, Number(document.getElementById('v36-ad-interval').value || 8)),
+          title: document.getElementById('v36-ad-title').value.trim(),
+          subtitle: document.getElementById('v36-ad-subtitle').value.trim(),
+          images,
+          updatedAt: new Date().toISOString(),
+        };
         localStorage.setItem('sk_customer_display_ads', JSON.stringify(data));
         adNotifyV36('กำลังบันทึกตั้งค่าโฆษณาไป Supabase...', 'info');
         const remoteUrl = await saveCustomerAdSettingsRemoteV36(data);
         localStorage.setItem('sk_customer_display_ads_url', remoteUrl);
+        await renderPreview();
         adNotifyV36('บันทึกโฆษณาหน้าจอลูกค้าแล้ว เครื่องอื่นใช้ได้ผ่าน Supabase', 'success');
       } catch (e) {
         console.error('[v36] save ad settings:', e);
