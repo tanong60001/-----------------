@@ -1,0 +1,29 @@
+# ไฟล์ควบคุมและโฟลเดอร์พัฒนา
+.*
+.git/
+.github/
+.agents/
+.claude/
+.vscode/
+.wrangler/
+.wrangler-dry-run/
+wrangler.jsonc
+package.json
+package-lock.json
+node_modules/
+
+# โค้ดฝั่งเซิร์ฟเวอร์และข้อมูลที่ไม่ควรถูกเผยแพร่เป็นไฟล์เว็บ
+supabase/
+migrations/
+line-assistant-web/
+archive/
+docs/
+installer/
+
+# เครื่องมือภายในและไฟล์ติดตั้ง
+SK POS Setup.exe
+System.Drawing.Drawing2D.GraphicsPath
+audit_results.txt
+offline-server.ps1
+เปิดโปรแกรมออฟไลน์.bat
+replace_term.js
