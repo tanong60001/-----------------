@@ -2,3 +2,6 @@
 SK POS Setup.exe
 installer/bin/
 installer/obj/
+
+# Deployed separately; do not record its nested Git repository as a submodule.
+line-assistant-web/
