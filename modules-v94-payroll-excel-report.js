@@ -156,14 +156,21 @@
       const paid = n(payThis?.net_paid);
       const paidDate = payThis?.paid_date ? new Date(payThis.paid_date).toLocaleDateString('th-TH') : '';
 
-      const net = r2(gross - lateAbsentDeduct - ss - other - advThis);
+      // หนี้รวมของรอบนี้ = หนี้เดิม + เบิกเดือนนี้
+      // ถ้ายังไม่เคยจ่าย ให้เสนอหักหนี้เท่าที่ค่าจ้างเหลือ เพื่อไม่ให้รายรับติดลบ
+      const totalDebt = r2(carried + advThis);
+      const availableBeforeDebt = r2(Math.max(0, gross - lateAbsentDeduct - ss - other));
+      const savedDebtDeduct = n(payThis?.deduct_withdraw);
+      const debtDeduct = r2(Math.min(totalDebt, payThis ? savedDebtDeduct : availableBeforeDebt));
+      const debtNext = r2(Math.max(0, totalDebt - debtDeduct));
+      const net = r2(Math.max(0, availableBeforeDebt - debtDeduct));
 
       return {
         emp, isMonthly, wage, gross, workDays, lateAbsentDeduct,
         present: count('มา'), late: count('มาสาย'),
         half: count('ครึ่งวัน'),
         leave: count('ลา'), absent: count('ขาด'),
-        advThis, carried, ss, other, net, paid, paidDate, perDay,
+        advThis, carried, ss, other, debtDeduct, debtNext, net, paid, paidDate, perDay,
         advThisList,
       };
     });
@@ -241,20 +248,22 @@
       { h: 'วัน\nทำงาน', w: 7 },
       { h: 'ค่าจ้างรวม', w: 12 },
       { h: 'หักสาย/\nขาด', w: 10 },
-      { h: 'ประกัน\nสังคม', w: 10 },
+      { h: 'หักประกัน\nสังคม', w: 11 },
       { h: 'หัก\nอื่นๆ', w: 9 },
       { h: 'เบิก\nเดือนนี้', w: 10 },
-      { h: 'ยอดสุทธิ\nที่ต้องจ่าย', w: 13 },
       { h: 'หนี้เบิก\nยกมา', w: 11 },
+      { h: 'หักหนี้/\nเบิก', w: 11 },
       { h: 'จ่ายแล้ว', w: 11 },
       { h: 'วันที่จ่าย', w: 12 },
+      { h: 'หนี้ยกไป\nเดือนหน้า', w: 12 },
+      { h: 'สรุป\nรายรับ', w: 13 },
     ];
     const ws = wb.addWorksheet('สรุปจ่ายเงินเดือน', { properties: { defaultRowHeight: 18 } });
     const last = cols.length;
     applyPageSetup(ws, last, 5, 'landscape');
     drawHeader(ws, last, shop,
       'สรุปการจ่ายเงินเดือนพนักงาน',
-      `ประจำเดือน ${data.monthLabel}  ·  พนักงาน ${data.rows.length} คน  ·  ช่อง "ยอดสุทธิ" เป็นสูตร แก้ไขได้`);
+      `ประจำเดือน ${data.monthLabel}  ·  พนักงาน ${data.rows.length} คน  ·  กรอกช่องหักได้ และ "สรุปรายรับ" จะคำนวณด้วยสูตร`);
 
     // หัวตาราง (แถว 5)
     const headRow = ws.getRow(5);
@@ -289,16 +298,21 @@
         row.ss,
         row.other,
         row.advThis,
-        null, // ยอดสุทธิ = สูตร (ใส่ด้านล่าง)
         row.carried,
+        row.debtDeduct,
         row.paid,
         row.paidDate,
+        null, // หนี้ยกไปเดือนหน้า = สูตร
+        null, // สรุปรายรับ = สูตร (ใส่ด้านล่าง)
       ];
       vals.forEach((v, i) => { r.getCell(i + 1).value = v; });
 
-      // สูตรยอดสุทธิ: ค่าจ้างรวม − หักสาย/ขาด − ปกส − อื่นๆ − เบิกเดือนนี้
-      const f = `${L[7]}${rN}-${L[8]}${rN}-${L[9]}${rN}-${L[10]}${rN}-${L[11]}${rN}`;
-      r.getCell(12).value = { formula: f, result: row.net };
+      // หนี้เดือนหน้า = หนี้ยกมา + เบิกเดือนนี้ − ยอดหนี้ที่หักชำระ
+      const debtNextFormula = `MAX(0,${L[11]}${rN}+${L[12]}${rN}-${L[13]}${rN})`;
+      r.getCell(16).value = { formula: debtNextFormula, result: row.debtNext };
+      // สรุปรายรับ = ค่าจ้างรวม − หักสาย/ขาด − ประกันสังคม − หักอื่นๆ − หักหนี้/เบิก
+      const netFormula = `MAX(0,${L[7]}${rN}-${L[8]}${rN}-${L[9]}${rN}-${L[10]}${rN}-${L[13]}${rN})`;
+      r.getCell(17).value = { formula: netFormula, result: row.net };
 
       // จัดสไตล์ทั้งแถว
       r.height = 19;
@@ -311,12 +325,30 @@
         else if (ci === 2 || ci === 3) cell.alignment = { horizontal: 'left', vertical: 'middle' };
         else { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0.00'; }
       }
-      // เน้นช่องยอดสุทธิ (สูตร) ให้เด่น + พื้นเหลืองอ่อน บอกว่าแก้ได้
-      const netCell = r.getCell(12);
+      // ช่องหักเป็นช่องกรอก/แก้ไข: ใช้พื้นสีฟ้าอ่อนให้สังเกตง่าย
+      [9, 10, 13].forEach(ci => {
+        const inputCell = r.getCell(ci);
+        inputCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+        inputCell.font = { name: 'Tahoma', bold: true, size: 9.5, color: { argb: 'FF075985' } };
+        inputCell.dataValidation = {
+          type: 'decimal',
+          operator: 'greaterThanOrEqual',
+          allowBlank: true,
+          formulae: [0],
+          showErrorMessage: true,
+          errorTitle: 'ยอดหักไม่ถูกต้อง',
+          error: 'กรุณากรอกจำนวนตั้งแต่ 0 ขึ้นไป',
+        };
+      });
+      // เน้นช่องสรุปรายรับ (สูตร) ให้เด่น
+      const netCell = r.getCell(17);
       netCell.font = { name: 'Tahoma', bold: true, size: 10.5, color: { argb: 'FF065F46' } };
       netCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9C3' } };
+      const nextDebtCell = r.getCell(16);
+      nextDebtCell.font = { name: 'Tahoma', bold: true, size: 10, color: { argb: row.debtNext > 0 ? 'FFB91C1C' : 'FF047857' } };
+      nextDebtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } };
       // หนี้ยกมา > 0 → เน้นแดง
-      if (row.carried > 0) r.getCell(13).font = { name: 'Tahoma', bold: true, size: 9.5, color: { argb: 'FFB91C1C' } };
+      if (row.carried > 0) r.getCell(12).font = { name: 'Tahoma', bold: true, size: 9.5, color: { argb: 'FFB91C1C' } };
     });
 
     // แถวรวม
@@ -324,7 +356,7 @@
     const tr = ws.getRow(totN);
     tr.getCell(1).value = 'รวมทั้งหมด';
     ws.mergeCells(totN, 1, totN, 5);
-    [6, 7, 8, 9, 10, 11, 12, 13, 14].forEach(ci => {
+    [6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17].forEach(ci => {
       const col = L[ci];
       tr.getCell(ci).value = { formula: `SUM(${col}${firstData}:${col}${totN - 1})` };
     });
@@ -336,14 +368,15 @@
       if (ci === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
       else if (ci >= 6) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0.00'; }
     }
-    tr.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE68A' } };
+    tr.getCell(16).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+    tr.getCell(17).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE68A' } };
     tr.height = 22;
 
     // หมายเหตุท้ายตาราง
     const noteN = totN + 2;
     ws.mergeCells(noteN, 1, noteN, last);
     const nc = ws.getCell(noteN, 1);
-    nc.value = '※ ยอดสุทธิ = ค่าจ้างรวม − หักสาย/ขาด − ประกันสังคม − หักอื่นๆ − เบิกเดือนนี้   |   "หนี้เบิกยกมา" เป็นยอดอ้างอิง ไม่ถูกหักอัตโนมัติ   |   ช่องสีเหลืองแก้ไขตัวเลข/สูตรได้';
+    nc.value = '※ ช่องสีฟ้าใช้กรอก/แก้ไขยอดหักประกันสังคม หักอื่นๆ และหักหนี้/เบิก   |   หนี้ยกไปเดือนหน้า = หนี้ยกมา + เบิกเดือนนี้ − หักหนี้/เบิก   |   สรุปรายรับ (สีเหลือง) คำนวณอัตโนมัติและจะไม่ติดลบ';
     nc.font = { name: 'Tahoma', size: 9, italic: true, color: { argb: 'FF64748B' } };
     nc.alignment = { wrapText: true, vertical: 'top' };
     ws.getRow(noteN).height = 28;
@@ -449,22 +482,39 @@
     sh.alignment = { vertical: 'middle', horizontal: 'center' };
     ws.getRow(sumStart).height = 22;
 
+    // ตาราง 7 แถวต่อฝั่ง เพื่อให้หน้าตาอยู่ใต้ปฏิทินเหมือนเดิม
+    const firstSummaryRow = sumStart + 1;
+    const half = 7;
+    const grossRow = firstSummaryRow + 5;
+    const lateDeductRow = firstSummaryRow + 6;
+    const ssRow = firstSummaryRow;
+    const otherRow = firstSummaryRow + 1;
+    const advanceRow = firstSummaryRow + 2;
+    const carriedRow = firstSummaryRow + 3;
+    const debtDeductRow = firstSummaryRow + 4;
+
+    // ฝั่งขวาใช้คอลัมน์ G เป็นจำนวนเงิน
+    const debtDeductFormula = `MIN(G${advanceRow}+G${carriedRow},MAX(0,C${grossRow}-C${lateDeductRow}-G${ssRow}-G${otherRow}))`;
+    const netFormula = `MAX(0,C${grossRow}-C${lateDeductRow}-G${ssRow}-G${otherRow}-G${debtDeductRow})`;
+    const debtNextFormula = `MAX(0,G${advanceRow}+G${carriedRow}-G${debtDeductRow})`;
+
     const items = [
       ['วันมาทำงาน', `${row.present} วัน`],
       ['มาสาย', `${row.late} วัน`],
       ['ครึ่งวัน', `${row.half} วัน`],
       ['ลา', `${row.leave} วัน`],
       ['ขาด', `${row.absent} วัน`],
-      ['ค่าจ้างรวม', `฿${fmt(row.gross)}`],
-      ['หักสาย/ขาด', `฿${fmt(row.lateAbsentDeduct)}`],
-      ['ประกันสังคม', `฿${fmt(row.ss)}`],
-      ['หักอื่นๆ', `฿${fmt(row.other)}`],
-      ['เบิกเดือนนี้', `฿${fmt(row.advThis)}`],
-      ['หนี้เบิกยกมา', `฿${fmt(row.carried)}`],
-      ['ยอดสุทธิที่ต้องจ่าย', `฿${fmt(row.net)}`],
+      ['ค่าจ้างรวม', row.gross, { money: true }],
+      ['หักสาย/ขาด', row.lateAbsentDeduct, { money: true }],
+      ['หักประกันสังคม', row.ss, { money: true, editable: true }],
+      ['หักอื่นๆ', row.other, { money: true, editable: true }],
+      ['เบิกเดือนนี้', row.advThis, { money: true }],
+      ['หนี้เบิกยกมา', row.carried, { money: true, debt: true }],
+      ['หักหนี้/เบิก', { formula: debtDeductFormula, result: row.debtDeduct }, { money: true, editable: true }],
+      ['สรุปรายรับ', { formula: netFormula, result: row.net }, { money: true, strong: true }],
+      ['หนี้ยกไปเดือนหน้า', { formula: debtNextFormula, result: row.debtNext }, { money: true, nextDebt: true }],
     ];
     // วาง 2 คอลัมน์ (label,value) x แถว — ใช้พื้นที่ A:C และ E:G
-    const half = Math.ceil(items.length / 2);
     for (let i = 0; i < half; i++) {
       const rowN = sumStart + 1 + i;
       const rr = ws.getRow(rowN);
@@ -479,12 +529,35 @@
         lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
         const vc = ws.getCell(rowN, labCol + 2);
         vc.value = pair[1];
-        const strong = pair[0] === 'ยอดสุทธิที่ต้องจ่าย';
-        const debt = pair[0] === 'หนี้เบิกยกมา' && row.carried > 0;
+        const meta = pair[2] || {};
+        const strong = !!meta.strong;
+        const debt = !!meta.debt && row.carried > 0;
+        const nextDebt = !!meta.nextDebt;
         vc.font = { name: 'Tahoma', bold: strong || debt, size: strong ? 12 : 10, color: { argb: strong ? 'FF065F46' : (debt ? 'FFB91C1C' : 'FF0F172A') } };
         vc.alignment = { vertical: 'middle', horizontal: 'right' };
         vc.border = thinBorder();
+        if (meta.money) vc.numFmt = '฿#,##0.00;[Red]-฿#,##0.00;฿0.00';
+        if (meta.editable) {
+          vc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+          vc.font = { name: 'Tahoma', bold: true, size: 10, color: { argb: 'FF075985' } };
+          vc.dataValidation = {
+            type: 'decimal',
+            operator: 'greaterThanOrEqual',
+            allowBlank: true,
+            formulae: [0],
+            showInputMessage: true,
+            promptTitle: 'ช่องกรอกยอดหัก',
+            prompt: 'กรอกจำนวนตั้งแต่ 0 ขึ้นไป',
+            showErrorMessage: true,
+            errorTitle: 'ยอดหักไม่ถูกต้อง',
+            error: 'กรุณากรอกจำนวนตั้งแต่ 0 ขึ้นไป',
+          };
+        }
         if (strong) vc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9C3' } };
+        if (nextDebt) {
+          vc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+          vc.font = { name: 'Tahoma', bold: true, size: 11, color: { argb: row.debtNext > 0 ? 'FFB91C1C' : 'FF047857' } };
+        }
       };
       drawPair(items[i], 1);          // คอลัมน์ A-C
       drawPair(items[i + half], 5);   // คอลัมน์ E-G (คอลัมน์ D เว้นเป็นช่องว่าง)
@@ -504,6 +577,7 @@
     const wb = new ExcelJS.Workbook();
     wb.creator = 'SK POS';
     wb.created = new Date();
+    wb.calcProperties.fullCalcOnLoad = true;
 
     buildSummary(wb, data, shop);
     data.rows.forEach(row => buildCalendar(wb, data, row, shop));
