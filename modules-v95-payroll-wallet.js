@@ -295,7 +295,11 @@
       const myAdv = outAdv.filter(a => String(a.employee_id) === eid)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
       const debtRemaining = myAdv.reduce((s, a) => s + num(a.amount), 0);
-      const carriedDebt = myAdv.filter(isCarried).reduce((s, a) => s + num(a.amount), 0); // หนี้เดิมยกมา
+      // หนี้ยกมา = รายการค้างก่อนเดือนที่ดูทั้งหมด รวมรายการที่แอดมินระบุว่า "ยกมา"
+      // แม้จะลงวันที่วันแรกของเดือน เพื่อให้ตรงกับเครื่องมือตั้งหนี้ v97 และรายงาน Excel v94
+      const carriedDebt = myAdv
+        .filter(a => attDateKey(a) < ms || isCarried(a))
+        .reduce((s, a) => s + num(a.amount), 0);
 
       const netPayable = wageRemaining - debtRemaining; // ติดลบได้ = พนักงานค้างร้าน
       const fullySettled = wageRemaining <= 0.01 && debtRemaining <= 0.01;
@@ -1144,10 +1148,16 @@
         } catch (_) {}
       }
 
-      // ตัดหนี้เบิก FIFO (เก่าก่อน)
+      // ตัดยอดเบิกเดือนนี้ก่อน แล้วค่อยตัดหนี้ยกมา (ภายในแต่ละกลุ่มเรียงเก่าก่อน)
       if (debt > 0) {
         let rem = debt;
-        for (const a of w.advances) {
+        const debtPriority = [...w.advances].sort((a, b) => {
+          const aCurrent = attDateKey(a) >= w.ms && !isCarried(a);
+          const bCurrent = attDateKey(b) >= w.ms && !isCarried(b);
+          if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
+          return new Date(a.date) - new Date(b.date);
+        });
+        for (const a of debtPriority) {
           if (rem <= 0) break;
           if (num(a.amount) <= rem) { await db.from(ADV_TABLE).update({ status: 'ชำระแล้ว' }).eq('id', a.id); rem -= num(a.amount); }
           else { await db.from(ADV_TABLE).update({ amount: num(a.amount) - rem }).eq('id', a.id); rem = 0; }
