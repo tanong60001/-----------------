@@ -56,6 +56,14 @@
   function notify(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
   function noteExtraDeductions(note) {
     const text = String(note || '');
+    const ssMarked = text.match(/\[payroll_ss=([0-9,]+(?:\.\d+)?)\]/gi) || [];
+    const otherMarked = text.match(/\[payroll_other=([0-9,]+(?:\.\d+)?)\]/gi) || [];
+    if (ssMarked.length || otherMarked.length) {
+      return [...ssMarked, ...otherMarked].reduce((sum, raw) => {
+        const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
+        return sum + num(String(match?.[1] || '').replace(/,/g, ''));
+      }, 0);
+    }
     const marked = text.match(/\[payroll_extra_deduct=([0-9,]+(?:\.\d+)?)\]/gi);
     if (marked?.length) {
       return marked.reduce((sum, raw) => {
@@ -203,6 +211,11 @@
   }
   // หนี้เดิมยกมา (ตั้งโดยแอดมิน) — ไม่ใช่การเบิกรายวันปกติ
   function isCarried(a) { return /ยกมา/.test(String(a && a.reason || '')); }
+  function isPayrollDeductionAdvance(a) {
+    const reason = String(a && a.reason || '').trim();
+    return /\[(?:payroll_ss|payroll_extra_deduct)=/i.test(reason)
+      || /^(?:หัก\s*)?ประกันสังคม(?:\s*เดือน.*)?$/i.test(reason);
+  }
   function dayOf(value) {
     // คืนเลขวันที่ (1..31) ตามเวลาท้องถิ่นจาก timestamp/date string
     const raw = String(value || '');
@@ -223,6 +236,19 @@
   function isWorkStatus(status) {
     const st = normStatus(status);
     return !!st && st !== 'ขาด' && st !== 'ลา';
+  }
+  function workDayValue(status) {
+    const st = normStatus(status);
+    if (st === 'ครึ่งวัน') return 0.5;
+    return isWorkStatus(st) ? 1 : 0;
+  }
+  function scheduledWorkDaysInMonth(year, monthIndex) {
+    const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+    let days = 0;
+    for (let day = 1; day <= lastDay; day++) {
+      if (new Date(year, monthIndex, day).getDay() !== 0) days++;
+    }
+    return days;
   }
   function attendanceStamp(row, fallback) {
     const value = row && (row.updated_at || row.created_at || row.time_out || row.time_in || row.date || row.id);
@@ -253,6 +279,7 @@
     const me = dateKey(new Date(y, mo + 1, 0));
     const meAt = me + 'T23:59:59';
     const daysInMonth = new Date(y, mo + 1, 0).getDate();
+    const scheduledWorkDays = scheduledWorkDaysInMonth(y, mo);
 
     const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
     const [attR, monthAdvR, outAdvR, paidR] = await Promise.all([
@@ -263,18 +290,21 @@
       db.from(ADV_TABLE).select('*').eq('status', 'อนุมัติ').lte('date', meAt),
       db.from(PAY_TABLE).select('*').eq('month', ms),
     ]);
-    const att = normalizeAttendanceRows(attR.data || []), monthAdv = monthAdvR.data || [],
-      outAdv = outAdvR.data || [], paid = paidR.data || [];
+    const att = normalizeAttendanceRows(attR.data || []);
+    // รายการหักประกันสังคมต้องอยู่ในเงินเดือนเท่านั้น ห้ามเข้ากระเป๋าหนี้เบิก
+    const monthAdv = (monthAdvR.data || []).filter(a => !isPayrollDeductionAdvance(a));
+    const outAdv = (outAdvR.data || []).filter(a => !isPayrollDeductionAdvance(a));
+    const paid = paidR.data || [];
 
     return emps.map(emp => {
       const eid = String(emp.id);
       const ma = att.filter(a => String(a.employee_id) === eid);
-      const wd = ma.filter(a => isWorkStatus(a.status)).length;
-      const td = ma.reduce((s, a) => s + num(a.deduction), 0);
+      const wd = ma.reduce((sum, a) => sum + workDayValue(a.status), 0);
+      const td = 0; // จำนวนวันทำงานรวมครึ่งวันเป็น .5 แล้ว จึงห้ามหัก attendance.deduction ซ้ำ
 
       let earn;
-      if (emp.pay_type === 'รายเดือน') earn = num(emp.salary) - td;
-      else earn = (wd * num(emp.daily_wage)) - td;
+      if (emp.pay_type === 'รายเดือน') earn = num(emp.salary) * Math.min(1, scheduledWorkDays ? wd / scheduledWorkDays : 0);
+      else earn = wd * num(emp.daily_wage);
       earn = Math.max(0, earn);
 
       // แผนผังรายวัน: สถานะ + ยอดเบิกรวมต่อวัน
@@ -305,7 +335,7 @@
       const fullySettled = wageRemaining <= 0.01 && debtRemaining <= 0.01;
 
       return {
-        emp, ms, wd, earn, td, daysInMonth,
+        emp, ms, wd, earn, td, daysInMonth, scheduledWorkDays,
         wageRemaining, debtRemaining, carriedDebt, netPayable, monthAdvSum,
         advances: myAdv, pastPays: myPaid, dayStatus, dayAdv,
         hasPaid: myPaid.length > 0, fullySettled,
@@ -793,7 +823,7 @@
           if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
           return cell;
         };
-        put(days + 2, w.wd, '0', 'FF475569');                              // วันทำงาน
+        put(days + 2, w.wd, '0.##', 'FF475569');                           // วันทำงาน
         put(days + 3, w.earn, '#,##0', 'FF16A34A');                        // ค่าแรงจริง
         put(days + 4, w.carriedDebt, '#,##0', 'FFB45309');                 // หนี้เบิกยกมา
         put(days + 5, w.monthAdvSum, '#,##0', 'FFC2410C');                 // เบิกเดือนนี้
@@ -888,8 +918,7 @@
     // ── Option C: จ่ายค่าแรงเต็มเป็นค่าเริ่มต้น + เลือกหักหนี้เองตอนจ่าย ──
     const hasWage = wageRemaining > 0.009;
     const summaryRows = `
-      <div class="v95-wal-line"><span class="lbl">ค่าแรงเดือนนี้ (${wd} วัน)</span><span class="val" style="color:#16a34a;">+฿${money(earn + td)}</span></div>
-      ${td > 0 ? `<div class="v95-wal-line"><span class="lbl">หักสาย/ขาด</span><span class="val" style="color:#dc2626;">−฿${money(td)}</span></div>` : ''}
+      <div class="v95-wal-line"><span class="lbl">ค่าแรงเดือนนี้ (${wd} วัน)</span><span class="val" style="color:#16a34a;">+฿${money(earn)}</span></div>
       <div class="v95-wal-line" style="border-top:1px dashed #e2e8f0;"><span class="lbl">ค่าแรงสุทธิ (จ่ายได้)</span><span class="val" style="color:#059669;">฿${money(wageRemaining)}</span></div>
       ${debtRemaining > 0 ? `<div class="v95-wal-line"><span class="lbl"><i class="material-icons-round" style="font-size:15px;color:#d97706;">account_balance_wallet</i> หนี้เดิม/เบิกคงค้าง</span><span class="val" style="color:#d97706;">฿${money(debtRemaining)}</span></div>` : ''}
     `;
@@ -931,11 +960,11 @@
         </button>
 
         <button class="v95-ghost" style="margin-top:10px;" onclick="window.v95ToggleAdjust('${eid}')">
-          <i class="material-icons-round" style="font-size:16px;vertical-align:middle;">tune</i> หักประกันสังคม / อื่นๆ (ถ้ามี)</button>
+          <i class="material-icons-round" style="font-size:16px;vertical-align:middle;">tune</i> หักประกันสังคมเดือนนี้ / อื่นๆ</button>
 
         <div id="v95-adjbox-${eid}" style="display:none;margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;">
           <div class="v95-adj">
-            <div class="fld"><label>หักประกันสังคม (฿)</label>
+            <div class="fld"><label>หักประกันสังคมเดือนนี้ (฿) · ไม่ยกเป็นหนี้</label>
               <input type="number" id="v95-s-${eid}" value="0" min="0" oninput="window.v95RecalcPay('${eid}')"></div>
             <div class="fld"><label>หักอื่นๆ (฿)</label>
               <input type="number" id="v95-o-${eid}" value="0" min="0" oninput="window.v95RecalcPay('${eid}')"></div>
@@ -1111,7 +1140,8 @@
       if (ss > 0) noteParts.push(`ประกันสังคม ฿${money(ss)}`);
       if (oth > 0) noteParts.push(`อื่นๆ ฿${money(oth)}${oNote ? ' (' + oNote + ')' : ''}`);
       const extraMarker = ss + oth > 0 ? ` [payroll_extra_deduct=${ss + oth}]` : '';
-      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${extraMarker}`.trim();
+      const detailMarkers = `${ss > 0 ? ` [payroll_ss=${ss}]` : ''}${oth > 0 ? ` [payroll_other=${oth}]` : ''}`;
+      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${extraMarker}${detailMarkers}`.trim();
 
       // merge-or-insert: เดือนละ 1 แถวต่อคน (สะสมยอด) — ตรงกับ v33
       // ตาราง 'จ่ายเงินเดือน' ไม่มีคอลัมน์ deduct_ss/deduct_other → เก็บใน note

@@ -25,6 +25,11 @@
   function staff() { try { return (typeof USER !== 'undefined' && USER) ? USER.username : 'admin'; } catch (_) { return 'admin'; } }
   function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
   function firstOfMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }
+  function isPayrollDeductionAdvance(a) {
+    const reason = String(a && a.reason || '').trim();
+    return /\[(?:payroll_ss|payroll_extra_deduct)=/i.test(reason)
+      || /^(?:หัก\s*)?ประกันสังคม(?:\s*เดือน.*)?$/i.test(reason);
+  }
 
   // ──────────────────────────────────────
   // CSS
@@ -68,9 +73,12 @@
   // ──────────────────────────────────────
   async function loadDebts() {
     const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
-    const { data: adv } = await db.from(ADV_TABLE).select('employee_id,amount,status').eq('status', 'อนุมัติ');
+    const { data: adv } = await db.from(ADV_TABLE).select('employee_id,amount,status,reason').eq('status', 'อนุมัติ');
     const debt = {};
-    (adv || []).forEach(a => { const id = String(a.employee_id); debt[id] = (debt[id] || 0) + num(a.amount); });
+    (adv || []).filter(a => !isPayrollDeductionAdvance(a)).forEach(a => {
+      const id = String(a.employee_id);
+      debt[id] = (debt[id] || 0) + num(a.amount);
+    });
     return emps.map(e => ({ emp: e, debt: debt[String(e.id)] || 0 }));
   }
 
@@ -112,6 +120,9 @@
             <div style="font-size:26px;font-weight:900;">฿${money(totalDebt)}</div>
             <button class="v97-btn" style="background:#fff;color:#b91c1c;margin-top:10px;" onclick="window.v97ResetPayroll()"><i class="material-icons-round" style="font-size:16px;">restart_alt</i> รีเซตระบบเงินเดือน</button>
           </div>
+        </div>
+        <div style="margin:-6px 0 16px;padding:10px 14px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;color:#92400e;font-size:12.5px;font-weight:800;">
+          ใช้หน้านี้เฉพาะ “เงินเบิก/หนี้ที่พนักงานค้างร้าน” เท่านั้น · ห้ามใส่ประกันสังคมหรือรายการหักเงินเดือน เพราะรายการเหล่านั้นต้องบันทึกในหน้าจ่ายเงินเดือนของเดือนนั้น
         </div>
 
         <div class="v97-toolbar">
@@ -242,8 +253,9 @@
   // ── ปรับ ledger เบิกเงินให้ยอดค้าง = target ──
   async function applyTarget(empId, emp, target, dateStr, reasonLabel) {
     try {
-      const { data: advs } = await db.from(ADV_TABLE).select('*').eq('employee_id', empId).eq('status', 'อนุมัติ').order('date', { ascending: true });
-      const current = (advs || []).reduce((s, a) => s + num(a.amount), 0);
+      const { data: advRows } = await db.from(ADV_TABLE).select('*').eq('employee_id', empId).eq('status', 'อนุมัติ').order('date', { ascending: true });
+      const advs = (advRows || []).filter(a => !isPayrollDeductionAdvance(a));
+      const current = advs.reduce((s, a) => s + num(a.amount), 0);
       const diff = current - target;
 
       if (diff > 0.009) {
