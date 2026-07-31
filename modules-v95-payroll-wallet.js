@@ -55,31 +55,37 @@
   }
   function notify(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
   function noteExtraDeductions(note) {
-    const text = String(note || '');
-    const ssMarked = text.match(/\[payroll_ss=([0-9,]+(?:\.\d+)?)\]/gi) || [];
-    const otherMarked = text.match(/\[payroll_other=([0-9,]+(?:\.\d+)?)\]/gi) || [];
-    if (ssMarked.length || otherMarked.length) {
-      return [...ssMarked, ...otherMarked].reduce((sum, raw) => {
-        const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
-        return sum + num(String(match?.[1] || '').replace(/,/g, ''));
+    // หมายเหตุหนึ่งแถวอาจรวมหลายรอบจ่ายด้วย " | " และมีทั้งรูปแบบเก่า/ใหม่
+    // ต้องเลือกตัวเลขที่น่าเชื่อถือที่สุด "ต่อรอบ" มิฉะนั้น marker ใหม่จะกลบยอดเก่า
+    return String(note || '').split(/\s*\|\s*/).reduce((total, part) => {
+      const detail = [
+        ...(part.match(/\[payroll_ss=([0-9,]+(?:\.\d+)?)\]/gi) || []),
+        ...(part.match(/\[payroll_other=([0-9,]+(?:\.\d+)?)\]/gi) || []),
+      ];
+      if (detail.length) {
+        return total + detail.reduce((sum, raw) => {
+          const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
+          return sum + num(String(match?.[1] || '').replace(/,/g, ''));
+        }, 0);
+      }
+
+      const marked = part.match(/\[payroll_extra_deduct=([0-9,]+(?:\.\d+)?)\]/gi) || [];
+      if (marked.length) {
+        return total + marked.reduce((sum, raw) => {
+          const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
+          return sum + num(String(match?.[1] || '').replace(/,/g, ''));
+        }, 0);
+      }
+
+      const patterns = [
+        /(?:หัก)?ประกันสังคม\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+        /(?:หัก)?อื่น\s*ๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
+      ];
+      return total + patterns.reduce((sum, re) => {
+        let match;
+        while ((match = re.exec(part))) sum += num(String(match[1] || '').replace(/,/g, ''));
+        return sum;
       }, 0);
-    }
-    const marked = text.match(/\[payroll_extra_deduct=([0-9,]+(?:\.\d+)?)\]/gi);
-    if (marked?.length) {
-      return marked.reduce((sum, raw) => {
-        const match = raw.match(/=([0-9,]+(?:\.\d+)?)/);
-        return sum + num(String(match?.[1] || '').replace(/,/g, ''));
-      }, 0);
-    }
-    const patterns = [
-      /(?:หัก)?ประกันสังคม\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
-      /(?:หัก)?อื่น\s*ๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
-      /(?:หัก)?อื่นๆ\s*฿?\s*([0-9,]+(?:\.\d+)?)/gi,
-    ];
-    return patterns.reduce((sum, re) => {
-      let match;
-      while ((match = re.exec(text))) sum += num(String(match[1] || '').replace(/,/g, ''));
-      return sum;
     }, 0);
   }
 
@@ -1131,7 +1137,7 @@
       catch (e) { Swal.fire({ icon: 'error', title: 'เงินสดไม่พอ', text: e.message }); return; }
     }
 
-    const persist = async (denom = null) => {
+    const persistCore = async (denom = null) => {
       const now = new Date();
       // ใช้เดือนที่กำลังดูอยู่ (รองรับย้อนจ่ายเดือนก่อน) ไม่ใช่เดือนปัจจุบันเสมอ
       const ms = w.ms || dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -1139,20 +1145,19 @@
       if (debt > 0) noteParts.push(`หักหนี้ ฿${money(debt)}`);
       if (ss > 0) noteParts.push(`ประกันสังคม ฿${money(ss)}`);
       if (oth > 0) noteParts.push(`อื่นๆ ฿${money(oth)}${oNote ? ' (' + oNote + ')' : ''}`);
-      const extraMarker = ss + oth > 0 ? ` [payroll_extra_deduct=${ss + oth}]` : '';
       const detailMarkers = `${ss > 0 ? ` [payroll_ss=${ss}]` : ''}${oth > 0 ? ` [payroll_other=${oth}]` : ''}`;
-      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${extraMarker}${detailMarkers}`.trim();
+      const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${detailMarkers}`.trim();
 
       // merge-or-insert: เดือนละ 1 แถวต่อคน (สะสมยอด) — ตรงกับ v33
       // ตาราง 'จ่ายเงินเดือน' ไม่มีคอลัมน์ deduct_ss/deduct_other → เก็บใน note
       let pIns;
-      const { data: existing } = await db.from(PAY_TABLE)
+      const { data: existing, error: existingErr } = await db.from(PAY_TABLE)
         .select('*').eq('employee_id', emp.id).eq('month', ms).maybeSingle();
+      if (existingErr) { notify('ตรวจรายการจ่ายเดิมไม่สำเร็จ: ' + existingErr.message, 'error'); return; }
       if (existing) {
         const { data: upd, error: uErr } = await db.from(PAY_TABLE).update({
           working_days: w.wd, base_salary: w.earn,
           deduct_withdraw: num(existing.deduct_withdraw) + debt,
-          deduct_absent: w.td,
           net_paid: num(existing.net_paid) + recv,
           paid_date: now.toISOString(),
           staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : null,
@@ -1196,7 +1201,15 @@
 
       if (typeof logActivity === 'function') logActivity('จ่ายเงินเดือน', `${emp.name} ฿${money(recv)}`);
       Swal.fire({ icon: 'success', title: 'จ่ายเงินเดือนสำเร็จ', text: `${emp.name} รับ ฿${money(recv)}`, timer: 1700, showConfirmButton: false });
-      renderPayrollWallet();
+      await renderPayrollWallet();
+    };
+
+    const persist = async (denom = null) => {
+      try { await persistCore(denom); }
+      catch (error) {
+        console.error('[v95] payroll persist:', error);
+        notify('บันทึกเงินเดือนไม่สำเร็จ: ' + (error?.message || error), 'error');
+      }
     };
 
     if (method === 'เงินสด' && recv > 0 && typeof window.v26StartCashWizard === 'function') {

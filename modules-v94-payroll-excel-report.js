@@ -99,6 +99,16 @@
     while ((match = rx.exec(String(note || '')))) sum += n(String(match[1]).replace(/,/g, ''));
     return r2(sum);
   }
+  function payrollNoteDeductions(note) {
+    return String(note || '').split(/\s*\|\s*/).reduce((total, part) => {
+      const ssMarked = noteMarkerAmount(part, 'payroll_ss');
+      const otherMarked = noteMarkerAmount(part, 'payroll_other');
+      return {
+        ss: r2(total.ss + (ssMarked || noteAmount(part, 'ประกันสังคม'))),
+        other: r2(total.other + (otherMarked || noteAmount(part, 'อื่นๆ'))),
+      };
+    }, { ss: 0, other: 0 });
+  }
 
   function payMonthKey(row) {
     return localDateKeyFromValue(row && row.month);
@@ -193,10 +203,9 @@
       const payThisRows = pays.filter(p => String(p.employee_id) === empId && payMonthKey(p) === ms);
       const ss = r2(payThisRows.reduce((s, p) => s + (
         n(p.deduct_ss)
-        || noteMarkerAmount(p.note, 'payroll_ss')
-        || noteAmount(p.note, 'ประกันสังคม')
+        || payrollNoteDeductions(p.note).ss
       ), 0));
-      const other = r2(payThisRows.reduce((s, p) => s + (n(p.deduct_other) || noteAmount(p.note, 'อื่นๆ')), 0));
+      const other = r2(payThisRows.reduce((s, p) => s + (n(p.deduct_other) || payrollNoteDeductions(p.note).other), 0));
       const paid = r2(payThisRows.reduce((s, p) => s + n(p.net_paid), 0));
       const paidDate = latestPaidDate(payThisRows);
       const debtPaidRecorded = r2(payThisRows.reduce((s, p) => s + n(p.deduct_withdraw), 0));
