@@ -17,6 +17,16 @@ test('LINE PDF reports use the shared human-friendly minimal renderer', () => {
   assert.doesNotMatch(assistant, /createSimpleReportPdf/);
 });
 
+test('dashboard deployment entry is self-contained and menu is friendly', () => {
+  const deployEntry = read('supabase/functions/line-attendance-report/index.ts');
+  const source = read('supabase/functions/line-attendance-report/source.ts');
+  assert.doesNotMatch(deployEntry, /from ["']\.\/pdf-renderer\.ts["']/);
+  assert.match(deployEntry, /function createMinimalReportPdf/);
+  assert.match(source, /สวัสดีครับ ผู้ช่วยร้านมาแล้ว/);
+  assert.match(source, /วันนี้อยากดูเรื่องไหนดีครับ/);
+  assert.match(source, /พิมพ์ “เมนู” เมื่ออยากเรียกผู้ช่วยกลับมา/);
+});
+
 test('attendance notification sends only after completion and claims a daily marker', () => {
   const assistant = read('supabase/functions/line-attendance-report/index.ts');
   assert.match(assistant, /if \(!snapshot\.complete\)/);

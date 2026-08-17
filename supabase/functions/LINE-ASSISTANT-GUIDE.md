@@ -72,6 +72,14 @@ supabase functions deploy line-attendance-report --no-verify-jwt
 
 ต้องใช้ `--no-verify-jwt` เพราะ LINE ส่ง `x-line-signature` ไม่ได้ส่ง Supabase JWT โค้ดจะตรวจ HMAC ด้วย `LINE_CHANNEL_SECRET` ก่อนประมวลผลทุก webhook
 
+ถ้า Deploy จาก Supabase Dashboard ให้นำไฟล์ `line-attendance-report/index.ts` ขึ้นเป็นไฟล์หลัก ไฟล์นี้ bundle ตัวสร้าง PDF ไว้ในตัวแล้ว จึงไม่เกิดข้อผิดพลาด `Module not found pdf-renderer.ts`
+
+สำหรับการแก้โค้ดครั้งถัดไป ให้แก้ `source.ts` และ `pdf-renderer.ts` แล้วสร้าง `index.ts` ใหม่ด้วย:
+
+```powershell
+npx esbuild supabase/functions/line-attendance-report/source.ts --bundle --format=esm --platform=neutral --target=es2022 --external:https://* --banner:js="// @ts-nocheck" --outfile=supabase/functions/line-attendance-report/index.ts
+```
+
 ## 4. ตั้งค่า LINE Developers
 
 ที่ LINE Developers Console > Messaging API:
