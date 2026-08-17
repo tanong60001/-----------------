@@ -6,15 +6,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const LINE_TOKEN = (Deno.env.get("LINE_TOKEN") || "").trim();
 const LINE_GROUP_ID = (Deno.env.get("LINE_GROUP_ID") || "").trim();
 const LINE_CHANNEL_SECRET = (Deno.env.get("LINE_CHANNEL_SECRET") || "").trim();
-const LINE_SELECTOR_URL = (
-  Deno.env.get("LINE_SELECTOR_URL") ||
-  "https://sk-line-assistant.house01.chatgpt.site"
-).trim();
 const SUPABASE_URL = (Deno.env.get("SUPABASE_URL") || "").trim();
 const SERVICE_KEY = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 const enc = new TextEncoder();
-const dec = new TextDecoder();
 const ASSISTANT_BUCKET = "line-assistant";
 const THAI_FONT_URL =
   "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansthai/NotoSansThai%5Bwdth,wght%5D.ttf";
@@ -33,7 +28,7 @@ const VALID_KEYS = new Set(OPTIONS.map((option) => option.key));
 const WAKE_WORDS = new Set([
   "สวัดดี", "สวัสดี",
   "สวัดดีผู้ช่วย", "สวัสดีผู้ช่วย",
-  "ผู้ช่วย", "เมนูผู้ช่วย", "ทดสอบผู้ช่วย",
+  "ผู้ช่วย", "เมนู", "เมนูผู้ช่วย", "ทดสอบผู้ช่วย",
 ]);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -50,9 +45,6 @@ const parseInfo = (value: unknown) => {
   if (typeof value === "object") return value as Record<string, unknown>;
   try { return JSON.parse(String(value)); } catch (_) { return {}; }
 };
-const nowTime = () => new Date().toLocaleTimeString("th-TH", {
-  timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
-});
 function todayTH() {
   const bkk = new Date(Date.now() + 7 * 3600 * 1000);
   return `${bkk.getUTCFullYear()}-${String(bkk.getUTCMonth() + 1).padStart(2, "0")}-${String(bkk.getUTCDate()).padStart(2, "0")}`;
@@ -71,32 +63,6 @@ const selectionData = (mode: string, selected: string[], item?: string) => {
   if (item) query.set("item", item);
   return query.toString();
 };
-const kv = (label: string, value: string, color = "#334155", bold = false) => ({
-  type: "box", layout: "horizontal", margin: "sm",
-  contents: [
-    { type: "text", text: label, size: "sm", color: "#64748B", flex: 1, wrap: true },
-    { type: "text", text: value, size: "sm", color, align: "end", weight: bold ? "bold" : "regular", flex: 0, wrap: true },
-  ],
-});
-const header = (title: string, subtitle: string, color: string) => ({
-  type: "box", layout: "vertical", backgroundColor: color, paddingAll: "18px", spacing: "xs",
-  contents: [
-    { type: "text", text: title, color: "#FFFFFF", weight: "bold", size: "lg", wrap: true },
-    { type: "text", text: subtitle, color: "#FFFFFFCC", size: "sm", wrap: true },
-  ],
-});
-const footer = (text = `อัปเดต ณ ${nowTime()} น.`) => ({
-  type: "box", layout: "vertical", backgroundColor: "#F8FAFC", paddingAll: "12px",
-  contents: [{ type: "text", text, color: "#64748B", size: "xs", align: "center", wrap: true }],
-});
-function errorBubble(title: string, detail: string) {
-  return {
-    type: "bubble", size: "mega", header: header(`⚠️ ${title}`, "ระบบดึงข้อมูลไม่สำเร็จ", "#B91C1C"),
-    body: { type: "box", layout: "vertical", paddingAll: "18px",
-      contents: [{ type: "text", text: detail, color: "#64748B", size: "sm", wrap: true }] },
-  };
-}
-
 async function ensureAssistantBucket() {
   if (!bucketReady) {
     bucketReady = (async () => {
@@ -106,7 +72,7 @@ async function ensureAssistantBucket() {
         const created = await supabase.storage.createBucket(ASSISTANT_BUCKET, {
           public: false,
           fileSizeLimit: 10 * 1024 * 1024,
-          allowedMimeTypes: ["application/json", "application/pdf"],
+          allowedMimeTypes: ["application/pdf"],
         });
         if (created.error && !/already|duplicate/i.test(created.error.message || "")) throw created.error;
       }
@@ -116,44 +82,6 @@ async function ensureAssistantBucket() {
     });
   }
   await bucketReady;
-}
-
-async function statePath(sourceId: string, userId: string) {
-  const digest = await crypto.subtle.digest("SHA-256", enc.encode(`${sourceId}:${userId}`));
-  return `state/${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
-}
-
-async function loadSelection(sourceId: string, userId: string) {
-  await ensureAssistantBucket();
-  const path = await statePath(sourceId, userId);
-  const { data, error } = await supabase.storage.from(ASSISTANT_BUCKET).download(path);
-  if (error) {
-    if (/not.?found|does not exist|404/i.test(error.message || "")) return [];
-    throw error;
-  }
-  try {
-    const value = JSON.parse(await data.text());
-    return Array.isArray(value.selected)
-      ? [...new Set(value.selected.map(String).filter((key: string) => VALID_KEYS.has(key)))]
-      : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-async function saveSelection(sourceId: string, userId: string, selected: string[]) {
-  await ensureAssistantBucket();
-  const path = await statePath(sourceId, userId);
-  const body = new Blob([JSON.stringify({
-    selected: [...new Set(selected.filter((key) => VALID_KEYS.has(key)))],
-    updated_at: new Date().toISOString(),
-  })], { type: "application/json" });
-  const { error } = await supabase.storage.from(ASSISTANT_BUCKET).upload(path, body, {
-    contentType: "application/json",
-    upsert: true,
-    cacheControl: "0",
-  });
-  if (error) throw error;
 }
 
 async function getThaiFontBytes() {
@@ -200,184 +128,46 @@ async function validSignature(raw: string, received: string) {
   return diff === 0;
 }
 
-function bytesToBase64Url(bytes: Uint8Array) {
-  let binary = "";
-  bytes.forEach((byte) => binary += String.fromCharCode(byte));
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function base64UrlToBytes(value: string) {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
-}
-
-async function selectorSignature(payload: string) {
-  const key = await crypto.subtle.importKey(
-    "raw", enc.encode(LINE_CHANNEL_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  return bytesToBase64Url(new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, enc.encode(payload)),
-  ));
-}
-
-async function createSelectorToken(sourceId: string, userId: string) {
-  const payload = bytesToBase64Url(enc.encode(JSON.stringify({
-    sourceId,
-    userId,
-    expiresAt: Date.now() + 15 * 60 * 1000,
-  })));
-  return `${payload}.${await selectorSignature(payload)}`;
-}
-
-async function readSelectorToken(token: string) {
-  const [payload, received] = String(token || "").split(".");
-  if (!payload || !received || !LINE_CHANNEL_SECRET) throw new Error("ลิงก์เลือกข้อมูลไม่ถูกต้อง");
-  const expected = await selectorSignature(payload);
-  if (expected.length !== received.length) throw new Error("ลิงก์เลือกข้อมูลไม่ถูกต้อง");
-  let diff = 0;
-  for (let index = 0; index < expected.length; index++) {
-    diff |= expected.charCodeAt(index) ^ received.charCodeAt(index);
-  }
-  if (diff !== 0) throw new Error("ลิงก์เลือกข้อมูลไม่ถูกต้อง");
-  const data = JSON.parse(dec.decode(base64UrlToBytes(payload)));
-  if (!data.sourceId || Number(data.expiresAt || 0) < Date.now()) {
-    throw new Error("ลิงก์หมดอายุ กรุณาพิมพ์ “สวัสดีผู้ช่วย” อีกครั้ง");
-  }
-  if (LINE_GROUP_ID && data.sourceId !== LINE_GROUP_ID) throw new Error("กลุ่ม LINE ไม่ถูกต้อง");
-  return data as { sourceId: string; userId: string; expiresAt: number };
-}
-
-async function selectorUrl(sourceId: string, userId: string) {
-  const token = await createSelectorToken(sourceId, userId);
-  const baseUrl = LINE_SELECTOR_URL ||
-    `${SUPABASE_URL}/functions/v1/line-attendance-report?assistant=select`;
-  const joiner = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${joiner}token=${encodeURIComponent(token)}`;
-}
-
-function menuBubble(openUrl: string) {
+function menuBubble() {
+  const styles = [
+    ["#ECFDF3", "#16A34A"], ["#EFF6FF", "#3B82F6"],
+    ["#F0FDF4", "#22C55E"], ["#F5F3FF", "#8B5CF6"],
+    ["#FFF7ED", "#F97316"], ["#FFFBEB", "#D97706"],
+  ];
+  const tiles = OPTIONS.map((option, index) => ({
+    type: "box", layout: "vertical", flex: 1, spacing: "sm",
+    backgroundColor: styles[index][0], cornerRadius: "18px", paddingAll: "15px",
+    borderWidth: "1px", borderColor: `${styles[index][1]}33`,
+    action: {
+      type: "postback", label: option.title,
+      data: selectionData("pdf", [option.key], option.key),
+    },
+    contents: [
+      { type: "text", text: option.icon, size: "xxl", align: "center" },
+      { type: "text", text: option.title, size: "sm", color: "#172033", weight: "bold", align: "center", wrap: true },
+      { type: "text", text: "แตะเพื่อรับ PDF", size: "xxs", color: styles[index][1], align: "center" },
+    ],
+  }));
+  const rows = [0, 2, 4].map((start) => ({
+    type: "box", layout: "horizontal", spacing: "md",
+    contents: [tiles[start], tiles[start + 1]],
+  }));
   return {
     type: "bubble", size: "mega",
     header: {
-      type: "box", layout: "vertical", background: {
-        type: "linearGradient", angle: "135deg", startColor: "#111827", endColor: "#4338CA",
-      }, paddingAll: "22px", spacing: "sm",
+      type: "box", layout: "vertical", backgroundColor: "#FFFFFF",
+      paddingAll: "20px", spacing: "xs",
       contents: [
-        { type: "text", text: "ผู้ช่วยร้าน SK", color: "#A5B4FC", size: "xs", weight: "bold" },
-        { type: "text", text: "📊 ต้องการดูข้อมูลอะไรครับ", color: "#FFFFFF", size: "xl", weight: "bold", wrap: true },
-        { type: "text", text: "เลือกหลายหัวข้อได้ แล้วรับรายงานกลับมาเพียงข้อความเดียว", color: "#E0E7FF", size: "sm", wrap: true },
+        { type: "text", text: "🏪  เมนูลัดร้าน SK", color: "#172033", size: "xl", weight: "bold" },
+        { type: "text", text: "เลือกข้อมูลที่ต้องการ ระบบจะดึงข้อมูลล่าสุดเมื่อแตะ", color: "#718096", size: "sm", wrap: true },
       ],
     },
-    body: { type: "box", layout: "vertical", paddingAll: "20px", spacing: "md",
+    body: { type: "box", layout: "vertical", paddingAll: "14px", spacing: "md",
+      backgroundColor: "#F8FAFC", contents: rows },
+    footer: { type: "box", layout: "vertical", paddingAll: "14px", spacing: "xs", backgroundColor: "#FFFFFF",
       contents: [
-        { type: "box", layout: "horizontal", spacing: "md", contents: [
-          { type: "text", text: "✓", size: "lg", color: "#16A34A", weight: "bold", flex: 0 },
-          { type: "box", layout: "vertical", flex: 1, spacing: "xs", contents: [
-            { type: "text", text: "เลือกได้หลายรายการ", color: "#0F172A", weight: "bold", size: "sm" },
-            { type: "text", text: "เครื่องหมายถูกจะแสดงหลังหัวข้อที่เลือก", color: "#64748B", size: "xs", wrap: true },
-          ] },
-        ] },
-        { type: "separator" },
-        { type: "text", text: OPTIONS.map((option) => `${option.icon}  ${option.title}`).join("\n"),
-          color: "#334155", size: "sm", wrap: true, lineSpacing: "8px" },
+        { type: "text", text: "PDF อายุ 24 ชม. • แคชข้อมูล 5 นาที • ไม่มีหน้าเว็บคั่น", size: "xxs", color: "#94A3B8", align: "center" },
       ] },
-    footer: { type: "box", layout: "vertical", paddingAll: "18px", spacing: "sm", backgroundColor: "#F8FAFC",
-      contents: [
-        { type: "button", height: "sm", style: "primary", color: "#4F46E5",
-          action: { type: "uri", label: "เลือกหัวข้อรายงาน", uri: openUrl } },
-        { type: "text", text: "ไม่มีข้อความเด้งระหว่างเลือก • ส่งผลลัพธ์ครั้งเดียว", size: "xxs", color: "#64748B", align: "center" },
-      ] },
-  };
-}
-
-async function attendanceBubble() {
-  const today = todayTH();
-  const [{ data: employees, error: employeeError }, { data: attendance, error: attendanceError }] = await Promise.all([
-    supabase.from("พนักงาน").select("id,name,lastname,status").eq("status", "ทำงาน").order("name"),
-    supabase.from("เช็คชื่อ").select("employee_id,status,time_in,time_out").eq("date", today),
-  ]);
-  if (employeeError) throw employeeError;
-  if (attendanceError) throw attendanceError;
-  const map = new Map((attendance || []).map((row) => [String(row.employee_id), row]));
-  const counts: Record<string, number> = { มา: 0, มาสาย: 0, ครึ่งวัน: 0, ลา: 0, ขาด: 0 };
-  const pending: string[] = [];
-  const absent: string[] = [];
-  for (const employee of (employees || [])) {
-    const row = map.get(String(employee.id));
-    if (!row) {
-      pending.push(`${employee.name || ""} ${employee.lastname || ""}`.trim());
-      continue;
-    }
-    const status = normStatus(String(row.status || ""));
-    if (counts[status] !== undefined) counts[status]++;
-    if (status === "ลา" || status === "ขาด") absent.push(`${employee.name} (${status})`);
-  }
-  const total = (employees || []).length;
-  const complete = total > 0 && pending.length === 0;
-  const statusText = !attendance?.length
-    ? "ยังไม่มีการอัปเดตเช็คชื่อวันนี้"
-    : complete ? "อัปเดตครบทุกคนแล้ว" : `ยังไม่อัปเดต ${pending.length} คน`;
-  const rows = [
-    ["✓ มาทำงาน", counts.มา, "#16A34A"], ["▲ มาสาย", counts.มาสาย, "#D97706"],
-    ["◐ ครึ่งวัน", counts.ครึ่งวัน, "#0891B2"], ["○ ลา", counts.ลา, "#7C3AED"],
-    ["✗ ขาด", counts.ขาด, "#DC2626"],
-  ];
-  return {
-    type: "bubble", size: "mega",
-    header: header("🪪 เช็คชื่อวันนี้", statusText, complete ? "#16A34A" : "#D97706"),
-    body: { type: "box", layout: "vertical", paddingAll: "18px", spacing: "none",
-      contents: [
-        { type: "box", layout: "baseline", contents: [
-          { type: "text", text: "ลงสถานะแล้ว", size: "sm", color: "#64748B", flex: 0 },
-          { type: "text", text: `${map.size}/${total} คน`, size: "xxl", color: complete ? "#16A34A" : "#D97706", weight: "bold", align: "end" },
-        ] },
-        { type: "separator", margin: "lg" },
-        ...rows.map(([label, count, color]) => kv(String(label), `${count} คน`, String(color), true)),
-        ...(pending.length ? [
-          { type: "separator", margin: "lg" },
-          { type: "text", text: "⏳ ผู้ที่ยังไม่มีข้อมูล", size: "xs", color: "#B45309", weight: "bold", margin: "md" },
-          { type: "text", text: pending.join(", "), size: "sm", color: "#92400E", wrap: true, margin: "xs" },
-        ] : []),
-        ...(absent.length ? [
-          { type: "separator", margin: "lg" },
-          { type: "text", text: "ไม่ได้มาทำงาน", size: "xs", color: "#B91C1C", weight: "bold", margin: "md" },
-          { type: "text", text: absent.join(", "), size: "sm", color: "#DC2626", wrap: true, margin: "xs" },
-        ] : []),
-      ] },
-    footer: footer(),
-  };
-}
-
-async function debtBubble() {
-  const { data, error } = await supabase.from("customer")
-    .select("id,name,phone,debt_amount,credit_limit").gt("debt_amount", 0)
-    .order("debt_amount", { ascending: false }).limit(500);
-  if (error) throw error;
-  // เมื่อบันทึกเป็นหนี้เสีย ระบบหลักจะย้ายยอดออกจาก customer.debt_amount แล้ว
-  const customers = (data || []).filter((customer) => Number(customer.debt_amount || 0) > 0.009);
-  const total = customers.reduce((sum, customer) => sum + Number(customer.debt_amount || 0), 0);
-  const shown = customers.slice(0, 6);
-  return {
-    type: "bubble", size: "mega",
-    header: header("👥 ลูกค้าค้างชำระ", "ยอดลูกหนี้ปัจจุบัน ไม่รวมทะเบียนหนี้เสีย", "#B91C1C"),
-    body: { type: "box", layout: "vertical", paddingAll: "18px", spacing: "none",
-      contents: [
-        { type: "box", layout: "baseline", contents: [
-          { type: "text", text: `${customers.length} ราย`, size: "sm", color: "#64748B", flex: 0 },
-          { type: "text", text: baht(total), size: "xxl", color: "#B91C1C", weight: "bold", align: "end" },
-        ] },
-        { type: "separator", margin: "lg" },
-        { type: "text", text: customers.length > shown.length ? `ยอดสูงสุด ${shown.length} รายจากทั้งหมด` : "รายละเอียดลูกหนี้",
-          size: "xs", color: "#94A3B8", weight: "bold", margin: "md" },
-        ...(shown.length ? shown.map((customer, index) =>
-          kv(`${index + 1}. ${customer.name || "-"}${customer.phone ? ` · ${customer.phone}` : ""}`,
-            baht(customer.debt_amount), "#B91C1C", true))
-          : [{ type: "text", text: "ไม่มีลูกค้าค้างชำระ", size: "sm", color: "#16A34A", margin: "sm" }]),
-      ] },
-    footer: footer(customers.length > shown.length
-      ? `แสดง ${shown.length}/${customers.length} ราย · อัปเดต ${nowTime()} น.`
-      : `อัปเดต ณ ${nowTime()} น.`),
   };
 }
 
@@ -406,52 +196,6 @@ function billRemaining(bill: Record<string, unknown>) {
   if (!/ค้าง|เครดิต|ชำระหน้างาน|เก็บปลายทาง|cod/i.test(`${bill.method || ""} ${bill.status || ""}`)) return 0;
   return Math.max(0, total - received);
 }
-async function deliveryBubble() {
-  const data = await fetchPaged(() => supabase.from("บิลขาย")
-    .select("id,bill_no,date,total,method,status,customer_name,delivery_mode,delivery_status,delivery_date,delivery_phone,delivery_address,deposit_amount,received,change,return_info")
-    .order("delivery_date", { ascending: true }), 20000);
-  const pending = data.map((bill) => ({ bill, state: deliveryState(bill) }))
-    .filter((row) => !["cancel", "done", "self"].includes(row.state));
-  const priority: Record<string, number> = { overdue: 0, today: 1, unscheduled: 2, upcoming: 3 };
-  pending.sort((a, b) => priority[a.state] - priority[b.state]);
-  const shown = pending.slice(0, 5);
-  const counts = {
-    overdue: pending.filter((row) => row.state === "overdue").length,
-    today: pending.filter((row) => row.state === "today").length,
-    upcoming: pending.filter((row) => row.state === "upcoming").length,
-    unscheduled: pending.filter((row) => row.state === "unscheduled").length,
-  };
-  const stateLabel: Record<string, string> = {
-    overdue: "⚠️ เกินกำหนด", today: "🚚 ส่งวันนี้", upcoming: "📅 งานถัดไป", unscheduled: "❔ ยังไม่กำหนดวัน",
-  };
-  return {
-    type: "bubble", size: "mega",
-    header: header("🚚 รายการขนส่ง", `${pending.length} งานที่ยังไม่เสร็จ`, "#C2410C"),
-    body: { type: "box", layout: "vertical", paddingAll: "18px", spacing: "none",
-      contents: [
-        kv("⚠️ เกินกำหนด", `${counts.overdue} งาน`, counts.overdue ? "#DC2626" : "#64748B", true),
-        kv("🚚 ต้องส่งวันนี้", `${counts.today} งาน`, counts.today ? "#EA580C" : "#64748B", true),
-        kv("📅 งานถัดไป", `${counts.upcoming} งาน`, "#2563EB", true),
-        kv("❔ ยังไม่กำหนดวัน", `${counts.unscheduled} งาน`, "#D97706", true),
-        { type: "separator", margin: "lg" },
-        { type: "text", text: pending.length > shown.length ? `คิวเร่งด่วน ${shown.length} งานแรก` : "รายละเอียดคิว",
-          size: "xs", color: "#94A3B8", weight: "bold", margin: "md" },
-        ...(shown.length ? shown.flatMap(({ bill, state }) => [
-          { type: "box", layout: "vertical", margin: "md", spacing: "xs",
-            contents: [
-              { type: "text", text: `${stateLabel[state]} · #${bill.bill_no || String(bill.id).slice(0, 8)}`,
-                color: state === "overdue" ? "#B91C1C" : "#0F172A", size: "sm", weight: "bold", wrap: true },
-              { type: "text", text: `${bill.customer_name || "ลูกค้าทั่วไป"} · ${bill.delivery_date ? thDate(bill.delivery_date) : "ไม่ระบุวัน"}${billRemaining(bill) ? ` · เก็บ ${baht(billRemaining(bill))}` : " · ชำระครบ"}`,
-                color: "#64748B", size: "xs", wrap: true },
-            ] },
-        ]) : [{ type: "text", text: "ไม่มีงานจัดส่งค้างอยู่", color: "#16A34A", size: "sm", margin: "sm" }]),
-      ] },
-    footer: footer(pending.length > shown.length
-      ? `แสดง ${shown.length}/${pending.length} งาน · อัปเดต ${nowTime()} น.`
-      : `อัปเดต ณ ${nowTime()} น.`),
-  };
-}
-
 async function fetchPaged(buildQuery: () => unknown, maxRows = 10000) {
   const rows: unknown[] = [];
   const pageSize = 1000;
@@ -504,6 +248,243 @@ function fitPdfText(font: unknown, value: string, size: number, maxWidth: number
   const chars = Array.from(text);
   while (chars.length > 1 && font.widthOfTextAtSize(chars.join("") + "…", size) > maxWidth) chars.pop();
   return chars.join("") + "…";
+}
+
+const PDF_META: Record<string, { title: string; subtitle: string; accent: string }> = {
+  attendance: { title: "เช็คชื่อวันนี้", subtitle: "สถานะพนักงานและเวลาลงงาน", accent: "#16A34A" },
+  sales: { title: "ยอดขายวันนี้", subtitle: "ยอดขายตั้งแต่เปิดรอบและวิธีชำระ", accent: "#3B82F6" },
+  cash: { title: "จำนวนเงินในลิ้นชัก", subtitle: "ธนบัตร เหรียญ และยอดรวมตามระบบ", accent: "#059669" },
+  debt: { title: "ลูกค้าค้างชำระทั้งหมด", subtitle: "ยอดลูกหนี้ปัจจุบัน ไม่รวมทะเบียนหนี้เสีย", accent: "#8B5CF6" },
+  delivery: { title: "รายการขนส่ง", subtitle: "งานค้าง ส่งวันนี้ เกินกำหนด และยอดเก็บ", accent: "#F97316" },
+  products: { title: "สินค้าขายดี 30 วัน", subtitle: "จัดอันดับตามยอดขายเป็นจำนวนเงิน", accent: "#D97706" },
+};
+
+function cleanPdfText(value: unknown) {
+  return String(value ?? "-")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+    .replace(/[\uFE0E\uFE0F\u200D]/g, "")
+    .replace(/\s+/g, " ").trim() || "-";
+}
+
+function collectFlexText(node: unknown, output: string[] = []) {
+  if (!node || typeof node !== "object") return output;
+  const value = node as Record<string, unknown>;
+  if (value.type === "text" && value.text) output.push(cleanPdfText(value.text));
+  for (const key of ["header", "hero", "body", "footer"]) collectFlexText(value[key], output);
+  if (Array.isArray(value.contents)) value.contents.forEach((item) => collectFlexText(item, output));
+  return output;
+}
+
+const pdfClock = (value: unknown) => value
+  ? new Date(String(value)).toLocaleTimeString("th-TH", {
+      timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
+    })
+  : "-";
+
+async function attendancePdfSource() {
+  const today = todayTH();
+  const [{ data: employees, error: employeeError }, { data: attendance, error: attendanceError }] = await Promise.all([
+    supabase.from("พนักงาน").select("id,name,lastname,status").eq("status", "ทำงาน").order("name"),
+    supabase.from("เช็คชื่อ").select("employee_id,status,time_in,time_out").eq("date", today),
+  ]);
+  if (employeeError) throw employeeError;
+  if (attendanceError) throw attendanceError;
+  const byEmployee = new Map((attendance || []).map((row) => [String(row.employee_id), row]));
+  const rows = (employees || []).map((employee, index) => {
+    const attendanceRow = byEmployee.get(String(employee.id));
+    const status = attendanceRow ? normStatus(String(attendanceRow.status || "ไม่ระบุ")) : "ยังไม่อัปเดต";
+    return `${index + 1}. ${employee.name || "-"} ${employee.lastname || ""} | ${status} | เข้า ${pdfClock(attendanceRow?.time_in)} | ออก ${pdfClock(attendanceRow?.time_out)}`;
+  });
+  rows.unshift(`ลงสถานะแล้ว ${byEmployee.size}/${(employees || []).length} คน`);
+  return { ...PDF_META.attendance, rows };
+}
+
+async function debtPdfSource() {
+  const { data, error } = await supabase.from("customer")
+    .select("id,name,phone,debt_amount,credit_limit").gt("debt_amount", 0)
+    .order("debt_amount", { ascending: false }).limit(500);
+  if (error) throw error;
+  const customers = (data || []).filter((customer) => Number(customer.debt_amount || 0) > 0.009);
+  const total = customers.reduce((sum, customer) => sum + Number(customer.debt_amount || 0), 0);
+  const rows = customers.map((customer, index) =>
+    `${index + 1}. ${customer.name || "-"}${customer.phone ? ` | ${customer.phone}` : ""} | ${baht(customer.debt_amount)}`);
+  rows.unshift(`ลูกหนี้ ${customers.length} ราย | ยอดรวม ${baht(total)}`);
+  if (!customers.length) rows.push("ไม่มีลูกค้าค้างชำระ");
+  return { ...PDF_META.debt, rows };
+}
+
+async function deliveryPdfSource() {
+  const data = await fetchPaged(() => supabase.from("บิลขาย")
+    .select("id,bill_no,total,method,status,customer_name,delivery_mode,delivery_status,delivery_date,delivery_phone,delivery_address,deposit_amount,received,change,return_info")
+    .order("delivery_date", { ascending: true }), 20000);
+  const pending = data.map((bill) => ({ bill, state: deliveryState(bill) }))
+    .filter((row) => !["cancel", "done", "self"].includes(row.state));
+  const priority: Record<string, number> = { overdue: 0, today: 1, unscheduled: 2, upcoming: 3 };
+  pending.sort((a, b) => priority[a.state] - priority[b.state]);
+  const labels: Record<string, string> = {
+    overdue: "เกินกำหนด", today: "ส่งวันนี้", upcoming: "งานถัดไป", unscheduled: "ยังไม่กำหนดวัน",
+  };
+  const collect = pending.reduce((sum, row) => sum + billRemaining(row.bill), 0);
+  const rows = pending.map(({ bill, state }, index) =>
+    `${index + 1}. ${labels[state]} | #${bill.bill_no || String(bill.id).slice(0, 8)} | ${bill.customer_name || "ลูกค้าทั่วไป"} | ${bill.delivery_date ? thDate(bill.delivery_date) : "ไม่ระบุวัน"} | เก็บ ${baht(billRemaining(bill))}${bill.delivery_phone ? ` | ${bill.delivery_phone}` : ""}${bill.delivery_address ? ` | ${bill.delivery_address}` : ""}`);
+  rows.unshift(`งานค้าง ${pending.length} งาน | ยอดเก็บรวม ${baht(collect)}`);
+  if (!pending.length) rows.push("ไม่มีงานจัดส่งค้างอยู่");
+  return { ...PDF_META.delivery, rows };
+}
+
+async function cashPdfSource(key: "sales" | "cash") {
+  const bubble = (await cashBubbles([key]))[0];
+  if (!bubble) throw new Error("ไม่พบข้อมูลรายงาน");
+  const rows = collectFlexText(bubble).filter((value, index, all) => value && value !== all[index - 1]);
+  return { ...PDF_META[key], rows };
+}
+
+function wrapPdfLine(font: unknown, value: string, size: number, maxWidth: number) {
+  const result: string[] = [];
+  let current = "";
+  for (const char of Array.from(cleanPdfText(value))) {
+    const next = current + char;
+    if (current && font.widthOfTextAtSize(next, size) > maxWidth) {
+      result.push(current.trimEnd());
+      current = char.trimStart();
+    } else {
+      current = next;
+    }
+  }
+  if (current || !result.length) result.push(current || "-");
+  return result;
+}
+
+function hexRgb(rgb: (red: number, green: number, blue: number) => unknown, value: string) {
+  const hex = value.replace("#", "");
+  return rgb(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255);
+}
+
+async function createSimpleReportPdf(source: { title: string; subtitle: string; accent: string; rows: string[] }) {
+  const [{ PDFDocument, rgb }, fontkitModule] = await Promise.all([
+    import("https://esm.sh/pdf-lib@1.17.1"),
+    import("https://esm.sh/@pdf-lib/fontkit@1.1.1"),
+  ]);
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkitModule.default);
+  const font = await pdf.embedFont(await getThaiFontBytes(), { subset: true });
+  pdf.setTitle(source.title);
+  pdf.setAuthor("SK วัสดุ");
+  pdf.setCreationDate(new Date());
+  const width = 595.28;
+  const height = 841.89;
+  const margin = 34;
+  const ink = rgb(0.09, 0.13, 0.20);
+  const muted = rgb(0.40, 0.45, 0.52);
+  const line = rgb(0.89, 0.91, 0.94);
+  const soft = rgb(0.97, 0.98, 0.99);
+  const accent = hexRgb(rgb, source.accent);
+  let page: unknown;
+  let y = 0;
+  let rowIndex = 0;
+
+  const addPage = () => {
+    page = pdf.addPage([width, height]);
+    page.drawRectangle({ x: 0, y: height - 112, width, height: 112, color: accent });
+    page.drawRectangle({ x: 0, y: height - 112, width: 9, height: 112, color: rgb(1, 1, 1), opacity: 0.35 });
+    page.drawText(fitPdfText(font, cleanPdfText(source.title), 21, width - 2 * margin), {
+      x: margin, y: height - 48, size: 21, font, color: rgb(1, 1, 1),
+    });
+    page.drawText(fitPdfText(font, cleanPdfText(source.subtitle), 10.5, width - 2 * margin), {
+      x: margin, y: height - 76, size: 10.5, font, color: rgb(1, 1, 1), opacity: 0.84,
+    });
+    page.drawText(`สร้าง ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, {
+      x: margin, y: height - 96, size: 8.5, font, color: rgb(1, 1, 1), opacity: 0.68,
+    });
+    y = height - 136;
+  };
+
+  addPage();
+  for (const raw of source.rows) {
+    const wrapped = wrapPdfLine(font, raw, 9.5, width - 2 * margin - 22);
+    const rowHeight = Math.max(31, 14 + wrapped.length * 13);
+    if (y - rowHeight < 54) addPage();
+    if (rowIndex % 2 === 0) page.drawRectangle({ x: margin, y: y - rowHeight, width: width - 2 * margin, height: rowHeight, color: soft });
+    page.drawLine({ start: { x: margin, y: y - rowHeight }, end: { x: width - margin, y: y - rowHeight }, thickness: 0.45, color: line });
+    wrapped.forEach((text, index) => page.drawText(text, {
+      x: margin + 11, y: y - 20 - index * 13, size: 9.5, font,
+      color: rowIndex === 0 ? accent : ink,
+    }));
+    y -= rowHeight;
+    rowIndex++;
+  }
+
+  const pages = pdf.getPages();
+  pages.forEach((item, index) => {
+    const footerText = `หน้า ${index + 1} / ${pages.length}  |  ดึงข้อมูลเมื่อกดเมนู`;
+    item.drawText(footerText, { x: margin, y: 27, size: 8.5, font, color: muted });
+  });
+  return await pdf.save();
+}
+
+async function signedPdfUrl(path: string, downloadName: string) {
+  const signed = await supabase.storage.from(ASSISTANT_BUCKET)
+    .createSignedUrl(path, 86400, { download: downloadName });
+  if (signed.error || !signed.data?.signedUrl) throw signed.error || new Error("สร้างลิงก์ PDF ไม่สำเร็จ");
+  return signed.data.signedUrl;
+}
+
+async function cachedPdfUrl(key: string) {
+  await ensureAssistantBucket();
+  const fileName = `${key}-${todayTH()}.pdf`;
+  const path = `reports/${fileName}`;
+  const listed = await supabase.storage.from(ASSISTANT_BUCKET).list("reports", {
+    limit: 10, search: fileName,
+  });
+  const item = (listed.data || []).find((entry) => entry.name === fileName);
+  const updatedAt = item?.updated_at || item?.created_at;
+  if (!updatedAt || Date.now() - new Date(updatedAt).getTime() > 5 * 60 * 1000) return null;
+  return { url: await signedPdfUrl(path, fileName), path, fileName };
+}
+
+function pdfDownloadBubble(key: string, url: string, cached: boolean) {
+  const meta = PDF_META[key];
+  return {
+    type: "bubble", size: "mega",
+    header: { type: "box", layout: "vertical", backgroundColor: meta.accent, paddingAll: "20px", spacing: "xs",
+      contents: [
+        { type: "text", text: meta.title, color: "#FFFFFF", weight: "bold", size: "xl", wrap: true },
+        { type: "text", text: "จัดทำเป็น PDF จากข้อมูลร้านล่าสุด", color: "#FFFFFFCC", size: "sm", wrap: true },
+      ] },
+    body: { type: "box", layout: "vertical", paddingAll: "20px", spacing: "md",
+      contents: [
+        { type: "text", text: cached ? "ใช้ไฟล์ที่สร้างไว้ไม่เกิน 5 นาที เพื่อลดการดึงข้อมูลซ้ำ" : "สร้างไฟล์ใหม่เรียบร้อยแล้ว", color: "#64748B", size: "sm", wrap: true },
+        { type: "button", height: "sm", style: "primary", color: meta.accent,
+          action: { type: "uri", label: "เปิด / ดาวน์โหลด PDF", uri: url } },
+      ] },
+    footer: { type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#F8FAFC",
+      contents: [{ type: "text", text: "ลิงก์มีอายุ 24 ชั่วโมง • ไม่มีหน้าเว็บคั่น", size: "xxs", color: "#94A3B8", align: "center" }] },
+  };
+}
+
+async function createReportPdfBubble(key: string) {
+  if (!VALID_KEYS.has(key)) throw new Error("ไม่รู้จักรายงานที่เลือก");
+  const cached = await cachedPdfUrl(key);
+  if (cached) return pdfDownloadBubble(key, cached.url, true);
+  let bytes: Uint8Array;
+  if (key === "products") {
+    bytes = await createProductsPdf(await loadProductsRanking(100));
+  } else {
+    const source = key === "attendance" ? await attendancePdfSource()
+      : key === "debt" ? await debtPdfSource()
+      : key === "delivery" ? await deliveryPdfSource()
+      : await cashPdfSource(key as "sales" | "cash");
+    bytes = await createSimpleReportPdf(source);
+  }
+  await ensureAssistantBucket();
+  const fileName = `${key}-${todayTH()}.pdf`;
+  const path = `reports/${fileName}`;
+  const uploaded = await supabase.storage.from(ASSISTANT_BUCKET).upload(path,
+    new Blob([bytes], { type: "application/pdf" }), {
+      contentType: "application/pdf", upsert: true, cacheControl: "300",
+    });
+  if (uploaded.error) throw uploaded.error;
+  return pdfDownloadBubble(key, await signedPdfUrl(path, fileName), false);
 }
 
 async function createProductsPdf(report: Awaited<ReturnType<typeof loadProductsRanking>>) {
@@ -597,60 +578,6 @@ async function createProductsPdf(report: Awaited<ReturnType<typeof loadProductsR
   return await pdf.save();
 }
 
-async function productsPdfBubble() {
-  const report = await loadProductsRanking(100);
-  const pdfBytes = await createProductsPdf(report);
-  await ensureAssistantBucket();
-  const path = `reports/best-sellers-${todayTH()}.pdf`;
-  const uploaded = await supabase.storage.from(ASSISTANT_BUCKET).upload(
-    path,
-    new Blob([pdfBytes], { type: "application/pdf" }),
-    { contentType: "application/pdf", upsert: true, cacheControl: "300" },
-  );
-  if (uploaded.error) throw uploaded.error;
-  const signed = await supabase.storage.from(ASSISTANT_BUCKET)
-    .createSignedUrl(path, 7 * 86400, { download: `best-sellers-${todayTH()}.pdf` });
-  if (signed.error || !signed.data?.signedUrl) throw signed.error || new Error("สร้างลิงก์ PDF ไม่สำเร็จ");
-
-  return {
-    type: "bubble", size: "mega",
-    header: {
-      type: "box", layout: "vertical",
-      background: { type: "linearGradient", angle: "135deg", startColor: "#312E81", endColor: "#7C3AED" },
-      paddingAll: "20px", spacing: "xs",
-      contents: [
-        { type: "text", text: "🏆 สินค้าขายดี 30 วัน", color: "#FFFFFF", weight: "bold", size: "xl" },
-        { type: "text", text: "รายงาน PDF จัดอันดับตามยอดขาย", color: "#DDD6FE", size: "sm" },
-      ],
-    },
-    body: { type: "box", layout: "vertical", paddingAll: "20px", spacing: "md",
-      contents: [
-        { type: "text", text: baht(report.totalAmount), color: "#6D28D9", weight: "bold", size: "xxl", align: "center" },
-        { type: "text", text: `ยอดขายรวม · ${report.billCount.toLocaleString("th-TH")} บิล`,
-          color: "#64748B", size: "sm", align: "center" },
-        { type: "separator", margin: "sm" },
-        { type: "box", layout: "horizontal", spacing: "sm", contents: [
-          { type: "box", layout: "vertical", flex: 1, backgroundColor: "#F5F3FF", cornerRadius: "12px", paddingAll: "12px",
-            contents: [
-              { type: "text", text: `${report.top.length}`, color: "#7C3AED", weight: "bold", size: "xl", align: "center" },
-              { type: "text", text: "อันดับใน PDF", color: "#64748B", size: "xs", align: "center" },
-            ] },
-          { type: "box", layout: "vertical", flex: 1, backgroundColor: "#EFF6FF", cornerRadius: "12px", paddingAll: "12px",
-            contents: [
-              { type: "text", text: number(report.totalQty), color: "#2563EB", weight: "bold", size: "xl", align: "center" },
-              { type: "text", text: "หน่วยที่ขาย", color: "#64748B", size: "xs", align: "center" },
-            ] },
-        ] },
-      ] },
-    footer: { type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
-      contents: [
-        { type: "button", height: "sm", style: "primary", color: "#7C3AED",
-          action: { type: "uri", label: "เปิด / ดาวน์โหลด PDF", uri: signed.data.signedUrl } },
-        { type: "text", text: "ลิงก์มีอายุ 7 วัน · สร้างจากข้อมูลล่าสุด", size: "xxs", color: "#94A3B8", align: "center" },
-      ] },
-  };
-}
-
 async function cashBubbles(selected: string[]) {
   const wanted = selected.filter((key) => key === "sales" || key === "cash");
   if (!wanted.length) return [];
@@ -664,185 +591,6 @@ async function cashBubbles(selected: string[]) {
   return Array.isArray(body.bubbles) ? body.bubbles : [];
 }
 
-async function buildReports(selected: string[]) {
-  const tasks = selected.map(async (key) => {
-    try {
-      if (key === "attendance") return await attendanceBubble();
-      if (key === "debt") return await debtBubble();
-      if (key === "delivery") return await deliveryBubble();
-      if (key === "products") return await productsPdfBubble();
-      if (key === "sales" || key === "cash") return null;
-      return null;
-    } catch (error) {
-      const option = OPTIONS.find((item) => item.key === key);
-      return errorBubble(`โหลด ${option?.title || key} ไม่สำเร็จ`,
-        error instanceof Error ? error.message : String(error));
-    }
-  });
-  const [local, cash] = await Promise.all([
-    Promise.all(tasks),
-    cashBubbles(selected).catch((error) => selected.filter((key) => key === "sales" || key === "cash")
-      .map((key) => errorBubble(`โหลด ${OPTIONS.find((item) => item.key === key)?.title} ไม่สำเร็จ`,
-        error instanceof Error ? error.message : String(error)))),
-  ]);
-  const cashByKey = new Map<string, unknown>();
-  selected.filter((key) => key === "sales" || key === "cash").forEach((key, index) => cashByKey.set(key, cash[index]));
-  return selected.map((key, index) => (key === "sales" || key === "cash") ? cashByKey.get(key) : local[index]).filter(Boolean);
-}
-
-function selectorPage(token: string) {
-  const cards = OPTIONS.map((option) => `
-    <label class="pick">
-      <input type="checkbox" name="report" value="${option.key}">
-      <span class="pick-card">
-        <span class="pick-icon">${option.icon}</span>
-        <span class="pick-copy">
-          <strong>${option.no}. ${option.title}<i class="selected-mark">✓</i></strong>
-          <small>${option.hint}</small>
-        </span>
-        <span class="check"><i>✓</i></span>
-      </span>
-    </label>`).join("");
-  const safeToken = String(token || "").replace(/[<>&"']/g, "");
-  return `<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#312E81">
-  <title>เลือกข้อมูลจากผู้ช่วยร้าน</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap');
-    :root{color-scheme:light;--primary:#4f46e5;--primary-dark:#312e81;--ink:#101828;--muted:#667085;--line:#e4e7ec}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Prompt,system-ui,sans-serif;color:var(--ink);
-      background:radial-gradient(circle at 100% 0,#c7d2fe 0,transparent 33%),linear-gradient(180deg,#eef2ff 0,#f8fafc 46%,#fff 100%)}
-    .shell{width:min(100%,560px);margin:auto;padding:18px 14px calc(30px + env(safe-area-inset-bottom))}
-    .hero{position:relative;overflow:hidden;border-radius:26px;padding:24px 22px;color:#fff;
-      background:linear-gradient(135deg,#111827 0,#312e81 55%,#4f46e5 100%);box-shadow:0 20px 45px rgba(49,46,129,.22)}
-    .hero:after{content:"";position:absolute;width:190px;height:190px;border:35px solid rgba(255,255,255,.07);border-radius:50%;right:-75px;top:-90px}
-    .eyebrow{position:relative;z-index:1;font-size:11px;font-weight:800;letter-spacing:.12em;color:#c7d2fe}
-    h1{position:relative;z-index:1;margin:8px 0 6px;font-size:24px;line-height:1.35} .hero p{position:relative;z-index:1;margin:0;color:#e0e7ff;font-size:13px;line-height:1.7}
-    .summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 4px 11px}
-    .summary strong{font-size:15px}.summary span{font-size:11px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:999px;padding:7px 11px}
-    .list{display:grid;gap:10px}.pick{display:block;cursor:pointer;-webkit-tap-highlight-color:transparent}.pick input{position:absolute;opacity:0;pointer-events:none}
-    .pick-card{display:grid;grid-template-columns:50px minmax(0,1fr) 30px;align-items:center;gap:12px;padding:14px;
-      border:1.5px solid var(--line);border-radius:18px;background:rgba(255,255,255,.94);box-shadow:0 5px 16px rgba(16,24,40,.045);transition:.17s ease}
-    .pick-card:active{transform:scale(.985)}.pick-icon{width:50px;height:50px;display:grid;place-items:center;border-radius:15px;background:#f2f4f7;font-size:24px}
-    .pick-copy{min-width:0}.pick-copy strong{display:flex;align-items:center;gap:7px;font-size:14px;line-height:1.35}.pick-copy small{display:block;margin-top:4px;color:#98a2b3;font-size:10.5px;line-height:1.5}
-    .selected-mark{display:none;color:#16a34a;font-size:15px;font-style:normal}.check{width:26px;height:26px;display:grid;place-items:center;border:2px solid #d0d5dd;border-radius:50%;color:transparent;transition:.17s}
-    .check i{font-style:normal;font-size:14px;font-weight:900}.pick input:checked+.pick-card{border-color:#6366f1;background:#f5f3ff;box-shadow:0 8px 22px rgba(79,70,229,.13)}
-    .pick input:checked+.pick-card .pick-icon{background:#e0e7ff}.pick input:checked+.pick-card .selected-mark{display:inline}.pick input:checked+.pick-card .check{border-color:#16a34a;background:#16a34a;color:#fff}
-    .action-wrap{position:sticky;bottom:0;margin-top:14px;padding-top:12px;background:linear-gradient(180deg,transparent,#fff 28%)}
-    .submit{display:none;width:100%;height:56px;border:0;border-radius:17px;color:#fff;font:800 15px Prompt,sans-serif;cursor:pointer;
-      background:linear-gradient(135deg,#4f46e5,#7c3aed);box-shadow:0 14px 28px rgba(79,70,229,.27)}.submit.show{display:block}.submit:disabled{opacity:.7}
-    .help{text-align:center;color:#98a2b3;font-size:10.5px;margin:9px 0 0}.status{display:none;text-align:center;padding:42px 22px;border-radius:24px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.08)}
-    .status.show{display:block}.status .done{width:68px;height:68px;display:grid;place-items:center;margin:0 auto 15px;border-radius:50%;background:#dcfce7;color:#16a34a;font-size:34px;font-weight:900}
-    .status h2{margin:0;font-size:20px}.status p{color:var(--muted);font-size:12px;line-height:1.7}.error{color:#b42318!important}
-    @media(max-width:380px){.shell{padding-left:10px;padding-right:10px}.hero{padding:21px 18px}.pick-card{grid-template-columns:45px minmax(0,1fr) 27px;padding:12px}.pick-icon{width:45px;height:45px}}
-  </style>
-</head>
-<body>
-  <main class="shell">
-    <section id="picker">
-      <header class="hero">
-        <div class="eyebrow">SK STORE ASSISTANT</div>
-        <h1>เลือกข้อมูลที่ต้องการดู</h1>
-        <p>เลือกได้หลายหัวข้อ ระบบจะส่งรายงานกลับเข้า LINE เพียงข้อความเดียว</p>
-      </header>
-      <div class="summary"><strong>รายการรายงาน</strong><span id="count">ยังไม่ได้เลือก</span></div>
-      <div class="list">${cards}</div>
-      <div class="action-wrap">
-        <button id="submit" class="submit" type="button">แสดงรายงานที่เลือก <span id="button-count"></span></button>
-        <p class="help">ปุ่มจะแสดงเมื่อเลือกอย่างน้อย 1 รายการ</p>
-      </div>
-    </section>
-    <section id="status" class="status">
-      <div class="done">✓</div>
-      <h2>ส่งรายงานเข้า LINE แล้ว</h2>
-      <p>กลับไปที่ห้องแชตเพื่อดูข้อมูลได้เลยครับ</p>
-    </section>
-  </main>
-  <script>
-    const token=${JSON.stringify(safeToken)};
-    const inputs=[...document.querySelectorAll('input[name="report"]')];
-    const button=document.getElementById('submit');
-    const count=document.getElementById('count');
-    const buttonCount=document.getElementById('button-count');
-    function selected(){return inputs.filter(input=>input.checked).map(input=>input.value)}
-    function update(){
-      const total=selected().length;
-      count.textContent=total?('เลือกแล้ว '+total+' รายการ'):'ยังไม่ได้เลือก';
-      buttonCount.textContent=total?('('+total+')'):'';
-      button.classList.toggle('show',total>0);
-    }
-    inputs.forEach(input=>input.addEventListener('change',update));
-    button.addEventListener('click',async()=>{
-      const reports=selected(); if(!reports.length)return;
-      button.disabled=true; button.textContent='กำลังจัดทำรายงาน...';
-      try{
-        const response=await fetch(location.pathname+'?assistant=run',{
-          method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({token,selected:reports})
-        });
-        const result=await response.json();
-        if(!response.ok||!result.ok)throw new Error(result.error||'ส่งรายงานไม่สำเร็จ');
-        document.getElementById('picker').style.display='none';
-        document.getElementById('status').classList.add('show');
-      }catch(error){
-        button.disabled=false; button.innerHTML='ลองส่งรายงานอีกครั้ง';
-        const help=document.querySelector('.help');
-        help.textContent=error.message||String(error); help.classList.add('error');
-      }
-    });
-    update();
-  </script>
-</body>
-</html>`;
-}
-
-async function openSelector(req: Request) {
-  const token = new URL(req.url).searchParams.get("token") || "";
-  try {
-    await readSelectorToken(token);
-    return new Response(selectorPage(token), {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:system-ui;text-align:center;padding:60px 20px"><h2>เปิดตัวเลือกรายงานไม่ได้</h2><p>${message}</p></body>`, {
-      status: 401, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
-    });
-  }
-}
-
-async function runSelector(req: Request) {
-  try {
-    const body = await req.json();
-    await readSelectorToken(String(body?.token || ""));
-    const selected = Array.isArray(body?.selected)
-      ? [...new Set(body.selected.map(String).filter((key: string) => VALID_KEYS.has(key)))]
-      : [];
-    if (!selected.length) throw new Error("กรุณาเลือกรายงานอย่างน้อย 1 รายการ");
-    selected.sort((a, b) => OPTIONS.findIndex((option) => option.key === a)
-      - OPTIONS.findIndex((option) => option.key === b));
-    const bubbles = await buildReports(selected);
-    if (!bubbles.length) throw new Error("ไม่พบรายงานที่ส่งได้");
-    await push([{
-      type: "flex",
-      altText: `รายงานผู้ช่วยร้าน ${selected.length} รายการ`,
-      contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles },
-    }]);
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200, headers: { ...CORS, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      ok: false, error: error instanceof Error ? error.message : String(error),
-    }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
-  }
-}
-
 async function handleLineWebhook(raw: string, req: Request) {
   const signature = req.headers.get("x-line-signature") || "";
   if (!await validSignature(raw, signature)) {
@@ -852,7 +600,7 @@ async function handleLineWebhook(raw: string, req: Request) {
   const body = JSON.parse(raw);
   console.log(`[assistant] webhook accepted: ${(body.events || []).length} event(s)`);
   for (const event of (body.events || [])) {
-    if (event.type !== "message" && event.type !== "postback") continue;
+    if (event.type !== "join" && event.type !== "message" && event.type !== "postback") continue;
     const sourceId = event.source?.groupId || event.source?.roomId || event.source?.userId || "";
     const eventText = event.type === "message" && event.message?.type === "text"
       ? String(event.message.text || "").replace(/\s+/g, "").toLowerCase()
@@ -861,7 +609,7 @@ async function handleLineWebhook(raw: string, req: Request) {
     console.log(`[assistant] event=${event.type} sourceType=${event.source?.type || "-"} source=${sourceId || "-"} text=${eventText || "-"}`);
     if (LINE_GROUP_ID && sourceId !== LINE_GROUP_ID) {
       console.warn(`[assistant] LINE_GROUP_ID mismatch: received=${sourceId || "-"} configured=${LINE_GROUP_ID}`);
-      if (isWakeWord && event.replyToken) {
+      if ((isWakeWord || event.type === "join") && event.replyToken) {
         await reply(event.replyToken, [{
           type: "text",
           text: `กลุ่มนี้ยังไม่ได้รับอนุญาตครับ\n\nนำ Group ID ด้านล่างไปใส่ใน Supabase Secret ชื่อ LINE_GROUP_ID แล้วกด Save\n\n${sourceId}`,
@@ -870,24 +618,19 @@ async function handleLineWebhook(raw: string, req: Request) {
       continue;
     }
     if (!event.replyToken) continue;
-    const userId = event.source?.userId || "group";
+    if (event.type === "join") {
+      console.log(`[assistant] joined source=${sourceId}; sending native Flex menu`);
+      await reply(event.replyToken, [{
+        type: "flex", altText: "เมนูลัดร้าน SK - แตะเพื่อรับรายงาน PDF", contents: menuBubble(),
+      }]);
+      continue;
+    }
     if (event.type === "message" && event.message?.type === "text") {
       if (isWakeWord) {
-        console.log("[assistant] wake word matched; replying with selector menu");
-        const openUrl = await selectorUrl(sourceId, userId);
-        try {
-          await reply(event.replyToken, [{
-            type: "flex", altText: "สวัสดีครับ เลือกรายงานได้หลายหัวข้อ", contents: menuBubble(openUrl),
-          }]);
-          console.log("[assistant] selector menu replied successfully");
-        } catch (flexError) {
-          console.error("[assistant] Flex reply failed; trying text fallback", flexError);
-          await reply(event.replyToken, [{
-            type: "text",
-            text: `สวัสดีครับ เลือกรายงานได้จากลิงก์นี้\n${openUrl}`,
-          }]);
-          console.log("[assistant] text fallback replied successfully");
-        }
+        console.log("[assistant] menu requested; replying with native Flex menu");
+        await reply(event.replyToken, [{
+          type: "flex", altText: "เมนูลัดร้าน SK - แตะเพื่อรับรายงาน PDF", contents: menuBubble(),
+        }]);
       }
       continue;
     }
@@ -895,44 +638,19 @@ async function handleLineWebhook(raw: string, req: Request) {
       const params = new URLSearchParams(String(event.postback?.data || ""));
       if (params.get("a") !== "assistant") continue;
       const mode = params.get("mode");
-      let selected = safeSelected(params.get("selected"));
-      if (mode === "toggle-state") {
-        const item = String(params.get("item") || "");
+      const item = String(params.get("item") || safeSelected(params.get("selected"))[0] || "");
+      if (mode === "pdf" || mode === "toggle" || mode === "run-one") {
         if (!VALID_KEYS.has(item)) continue;
-        selected = await loadSelection(sourceId, userId);
-        // เพิ่มอย่างเดียวเพื่อให้ข้อความ displayText ตรงกับสถานะจริง
-        // หากต้องการเริ่มใหม่ให้ใช้ปุ่ม "ล้างตัวเลือก"
-        if (!selected.includes(item)) selected.push(item);
-        selected.sort((a, b) => OPTIONS.findIndex((option) => option.key === a)
-          - OPTIONS.findIndex((option) => option.key === b));
-        await saveSelection(sourceId, userId, selected);
-        // จงใจไม่ reply: เมนูเดิมอยู่ใบเดียวและไม่ใช้โควต้าข้อความเพิ่ม
-        continue;
-      }
-      if (mode === "clear-state" || mode === "clear") {
-        await saveSelection(sourceId, userId, []);
-        // ล้างเงียบ ๆ โดยไม่ส่งข้อความ "ล้างแล้ว"
-        continue;
-      }
-      if (mode === "run-state") {
-        selected = await loadSelection(sourceId, userId);
-      }
-      // รองรับปุ่มจากเมนูเวอร์ชันเก่า: แตะตัวเลือกแล้วเปิดรายงานนั้นทันที
-      if (mode === "toggle") {
-        const item = String(params.get("item") || "");
-        selected = VALID_KEYS.has(item) ? [item] : [];
-      }
-      if (mode === "run-state" || mode === "run" || mode === "run-one" || mode === "toggle") {
-        if (!selected.length) {
+        try {
+          const bubble = await createReportPdfBubble(item);
           await reply(event.replyToken, [{
-            type: "text", text: "ยังไม่ได้เลือกรายงานครับ แตะหัวข้อที่ต้องการแล้วกดดูรายงานอีกครั้ง",
+            type: "flex", altText: `${PDF_META[item].title} - ดาวน์โหลด PDF`, contents: bubble,
           }]);
-        } else {
-          await saveSelection(sourceId, userId, []);
-          const bubbles = await buildReports(selected);
+        } catch (error) {
+          console.error(`[assistant] PDF ${item} failed`, error);
           await reply(event.replyToken, [{
-            type: "flex", altText: `รายงานผู้ช่วยร้าน ${selected.length} รายการ`,
-            contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles },
+            type: "text",
+            text: `สร้าง PDF ${PDF_META[item]?.title || item} ไม่สำเร็จครับ\n${error instanceof Error ? error.message : String(error)}`,
           }]);
         }
       }
@@ -943,16 +661,18 @@ async function handleLineWebhook(raw: string, req: Request) {
 
 async function attendanceDatabaseNotification() {
   // รองรับ Database Webhook เดิมโดยตอบสำเร็จ แต่ไม่ส่ง LINE อัตโนมัติ
-  // ผู้ใช้ดูข้อมูลล่าสุดได้จาก "สวัดดีผู้ช่วย" > เช็คชื่อวันนี้
+  // ผู้ใช้แตะเมนูที่ปักหมุดไว้เพื่อดึง PDF ล่าสุดแทน
   return new Response("automatic attendance push disabled; use assistant menu", { status: 200 });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    const assistantMode = new URL(req.url).searchParams.get("assistant");
-    if (req.method === "GET" && assistantMode === "select") return await openSelector(req);
-    if (req.method === "POST" && assistantMode === "run") return await runSelector(req);
+    if (req.method === "GET") {
+      return new Response(JSON.stringify({ ok: true, service: "sk-line-pdf-menu" }), {
+        status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     const raw = await req.text();
     let body: Record<string, unknown> = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
