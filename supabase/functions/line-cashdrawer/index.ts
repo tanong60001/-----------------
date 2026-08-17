@@ -82,10 +82,10 @@ async function currentSession() {
   return data;
 }
 
-async function salesBubble() {
+async function salesPayload() {
   const session = await currentSession();
   if (!session) {
-    return {
+    const bubble = {
       type: "bubble", size: "mega",
       header: { type: "box", layout: "vertical", backgroundColor: "#D97706", paddingAll: "18px",
         contents: [
@@ -95,6 +95,7 @@ async function salesBubble() {
       body: { type: "box", layout: "vertical", paddingAll: "18px",
         contents: [{ type: "text", text: "ไม่พบรอบเงินสดที่กำลังเปิด จึงยังระบุเวลาเริ่มรอบและยอดขายของรอบนี้ไม่ได้", size: "sm", color: "#64748B", wrap: true }] },
     };
+    return { bubble, report: { open: false, total: 0, billCount: 0, methods: [], recent: [] } };
   }
 
   const [{ data, error }, { data: cashTransactions, error: cashError }] = await Promise.all([
@@ -143,7 +144,7 @@ async function salesBubble() {
   });
   const recent = bills.slice(0, 5);
   const icon: Record<string, string> = { เงินสด: "💵", โอนเงิน: "🏦", บัตรเครดิต: "💳", ค้างชำระ: "⏳" };
-  return {
+  const bubble = {
     type: "bubble", size: "mega",
     header: { type: "box", layout: "vertical", backgroundColor: "#1D4ED8", paddingAll: "18px", spacing: "xs",
       contents: [
@@ -174,18 +175,38 @@ async function salesBubble() {
     footer: { type: "box", layout: "vertical", backgroundColor: "#EFF6FF", paddingAll: "12px",
       contents: [{ type: "text", text: `อัปเดต ณ ${nowLabel()} น.`, size: "xs", color: "#64748B", align: "center" }] },
   };
+  const report = {
+    open: true,
+    openedBy: session.opened_by || "-",
+    openedAt: session.opened_at,
+    openedLabel: `${opened} น.`,
+    total,
+    billCount: bills.length,
+    methods: Object.entries(methods)
+      .map(([method, row]) => ({ method, count: row.count, amount: row.amount }))
+      .sort((a, b) => b.amount - a.amount),
+    recent: recent.map((bill) => ({
+      billNo: bill.bill_no || String(bill.id).slice(0, 8),
+      time: `${new Date(bill.date).toLocaleTimeString("th-TH", {
+        timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
+      })} น.`,
+      amount: effectiveTotal(bill),
+    })),
+  };
+  return { bubble, report };
 }
 
-async function drawerBubble() {
+async function drawerPayload() {
   const session = await currentSession();
   if (!session) {
-    return {
+    const bubble = {
       type: "bubble", size: "mega",
       header: { type: "box", layout: "vertical", backgroundColor: "#D97706", paddingAll: "18px",
         contents: [{ type: "text", text: "💵 เงินในลิ้นชัก", color: "#FFFFFF", weight: "bold", size: "lg" }] },
       body: { type: "box", layout: "vertical", paddingAll: "18px",
         contents: [{ type: "text", text: "ยังไม่ได้เปิดรอบลิ้นชักวันนี้ จึงไม่มีจำนวนธนบัตรและเหรียญให้ตรวจสอบ", size: "sm", color: "#64748B", wrap: true }] },
     };
+    return { bubble, report: { open: false, total: 0, denominations: [], hasNegative: false } };
   }
   const { data: txs, error } = await supabase.from("cash_transaction")
     .select("direction,denominations,change_denominations").eq("session_id", session.id);
@@ -212,7 +233,7 @@ async function drawerBubble() {
   const note = hasNegative
     ? "พบจำนวนติดลบในบางชนิด ควรนับเงินจริงและตรวจรายการเงินทอน"
     : "จำนวนคำนวณจากยอดเปิด + เงินเข้า/ออก − เงินทอน";
-  return {
+  const bubble = {
     type: "bubble", size: "mega",
     header: { type: "box", layout: "vertical", backgroundColor: "#047857", paddingAll: "18px", spacing: "xs",
       contents: [
@@ -236,6 +257,20 @@ async function drawerBubble() {
     footer: { type: "box", layout: "vertical", backgroundColor: hasNegative ? "#FEF2F2" : "#ECFDF5", paddingAll: "12px",
       contents: [{ type: "text", text: `อัปเดต ณ ${nowLabel()} น.`, size: "xs", color: "#64748B", align: "center" }] },
   };
+  const report = {
+    open: true,
+    openedBy: session.opened_by || "-",
+    total,
+    hasNegative,
+    note,
+    denominations: rows.map((value) => ({
+      denomination: value,
+      label: dlabel(value),
+      count: drawer[String(value)],
+      amount: value * drawer[String(value)],
+    })),
+  };
+  return { bubble, report };
 }
 
 async function assistantReport(req: Request, body: Record<string, unknown>) {
@@ -247,16 +282,25 @@ async function assistantReport(req: Request, body: Record<string, unknown>) {
   }
   const selected = Array.isArray(body.selected) ? body.selected.map(String) : [];
   const bubbles: unknown[] = [];
+  const reports: Record<string, unknown> = {};
   for (const key of selected) {
     try {
-      if (key === "sales") bubbles.push(await salesBubble());
-      if (key === "cash") bubbles.push(await drawerBubble());
+      if (key === "sales") {
+        const payload = await salesPayload();
+        bubbles.push(payload.bubble);
+        reports.sales = payload.report;
+      }
+      if (key === "cash") {
+        const payload = await drawerPayload();
+        bubbles.push(payload.bubble);
+        reports.cash = payload.report;
+      }
     } catch (error) {
       bubbles.push(errorBubble(key === "sales" ? "โหลดยอดขายไม่สำเร็จ" : "โหลดลิ้นชักไม่สำเร็จ",
         error instanceof Error ? error.message : String(error)));
     }
   }
-  return new Response(JSON.stringify({ bubbles }), {
+  return new Response(JSON.stringify({ bubbles, reports }), {
     status: 200, headers: { ...CORS, "Content-Type": "application/json" },
   });
 }

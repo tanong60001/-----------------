@@ -1,7 +1,11 @@
 // @ts-nocheck — Supabase Edge Function (Deno)
-// LINE Webhook: ผู้ช่วยร้านแบบแตะดูทีละรายงานเพื่อประหยัดโควต้า
-// การแจ้งเช็คชื่ออัตโนมัติถูกปิดเพื่อประหยัดโควต้า LINE — ใช้เมนูกดดูแทน
+// LINE Webhook: ผู้ช่วยร้านแบบเมนู PDF และแจ้งสรุปเช็คชื่ออัตโนมัติเมื่อครบทุกคน
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createMinimalReportPdf,
+  createProductsRankingPdf,
+  type MinimalReportSource,
+} from "./pdf-renderer.ts";
 
 const LINE_TOKEN = (Deno.env.get("LINE_TOKEN") || "").trim();
 const LINE_GROUP_ID = (Deno.env.get("LINE_GROUP_ID") || "").trim();
@@ -68,13 +72,20 @@ async function ensureAssistantBucket() {
     bucketReady = (async () => {
       const { data, error } = await supabase.storage.listBuckets();
       if (error) throw error;
-      if (!(data || []).some((bucket) => bucket.name === ASSISTANT_BUCKET)) {
+      const bucketExists = (data || []).some((bucket) => bucket.name === ASSISTANT_BUCKET);
+      const bucketOptions = {
+        public: false,
+        fileSizeLimit: 10 * 1024 * 1024,
+        allowedMimeTypes: ["application/pdf", "application/json"],
+      };
+      if (!bucketExists) {
         const created = await supabase.storage.createBucket(ASSISTANT_BUCKET, {
-          public: false,
-          fileSizeLimit: 10 * 1024 * 1024,
-          allowedMimeTypes: ["application/pdf"],
+          ...bucketOptions,
         });
         if (created.error && !/already|duplicate/i.test(created.error.message || "")) throw created.error;
+      } else {
+        const updated = await supabase.storage.updateBucket(ASSISTANT_BUCKET, bucketOptions);
+        if (updated.error) throw updated.error;
       }
     })().catch((error) => {
       bucketReady = null;
@@ -242,21 +253,13 @@ async function loadProductsRanking(limit = 100) {
   };
 }
 
-function fitPdfText(font: unknown, value: string, size: number, maxWidth: number) {
-  const text = String(value || "-");
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  const chars = Array.from(text);
-  while (chars.length > 1 && font.widthOfTextAtSize(chars.join("") + "…", size) > maxWidth) chars.pop();
-  return chars.join("") + "…";
-}
-
 const PDF_META: Record<string, { title: string; subtitle: string; accent: string }> = {
-  attendance: { title: "เช็คชื่อวันนี้", subtitle: "สถานะพนักงานและเวลาลงงาน", accent: "#16A34A" },
-  sales: { title: "ยอดขายวันนี้", subtitle: "ยอดขายตั้งแต่เปิดรอบและวิธีชำระ", accent: "#3B82F6" },
-  cash: { title: "จำนวนเงินในลิ้นชัก", subtitle: "ธนบัตร เหรียญ และยอดรวมตามระบบ", accent: "#059669" },
-  debt: { title: "ลูกค้าค้างชำระทั้งหมด", subtitle: "ยอดลูกหนี้ปัจจุบัน ไม่รวมทะเบียนหนี้เสีย", accent: "#8B5CF6" },
-  delivery: { title: "รายการขนส่ง", subtitle: "งานค้าง ส่งวันนี้ เกินกำหนด และยอดเก็บ", accent: "#F97316" },
-  products: { title: "สินค้าขายดี 30 วัน", subtitle: "จัดอันดับตามยอดขายเป็นจำนวนเงิน", accent: "#D97706" },
+  attendance: { title: "เช้านี้ทีมเราเป็นอย่างไร", subtitle: "สรุปเช็คชื่อแบบอ่านง่าย พร้อมเวลาลงงาน", accent: "#16A34A" },
+  sales: { title: "วันนี้ร้านขายเป็นอย่างไร", subtitle: "ภาพรวมยอดขายตั้งแต่เปิดรอบ พร้อมช่องทางรับเงิน", accent: "#3B82F6" },
+  cash: { title: "เงินในลิ้นชักตอนนี้", subtitle: "ยอดรวมและจำนวนธนบัตรตามข้อมูลในระบบ", accent: "#059669" },
+  debt: { title: "ภาพรวมลูกค้าที่ค้างชำระ", subtitle: "ยอดปัจจุบันที่ควรติดตาม ไม่รวมทะเบียนหนี้เสีย", accent: "#8B5CF6" },
+  delivery: { title: "วันนี้มีอะไรต้องจัดส่งบ้าง", subtitle: "เรียงงานเร่งด่วนก่อน พร้อมยอดที่ต้องเก็บ", accent: "#F97316" },
+  products: { title: "สินค้าขายดี 30 วัน", subtitle: "ดูง่ายว่าอะไรขายดีและทำยอดให้ร้าน", accent: "#D97706" },
 };
 
 function cleanPdfText(value: unknown) {
@@ -275,13 +278,19 @@ function collectFlexText(node: unknown, output: string[] = []) {
   return output;
 }
 
-const pdfClock = (value: unknown) => value
-  ? new Date(String(value)).toLocaleTimeString("th-TH", {
-      timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
-    })
-  : "-";
+const pdfClock = (value: unknown) => {
+  if (!value) return "ยังไม่มีเวลา";
+  const text = String(value);
+  const clock = text.match(/^(\d{1,2}:\d{2})/);
+  if (clock) return `${clock[1]} น.`;
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return text;
+  return `${parsed.toLocaleTimeString("th-TH", {
+    timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
+  })} น.`;
+};
 
-async function attendancePdfSource() {
+async function attendanceSnapshot() {
   const today = todayTH();
   const [{ data: employees, error: employeeError }, { data: attendance, error: attendanceError }] = await Promise.all([
     supabase.from("พนักงาน").select("id,name,lastname,status").eq("status", "ทำงาน").order("name"),
@@ -290,13 +299,66 @@ async function attendancePdfSource() {
   if (employeeError) throw employeeError;
   if (attendanceError) throw attendanceError;
   const byEmployee = new Map((attendance || []).map((row) => [String(row.employee_id), row]));
-  const rows = (employees || []).map((employee, index) => {
+  const counts: Record<string, number> = { มา: 0, มาสาย: 0, ครึ่งวัน: 0, ลา: 0, ขาด: 0 };
+  const rows = (employees || []).map((employee) => {
     const attendanceRow = byEmployee.get(String(employee.id));
-    const status = attendanceRow ? normStatus(String(attendanceRow.status || "ไม่ระบุ")) : "ยังไม่อัปเดต";
-    return `${index + 1}. ${employee.name || "-"} ${employee.lastname || ""} | ${status} | เข้า ${pdfClock(attendanceRow?.time_in)} | ออก ${pdfClock(attendanceRow?.time_out)}`;
+    const status = attendanceRow ? normStatus(String(attendanceRow.status || "ไม่ระบุ")) : "ยังไม่ลงสถานะ";
+    if (counts[status] !== undefined) counts[status]++;
+    return {
+      employee,
+      attendance: attendanceRow,
+      name: `${employee.name || "-"} ${employee.lastname || ""}`.trim(),
+      status,
+    };
   });
-  rows.unshift(`ลงสถานะแล้ว ${byEmployee.size}/${(employees || []).length} คน`);
-  return { ...PDF_META.attendance, rows };
+  const checked = rows.filter((row) => row.attendance).length;
+  const total = rows.length;
+  return {
+    today, rows, counts, checked, total,
+    complete: total > 0 && checked === total,
+    working: counts.มา + counts.มาสาย + counts.ครึ่งวัน,
+    pending: rows.filter((row) => !row.attendance),
+    away: rows.filter((row) => row.status === "ลา" || row.status === "ขาด"),
+  };
+}
+
+function attendancePdfSource(snapshot: Awaited<ReturnType<typeof attendanceSnapshot>>): MinimalReportSource {
+  const { counts, checked, total, complete, working, pending, away } = snapshot;
+  const summary = !total
+    ? "ยังไม่มีรายชื่อพนักงานที่อยู่ในสถานะทำงาน จึงยังสรุปเช็คชื่อไม่ได้"
+    : complete && away.length === 0 && counts.มาสาย === 0
+      ? `เช้านี้ทีมมาครบ ${total} คน ทุกอย่างเรียบร้อย พร้อมเริ่มงานได้เลย`
+      : complete
+        ? `เช็คชื่อครบแล้ว ${total} คน วันนี้มาทำงาน ${working} คน และมี ${away.length} คนที่ลาหรือขาด`
+        : `ลงสถานะแล้ว ${checked} จาก ${total} คน ยังรออีก ${pending.length} คนก่อนปิดสรุปเช้านี้`;
+  const tone: Record<string, string> = {
+    มา: "good", มาสาย: "warn", ครึ่งวัน: "warn", ลา: "neutral", ขาด: "danger", "ยังไม่ลงสถานะ": "warn",
+  };
+  return {
+    ...PDF_META.attendance,
+    summary,
+    metrics: [
+      { label: "ลงสถานะแล้ว", value: `${checked}/${total} คน`, tone: complete ? "good" : "warn" },
+      { label: "มาทำงาน", value: `${working} คน`, tone: "good" },
+      { label: "มาสาย / ครึ่งวัน", value: `${counts.มาสาย + counts.ครึ่งวัน} คน`, tone: counts.มาสาย + counts.ครึ่งวัน ? "warn" : "neutral" },
+      { label: "ลา / ขาด", value: `${counts.ลา + counts.ขาด} คน`, tone: counts.ขาด ? "danger" : "neutral" },
+    ],
+    sections: [{
+      title: "รายชื่อทีมวันนี้",
+      description: "มองแถวเดียวก็รู้ว่าใครมาแบบไหน และลงเวลาเมื่อไร",
+      rows: snapshot.rows.map((row, index) => ({
+        title: `${index + 1}. ${row.name}`,
+        detail: row.attendance
+          ? `เข้างาน ${pdfClock(row.attendance.time_in)}  •  ออกงาน ${pdfClock(row.attendance.time_out)}`
+          : "ยังไม่มีข้อมูลเช็คชื่อของวันนี้",
+        value: row.status,
+        tone: tone[row.status] || "neutral",
+      })),
+    }],
+    note: complete
+      ? "เช็คชื่อครบทุกคนแล้ว ระบบจะส่งสรุปอัตโนมัติเข้ากลุ่มเพียงหนึ่งครั้งต่อวัน"
+      : `คนที่ยังไม่มีข้อมูล: ${pending.map((row) => row.name).join(", ") || "ไม่มี"}`,
+  };
 }
 
 async function debtPdfSource() {
@@ -306,11 +368,30 @@ async function debtPdfSource() {
   if (error) throw error;
   const customers = (data || []).filter((customer) => Number(customer.debt_amount || 0) > 0.009);
   const total = customers.reduce((sum, customer) => sum + Number(customer.debt_amount || 0), 0);
-  const rows = customers.map((customer, index) =>
-    `${index + 1}. ${customer.name || "-"}${customer.phone ? ` | ${customer.phone}` : ""} | ${baht(customer.debt_amount)}`);
-  rows.unshift(`ลูกหนี้ ${customers.length} ราย | ยอดรวม ${baht(total)}`);
-  if (!customers.length) rows.push("ไม่มีลูกค้าค้างชำระ");
-  return { ...PDF_META.debt, rows };
+  const highest = customers[0];
+  const average = customers.length ? total / customers.length : 0;
+  return {
+    ...PDF_META.debt,
+    summary: customers.length
+      ? `ตอนนี้มีลูกค้าค้างชำระ ${customers.length} ราย รวม ${baht(total)} โดยเรียงรายที่ควรติดตามก่อนจากยอดสูงสุด`
+      : "ยอดเยี่ยม ตอนนี้ไม่มีลูกค้าค้างชำระในระบบ",
+    metrics: [
+      { label: "ยอดค้างทั้งหมด", value: baht(total), tone: total ? "danger" : "good" },
+      { label: "จำนวนลูกหนี้", value: `${customers.length} ราย`, tone: customers.length ? "warn" : "good" },
+      { label: "ยอดสูงสุด", value: highest ? baht(highest.debt_amount) : "฿0", tone: highest ? "danger" : "good" },
+      { label: "เฉลี่ยต่อราย", value: baht(average), tone: "neutral" },
+    ],
+    sections: [{
+      title: "เรียงตามยอดที่ควรติดตาม",
+      rows: customers.map((customer, index) => ({
+        title: `${index + 1}. ${customer.name || "ไม่ระบุชื่อลูกค้า"}`,
+        detail: customer.phone ? `โทร ${customer.phone}` : "ยังไม่มีเบอร์โทรในระบบ",
+        value: baht(customer.debt_amount),
+        tone: index < 3 ? "danger" : "neutral",
+      })),
+    }],
+    note: "รายงานนี้ใช้ยอดลูกหนี้ปัจจุบัน และไม่รวมรายการที่ย้ายไปทะเบียนหนี้เสียแล้ว",
+  };
 }
 
 async function deliveryPdfSource() {
@@ -325,101 +406,126 @@ async function deliveryPdfSource() {
     overdue: "เกินกำหนด", today: "ส่งวันนี้", upcoming: "งานถัดไป", unscheduled: "ยังไม่กำหนดวัน",
   };
   const collect = pending.reduce((sum, row) => sum + billRemaining(row.bill), 0);
-  const rows = pending.map(({ bill, state }, index) =>
-    `${index + 1}. ${labels[state]} | #${bill.bill_no || String(bill.id).slice(0, 8)} | ${bill.customer_name || "ลูกค้าทั่วไป"} | ${bill.delivery_date ? thDate(bill.delivery_date) : "ไม่ระบุวัน"} | เก็บ ${baht(billRemaining(bill))}${bill.delivery_phone ? ` | ${bill.delivery_phone}` : ""}${bill.delivery_address ? ` | ${bill.delivery_address}` : ""}`);
-  rows.unshift(`งานค้าง ${pending.length} งาน | ยอดเก็บรวม ${baht(collect)}`);
-  if (!pending.length) rows.push("ไม่มีงานจัดส่งค้างอยู่");
-  return { ...PDF_META.delivery, rows };
+  const count = (state: string) => pending.filter((row) => row.state === state).length;
+  const tone: Record<string, string> = { overdue: "danger", today: "warn", unscheduled: "warn", upcoming: "neutral" };
+  return {
+    ...PDF_META.delivery,
+    summary: pending.length
+      ? `มีงานจัดส่งค้าง ${pending.length} งาน ระบบเรียงงานเกินกำหนดและงานวันนี้ไว้บนสุด เพื่อให้ทีมเริ่มจากเรื่องเร่งด่วนก่อน`
+      : "วันนี้ไม่มีงานจัดส่งค้าง ทีมจัดส่งเคลียร์เรียบร้อยแล้ว",
+    metrics: [
+      { label: "เกินกำหนด", value: `${count("overdue")} งาน`, tone: count("overdue") ? "danger" : "good" },
+      { label: "ต้องส่งวันนี้", value: `${count("today")} งาน`, tone: count("today") ? "warn" : "neutral" },
+      { label: "งานที่รออยู่", value: `${pending.length} งาน`, tone: pending.length ? "warn" : "good" },
+      { label: "ยอดที่ต้องเก็บ", value: baht(collect), tone: collect ? "good" : "neutral" },
+    ],
+    sections: ["overdue", "today", "unscheduled", "upcoming"].map((state) => ({
+      title: labels[state],
+      rows: pending.filter((row) => row.state === state).map(({ bill }, index) => ({
+        title: `${index + 1}. #${bill.bill_no || String(bill.id).slice(0, 8)}  ${bill.customer_name || "ลูกค้าทั่วไป"}`,
+        detail: [
+          bill.delivery_date ? `นัด ${thDate(bill.delivery_date)}` : "ยังไม่ได้นัดวัน",
+          bill.delivery_phone ? `โทร ${bill.delivery_phone}` : "",
+          bill.delivery_address || "",
+        ].filter(Boolean).join("  •  "),
+        value: billRemaining(bill) > 0 ? `เก็บ ${baht(billRemaining(bill))}` : "ชำระแล้ว",
+        tone: tone[state] || "neutral",
+      })),
+    })),
+    note: "ไม่รวมบิลยกเลิก คืนสินค้า งานรับเอง และงานที่ส่งสำเร็จแล้ว",
+  };
 }
 
 async function cashPdfSource(key: "sales" | "cash") {
-  const bubble = (await cashBubbles([key]))[0];
-  if (!bubble) throw new Error("ไม่พบข้อมูลรายงาน");
-  const rows = collectFlexText(bubble).filter((value, index, all) => value && value !== all[index - 1]);
-  return { ...PDF_META[key], rows };
-}
-
-function wrapPdfLine(font: unknown, value: string, size: number, maxWidth: number) {
-  const result: string[] = [];
-  let current = "";
-  for (const char of Array.from(cleanPdfText(value))) {
-    const next = current + char;
-    if (current && font.widthOfTextAtSize(next, size) > maxWidth) {
-      result.push(current.trimEnd());
-      current = char.trimStart();
-    } else {
-      current = next;
-    }
+  const response = await cashAssistantReports([key]);
+  const report = response.reports?.[key];
+  if (!report) {
+    const bubble = response.bubbles?.[0];
+    if (!bubble) throw new Error("ไม่พบข้อมูลรายงาน");
+    const rows = collectFlexText(bubble).filter((value, index, all) => value && value !== all[index - 1]);
+    return {
+      ...PDF_META[key],
+      summary: "สรุปข้อมูลล่าสุดจากระบบลิ้นชัก",
+      metrics: [],
+      sections: [{ title: "รายละเอียด", rows: rows.map((title) => ({ title })) }],
+    };
   }
-  if (current || !result.length) result.push(current || "-");
-  return result;
-}
-
-function hexRgb(rgb: (red: number, green: number, blue: number) => unknown, value: string) {
-  const hex = value.replace("#", "");
-  return rgb(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255);
-}
-
-async function createSimpleReportPdf(source: { title: string; subtitle: string; accent: string; rows: string[] }) {
-  const [{ PDFDocument, rgb }, fontkitModule] = await Promise.all([
-    import("https://esm.sh/pdf-lib@1.17.1"),
-    import("https://esm.sh/@pdf-lib/fontkit@1.1.1"),
-  ]);
-  const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkitModule.default);
-  const font = await pdf.embedFont(await getThaiFontBytes(), { subset: true });
-  pdf.setTitle(source.title);
-  pdf.setAuthor("SK วัสดุ");
-  pdf.setCreationDate(new Date());
-  const width = 595.28;
-  const height = 841.89;
-  const margin = 34;
-  const ink = rgb(0.09, 0.13, 0.20);
-  const muted = rgb(0.40, 0.45, 0.52);
-  const line = rgb(0.89, 0.91, 0.94);
-  const soft = rgb(0.97, 0.98, 0.99);
-  const accent = hexRgb(rgb, source.accent);
-  let page: unknown;
-  let y = 0;
-  let rowIndex = 0;
-
-  const addPage = () => {
-    page = pdf.addPage([width, height]);
-    page.drawRectangle({ x: 0, y: height - 112, width, height: 112, color: accent });
-    page.drawRectangle({ x: 0, y: height - 112, width: 9, height: 112, color: rgb(1, 1, 1), opacity: 0.35 });
-    page.drawText(fitPdfText(font, cleanPdfText(source.title), 21, width - 2 * margin), {
-      x: margin, y: height - 48, size: 21, font, color: rgb(1, 1, 1),
-    });
-    page.drawText(fitPdfText(font, cleanPdfText(source.subtitle), 10.5, width - 2 * margin), {
-      x: margin, y: height - 76, size: 10.5, font, color: rgb(1, 1, 1), opacity: 0.84,
-    });
-    page.drawText(`สร้าง ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, {
-      x: margin, y: height - 96, size: 8.5, font, color: rgb(1, 1, 1), opacity: 0.68,
-    });
-    y = height - 136;
+  if (key === "sales") {
+    if (!report.open) return {
+      ...PDF_META.sales,
+      summary: "วันนี้ยังไม่ได้เปิดรอบลิ้นชัก จึงยังไม่มียอดขายของรอบให้สรุป",
+      metrics: [
+        { label: "ยอดขาย", value: "฿0", tone: "neutral" },
+        { label: "จำนวนบิล", value: "0 บิล", tone: "neutral" },
+      ],
+      sections: [{ title: "สิ่งที่ต้องทำ", rows: [{ title: "เปิดรอบลิ้นชักในโปรแกรมก่อนเริ่มขาย" }] }],
+    };
+    const methods = Array.isArray(report.methods) ? report.methods : [];
+    const recent = Array.isArray(report.recent) ? report.recent : [];
+    const cash = methods.find((item) => item.method === "เงินสด")?.amount || 0;
+    const transfer = methods.find((item) => item.method === "โอนเงิน")?.amount || 0;
+    return {
+      ...PDF_META.sales,
+      summary: report.billCount
+        ? `ตั้งแต่เปิดรอบ ร้านขายแล้ว ${report.billCount} บิล รวม ${baht(report.total)} ช่องทางหลักวันนี้คือ ${methods[0]?.method || "ยังไม่ระบุ"}`
+        : "เปิดรอบแล้ว แต่ยังไม่มีบิลขายในรอบนี้",
+      metrics: [
+        { label: "ยอดขายรวม", value: baht(report.total), tone: "good" },
+        { label: "จำนวนบิล", value: `${report.billCount} บิล`, tone: "neutral" },
+        { label: "รับเงินสด", value: baht(cash), tone: "good" },
+        { label: "รับเงินโอน", value: baht(transfer), tone: "neutral" },
+      ],
+      sections: [
+        {
+          title: "เงินเข้าทางไหนบ้าง",
+          rows: methods.map((item) => ({
+            title: item.method || "ไม่ระบุช่องทาง",
+            detail: `${item.count || 0} บิล`,
+            value: baht(item.amount),
+            tone: item.method === "เงินสด" ? "good" : "neutral",
+          })),
+        },
+        {
+          title: "บิลล่าสุด",
+          rows: recent.map((item) => ({
+            title: `#${item.billNo || "-"}`,
+            detail: `ขายเมื่อ ${item.time || "ไม่ระบุเวลา"}`,
+            value: baht(item.amount),
+          })),
+        },
+      ],
+      note: `รอบนี้เปิดโดย ${report.openedBy || "ไม่ระบุ"} เมื่อ ${report.openedLabel || "ไม่ระบุเวลา"}`,
+    };
+  }
+  if (!report.open) return {
+    ...PDF_META.cash,
+    summary: "วันนี้ยังไม่ได้เปิดรอบลิ้นชัก จึงยังไม่มีจำนวนธนบัตรและเหรียญให้ตรวจสอบ",
+    metrics: [{ label: "ยอดในลิ้นชัก", value: "฿0", tone: "neutral" }],
+    sections: [{ title: "สิ่งที่ต้องทำ", rows: [{ title: "เปิดรอบลิ้นชักและระบุจำนวนเงินตั้งต้น" }] }],
   };
-
-  addPage();
-  for (const raw of source.rows) {
-    const wrapped = wrapPdfLine(font, raw, 9.5, width - 2 * margin - 22);
-    const rowHeight = Math.max(31, 14 + wrapped.length * 13);
-    if (y - rowHeight < 54) addPage();
-    if (rowIndex % 2 === 0) page.drawRectangle({ x: margin, y: y - rowHeight, width: width - 2 * margin, height: rowHeight, color: soft });
-    page.drawLine({ start: { x: margin, y: y - rowHeight }, end: { x: width - margin, y: y - rowHeight }, thickness: 0.45, color: line });
-    wrapped.forEach((text, index) => page.drawText(text, {
-      x: margin + 11, y: y - 20 - index * 13, size: 9.5, font,
-      color: rowIndex === 0 ? accent : ink,
-    }));
-    y -= rowHeight;
-    rowIndex++;
-  }
-
-  const pages = pdf.getPages();
-  pages.forEach((item, index) => {
-    const footerText = `หน้า ${index + 1} / ${pages.length}  |  ดึงข้อมูลเมื่อกดเมนู`;
-    item.drawText(footerText, { x: margin, y: 27, size: 8.5, font, color: muted });
-  });
-  return await pdf.save();
+  const denominations = Array.isArray(report.denominations) ? report.denominations : [];
+  return {
+    ...PDF_META.cash,
+    summary: report.hasNegative
+      ? `ระบบคำนวณเงินในลิ้นชักได้ ${baht(report.total)} แต่พบจำนวนติดลบบางชนิด ควรนับเงินจริงก่อนปิดรอบ`
+      : `ตอนนี้เงินในลิ้นชักตามระบบรวม ${baht(report.total)} แยกจำนวนธนบัตรและเหรียญไว้ให้ตรวจนับง่ายแล้ว`,
+    metrics: [
+      { label: "ยอดรวมตามระบบ", value: baht(report.total), tone: report.hasNegative ? "danger" : "good" },
+      { label: "ชนิดเงินที่มี", value: `${denominations.length} ชนิด`, tone: "neutral" },
+      { label: "สถานะตรวจนับ", value: report.hasNegative ? "ควรตรวจ" : "ปกติ", tone: report.hasNegative ? "danger" : "good" },
+      { label: "ผู้เปิดรอบ", value: report.openedBy || "-", tone: "neutral" },
+    ],
+    sections: [{
+      title: "นับแบงค์และเหรียญ",
+      rows: denominations.map((item) => ({
+        title: item.label,
+        detail: `${item.count} ใบ / เหรียญ`,
+        value: baht(item.amount),
+        tone: item.count < 0 ? "danger" : "neutral",
+      })),
+    }],
+    note: report.note,
+  };
 }
 
 async function signedPdfUrl(path: string, downloadName: string) {
@@ -468,13 +574,13 @@ async function createReportPdfBubble(key: string) {
   if (cached) return pdfDownloadBubble(key, cached.url, true);
   let bytes: Uint8Array;
   if (key === "products") {
-    bytes = await createProductsPdf(await loadProductsRanking(100));
+    bytes = await createProductsRankingPdf(await loadProductsRanking(100), await getThaiFontBytes());
   } else {
-    const source = key === "attendance" ? await attendancePdfSource()
+    const source = key === "attendance" ? attendancePdfSource(await attendanceSnapshot())
       : key === "debt" ? await debtPdfSource()
       : key === "delivery" ? await deliveryPdfSource()
       : await cashPdfSource(key as "sales" | "cash");
-    bytes = await createSimpleReportPdf(source);
+    bytes = await createMinimalReportPdf(source, await getThaiFontBytes());
   }
   await ensureAssistantBucket();
   const fileName = `${key}-${todayTH()}.pdf`;
@@ -487,100 +593,9 @@ async function createReportPdfBubble(key: string) {
   return pdfDownloadBubble(key, await signedPdfUrl(path, fileName), false);
 }
 
-async function createProductsPdf(report: Awaited<ReturnType<typeof loadProductsRanking>>) {
-  // โหลดชุดสร้าง PDF เฉพาะเมื่อผู้ใช้ขอรายงานสินค้าขายดี
-  // เพื่อให้คำทัก "ผู้ช่วย" และรายงานทั่วไปตอบกลับได้เร็วขึ้นมาก
-  const [{ PDFDocument, rgb }, fontkitModule] = await Promise.all([
-    import("https://esm.sh/pdf-lib@1.17.1"),
-    import("https://esm.sh/@pdf-lib/fontkit@1.1.1"),
-  ]);
-  const fontkit = fontkitModule.default;
-  const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const font = await pdf.embedFont(await getThaiFontBytes(), { subset: true });
-  pdf.setTitle("รายงานสินค้าขายดี 30 วัน");
-  pdf.setAuthor("ผู้ช่วยร้าน");
-  pdf.setSubject("จัดอันดับตามยอดขายเป็นจำนวนเงิน");
-  pdf.setCreationDate(new Date());
-
-  const navy = rgb(0.07, 0.13, 0.27);
-  const indigo = rgb(0.31, 0.27, 0.90);
-  const violet = rgb(0.49, 0.23, 0.93);
-  const slate = rgb(0.28, 0.34, 0.43);
-  const muted = rgb(0.58, 0.64, 0.72);
-  const line = rgb(0.89, 0.91, 0.94);
-  const soft = rgb(0.96, 0.97, 0.99);
-  const white = rgb(1, 1, 1);
-  const pageWidth = 595.28;
-  const pageHeight = 841.89;
-  const rowsPerPage = 22;
-  const pages = Math.max(1, Math.ceil(report.top.length / rowsPerPage));
-  const period = `${thDate(report.start)} – ${thDate(report.end)}`;
-
-  for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
-    const page = pdf.addPage([pageWidth, pageHeight]);
-    page.drawRectangle({ x: 0, y: pageHeight - 126, width: pageWidth, height: 126, color: navy });
-    page.drawRectangle({ x: 0, y: pageHeight - 126, width: 8, height: 126, color: violet });
-    page.drawText("รายงานสินค้าขายดี 30 วัน", {
-      x: 34, y: pageHeight - 52, size: 22, font, color: white,
-    });
-    page.drawText("จัดอันดับตามยอดขายเป็นจำนวนเงิน", {
-      x: 35, y: pageHeight - 79, size: 10.5, font, color: rgb(0.78, 0.81, 0.98),
-    });
-    page.drawText(`ช่วงข้อมูล ${period}`, {
-      x: 35, y: pageHeight - 101, size: 9.5, font, color: rgb(0.65, 0.70, 0.82),
-    });
-    page.drawText(`ยอดรวม ${baht(report.totalAmount)}`, {
-      x: 380, y: pageHeight - 53, size: 15, font, color: white,
-    });
-    page.drawText(`${report.billCount.toLocaleString("th-TH")} บิล · ${report.productCount.toLocaleString("th-TH")} สินค้า`, {
-      x: 380, y: pageHeight - 78, size: 9.5, font, color: rgb(0.78, 0.81, 0.98),
-    });
-
-    const tableTop = pageHeight - 155;
-    page.drawRectangle({ x: 28, y: tableTop - 28, width: pageWidth - 56, height: 28, color: indigo });
-    page.drawText("อันดับ", { x: 40, y: tableTop - 19, size: 9, font, color: white });
-    page.drawText("สินค้า", { x: 88, y: tableTop - 19, size: 9, font, color: white });
-    page.drawText("จำนวนขาย", { x: 372, y: tableTop - 19, size: 9, font, color: white });
-    page.drawText("ยอดขาย", { x: 482, y: tableTop - 19, size: 9, font, color: white });
-
-    const rows = report.top.slice(pageIndex * rowsPerPage, (pageIndex + 1) * rowsPerPage);
-    rows.forEach((item, rowIndex) => {
-      const rank = pageIndex * rowsPerPage + rowIndex + 1;
-      const y = tableTop - 28 - (rowIndex + 1) * 27;
-      if (rowIndex % 2 === 0) {
-        page.drawRectangle({ x: 28, y, width: pageWidth - 56, height: 27, color: soft });
-      }
-      page.drawLine({ start: { x: 28, y }, end: { x: pageWidth - 28, y }, thickness: 0.5, color: line });
-      page.drawText(String(rank), { x: 48, y: y + 9, size: 9.5, font, color: rank <= 3 ? violet : slate });
-      page.drawText(fitPdfText(font, item.name, 9.5, 265), {
-        x: 88, y: y + 9, size: 9.5, font, color: navy,
-      });
-      page.drawText(fitPdfText(font, `${number(item.qty)} ${item.unit}`, 9, 88), {
-        x: 372, y: y + 9, size: 9, font, color: slate,
-      });
-      const amount = baht(item.amount);
-      page.drawText(amount, {
-        x: pageWidth - 38 - font.widthOfTextAtSize(amount, 9.5), y: y + 9,
-        size: 9.5, font, color: violet,
-      });
-    });
-
-    page.drawText("ไม่รวมบิลยกเลิก คืนสินค้า หนี้เสีย และรายการตัดหนี้", {
-      x: 29, y: 27, size: 8.5, font, color: muted,
-    });
-    const pageText = `หน้า ${pageIndex + 1} / ${pages}`;
-    page.drawText(pageText, {
-      x: pageWidth - 29 - font.widthOfTextAtSize(pageText, 8.5), y: 27,
-      size: 8.5, font, color: muted,
-    });
-  }
-  return await pdf.save();
-}
-
-async function cashBubbles(selected: string[]) {
+async function cashAssistantReports(selected: string[]) {
   const wanted = selected.filter((key) => key === "sales" || key === "cash");
-  if (!wanted.length) return [];
+  if (!wanted.length) return { bubbles: [], reports: {} };
   const response = await fetch(`${SUPABASE_URL}/functions/v1/line-cashdrawer`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
@@ -588,7 +603,108 @@ async function cashBubbles(selected: string[]) {
   });
   if (!response.ok) throw new Error(`line-cashdrawer ${response.status}: ${await response.text()}`);
   const body = await response.json();
-  return Array.isArray(body.bubbles) ? body.bubbles : [];
+  return {
+    bubbles: Array.isArray(body.bubbles) ? body.bubbles : [],
+    reports: body.reports && typeof body.reports === "object" ? body.reports : {},
+  };
+}
+
+function attendanceNotificationBubble(snapshot: Awaited<ReturnType<typeof attendanceSnapshot>>) {
+  const { counts, total, working } = snapshot;
+  const dateLabel = new Date(`${snapshot.today}T05:00:00+07:00`).toLocaleDateString("th-TH", {
+    timeZone: "Asia/Bangkok", weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  const lateNames = snapshot.rows.filter((row) => row.status === "มาสาย" || row.status === "ครึ่งวัน");
+  const awayNames = snapshot.rows.filter((row) => row.status === "ลา" || row.status === "ขาด");
+  const allReady = working === total && !lateNames.length;
+  const message = allReady
+    ? "เช้านี้ทีมมาครบ พร้อมเริ่มงานแล้วครับ"
+    : `เช็คชื่อครบแล้ว วันนี้มาทำงาน ${working} จาก ${total} คน`;
+  const statusRow = (label: string, value: number, color: string) => ({
+    type: "box", layout: "horizontal", margin: "sm",
+    contents: [
+      { type: "text", text: label, size: "sm", color: "#64748B", flex: 1 },
+      { type: "text", text: `${value} คน`, size: "sm", color, weight: "bold", align: "end", flex: 0 },
+    ],
+  });
+  return {
+    type: "bubble", size: "mega",
+    header: {
+      type: "box", layout: "vertical", backgroundColor: "#ECFDF5", paddingAll: "20px", spacing: "xs",
+      contents: [
+        { type: "text", text: "เช็คชื่อเช้านี้ครบแล้ว", color: "#047857", weight: "bold", size: "xl" },
+        { type: "text", text: dateLabel, color: "#65A30D", size: "sm" },
+      ],
+    },
+    body: {
+      type: "box", layout: "vertical", paddingAll: "20px", spacing: "none",
+      contents: [
+        { type: "text", text: message, size: "md", color: "#172033", weight: "bold", wrap: true },
+        { type: "text", text: `มาทำงาน ${working}/${total} คน`, size: "xxl", color: "#16A34A", weight: "bold", margin: "md" },
+        { type: "separator", margin: "lg" },
+        statusRow("มาตามเวลา", counts.มา, "#16A34A"),
+        statusRow("มาสาย", counts.มาสาย, "#D97706"),
+        statusRow("ครึ่งวัน", counts.ครึ่งวัน, "#0891B2"),
+        statusRow("ลา", counts.ลา, "#7C3AED"),
+        statusRow("ขาด", counts.ขาด, "#DC2626"),
+        ...(lateNames.length ? [
+          { type: "separator", margin: "lg" },
+          { type: "text", text: "คนที่ควรรู้ไว้", size: "xs", color: "#B45309", weight: "bold", margin: "md" },
+          { type: "text", text: lateNames.map((row) => `${row.name} (${row.status})`).join(", "), size: "sm", color: "#92400E", wrap: true, margin: "xs" },
+        ] : []),
+        ...(awayNames.length ? [
+          { type: "separator", margin: "lg" },
+          { type: "text", text: "วันนี้ไม่ได้มาทำงาน", size: "xs", color: "#B91C1C", weight: "bold", margin: "md" },
+          { type: "text", text: awayNames.map((row) => `${row.name} (${row.status})`).join(", "), size: "sm", color: "#DC2626", wrap: true, margin: "xs" },
+        ] : []),
+      ],
+    },
+    footer: {
+      type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#F8FAFC",
+      contents: [{ type: "text", text: `สรุปอัตโนมัติเมื่อเช็คชื่อครบ • ${new Date().toLocaleTimeString("th-TH", {
+        timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit",
+      })} น.`, size: "xxs", color: "#94A3B8", align: "center" }],
+    },
+  };
+}
+
+async function claimAttendanceNotification(date: string) {
+  await ensureAssistantBucket();
+  const path = `notifications/attendance-${date}.json`;
+  const storage = supabase.storage.from(ASSISTANT_BUCKET);
+  const existing = await storage.download(path);
+  if (!existing.error && existing.data) {
+    try {
+      const marker = JSON.parse(await existing.data.text());
+      const age = Date.now() - new Date(marker.createdAt || 0).getTime();
+      if (marker.status === "sent" || age < 10 * 60 * 1000) return { claimed: false, path };
+      await storage.remove([path]);
+    } catch (_) {
+      await storage.remove([path]);
+    }
+  }
+  const createdAt = new Date().toISOString();
+  const claimed = await storage.upload(path,
+    new Blob([JSON.stringify({ status: "pending", createdAt })], { type: "application/json" }), {
+      contentType: "application/json", upsert: false, cacheControl: "0",
+    });
+  if (claimed.error) {
+    if (/already|duplicate|exist/i.test(claimed.error.message || "")) return { claimed: false, path };
+    throw claimed.error;
+  }
+  return { claimed: true, path };
+}
+
+async function finishAttendanceNotification(path: string, sent: boolean) {
+  const storage = supabase.storage.from(ASSISTANT_BUCKET);
+  if (!sent) {
+    await storage.remove([path]);
+    return;
+  }
+  await storage.upload(path,
+    new Blob([JSON.stringify({ status: "sent", createdAt: new Date().toISOString() })], { type: "application/json" }), {
+      contentType: "application/json", upsert: true, cacheControl: "0",
+    });
 }
 
 async function handleLineWebhook(raw: string, req: Request) {
@@ -659,10 +775,29 @@ async function handleLineWebhook(raw: string, req: Request) {
   return new Response("ok", { status: 200 });
 }
 
-async function attendanceDatabaseNotification() {
-  // รองรับ Database Webhook เดิมโดยตอบสำเร็จ แต่ไม่ส่ง LINE อัตโนมัติ
-  // ผู้ใช้แตะเมนูที่ปักหมุดไว้เพื่อดึง PDF ล่าสุดแทน
-  return new Response("automatic attendance push disabled; use assistant menu", { status: 200 });
+async function attendanceDatabaseNotification(body: Record<string, unknown>) {
+  if (body.table && String(body.table) !== "เช็คชื่อ") {
+    return new Response("ignored non-attendance webhook", { status: 200 });
+  }
+  const snapshot = await attendanceSnapshot();
+  if (!snapshot.total) return new Response("no active employees", { status: 200 });
+  if (!snapshot.complete) {
+    return new Response(`attendance ${snapshot.checked}/${snapshot.total}; waiting`, { status: 200 });
+  }
+  const marker = await claimAttendanceNotification(snapshot.today);
+  if (!marker.claimed) return new Response("attendance summary already sent today", { status: 200 });
+  try {
+    await push([{
+      type: "flex",
+      altText: `เช็คชื่อครบแล้ว: มาทำงาน ${snapshot.working}/${snapshot.total} คน`,
+      contents: attendanceNotificationBubble(snapshot),
+    }]);
+    await finishAttendanceNotification(marker.path, true);
+    return new Response("attendance summary sent", { status: 200 });
+  } catch (error) {
+    await finishAttendanceNotification(marker.path, false);
+    throw error;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -677,7 +812,7 @@ Deno.serve(async (req) => {
     let body: Record<string, unknown> = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
     if (Array.isArray(body.events)) return await handleLineWebhook(raw, req);
-    return await attendanceDatabaseNotification();
+    return await attendanceDatabaseNotification(body);
   } catch (error) {
     console.error(error);
     return new Response(`error: ${error instanceof Error ? error.message : String(error)}`, { status: 500 });
