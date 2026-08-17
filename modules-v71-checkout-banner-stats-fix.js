@@ -253,18 +253,9 @@
   }
 
   async function fetchHistoryBills() {
-    try {
-      const search = (document.getElementById('history-search')?.value || '').toLowerCase();
-      const depositOn = window.v68HistoryFilter === 'depositPending';
-      const date = document.getElementById('history-date')?.value || appLocalDateKey();
-      let q = db.from('บิลขาย').select('*').order('date', { ascending: false });
-      // When deposit filter is active, ignore the date picker so the user
-      // sees every outstanding-deposit bill, not just today's.
-      if (search || depositOn) q = q.range(0, 4999);
-      else q = q.gte('date', date + 'T00:00:00').lte('date', date + 'T23:59:59');
-      const { data } = await q;
-      return data || [];
-    } catch (e) { return []; }
+    // v68 already fetched and rendered the exact rows on screen. Reusing that
+    // result avoids two duplicate bill queries after every history refresh.
+    return Array.isArray(window.__v68HistoryRows) ? window.__v68HistoryRows : [];
   }
 
   function patchDepositChip() {
@@ -388,17 +379,18 @@
   }
 
   function patchHistoryLoad() {
+    if (window.__v71HistoryLoadPatched) return;
     const orig = window.v39LoadHistoryData || window.loadHistoryData;
     if (typeof orig !== 'function' || orig.__v71) return;
     const wrapped = async function (...args) {
       const r = await orig.apply(this, args);
       setTimeout(refreshHistoryDecorations, 60);
-      setTimeout(refreshHistoryDecorations, 350);
       return r;
     };
     Object.defineProperty(wrapped, '__v71', { value: true });
     setGlobalFn('v39LoadHistoryData', wrapped);
     setGlobalFn('loadHistoryData', wrapped);
+    window.__v71HistoryLoadPatched = true;
   }
 
   function watchHistoryPage() {

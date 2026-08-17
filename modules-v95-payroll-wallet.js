@@ -4,19 +4,16 @@
    "กระเป๋าเงินพนักงาน" (Employee Wallet) — ยกเครื่องระบบเบิกเงิน + จ่ายเงินเดือน
    ให้ใช้ง่ายขึ้น ลดความผิดพลาดจากการเบิกบ่อย/หลายคนกรอก
 
-   แนวคิด: พนักงานแต่ละคนมี "ยอดคงเหลือเดียว" ที่อัปเดตสด
-     ค่าแรงสะสมเดือนนี้  (+)
-     − เบิกเงินที่ยังค้าง (−)   ← รวมหนี้ยกมาจากเดือนก่อนด้วย
-     = ยอดสุทธิ (netPayable)
-        • บวก = ร้านค้างจ่ายพนักงาน
-        • ลบ  = พนักงานค้างร้าน (หนี้) → ยกไปเดือนถัดไปอัตโนมัติ
+   แนวคิด: พนักงานแต่ละคนมี "ยอดค่าแรงคงเหลือ" ที่อัปเดตสด
+     ค่าแรงสุทธิตามเช็คชื่อ + โบนัส
+     − เงินที่จ่ายแล้ว − หักหนี้แล้ว − ประกันสังคม − หักอื่น ๆ
+     = ยอดคงเหลือจ่าย ส่วนหนี้เบิกที่ยังค้างแสดงแยกและเลือกหักตอนจ่าย
 
    จุดเด่นที่แก้ปัญหาเดิม:
    1) ตอนเบิก โชว์ "คงเหลือ / หลังเบิกเหลือเท่าไหร่" สดๆ + เตือนเมื่อเบิกเกิน
       (ไม่บล็อก — ยังเบิกเกินจนติดลบได้ตามที่ต้องการ)
    2) ปุ่มเงินก้อนกดเร็ว (100/500/1000) ลดพิมพ์ผิด + กันกดยืนยันซ้ำ
-   3) หน้าจ่ายเงินเดือนคำนวณยอดสุทธิ + หักหนี้ให้อัตโนมัติ → กดปุ่มเดียวจบ
-      ("ปรับยอด" ค่อยเปิดช่องแก้เองเฉพาะกรณีพิเศษ)
+   3) หน้าจ่ายเงินเดือนคำนวณยอดสุทธิสด และแสดงยอดที่จ่าย/หักไปแล้วทุกประเภท
    4) สมุดบัญชีรายคน เปิดดูทุกรายการเบิก/จ่ายย้อนหลังได้
 
    ไม่แก้ schema — คำนวณจากตารางเดิม: พนักงาน / เช็คชื่อ / เบิกเงิน / จ่ายเงินเดือน
@@ -28,8 +25,11 @@
   const ATT_TABLE = 'เช็คชื่อ';
   const ADV_TABLE = 'เบิกเงิน';
   const PAY_TABLE = 'จ่ายเงินเดือน';
+  const CORE = window.PayrollCore;
+  if (!CORE) console.error('[v95] PayrollCore is not loaded');
 
   function num(v) { const x = Number(v || 0); return Number.isFinite(x) ? x : 0; }
+  function r2(v) { return CORE ? CORE.roundMoney(v) : Math.round((num(v) + Number.EPSILON) * 100) / 100; }
   function money(v) {
     if (typeof window.formatNum === 'function') return window.formatNum(v);
     return num(v).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -55,6 +55,7 @@
   }
   function notify(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
   function noteExtraDeductions(note) {
+    if (CORE) return CORE.parseNoteDeductions(note).total;
     // หมายเหตุหนึ่งแถวอาจรวมหลายรอบจ่ายด้วย " | " และมีทั้งรูปแบบเก่า/ใหม่
     // ต้องเลือกตัวเลขที่น่าเชื่อถือที่สุด "ต่อรอบ" มิฉะนั้น marker ใหม่จะกลบยอดเก่า
     return String(note || '').split(/\s*\|\s*/).reduce((total, part) => {
@@ -219,7 +220,7 @@
   function isCarried(a) { return /ยกมา/.test(String(a && a.reason || '')); }
   function isPayrollDeductionAdvance(a) {
     const reason = String(a && a.reason || '').trim();
-    return /\[(?:payroll_ss|payroll_extra_deduct)=/i.test(reason)
+    return /\[(?:payroll_ss|payroll_other|payroll_extra_deduct)=/i.test(reason)
       || /^(?:หัก\s*)?ประกันสังคม(?:\s*เดือน.*)?$/i.test(reason);
   }
   function dayOf(value) {
@@ -287,64 +288,100 @@
     const daysInMonth = new Date(y, mo + 1, 0).getDate();
     const scheduledWorkDays = scheduledWorkDaysInMonth(y, mo);
 
-    const emps = (await loadEmployees()).filter(e => e.status === 'ทำงาน');
-    const [attR, monthAdvR, outAdvR, paidR] = await Promise.all([
+    const allEmps = await loadEmployees();
+    const [attR, outAdvR, paidR] = await Promise.all([
       db.from(ATT_TABLE).select('*').gte('date', ms).lte('date', me),
-      // เบิกทุกสถานะที่เกิดในเดือนนี้ → ใช้โชว์รายวันในตาราง
-      db.from(ADV_TABLE).select('*').gte('date', ms + 'T00:00:00').lte('date', meAt),
       // หนี้เบิกที่ยังค้าง (อนุมัติ) จนถึงสิ้นเดือนที่ดู → ใช้คำนวณ/ตัดหนี้
       db.from(ADV_TABLE).select('*').eq('status', 'อนุมัติ').lte('date', meAt),
       db.from(PAY_TABLE).select('*').eq('month', ms),
     ]);
+    const queryError = attR.error || outAdvR.error || paidR.error;
+    if (queryError) throw queryError;
     const att = normalizeAttendanceRows(attR.data || []);
-    // รายการหักประกันสังคมต้องอยู่ในเงินเดือนเท่านั้น ห้ามเข้ากระเป๋าหนี้เบิก
-    const monthAdv = (monthAdvR.data || []).filter(a => !isPayrollDeductionAdvance(a));
     const outAdv = (outAdvR.data || []).filter(a => !isPayrollDeductionAdvance(a));
     const paid = paidR.data || [];
+    const relatedEmployeeIds = new Set([
+      ...att.map(row => String(row.employee_id || '')),
+      ...outAdv.map(row => String(row.employee_id || '')),
+      ...paid.map(row => String(row.employee_id || '')),
+    ]);
+    // Keep historical payroll rows visible even after an employee becomes inactive.
+    const emps = (allEmps || []).filter(e => e.status === 'ทำงาน' || relatedEmployeeIds.has(String(e.id)));
+    const currentMonthStart = dateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
     return emps.map(emp => {
       const eid = String(emp.id);
       const ma = att.filter(a => String(a.employee_id) === eid);
-      const wd = ma.reduce((sum, a) => sum + workDayValue(a.status), 0);
-      const td = 0; // จำนวนวันทำงานรวมครึ่งวันเป็น .5 แล้ว จึงห้ามหัก attendance.deduction ซ้ำ
+      const attendancePay = CORE
+        ? CORE.calculateAttendancePay(emp, ma, scheduledWorkDays)
+        : { workDays: ma.reduce((sum, a) => sum + workDayValue(a.status), 0), grossBeforeDeductions: 0, attendanceDeduction: 0, earn: 0 };
 
-      let earn;
-      if (emp.pay_type === 'รายเดือน') earn = num(emp.salary) * Math.min(1, scheduledWorkDays ? wd / scheduledWorkDays : 0);
-      else earn = wd * num(emp.daily_wage);
-      earn = Math.max(0, earn);
-
-      // แผนผังรายวัน: สถานะ + ยอดเบิกรวมต่อวัน
+      // แผนผังรายวัน: สถานะ + ยอดเบิกที่ยังค้างและอนุมัติแล้วต่อวัน
       const dayStatus = {}, dayAdv = {};
       ma.forEach(a => { dayStatus[dayOf(a.date)] = normStatus(a.status); });
-      let monthAdvSum = 0;
-      // ไม่นับ "หนี้เดิมยกมา" เป็นการเบิกรายวันของเดือนนี้ (แต่ยังเป็นหนี้ใน debtRemaining)
-      monthAdv.filter(a => String(a.employee_id) === eid && !isCarried(a)).forEach(a => {
-        const d = dayOf(a.date); dayAdv[d] = (dayAdv[d] || 0) + num(a.amount); monthAdvSum += num(a.amount);
-      });
-
-      // ตาราง 'จ่ายเงินเดือน' เก็บเฉพาะ net_paid + deduct_withdraw เป็นคอลัมน์
       const myPaid = paid.filter(p => String(p.employee_id) === eid);
-      const consumedEarn = myPaid.reduce((s, p) => s + num(p.net_paid) + num(p.deduct_withdraw) + noteExtraDeductions(p.note), 0);
-      const wageRemaining = Math.max(0, earn - consumedEarn);
+      const fallbackPaidTotals = {
+        netPaid: myPaid.reduce((s, p) => s + num(p.net_paid), 0),
+        debtDeducted: myPaid.reduce((s, p) => s + num(p.deduct_withdraw), 0),
+        socialSecurity: 0,
+        other: myPaid.reduce((s, p) => s + noteExtraDeductions(p.note), 0),
+        bonus: myPaid.reduce((s, p) => s + num(p.bonus), 0),
+        accounted: myPaid.reduce((s, p) => s + num(p.net_paid) + num(p.deduct_withdraw) + noteExtraDeductions(p.note), 0),
+      };
+      // A paid past month is a financial snapshot. Recalculating it with the
+      // employee's current wage creates false balances after a wage increase.
+      const balance = CORE ? CORE.resolvePayrollBalance({
+        monthStart: ms, currentMonthStart, attendancePay, paymentRows: myPaid,
+      }) : {
+        latestPaid: null, useStoredSnapshot: false, paidTotals: fallbackPaidTotals,
+        attendanceEarn: attendancePay.earn, attendanceDeduction: attendancePay.attendanceDeduction,
+        grossBeforeAttendance: attendancePay.grossBeforeDeductions, workDays: attendancePay.workDays,
+        bonus: fallbackPaidTotals.bonus, entitlement: attendancePay.earn + fallbackPaidTotals.bonus,
+        consumed: fallbackPaidTotals.accounted,
+        remaining: Math.max(0, attendancePay.earn + fallbackPaidTotals.bonus - fallbackPaidTotals.accounted),
+      };
+      const paidTotals = balance.paidTotals;
+      const useStoredSnapshot = balance.useStoredSnapshot;
+      const attendanceEarn = r2(balance.attendanceEarn);
+      const attendanceDeduction = r2(balance.attendanceDeduction);
+      const grossBeforeAttendance = r2(balance.grossBeforeAttendance);
+      const wd = r2(balance.workDays);
+      const td = attendanceDeduction;
+      const bonus = r2(balance.bonus);
+      const earn = r2(balance.entitlement);
+      const consumedEarn = r2(balance.consumed);
+      const wageRemaining = r2(balance.remaining);
 
       // หนี้เบิกคงค้าง (ข้ามเดือน, ถึงสิ้นเดือนที่ดู) — เรียงเก่า→ใหม่ (ใช้ตัด FIFO)
       const myAdv = outAdv.filter(a => String(a.employee_id) === eid)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
-      const debtRemaining = myAdv.reduce((s, a) => s + num(a.amount), 0);
+      const debtRemaining = r2(myAdv.reduce((s, a) => s + num(a.amount), 0));
+      const monthAdvRows = myAdv.filter(a => {
+        const day = attDateKey(a);
+        return day >= ms && day <= me && !isCarried(a);
+      });
+      const monthAdvSum = r2(monthAdvRows.reduce((s, a) => s + num(a.amount), 0));
+      monthAdvRows.forEach(a => {
+        const d = dayOf(a.date);
+        dayAdv[d] = r2((dayAdv[d] || 0) + num(a.amount));
+      });
       // หนี้ยกมา = รายการค้างก่อนเดือนที่ดูทั้งหมด รวมรายการที่แอดมินระบุว่า "ยกมา"
       // แม้จะลงวันที่วันแรกของเดือน เพื่อให้ตรงกับเครื่องมือตั้งหนี้ v97 และรายงาน Excel v94
-      const carriedDebt = myAdv
+      const carriedDebt = r2(myAdv
         .filter(a => attDateKey(a) < ms || isCarried(a))
-        .reduce((s, a) => s + num(a.amount), 0);
+        .reduce((s, a) => s + num(a.amount), 0));
 
-      const netPayable = wageRemaining - debtRemaining; // ติดลบได้ = พนักงานค้างร้าน
-      const fullySettled = wageRemaining <= 0.01 && debtRemaining <= 0.01;
+      const netPayable = r2(wageRemaining - debtRemaining); // ติดลบได้ = พนักงานค้างร้าน
+      // เงินเดือนและหนี้เบิกเป็นคนละยอด: จ่ายค่าแรงครบแล้วต้องไม่กลับมา
+      // แสดงว่า "ยังไม่จ่าย" เพียงเพราะพนักงานยังมีหนี้ที่ร้านเลือกไม่หักรอบนี้
+      const noAccruedWage = earn <= 0.01 && myPaid.length === 0;
+      const fullySettled = wageRemaining <= 0.01 && myPaid.length > 0;
 
       return {
-        emp, ms, wd, earn, td, daysInMonth, scheduledWorkDays,
+        emp, ms, me, wd, earn, attendanceEarn, grossBeforeAttendance, td, bonus, daysInMonth, scheduledWorkDays,
         wageRemaining, debtRemaining, carriedDebt, netPayable, monthAdvSum,
         advances: myAdv, pastPays: myPaid, dayStatus, dayAdv,
-        hasPaid: myPaid.length > 0, fullySettled,
+        paidTotals, consumedEarn, hasPaid: myPaid.length > 0, fullySettled, noAccruedWage, useStoredSnapshot,
       };
     });
   }
@@ -530,9 +567,9 @@
     const ml = v95View.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     const daysInMonth = wallets[0] ? wallets[0].daysInMonth : new Date(v95View.getFullYear(), v95View.getMonth() + 1, 0).getDate();
     const y = v95View.getFullYear(), mo = v95View.getMonth();
-    // Option C: ร้านค้างจ่าย = ค่าแรงที่ต้องจ่ายเต็ม (ไม่หักหนี้อัตโนมัติ), หนี้เดิมแยกต่างหาก
+    // ร้านค้างจ่าย = ค่าแรงคงเหลือหลังหักยอดที่บันทึกแล้วทุกประเภท
     const totalOwed = wallets.reduce((s, w) => s + Math.max(0, w.wageRemaining), 0);
-    const totalDebt = wallets.reduce((s, w) => s + Math.max(0, w.carriedDebt), 0); // หนี้เดิมยกมารวม (ไม่รวมเบิกเดือนนี้)
+    const totalDebt = wallets.reduce((s, w) => s + Math.max(0, w.debtRemaining), 0);
     const totalEarn = wallets.reduce((s, w) => s + w.earn, 0);
     const totalAdv = wallets.reduce((s, w) => s + w.monthAdvSum, 0);
     const unpaidCount = wallets.filter(w => w.wageRemaining > 0.01).length;
@@ -546,7 +583,7 @@
       dayHead += `<th class="v95-day${wk}">${d}</th>`;
     }
 
-    const totalNetRow = wallets.reduce((s, w) => s + Math.max(0, w.wageRemaining), 0); // ต้องจ่ายเต็ม
+    const totalNetRow = wallets.reduce((s, w) => s + Math.max(0, w.wageRemaining), 0);
 
     sec.innerHTML = `
       <div style="max-width:100%;margin:0 auto;padding:0 8px 40px;">
@@ -561,7 +598,7 @@
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <div style="background:rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;"><div style="font-size:11px;opacity:.8;">ร้านค้างจ่ายรวม</div><div style="font-size:20px;font-weight:900;color:#86efac;">฿${money(totalOwed)}</div></div>
-              ${totalDebt > 0 ? `<div style="background:rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;"><div style="font-size:11px;opacity:.8;">หนี้เดิมยกมารวม</div><div style="font-size:20px;font-weight:900;color:#fca5a5;">฿${money(totalDebt)}</div></div>` : ''}
+              ${totalDebt > 0 ? `<div style="background:rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;"><div style="font-size:11px;opacity:.8;">หนี้เบิกคงค้างรวม</div><div style="font-size:20px;font-weight:900;color:#fca5a5;">฿${money(totalDebt)}</div></div>` : ''}
             </div>
           </div>
         </div>
@@ -591,9 +628,9 @@
                   <th class="v95-name">พนักงาน</th>
                   ${dayHead}
                   <th class="v95-sum">วัน</th>
-                  <th class="v95-sum">ค่าแรง</th>
-                  <th class="v95-sum">เบิก</th>
-                  <th class="v95-sum">ต้องจ่าย</th>
+                  <th class="v95-sum">ค่าแรงสุทธิ</th>
+                  <th class="v95-sum">เบิกค้าง</th>
+                  <th class="v95-sum">คงเหลือจ่าย</th>
                 </tr>
               </thead>
               <tbody id="v95-tbody">
@@ -617,7 +654,7 @@
             <span style="color:#0891b2;font-weight:800;">◐ ครึ่งวัน</span>
             <span style="color:#7c3aed;font-weight:800;">○ ลา</span>
             <span style="color:#dc2626;font-weight:800;">✗ ขาด</span>
-            <span style="color:#c2410c;font-weight:800;">ตัวเลขส้ม = ยอดเบิกวันนั้น </span>
+            <span style="color:#c2410c;font-weight:800;">ตัวเลขส้ม = ยอดเบิกค้างที่อนุมัติแล้ว </span>
             <span style="margin-left:auto;">แตะที่แถวเพื่อจ่ายเงินเดือน</span>
           </div>`}
         </div>
@@ -643,12 +680,12 @@
   })();
 
   function payRow(w, y, mo, daysInMonth) {
-    const { emp, wd, earn, monthAdvSum, wageRemaining, debtRemaining, carriedDebt, hasPaid, fullySettled, dayStatus, dayAdv } = w;
-    // Option C: ต้องจ่าย = ค่าแรงเต็ม (ไม่หักหนี้อัตโนมัติ) · หนี้เดิมแยกแสดง
+    const { emp, wd, earn, td, monthAdvSum, wageRemaining, debtRemaining, carriedDebt, paidTotals, hasPaid, fullySettled, noAccruedWage, dayStatus, dayAdv } = w;
     const payable = wageRemaining;
     const netColor = fullySettled ? '#059669' : '#94a3b8';
-    // ไม่โชว์ "จ่าย ฿X" แล้ว (ซ้ำกับคอลัมน์ "ต้องจ่าย") — เหลือเฉพาะสถานะ
-    const netText = fullySettled ? 'เคลียร์ครบ ✓'
+    // ไม่โชว์ยอดซ้ำกับคอลัมน์คงเหลือจ่าย — เหลือเฉพาะสถานะ
+    const netText = noAccruedWage ? 'ยังไม่มีค่าแรงสะสม'
+      : fullySettled ? 'จ่ายค่าแรงครบ ✓'
       : (payable <= 0 && debtRemaining > 0 ? 'รอเก็บหนี้' : '');
 
     let days = '';
@@ -669,10 +706,11 @@
           <div class="v95-nm-sub">${emp.pay_type || ''} · ${wd} วัน</div>
           ${netText ? `<div class="v95-nm-net" style="color:${netColor};">${netText}</div>` : ''}
           ${carriedDebt > 0 ? `<div style="font-size:11px;font-weight:800;color:#d97706;">หนี้เดิม ฿${money(carriedDebt)}</div>` : ''}
+          ${hasPaid ? `<div style="font-size:11px;font-weight:800;color:#64748b;">จ่าย/หักแล้ว ฿${money(paidTotals.accounted)}</div>` : ''}
         </td>
         ${days}
         <td class="v95-sum" style="color:#475569;">${wd}</td>
-        <td class="v95-sum" style="color:#16a34a;">฿${money(earn)}</td>
+        <td class="v95-sum" style="color:#16a34a;">฿${money(earn)}${td > 0 ? `<div style="font-size:9px;color:#dc2626;">หักเวลา ฿${money(td)}</div>` : ''}</td>
         <td class="v95-sum" style="color:#c2410c;">฿${money(monthAdvSum)}</td>
         <td class="v95-sum" style="color:${netColor};">฿${money(payable)}</td>
       </tr>`;
@@ -682,7 +720,7 @@
 
   // ── การ์ดจ่ายเงินเดือนสำหรับมือถือ (ไม่เลื่อนซ้ายขวา · แตะเพื่อจ่าย) ──
   function payMobileCard(w) {
-    const { emp, wd, wageRemaining, carriedDebt, monthAdvSum, hasPaid, fullySettled } = w;
+    const { emp, wd, wageRemaining, carriedDebt, monthAdvSum, paidTotals, hasPaid, fullySettled, noAccruedWage } = w;
     const payable = wageRemaining;
     const safeName = `${emp.name} ${emp.lastname || ''}`.trim();
     return `
@@ -692,16 +730,17 @@
           <div style="flex:1;min-width:0;">
             <div class="v95-mc-name">${safeName} ${hasPaid ? '<span style="color:#10b981;font-size:11px;">●</span>' : ''}</div>
             <div class="v95-mc-sub">${emp.pay_type || ''} · ${wd} วัน</div>
+            ${hasPaid ? `<div style="font-size:10px;color:#64748b;font-weight:700;">จ่าย/หักแล้ว ฿${money(paidTotals.accounted)}</div>` : ''}
           </div>
           <div style="text-align:right;">
-            <div style="font-size:10px;color:#94a3b8;font-weight:700;">ต้องจ่าย</div>
+            <div style="font-size:10px;color:#94a3b8;font-weight:700;">คงเหลือจ่าย</div>
             <div class="v95-mc-pay">฿${money(payable)}</div>
           </div>
         </div>
         <div class="v95-mc-foot">
           ${carriedDebt > 0 ? `<span class="v95-mc-chip debt">หนี้เดิม ฿${money(carriedDebt)}</span>` : ''}
-          ${monthAdvSum > 0 ? `<span class="v95-mc-chip adv">เบิกเดือนนี้ ฿${money(monthAdvSum)}</span>` : ''}
-          <span class="v95-mc-go">${fullySettled ? 'เคลียร์ครบ ✓' : 'แตะเพื่อจ่าย ›'}</span>
+          ${monthAdvSum > 0 ? `<span class="v95-mc-chip adv">เบิกค้างเดือนนี้ ฿${money(monthAdvSum)}</span>` : ''}
+          <span class="v95-mc-go">${noAccruedWage ? 'ยังไม่มีค่าแรงสะสม' : (fullySettled ? 'จ่ายค่าแรงครบ ✓' : 'แตะเพื่อจ่าย ›')}</span>
         </div>
       </div>`;
   }
@@ -768,10 +807,10 @@
         },
       });
 
-      // ชื่อ + วัน + (วันทำงาน, ค่าแรงจริง, หนี้เบิกยกมา, เบิกเดือนนี้, หักหนี้เบิก, รับจริง)
+      // ชื่อ + วัน + (วันทำงาน, คงเหลือจ่าย, หนี้ยกมา, เบิกค้างเดือนนี้, หักหนี้ครั้งนี้, รับจริง)
       const lastCol = 1 + days + 6;
       const colLetter = (n) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
-      const cWage = () => colLetter(days + 3), cThis = () => colLetter(days + 5), cDeduct = () => colLetter(days + 6);
+      const cWage = () => colLetter(days + 3), cDeduct = () => colLetter(days + 6);
 
       // แถว 1: ชื่อร้าน
       ws.mergeCells(1, 1, 1, lastCol);
@@ -785,7 +824,7 @@
       // แถว 3: หัวคอลัมน์
       const head = ['พนักงาน'];
       for (let d = 1; d <= days; d++) head.push(String(d));
-      head.push('วันทำงาน', 'ค่าแรงจริง', 'หนี้เบิกยกมา', 'เบิกเดือนนี้', 'หักหนี้เบิก', 'พนักงานรับจริง');
+      head.push('วันทำงาน', 'คงเหลือจ่าย', 'หนี้เบิกยกมา', 'เบิกค้างเดือนนี้', 'หักหนี้ครั้งนี้', 'พนักงานรับจริง');
       const hr = ws.getRow(3); hr.values = head; hr.height = 28;
       hr.eachCell((cell, col) => {
         cell.font = { bold: true, size: 9, color: { argb: col === days + 6 ? 'FFB45309' : col === days + 7 ? 'FF047857' : 'FF475569' } };
@@ -830,14 +869,14 @@
           return cell;
         };
         put(days + 2, w.wd, '0.##', 'FF475569');                           // วันทำงาน
-        put(days + 3, w.earn, '#,##0', 'FF16A34A');                        // ค่าแรงจริง
+        put(days + 3, w.wageRemaining, '#,##0', 'FF16A34A');               // คงเหลือหลังจ่าย/หักที่บันทึกแล้ว
         put(days + 4, w.carriedDebt, '#,##0', 'FFB45309');                 // หนี้เบิกยกมา
-        put(days + 5, w.monthAdvSum, '#,##0', 'FFC2410C');                 // เบิกเดือนนี้
+        put(days + 5, w.monthAdvSum, '#,##0', 'FFC2410C');                 // เบิกค้างเดือนนี้
         // หักหนี้เบิก — ช่องให้กรอกเอง (เว้นว่าง, ไฮไลต์เหลือง)
         const inp = put(days + 6, null, '#,##0', 'FFB45309', 'FFFEF9C3');
         inp.border = { outline: { style: 'thin', color: { argb: 'FFFCD34D' } } };
-        // พนักงานรับจริง — สูตร: ค่าแรงจริง − เบิกเดือนนี้ − หักหนี้เบิก
-        const net = put(days + 7, { formula: `${cWage()}${r}-${cThis()}${r}-${cDeduct()}${r}` }, '#,##0', 'FF047857', 'FFD1FAE5');
+        // พนักงานรับจริง — เบิกค้างเป็นข้อมูลประกอบ หักเฉพาะยอดที่กรอกครั้งนี้
+        const net = put(days + 7, { formula: `MAX(0,${cWage()}${r}-${cDeduct()}${r})` }, '#,##0', 'FF047857', 'FFD1FAE5');
         net.font = { bold: true, size: 11, color: { argb: 'FF047857' } };
         r++;
       });
@@ -860,7 +899,7 @@
 
       // คำอธิบายใต้ตาราง
       const noteRow = ws.getRow(r + 2);
-      noteRow.getCell(1).value = 'วิธีใช้: กรอกตัวเลขในช่อง "หักหนี้เบิก" (สีเหลือง) แล้วช่อง "พนักงานรับจริง" จะคำนวณให้อัตโนมัติ → นำยอดไปคีย์ในระบบ';
+      noteRow.getCell(1).value = 'วิธีใช้: คอลัมน์คงเหลือจ่ายหักยอดที่บันทึกแล้วครบทุกประเภท จากนั้นกรอก "หักหนี้ครั้งนี้" (สีเหลือง) เพื่อคำนวณยอดรับจริง';
       ws.mergeCells(r + 2, 1, r + 2, lastCol);
       noteRow.getCell(1).font = { italic: true, size: 10, color: { argb: 'FF92400E' } };
 
@@ -903,30 +942,48 @@
     wrap.style.display = 'block';
     wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-    const { emp, wd, earn, td, wageRemaining, debtRemaining, netPayable, advances, pastPays, fullySettled } = w;
+    const {
+      emp, wd, earn, grossBeforeAttendance, td, bonus,
+      wageRemaining, debtRemaining, advances, pastPays, paidTotals,
+      fullySettled, useStoredSnapshot,
+    } = w;
 
     if (fullySettled) {
-      const totalPaid = pastPays.reduce((s, p) => s + num(p.net_paid), 0);
       const lastPd = pastPays[pastPays.length - 1];
       wrap.innerHTML = `
         ${backBtn()}
         <div class="v95-paycard paid" style="cursor:default;text-align:center;padding:40px 20px;max-width:560px;margin:0 auto;">
           <i class="material-icons-round" style="font-size:64px;color:#10b981;">task_alt</i>
-          <h2 style="color:#059669;margin:12px 0 6px;">เคลียร์ครบแล้ว</h2>
+          <h2 style="color:#059669;margin:12px 0 6px;">จ่ายค่าแรงครบแล้ว</h2>
           <p style="color:#475569;">${emp.name} · ${lastPd ? new Date(lastPd.paid_date).toLocaleString('th-TH') : 'ไม่มียอดค้าง'}</p>
-          ${totalPaid > 0 ? `<div style="font-size:30px;font-weight:900;color:#059669;margin-top:10px;">฿${money(totalPaid)}</div>
+          ${paidTotals.netPaid > 0 ? `<div style="font-size:30px;font-weight:900;color:#059669;margin-top:10px;">฿${money(paidTotals.netPaid)}</div>
           <div style="font-size:13px;color:#94a3b8;margin-top:6px;">รวมรับเข้ากระเป๋าเดือนนี้</div>` : ''}
+          ${debtRemaining > 0 ? `<div style="margin:14px auto 0;max-width:420px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px;color:#b45309;font-weight:800;">หนี้เบิกยังคงค้าง ฿${money(debtRemaining)} (ไม่ได้ทำให้เงินเดือนกลับเป็นค้างจ่าย)</div>` : ''}
+          <div style="margin:16px auto 0;max-width:420px;text-align:left;background:#f8fafc;border-radius:12px;padding:8px 16px;">
+            ${paidTotals.debtDeducted > 0 ? `<div class="v95-wal-line"><span class="lbl">หักหนี้แล้ว</span><strong>฿${money(paidTotals.debtDeducted)}</strong></div>` : ''}
+            ${paidTotals.socialSecurity > 0 ? `<div class="v95-wal-line"><span class="lbl">หักประกันสังคมแล้ว</span><strong>฿${money(paidTotals.socialSecurity)}</strong></div>` : ''}
+            ${paidTotals.other > 0 ? `<div class="v95-wal-line"><span class="lbl">หักอื่น ๆ แล้ว</span><strong>฿${money(paidTotals.other)}</strong></div>` : ''}
+            <div class="v95-wal-line" style="border-top:1px dashed #cbd5e1;"><span class="lbl">รวมจ่ายและหัก</span><strong>฿${money(paidTotals.accounted)}</strong></div>
+          </div>
           <div style="margin-top:20px;text-align:left;">${ledgerHTML(advances, pastPays)}</div>
         </div>`;
       return;
     }
 
-    // ── Option C: จ่ายค่าแรงเต็มเป็นค่าเริ่มต้น + เลือกหักหนี้เองตอนจ่าย ──
+    // จ่ายค่าแรงคงเหลือเป็นค่าเริ่มต้น และเลือกหักหนี้/รายการอื่นในรอบนี้
     const hasWage = wageRemaining > 0.009;
     const summaryRows = `
-      <div class="v95-wal-line"><span class="lbl">ค่าแรงเดือนนี้ (${wd} วัน)</span><span class="val" style="color:#16a34a;">+฿${money(earn)}</span></div>
-      <div class="v95-wal-line" style="border-top:1px dashed #e2e8f0;"><span class="lbl">ค่าแรงสุทธิ (จ่ายได้)</span><span class="val" style="color:#059669;">฿${money(wageRemaining)}</span></div>
+      <div class="v95-wal-line"><span class="lbl">ค่าแรงสะสมก่อนหัก</span><span class="val" style="color:#16a34a;">+฿${money(grossBeforeAttendance)}</span></div>
+      ${td > 0 ? `<div class="v95-wal-line"><span class="lbl">หักสาย/ครึ่งวัน/ขาด</span><span class="val" style="color:#dc2626;">−฿${money(td)}</span></div>` : ''}
+      ${bonus > 0 ? `<div class="v95-wal-line"><span class="lbl">โบนัส</span><span class="val" style="color:#16a34a;">+฿${money(bonus)}</span></div>` : ''}
+      <div class="v95-wal-line"><span class="lbl">ค่าแรงสุทธิเดือนนี้</span><span class="val" style="color:#16a34a;">฿${money(earn)}</span></div>
+      ${paidTotals.netPaid > 0 ? `<div class="v95-wal-line"><span class="lbl">จ่ายให้แล้ว</span><span class="val" style="color:#64748b;">−฿${money(paidTotals.netPaid)}</span></div>` : ''}
+      ${paidTotals.debtDeducted > 0 ? `<div class="v95-wal-line"><span class="lbl">หักหนี้แล้ว</span><span class="val" style="color:#d97706;">−฿${money(paidTotals.debtDeducted)}</span></div>` : ''}
+      ${paidTotals.socialSecurity > 0 ? `<div class="v95-wal-line"><span class="lbl">หักประกันสังคมแล้ว</span><span class="val" style="color:#dc2626;">−฿${money(paidTotals.socialSecurity)}</span></div>` : ''}
+      ${paidTotals.other > 0 ? `<div class="v95-wal-line"><span class="lbl">หักอื่น ๆ แล้ว</span><span class="val" style="color:#dc2626;">−฿${money(paidTotals.other)}</span></div>` : ''}
+      <div class="v95-wal-line" style="border-top:1px dashed #e2e8f0;"><span class="lbl">คงเหลือจ่าย</span><span class="val" style="color:#059669;">฿${money(wageRemaining)}</span></div>
       ${debtRemaining > 0 ? `<div class="v95-wal-line"><span class="lbl"><i class="material-icons-round" style="font-size:15px;color:#d97706;">account_balance_wallet</i> หนี้เดิม/เบิกคงค้าง</span><span class="val" style="color:#d97706;">฿${money(debtRemaining)}</span></div>` : ''}
+      ${useStoredSnapshot ? `<div style="font-size:11px;color:#64748b;padding:6px 0;">ยอดเดือนที่จ่ายแล้ว ใช้ฐานค่าแรงที่บันทึกในรอบนั้น</div>` : ''}
     `;
 
     wrap.innerHTML = `
@@ -995,7 +1052,7 @@
     window.v95RecalcPay(eid);
   };
 
-  // ── คำนวณยอดรับจริงสด (Option C): รับ = ค่าแรง − หักหนี้ − ปกส − อื่นๆ ──
+  // ── คำนวณยอดรับจริงสด: รับ = ค่าแรงคงเหลือ − หักหนี้ − ปกส. − อื่น ๆ ──
   window.v95RecalcPay = function (eid) {
     const w = (window._v95Pay || []).find(x => String(x.emp.id) === String(eid));
     if (!w) return;
@@ -1009,7 +1066,8 @@
     const hint = document.getElementById(`v95-dhint-${eid}`);
     const btn = document.getElementById(`v95-paybtn-${eid}`);
     let err = '';
-    if (d > w.debtRemaining + 0.009) err = `หักหนี้เกินยอดค้าง (฿${money(w.debtRemaining)})`;
+    if (d < 0 || ss < 0 || o < 0) err = 'ยอดหักต้องไม่ติดลบ';
+    else if (d > w.debtRemaining + 0.009) err = `หักหนี้เกินยอดค้าง (฿${money(w.debtRemaining)})`;
     else if (d + ss + o > w.wageRemaining + 0.009) err = `รวมหักเกินค่าแรง (฿${money(w.wageRemaining)})`;
     if (hint) hint.innerHTML = err ? `<span style="color:#dc2626;">${err}</span>` : (d > 0 ? `หักหนี้ ฿${money(d)} · เหลือหนี้ ฿${money(w.debtRemaining - d)}` : `หักได้สูงสุด ฿${money(Math.min(w.debtRemaining, w.wageRemaining))}`);
     if (lbl) lbl.textContent = err ? 'ยอดไม่ถูกต้อง' : `จ่าย ฿${money(Math.max(0, recv))}`;
@@ -1017,7 +1075,7 @@
     if (btn) { const noPay = w.wageRemaining <= 0.009 && (d + ss + o) <= 0; btn.disabled = !!err || noPay; btn.className = 'v95-big ' + (method === 'โอนเงิน' ? 'pay transfer' : 'pay'); }
   };
 
-  // ── ยืนยันจ่าย (Option C) ──
+  // ── ยืนยันจ่าย ──
   window.v95PayMain = function (eid) {
     const w = (window._v95Pay || []).find(x => String(x.emp.id) === String(eid));
     if (!w) return;
@@ -1048,7 +1106,21 @@
   function ledgerHTML(advances, pastPays) {
     const items = [];
     (advances || []).forEach(a => items.push({ t: a.date, type: 'adv', txt: a.reason || 'เบิกเงิน', amt: -num(a.amount) }));
-    (pastPays || []).forEach(p => items.push({ t: p.paid_date, type: 'pay', txt: 'จ่ายเงินเดือน' + (p.deduct_withdraw > 0 ? ` (หักหนี้ ฿${money(p.deduct_withdraw)})` : ''), amt: num(p.net_paid) }));
+    (pastPays || []).forEach(p => {
+      const deductions = CORE ? CORE.paymentDeductions(p) : { socialSecurity: 0, other: noteExtraDeductions(p.note), total: noteExtraDeductions(p.note) };
+      const details = [
+        num(p.deduct_withdraw) > 0 ? `หักหนี้ ฿${money(p.deduct_withdraw)}` : '',
+        deductions.socialSecurity > 0 ? `ปกส. ฿${money(deductions.socialSecurity)}` : '',
+        deductions.other > 0 ? `อื่น ๆ ฿${money(deductions.other)}` : '',
+      ].filter(Boolean);
+      items.push({
+        t: p.paid_date,
+        type: 'pay',
+        txt: 'จ่ายเงินเดือน' + (details.length ? ` (${details.join(' · ')})` : ''),
+        amt: num(p.net_paid),
+        accounted: r2(num(p.net_paid) + num(p.deduct_withdraw) + deductions.total),
+      });
+    });
     items.sort((a, b) => new Date(b.t) - new Date(a.t));
     if (!items.length) return `<div style="font-size:13px;color:#94a3b8;text-align:center;">— ยังไม่มีรายการเบิก/จ่ายเดือนนี้ —</div>`;
     return `
@@ -1057,7 +1129,7 @@
       ${items.map(i => `
         <div class="v95-ledger-row ${i.type}">
           <span style="color:#475569;">${dDate(i.t)} · ${i.txt}</span>
-          <strong style="color:${i.amt < 0 ? '#dc2626' : '#059669'};">${i.amt < 0 ? '−' : '+'}฿${money(Math.abs(i.amt))}</strong>
+          <strong style="color:${i.amt < 0 ? '#dc2626' : '#059669'};">${i.amt < 0 ? '−' : '+'}฿${money(Math.abs(i.amt))}${i.accounted > Math.abs(i.amt) ? `<small style="display:block;color:#64748b;">ตัดยอดรวม ฿${money(i.accounted)}</small>` : ''}</strong>
         </div>`).join('')}`;
   }
 
@@ -1110,11 +1182,15 @@
     }
   };
 
+  const payrollSaving = new Set();
+
   // ── บันทึกการจ่ายจริง (ใช้ร่วมทั้ง 2 โหมด) ──
   async function doPay(w, p) {
     const { emp } = w;
-    const { recv, debt, ss, oth, method, note, oNote } = p;
-    const tot = recv + debt + ss + oth;
+    const recv = r2(p.recv), debt = r2(p.debt), ss = r2(p.ss), oth = r2(p.oth);
+    const method = p.method, note = p.note, oNote = p.oNote;
+    const tot = r2(recv + debt + ss + oth);
+    if ([recv, debt, ss, oth].some(value => value < 0)) { notify('ยอดจ่ายและยอดหักต้องไม่ติดลบ', 'error'); return; }
     if (tot > w.wageRemaining + 0.01) { notify('ยอดรวมเกินค่าแรงคงเหลือ!', 'error'); return; }
     if (debt > w.debtRemaining + 0.01) { notify('หักหนี้เกินยอดค้าง!', 'error'); return; }
     if (tot <= 0) { notify('ไม่มียอดให้บันทึก', 'error'); return; }
@@ -1127,6 +1203,7 @@
         ${debt > 0 ? `🟠 หักหนี้เบิก: ฿${money(debt)}<br>` : ''}
         ${ss > 0 ? `หักประกันสังคม: ฿${money(ss)}<br>` : ''}
         ${oth > 0 ? `หักอื่นๆ: ฿${money(oth)}<br>` : ''}
+        <div style="border-top:1px dashed #cbd5e1;margin-top:8px;padding-top:8px;">ตัดยอดค่าแรงรวม: <strong>฿${money(tot)}</strong><br>ค่าแรงคงเหลือหลังรายการนี้: <strong>฿${money(Math.max(0, w.wageRemaining - tot))}</strong></div>
       </div>`,
       icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#059669',
     });
@@ -1138,6 +1215,34 @@
     }
 
     const persistCore = async (denom = null) => {
+      const saveKey = `${emp.id}|${w.ms}`;
+      if (payrollSaving.has(saveKey)) { notify('กำลังบันทึกรายการนี้อยู่ กรุณารอสักครู่', 'warning'); return; }
+      payrollSaving.add(saveKey);
+      let savedPayroll = null;
+      let previousPayroll = null;
+      let insertedPayroll = false;
+      const rollbackPayroll = async () => {
+        if (!savedPayroll || !savedPayroll.id) return;
+        if (insertedPayroll) {
+          const rollback = await db.from(PAY_TABLE).delete().eq('id', savedPayroll.id);
+          if (rollback.error) throw rollback.error;
+          return;
+        }
+        const rollback = await db.from(PAY_TABLE).update({
+          working_days: previousPayroll.working_days,
+          base_salary: previousPayroll.base_salary,
+          deduct_withdraw: previousPayroll.deduct_withdraw,
+          deduct_absent: previousPayroll.deduct_absent,
+          bonus: previousPayroll.bonus,
+          net_paid: previousPayroll.net_paid,
+          paid_date: previousPayroll.paid_date,
+          staff_name: previousPayroll.staff_name,
+          note: previousPayroll.note,
+        }).eq('id', previousPayroll.id);
+        if (rollback.error) throw rollback.error;
+      };
+
+      try {
       const now = new Date();
       // ใช้เดือนที่กำลังดูอยู่ (รองรับย้อนจ่ายเดือนก่อน) ไม่ใช่เดือนปัจจุบันเสมอ
       const ms = w.ms || dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -1148,60 +1253,118 @@
       const detailMarkers = `${ss > 0 ? ` [payroll_ss=${ss}]` : ''}${oth > 0 ? ` [payroll_other=${oth}]` : ''}`;
       const noteFull = `${note} (จ่ายทาง ${method})${noteParts.length ? ' [' + noteParts.join(', ') + ']' : ''}${detailMarkers}`.trim();
 
-      // merge-or-insert: เดือนละ 1 แถวต่อคน (สะสมยอด) — ตรงกับ v33
-      // ตาราง 'จ่ายเงินเดือน' ไม่มีคอลัมน์ deduct_ss/deduct_other → เก็บใน note
-      let pIns;
-      const { data: existing, error: existingErr } = await db.from(PAY_TABLE)
-        .select('*').eq('employee_id', emp.id).eq('month', ms).maybeSingle();
-      if (existingErr) { notify('ตรวจรายการจ่ายเดิมไม่สำเร็จ: ' + existingErr.message, 'error'); return; }
+      // Re-read before saving so a stale page cannot pay the same wage twice.
+      const existingResult = await db.from(PAY_TABLE).select('*').eq('employee_id', emp.id).eq('month', ms);
+      if (existingResult.error) throw existingResult.error;
+      const existingRows = (existingResult.data || []).sort((a, b) => new Date(b.paid_date || 0) - new Date(a.paid_date || 0));
+      const existing = existingRows[0] || null;
+      const currentTotals = CORE ? CORE.paymentTotals(existingRows) : {
+        accounted: existingRows.reduce((sum, row) => sum + num(row.net_paid) + num(row.deduct_withdraw) + noteExtraDeductions(row.note), 0),
+      };
+      const authoritativeRemaining = r2(Math.max(0, w.earn - currentTotals.accounted));
+      if (tot > authoritativeRemaining + 0.01) {
+        await renderPayrollWallet();
+        throw new Error(`ยอดคงเหลือถูกเปลี่ยนจากเครื่องอื่น เหลือ ฿${money(authoritativeRemaining)} กรุณาตรวจใหม่`);
+      }
+
+      // Re-read approved debt and prepare an exact FIFO plan before touching payroll.
+      const advanceResult = await db.from(ADV_TABLE).select('*')
+        .eq('employee_id', emp.id).eq('status', 'อนุมัติ').lte('date', (w.me || ms) + 'T23:59:59');
+      if (advanceResult.error) throw advanceResult.error;
+      const currentAdvances = (advanceResult.data || []).filter(a => !isPayrollDeductionAdvance(a));
+      const currentDebt = r2(currentAdvances.reduce((sum, row) => sum + num(row.amount), 0));
+      if (debt > currentDebt + 0.01) {
+        await renderPayrollWallet();
+        throw new Error(`ยอดหนี้ถูกเปลี่ยนจากเครื่องอื่น เหลือ ฿${money(currentDebt)} กรุณาตรวจใหม่`);
+      }
+      let debtToPlan = debt;
+      const debtPlan = [...currentAdvances].sort((a, b) => {
+        const aCurrent = attDateKey(a) >= ms && !isCarried(a);
+        const bCurrent = attDateKey(b) >= ms && !isCarried(b);
+        if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
+        return new Date(a.date) - new Date(b.date);
+      }).reduce((plan, row) => {
+        if (debtToPlan <= 0) return plan;
+        const applied = r2(Math.min(num(row.amount), debtToPlan));
+        plan.push({ row, applied, remaining: r2(num(row.amount) - applied) });
+        debtToPlan = r2(debtToPlan - applied);
+        return plan;
+      }, []);
+
+      // merge-or-insert: normally one row/person/month; legacy duplicate rows remain readable.
       if (existing) {
+        previousPayroll = Object.assign({}, existing);
         const { data: upd, error: uErr } = await db.from(PAY_TABLE).update({
-          working_days: w.wd, base_salary: w.earn,
+          working_days: w.wd, base_salary: w.attendanceEarn,
           deduct_withdraw: num(existing.deduct_withdraw) + debt,
+          deduct_absent: w.td,
           net_paid: num(existing.net_paid) + recv,
           paid_date: now.toISOString(),
           staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : null,
           note: (existing.note ? existing.note + ' | ' : '') + noteFull,
-        }).eq('id', existing.id).select().single();
-        if (uErr) { notify('บันทึกไม่สำเร็จ: ' + uErr.message, 'error'); return; }
-        pIns = upd;
+        }).eq('id', existing.id)
+          .eq('net_paid', existing.net_paid)
+          .eq('deduct_withdraw', existing.deduct_withdraw)
+          .eq('paid_date', existing.paid_date)
+          .select().maybeSingle();
+        if (uErr) throw uErr;
+        if (!upd) throw new Error('รายการเงินเดือนถูกแก้ไขจากเครื่องอื่น กรุณาโหลดข้อมูลใหม่แล้วตรวจยอดอีกครั้ง');
+        savedPayroll = upd;
       } else {
         const { data: ins, error: iErr } = await db.from(PAY_TABLE).insert({
-          employee_id: emp.id, month: ms, working_days: w.wd, base_salary: w.earn,
+          employee_id: emp.id, month: ms, working_days: w.wd, base_salary: w.attendanceEarn,
           deduct_withdraw: debt, deduct_absent: w.td,
           bonus: 0, net_paid: recv, paid_date: now.toISOString(),
           staff_name: (typeof USER !== 'undefined' && USER) ? USER.username : null, note: noteFull,
         }).select().single();
-        if (iErr) { notify('บันทึกไม่สำเร็จ: ' + iErr.message, 'error'); return; }
-        pIns = ins;
+        if (iErr) throw iErr;
+        savedPayroll = ins;
+        insertedPayroll = true;
+      }
+
+      // ตัดยอดเบิกเดือนนี้ก่อน แล้วค่อยตัดหนี้ยกมา (ภายในแต่ละกลุ่มเรียงเก่าก่อน)
+      const appliedDebtUpdates = [];
+      try {
+        for (const item of debtPlan) {
+          const update = item.remaining <= 0.009
+            ? await db.from(ADV_TABLE).update({ status: 'ชำระแล้ว' })
+              .eq('id', item.row.id).eq('status', 'อนุมัติ').eq('amount', item.row.amount).select('id').maybeSingle()
+            : await db.from(ADV_TABLE).update({ amount: item.remaining })
+              .eq('id', item.row.id).eq('status', 'อนุมัติ').eq('amount', item.row.amount).select('id').maybeSingle();
+          if (update.error) throw update.error;
+          if (!update.data) throw new Error('ยอดหนี้ถูกเปลี่ยนจากเครื่องอื่นระหว่างบันทึก');
+          appliedDebtUpdates.push(item);
+        }
+      } catch (debtError) {
+        let rollbackError = null;
+        for (const item of appliedDebtUpdates.reverse()) {
+          const restore = await db.from(ADV_TABLE).update({ amount: item.row.amount, status: item.row.status }).eq('id', item.row.id);
+          if (restore.error && !rollbackError) rollbackError = restore.error;
+        }
+        try { await rollbackPayroll(); }
+        catch (error) { rollbackError = rollbackError || error; }
+        savedPayroll = null;
+        if (rollbackError) throw new Error('ตัดหนี้ล้มเหลวและคืนข้อมูลอัตโนมัติไม่ครบ กรุณาหยุดจ่ายรายการนี้และแจ้งผู้ดูแล: ' + (rollbackError.message || rollbackError));
+        throw new Error('ตัดหนี้ไม่สำเร็จ จึงยกเลิกการบันทึกเงินเดือน: ' + (debtError.message || debtError));
       }
 
       if (method === 'เงินสด' && recv > 0 && typeof recordCashTx === 'function') {
         try {
           const { data: sess } = await db.from('cash_session').select('id').eq('status', 'open').limit(1).maybeSingle();
-          if (sess) await recordCashTx({ sessionId: sess.id, type: 'จ่ายเงินเดือน', direction: 'out', amount: recv, netAmount: recv, refId: pIns?.id, denominations: denom, note: `${emp.name} ${note}`.trim() });
-        } catch (_) {}
-      }
-
-      // ตัดยอดเบิกเดือนนี้ก่อน แล้วค่อยตัดหนี้ยกมา (ภายในแต่ละกลุ่มเรียงเก่าก่อน)
-      if (debt > 0) {
-        let rem = debt;
-        const debtPriority = [...w.advances].sort((a, b) => {
-          const aCurrent = attDateKey(a) >= w.ms && !isCarried(a);
-          const bCurrent = attDateKey(b) >= w.ms && !isCarried(b);
-          if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
-          return new Date(a.date) - new Date(b.date);
-        });
-        for (const a of debtPriority) {
-          if (rem <= 0) break;
-          if (num(a.amount) <= rem) { await db.from(ADV_TABLE).update({ status: 'ชำระแล้ว' }).eq('id', a.id); rem -= num(a.amount); }
-          else { await db.from(ADV_TABLE).update({ amount: num(a.amount) - rem }).eq('id', a.id); rem = 0; }
+          if (sess) await recordCashTx({ sessionId: sess.id, type: 'จ่ายเงินเดือน', direction: 'out', amount: recv, netAmount: recv, refId: savedPayroll?.id, denominations: denom, note: `${emp.name} ${note}`.trim() });
+        } catch (cashError) {
+          console.error('[v95] cash transaction:', cashError);
+          notify('บันทึกเงินเดือนแล้ว แต่บันทึกรายการเงินสดไม่สำเร็จ กรุณาตรวจลิ้นชักเงิน', 'warning');
         }
       }
 
       if (typeof logActivity === 'function') logActivity('จ่ายเงินเดือน', `${emp.name} ฿${money(recv)}`);
       Swal.fire({ icon: 'success', title: 'จ่ายเงินเดือนสำเร็จ', text: `${emp.name} รับ ฿${money(recv)}`, timer: 1700, showConfirmButton: false });
-      await renderPayrollWallet();
+      try { await renderPayrollWallet(); }
+      catch (renderError) { console.error('[v95] refresh after payroll:', renderError); }
+      } finally {
+        payrollSaving.delete(saveKey);
+      }
     };
 
     const persist = async (denom = null) => {

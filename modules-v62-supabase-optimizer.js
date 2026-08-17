@@ -148,6 +148,35 @@
       return refreshNetwork.apply(this, arguments);
     };
 
+    window.__v62ApplyProductRealtime = function (payload) {
+      const eventType = String(payload?.eventType || payload?.type || '').toUpperCase();
+      const next = payload?.new && typeof payload.new === 'object' ? payload.new : null;
+      const previous = payload?.old && typeof payload.old === 'object' ? payload.old : null;
+      const id = next?.id ?? previous?.id;
+      if (!id || !/^(INSERT|UPDATE|DELETE)$/.test(eventType)) return false;
+
+      let rows = productsCache().slice();
+      if (!rows.length) return false;
+      const index = rows.findIndex(row => String(row?.id) === String(id));
+      if (eventType === 'DELETE') {
+        if (index >= 0) rows.splice(index, 1);
+      } else if (eventType === 'UPDATE') {
+        if (index < 0 || !next) return false;
+        rows[index] = { ...rows[index], ...next };
+      } else {
+        if (!next) return false;
+        if (index >= 0) rows[index] = { ...rows[index], ...next };
+        else rows.push(next);
+      }
+
+      rows.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'th'));
+      assignProducts(rows);
+      writeLocalCache(PRODUCT_CACHE_KEY, rows);
+      lastNetworkAt = Date.now();
+      window.__v62ProductsDirtyAt = 0;
+      return true;
+    };
+
     Object.defineProperty(wrapped, '__v62ProductCache', { value: true });
     Object.defineProperty(wrapped, '__v62Coalesced', { value: true });
     setGlobal('loadProducts', wrapped);

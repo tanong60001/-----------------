@@ -10,6 +10,21 @@
   const PRODUCT_TABLE = 'สินค้า';
   const STOCK_TABLE = 'stock_movement';
   const OPENING_DEBT_TABLE = 'หนี้เดิมยกมา';
+  const HISTORY_COLUMNS = [
+    'id', 'bill_no', 'date', 'customer_id', 'customer_name', 'staff_name',
+    'method', 'status', 'total', 'discount', 'deposit_amount',
+    'delivery_status', 'delivery_mode', 'delivery_phone', 'return_info',
+    'project_id', 'note',
+  ].join(',');
+  const HISTORY_CACHE_MS = 5 * 60 * 1000;
+  const HISTORY_SEARCH_CACHE_MS = 60 * 1000;
+  const HISTORY_SEARCH_LIMIT = 200;
+  const INCOMPLETE_CACHE_MS = 5 * 60 * 1000;
+
+  const historyCache = new Map();
+  let incompleteHistoryCache = { at: 0, rows: null };
+  let historyLoadInFlight = null;
+  let historySearchTimer = 0;
 
   const num = value => {
     const n = Number(value || 0);
@@ -103,6 +118,7 @@
         logActivity('ลบบิลที่ยกเลิก', `บิล #${bill.bill_no || bill.id}`, bill.id, BILL_TABLE);
       }
       toast?.('ลบบิลที่ยกเลิกแล้ว', 'success');
+      invalidateHistoryCache();
       await window.v39LoadHistoryData?.();
       window.v12BMCLoad?.();
       return true;
@@ -673,16 +689,56 @@
     try { loadCustomerData = window.loadCustomerData; } catch (_) {}
   }
 
-  async function loadHistoryBills() {
+  function invalidateHistoryCache() {
+    historyCache.clear();
+    incompleteHistoryCache = { at: 0, rows: null };
+    window.__v68HistoryRows = [];
+  }
+
+  window.v68InvalidateHistoryCache = invalidateHistoryCache;
+
+  function historySearchText() {
+    return (document.getElementById('history-search')?.value || '').trim().toLowerCase();
+  }
+
+  function historyMatchesSearch(bill, search) {
+    if (!search) return true;
+    const hay = `${bill?.bill_no || ''} ${bill?.customer_name || ''} ${bill?.staff_name || ''} ${bill?.method || ''} ${bill?.status || ''}`.toLowerCase();
+    return hay.includes(search);
+  }
+
+  function safeHistorySearchToken(value) {
+    return String(value || '').replace(/[%_,().]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  async function loadHistoryBills(force = false) {
     const date = document.getElementById('history-date')?.value || appLocalDateKey();
-    const search = (document.getElementById('history-search')?.value || '').toLowerCase();
-    let query = db.from(BILL_TABLE).select('*').order('date', { ascending: false });
-    if (search) query = query.range(0, 4999);
+    const search = historySearchText();
+    const cacheKey = `${date}|${search}`;
+    const maxAge = search ? HISTORY_SEARCH_CACHE_MS : HISTORY_CACHE_MS;
+    const cached = historyCache.get(cacheKey);
+    if (!force && cached && Date.now() - cached.at < maxAge) return cached.rows;
+
+    let query = db.from(BILL_TABLE).select(HISTORY_COLUMNS).order('date', { ascending: false });
+    if (search) {
+      const token = safeHistorySearchToken(search);
+      if (!token) return [];
+      query = query.or([
+        `bill_no.ilike.%${token}%`,
+        `customer_name.ilike.%${token}%`,
+        `staff_name.ilike.%${token}%`,
+        `method.ilike.%${token}%`,
+        `status.ilike.%${token}%`,
+      ].join(',')).limit(HISTORY_SEARCH_LIMIT);
+    }
     else {
       const [year, month, day] = String(date).split('-').map(Number);
       const localStart = new Date(year, Math.max(0, month - 1), day, 0, 0, 0, 0);
       const localEnd = new Date(year, Math.max(0, month - 1), day + 1, 0, 0, 0, 0);
-      query = query.gte('date', localStart.toISOString()).lt('date', localEnd.toISOString());
+      query = query
+        .gte('date', localStart.toISOString())
+        .lt('date', localEnd.toISOString())
+        .limit(1000);
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -692,10 +748,10 @@
         return appLocalDateKey(new Date(b.date)) === date;
       } catch (_) { return String(b.date || '').slice(0, 10) === date; }
     });
-    return scoped.filter(b => {
-      const hay = `${b.bill_no || ''} ${b.customer_name || ''} ${b.staff_name || ''} ${b.method || ''} ${b.status || ''}`.toLowerCase();
-      return !search || hay.includes(search);
-    });
+    const rows = scoped.filter(b => historyMatchesSearch(b, search));
+    historyCache.set(cacheKey, { at: Date.now(), rows });
+    window.__skHistoryLastNetworkAt = Date.now();
+    return rows;
   }
 
   function deliveryText(bill) {
@@ -731,6 +787,35 @@
     return isUnpaidHistoryBill(bill) || isUnshippedHistoryBill(bill) || isDepositOpenHistoryBill(bill);
   }
 
+  async function loadIncompleteHistory(force = false) {
+    const cached = incompleteHistoryCache;
+    if (!force && Array.isArray(cached.rows) && Date.now() - cached.at < INCOMPLETE_CACHE_MS) {
+      return cached.rows;
+    }
+
+    const candidateFilters = [
+      'status.ilike.*ค้าง*',
+      'status.ilike.*บางส่วน*',
+      'method.ilike.*ค้าง*',
+      'method.ilike.*ชำระหน้างาน*',
+      'delivery_status.ilike.*รอ*',
+      'delivery_status.ilike.*จัดส่ง*',
+      'delivery_status.ilike.*ยังไม่*',
+      'delivery_mode.ilike.*ส่ง*',
+      'deposit_amount.gt.0',
+    ].join(',');
+    const { data, error } = await db.from(BILL_TABLE)
+      .select(HISTORY_COLUMNS)
+      .or(candidateFilters)
+      .order('date', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+    const rows = (data || []).filter(isIncompleteHistoryBill);
+    incompleteHistoryCache = { at: Date.now(), rows };
+    window.__skHistoryLastNetworkAt = Date.now();
+    return rows;
+  }
+
   function methodClass(method) {
     const m = String(method || '');
     if (/เงินสด/.test(m)) return 'cash';
@@ -762,29 +847,43 @@
     }, 300);
   };
 
-  window.v39LoadHistoryData = window.loadHistoryData = async function () {
-    try {
-      const bills = await loadHistoryBills();
+  window.v39LoadHistoryData = window.loadHistoryData = async function (options = {}) {
+    const historyPage = document.getElementById('page-history');
+    if (historyPage?.classList.contains('hidden')) return;
+    if (options?.type === 'input') {
+      clearTimeout(historySearchTimer);
+      historySearchTimer = setTimeout(() => {
+        window.v39LoadHistoryData({ reason: 'search', force: true });
+      }, 350);
+      return;
+    }
+    if (historyLoadInFlight) return historyLoadInFlight;
+
+    const force = options?.force === true;
+    historyLoadInFlight = (async () => {
+      const bills = await loadHistoryBills(force);
       const filter = window.v68HistoryFilter || 'all';
       const valid = bills.filter(b => !/ยกเลิก|คืนสินค้า/.test(String(b.status || '')));
       let incompleteAll = [];
-      try {
-        const { data: allIncompleteRows, error: incompleteErr } = await db.from(BILL_TABLE)
-          .select('*')
-          .order('date', { ascending: false })
-          .range(0, 9999);
-        if (incompleteErr) throw incompleteErr;
-        incompleteAll = (allIncompleteRows || []).filter(isIncompleteHistoryBill);
-      } catch (incompleteErr) {
-        console.warn('[v68] incomplete history fallback:', incompleteErr);
-        incompleteAll = bills.filter(isIncompleteHistoryBill);
+      if (filter === 'incomplete') {
+        try {
+          incompleteAll = await loadIncompleteHistory(force);
+          const search = historySearchText();
+          if (search) incompleteAll = incompleteAll.filter(b => historyMatchesSearch(b, search));
+        } catch (incompleteErr) {
+          console.warn('[v68] incomplete history fallback:', incompleteErr);
+          incompleteAll = bills.filter(isIncompleteHistoryBill);
+        }
       }
+      const incompleteCount = Array.isArray(incompleteHistoryCache.rows)
+        ? incompleteHistoryCache.rows.length
+        : 'กดดู';
       const stats = [
         ['all', '#dc2626', 'receipt_long', bills.length, 'บิลทั้งหมด'],
         ['valid', '#16a34a', 'payments', '฿' + fmt(valid.reduce((s, b) => s + effectiveTotal(b), 0)), 'ยอดขายสุทธิ'],
         ['transfer', '#2563eb', 'qr_code_2', bills.filter(b => /โอน|พร้อมเพย์/.test(String(b.method || ''))).length, 'โอนเงิน'],
         ['delivery', '#f59e0b', 'local_shipping', bills.filter(b => /รอ|จัดส่ง/.test(deliveryText(b))).length, 'งานจัดส่ง'],
-        ['incomplete', '#ea580c', 'pending_actions', incompleteAll.length, 'บิลที่ยังไม่สำเร็จ'],
+        ['incomplete', '#ea580c', 'pending_actions', incompleteCount, 'บิลที่ยังไม่สำเร็จ'],
       ];
       const statsEl = document.getElementById('history-stats');
       if (statsEl) statsEl.innerHTML = stats.map(s => `<div class="v39-stat v68-click-stat ${filter === s[0] ? 'active' : ''}" onclick="v68SetHistoryFilter('${s[0]}')"><div class="dot" style="background:${s[1]}"><i class="material-icons-round">${s[2]}</i></div><div><b>${esc(s[3])}</b><span>${esc(s[4])}</span></div></div>`).join('');
@@ -794,6 +893,7 @@
       else if (filter === 'transfer') filtered = bills.filter(b => /โอน|พร้อมเพย์/.test(String(b.method || '')));
       else if (filter === 'delivery') filtered = bills.filter(b => /รอ|จัดส่ง/.test(deliveryText(b)));
       else if (filter === 'incomplete') filtered = incompleteAll;
+      window.__v68HistoryRows = filtered;
 
       const tbody = document.getElementById('history-tbody');
       if (!tbody) return;
@@ -836,10 +936,13 @@
           </div></td>
         </tr>`;
       }).join('');
-    } catch (error) {
+    })().catch(error => {
       console.error('[v68] history:', error);
       toast?.('โหลดประวัติการขายไม่สำเร็จ: ' + (error.message || error), 'error');
-    }
+    }).finally(() => {
+      historyLoadInFlight = null;
+    });
+    return historyLoadInFlight;
   };
   try { v39LoadHistoryData = window.v39LoadHistoryData; loadHistoryData = window.v39LoadHistoryData; } catch (_) {}
 

@@ -152,9 +152,14 @@
     };
   }
 
+  let pendingProductEvents = [];
   const refreshProducts = debounce(async () => {
     try {
-      if (typeof loadProducts === 'function') await loadProducts();
+      const events = pendingProductEvents.splice(0);
+      const appliedRealtime = events.length > 0
+        && typeof window.__v62ApplyProductRealtime === 'function'
+        && events.every(payload => window.__v62ApplyProductRealtime(payload));
+      if (!appliedRealtime && typeof loadProducts === 'function') await loadProducts();
       try { window._v9ProductsCache = products; } catch (_) {}
       if (isPosPage() && typeof renderProductGrid === 'function') renderProductGrid();
       if (currentPage === 'inv' && typeof renderInventory === 'function') renderInventory();
@@ -162,7 +167,16 @@
     } catch (e) {
       console.warn('[v46] realtime products refresh:', e);
     }
-  }, 350);
+  }, 1000);
+
+  function onProductsChanged() {
+    const payload = arguments[0];
+    pendingProductEvents.push(payload);
+    if (typeof window.__v62ApplyProductRealtime !== 'function') {
+      try { window.__v62ProductsDirtyAt = Date.now(); } catch (_) {}
+    }
+    refreshProducts();
+  }
 
   const refreshCash = debounce(async () => {
     try {
@@ -185,11 +199,7 @@
     if (realtimeChannel || typeof db === 'undefined' || typeof db.channel !== 'function') return;
     try {
       realtimeChannel = db.channel('v46-multi-device-sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'สินค้า' }, refreshProducts)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'บิลขาย' }, () => {
-          refreshProducts();
-          try { if (typeof updateHomeStats === 'function') updateHomeStats(); } catch (_) {}
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'สินค้า' }, onProductsChanged)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'จ่ายเงินเดือน' }, refreshPayroll)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_session' }, refreshCash)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_transaction' }, refreshCash)

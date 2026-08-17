@@ -149,8 +149,16 @@
     injectStyle();
     const ids = findBillIdsInDom();
     if (!ids.length) return;
+    const cachedRows = Array.isArray(window.__v68HistoryRows) ? window.__v68HistoryRows : [];
+    const cachedById = new Map(cachedRows.map(row => [String(row?.id), row]));
+    ids.forEach(id => {
+      const cached = cachedById.get(String(id));
+      if (cached) addButtonForBill(cached);
+    });
+    const missingIds = ids.filter(id => !cachedById.has(String(id)));
+    if (!missingIds.length) return;
     try {
-      const { data, error } = await db.from(BILL_TABLE).select('id,return_info').in('id', ids);
+      const { data, error } = await db.from(BILL_TABLE).select('id,return_info').in('id', missingIds);
       if (error) throw error;
       (data || []).forEach(addButtonForBill);
     } catch (e) {

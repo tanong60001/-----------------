@@ -550,15 +550,16 @@
   }
 
   function installStaffSalesRealtime() {
-    if (window.__v48StaffSalesRealtime || !db?.channel) return;
+    if (window.__v48StaffSalesRealtime || !('BroadcastChannel' in window)) return;
     let timer = null;
-    window.__v48StaffSalesRealtime = db.channel('v48-staff-sales')
-      .on('postgres_changes', { event: '*', schema: 'public', table: BILL_TABLE }, () => {
-        if (!document.querySelector('#page-att .v48-sales')) return;
-        clearTimeout(timer);
-        timer = setTimeout(() => renderStaffSalesDashboard(window.__v48StaffSalesRange || window.__v48StaffSalesMonth, window.__v48StaffSalesSelected), 500);
-      })
-      .subscribe(status => console.info('[v48] staff sales realtime:', status));
+    const channel = new BroadcastChannel('sk-pos-sync');
+    channel.onmessage = event => {
+      if (event?.data?.kind !== 'bills') return;
+      if (!document.querySelector('#page-att .v48-sales')) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => renderStaffSalesDashboard(window.__v48StaffSalesRange || window.__v48StaffSalesMonth, window.__v48StaffSalesSelected), 500);
+    };
+    window.__v48StaffSalesRealtime = channel;
   }
 
   window.renderStaffSalesDashboard = renderStaffSalesDashboard;

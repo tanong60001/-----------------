@@ -23,6 +23,8 @@
   const MASTER_SHEET = 'เช็คชื่อ-กรอกข้อมูล';
   const PRINT_SHEET = 'พิมพ์สลิป 4 คน';
   const DEBT_SHEET = 'ตรวจสอบหนี้ยกมา';
+  const CORE = window.PayrollCore;
+  if (!CORE) console.error('[v94] PayrollCore is not loaded');
 
   /* ───────────── helpers ───────────── */
   function n(v) { const x = Number(v || 0); return Number.isFinite(x) ? x : 0; }
@@ -119,7 +121,7 @@
   }
   function isPayrollDeductionAdvance(row) {
     const reason = String(row && row.reason || '').trim();
-    return /\[(?:payroll_ss|payroll_extra_deduct)=/i.test(reason)
+    return /\[(?:payroll_ss|payroll_other|payroll_extra_deduct)=/i.test(reason)
       || /^(?:หัก\s*)?ประกันสังคม(?:\s*เดือน.*)?$/i.test(reason);
   }
 
@@ -144,7 +146,7 @@
     let rows = [];
     try { rows = (typeof loadEmployees === 'function') ? (await loadEmployees()) || [] : []; }
     catch (_) { rows = []; }
-    return rows.filter(e => e.status === 'ทำงาน');
+    return rows;
   }
 
   /* ───────────── ดึง + คำนวณข้อมูลทั้งเดือน ───────────── */
@@ -156,7 +158,7 @@
       .toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     const scheduledWorkDays = scheduledWorkDaysInMonth(year, month);
 
-    const emps = await getEmployees();
+    const allEmps = await getEmployees();
 
     const [attRes, advRes, payRes] = await Promise.all([
       db.from(ATT_TABLE).select('*').gte('date', ms).lte('date', me),
@@ -173,19 +175,21 @@
     const att = normalizeAttendanceRows(rawAtt);
     const adv = advRes.data || [];
     const pays = payRes.data || [];
+    const relatedEmployeeIds = new Set([
+      ...att.map(row => String(row.employee_id || '')),
+      ...adv.map(row => String(row.employee_id || '')),
+      ...pays.map(row => String(row.employee_id || '')),
+    ]);
+    const emps = allEmps.filter(emp => emp.status === 'ทำงาน' || relatedEmployeeIds.has(String(emp.id)));
+    const currentMonthStart = localDateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
     const rows = emps.map(emp => {
       const myAtt = att.filter(a => String(a.employee_id) === String(emp.id));
-
-      // ── ลงเวลา ──
-      const workDays = r2(myAtt.reduce((sum, a) => sum + workDayValue(a.status), 0));
-
-      // ── ค่าจ้าง ──
       const isMonthly = emp.pay_type === 'รายเดือน';
       const wage = isMonthly ? n(emp.salary) : n(emp.daily_wage);
-      const gross = isMonthly
-        ? r2(wage * Math.min(1, scheduledWorkDays ? workDays / scheduledWorkDays : 0))
-        : r2(workDays * wage);
+      const attendancePay = CORE
+        ? CORE.calculateAttendancePay(emp, myAtt, scheduledWorkDays)
+        : { workDays: r2(myAtt.reduce((sum, a) => sum + workDayValue(a.status), 0)), attendanceDeduction: 0, earn: 0 };
 
       // ── เบิก: แยกเดือนนี้ / ยกมา ──
       const empId = String(emp.id);
@@ -201,30 +205,45 @@
 
       // ── รอบจ่ายเดือนนี้ (รองรับทั้งข้อมูลเก่าหลายแถวและข้อมูลใหม่แบบรวมแถว) ──
       const payThisRows = pays.filter(p => String(p.employee_id) === empId && payMonthKey(p) === ms);
-      const ss = r2(payThisRows.reduce((s, p) => s + (
-        n(p.deduct_ss)
-        || payrollNoteDeductions(p.note).ss
-      ), 0));
-      const other = r2(payThisRows.reduce((s, p) => s + (n(p.deduct_other) || payrollNoteDeductions(p.note).other), 0));
-      const paid = r2(payThisRows.reduce((s, p) => s + n(p.net_paid), 0));
+      const totals = CORE ? CORE.paymentTotals(payThisRows) : {
+        socialSecurity: r2(payThisRows.reduce((s, p) => s + (n(p.deduct_ss) || payrollNoteDeductions(p.note).ss), 0)),
+        other: r2(payThisRows.reduce((s, p) => s + (n(p.deduct_other) || payrollNoteDeductions(p.note).other), 0)),
+        netPaid: r2(payThisRows.reduce((s, p) => s + n(p.net_paid), 0)),
+        debtDeducted: r2(payThisRows.reduce((s, p) => s + n(p.deduct_withdraw), 0)),
+        bonus: r2(payThisRows.reduce((s, p) => s + n(p.bonus), 0)),
+      };
+      const balance = CORE ? CORE.resolvePayrollBalance({
+        monthStart: ms, currentMonthStart, attendancePay, paymentRows: payThisRows,
+      }) : null;
+      const latestPaid = balance ? balance.latestPaid : [...payThisRows].sort((a, b) => new Date(b.paid_date || 0) - new Date(a.paid_date || 0))[0];
+      const useStoredSnapshot = balance ? balance.useStoredSnapshot : !!(ms < currentMonthStart && latestPaid && n(latestPaid.base_salary) > 0);
+      const baseGross = r2(balance ? balance.attendanceEarn : (useStoredSnapshot ? latestPaid.base_salary : attendancePay.earn));
+      const attendanceDeduction = r2(balance ? balance.attendanceDeduction : (useStoredSnapshot ? latestPaid.deduct_absent : attendancePay.attendanceDeduction));
+      const workDays = r2(balance ? balance.workDays : (useStoredSnapshot && n(latestPaid.working_days) > 0 ? latestPaid.working_days : attendancePay.workDays));
+      const gross = r2(balance ? balance.entitlement : baseGross + totals.bonus);
+      const ss = r2(totals.socialSecurity);
+      const other = r2(totals.other);
+      const paid = r2(totals.netPaid);
       const paidDate = latestPaidDate(payThisRows);
-      const debtPaidRecorded = r2(payThisRows.reduce((s, p) => s + n(p.deduct_withdraw), 0));
+      const debtPaidRecorded = r2(totals.debtDeducted);
 
       // ยอดคงค้าง ณ ตอนส่งออก = รายการสถานะอนุมัติเท่านั้น
-      // ถ้าเคยบันทึกจ่ายเดือนนี้แล้ว ledger ถูกตัดหนี้ไปแล้ว จึงเริ่มช่อง "หักครั้งนี้" ที่ 0
-      const availableBeforeDebt = r2(Math.max(0, gross - ss - other));
+      const availableBeforeDebt = r2(Math.max(0, gross - ss - other - paid));
       // ลำดับตัดหนี้ของร้าน: หักยอดเบิกเดือนนี้ก่อน แล้วจึงหักหนี้ยกมาจากเงินที่เหลือ
-      const debtDeductAdvance = r2(payThisRows.length ? 0 : Math.min(advThis, availableBeforeDebt));
+      // รายการที่บันทึกแล้วต้องนำกลับมาแสดง มิฉะนั้นสลิปเดือนเก่าจะเหมือนไม่เคยหักหนี้
+      const debtDeductAdvance = r2(payThisRows.length ? debtPaidRecorded : Math.min(advThis, availableBeforeDebt));
       const availableAfterAdvance = r2(Math.max(0, availableBeforeDebt - debtDeductAdvance));
       const debtDeductCarried = r2(payThisRows.length ? 0 : Math.min(carried, availableAfterAdvance));
       const debtDeduct = r2(debtDeductCarried + debtDeductAdvance);
-      const debtNext = r2(Math.max(0, carried - debtDeductCarried) + Math.max(0, advThis - debtDeductAdvance));
-      const net = r2(Math.max(0, availableBeforeDebt - debtDeduct));
+      const debtNext = payThisRows.length
+        ? r2(carried + advThis)
+        : r2(Math.max(0, carried - debtDeductCarried) + Math.max(0, advThis - debtDeductAdvance));
+      const net = r2(Math.max(0, gross - ss - other - debtDeduct));
 
       return {
-        emp, isMonthly, wage, gross, workDays,
+        emp, isMonthly, wage, gross, workDays, attendanceDeduction, useStoredSnapshot,
         advThis, carried, ss, other, debtDeductCarried, debtDeductAdvance, debtDeduct,
-        debtNext, net, paid, paidDate, debtPaidRecorded,
+        debtNext, net, paid, paidDate, debtPaidRecorded, hasPayments: payThisRows.length > 0,
       };
     });
 
@@ -299,10 +318,10 @@
       { h: 'ประเภท', w: 9 },
       { h: 'อัตรา\n(บาท)', w: 10 },
       { h: 'วัน\nทำงาน', w: 7 },
-      { h: 'ค่าจ้างรวม', w: 12 },
+      { h: 'ค่าจ้างสุทธิ\nหลังหักเวลา', w: 13 },
       { h: 'หักประกัน\nสังคม', w: 11 },
       { h: 'หัก\nอื่นๆ', w: 9 },
-      { h: 'เบิก\nเดือนนี้', w: 10 },
+      { h: 'เบิกค้าง\nเดือนนี้', w: 10 },
       { h: 'หนี้เบิก\nยกมา', w: 11 },
       { h: 'หักเบิก\nเดือนนี้', w: 11 },
       { h: 'หักหนี้\nยกมา', w: 11 },
@@ -346,7 +365,7 @@
         row.isMonthly ? 'รายเดือน' : 'รายวัน',
         row.wage,
         row.workDays,
-        null, // ค่าจ้างรวม = สูตรจากประเภท × อัตรา × วันทำงาน
+        row.gross,
         row.ss,
         row.other,
         row.advThis,
@@ -360,11 +379,11 @@
       ];
       vals.forEach((v, i) => { r.getCell(i + 1).value = v; });
 
-      const grossFormula = `IF(${L[4]}${rN}="รายเดือน",${L[5]}${rN}*MIN(1,${L[6]}${rN}/${data.scheduledWorkDays}),${L[5]}${rN}*${L[6]}${rN})`;
-      r.getCell(7).value = { formula: grossFormula, result: row.gross };
       // หนี้เดือนหน้า = หนี้ยกมาคงเหลือ + เบิกเดือนนี้คงเหลือ
       const debtNextFormula = `MAX(0,${L[10]}${rN}-${L[12]}${rN})+MAX(0,${L[11]}${rN}-${L[13]}${rN})`;
-      r.getCell(16).value = { formula: debtNextFormula, result: row.debtNext };
+      // เดือนที่จ่ายแล้ว ตารางเบิกเก็บเฉพาะยอดคงค้างปัจจุบัน ขณะที่ช่องหัก
+      // เป็นประวัติที่ตัดไปแล้ว จึงห้ามนำมาลบยอดคงค้างซ้ำใน Excel
+      r.getCell(16).value = row.hasPayments ? row.debtNext : { formula: debtNextFormula, result: row.debtNext };
       // สรุปรายรับ = ค่าจ้างรวม − รายการหักทั่วไป − หักเบิกเดือนนี้ − หักหนี้ยกมา
       const netFormula = `MAX(0,${L[7]}${rN}-${L[8]}${rN}-${L[9]}${rN}-${L[12]}${rN}-${L[13]}${rN})`;
       r.getCell(17).value = { formula: netFormula, result: row.net };
@@ -383,7 +402,7 @@
       r.getCell(15).numFmt = '@';
 
       // ช่องสีฟ้าเป็นจุดกรอกเพียงจุดเดียว ส่วนสลิปทุกชีตเป็นสูตรอ้างอิง
-      [5, 6, 8, 9, 12, 13, 14, 15].forEach(ci => {
+      [5, 6, 7, 8, 9, 12, 13, 14, 15].forEach(ci => {
         const inputCell = r.getCell(ci);
         inputCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
         inputCell.font = { name: 'Tahoma', bold: true, size: 9.5, color: { argb: 'FF075985' } };
@@ -403,7 +422,7 @@
         type: 'decimal',
         operator: 'between',
         allowBlank: true,
-        formulae: [0, `${L[10]}${rN}`],
+        formulae: [0, Math.max(row.advThis, row.debtDeductAdvance)],
         showErrorMessage: true,
         errorTitle: 'หักเบิกเดือนนี้เกินยอด',
         error: 'ยอดหักเบิกเดือนนี้ต้องไม่เกินยอดเบิกเดือนนี้',
@@ -412,7 +431,7 @@
         type: 'decimal',
         operator: 'between',
         allowBlank: true,
-        formulae: [0, `${L[11]}${rN}`],
+        formulae: [0, Math.max(row.carried, row.debtDeductCarried)],
         showErrorMessage: true,
         errorTitle: 'หักหนี้ยกมาเกินยอด',
         error: 'ยอดหักหนี้ยกมาต้องไม่เกินยอดหนี้ยกมา',
@@ -453,7 +472,7 @@
     const noteN = totN + 2;
     ws.mergeCells(noteN, 1, noteN, last);
     const nc = ws.getCell(noteN, 1);
-    nc.value = `※ วันทำงานนับครึ่งวันเป็น 0.5 และไม่หักสาย/ขาดซ้ำ · รายเดือนคิดตามวันทำงาน ${data.scheduledWorkDays} วันของเดือนนี้   |   ตัดยอด: หักเบิกเดือนนี้ก่อน แล้วค่อยหักหนี้ยกมา`;
+    nc.value = `※ ค่าจ้างสุทธิคำนวณจากกติกาเช็คชื่อ: สายหัก 5% · ครึ่งวันหัก 50% · ลาไม่หักสำหรับรายเดือน · ขาดหักเต็มวัน   |   เดือนที่จ่ายแล้วใช้ฐานค่าแรงที่บันทึกในรอบนั้น`;
     nc.font = { name: 'Tahoma', size: 9, italic: true, color: { argb: 'FF64748B' } };
     nc.alignment = { wrapText: true, vertical: 'top' };
     ws.getRow(noteN).height = 28;
@@ -527,10 +546,10 @@
     const moneyRows = [
       ['อัตราค่าจ้าง', 'E', row.wage],
       ['วันทำงาน', 'F', row.workDays, '0.##'],
-      ['ค่าจ้างรวม', 'G', row.gross],
+      ['ค่าจ้างสุทธิหลังหักเวลา', 'G', row.gross],
       ['หักประกันสังคม', 'H', row.ss],
       ['หักอื่นๆ', 'I', row.other],
-      ['เบิกเดือนนี้', 'J', row.advThis],
+      ['เบิกค้างเดือนนี้', 'J', row.advThis],
       ['หนี้ยกมา', 'K', row.carried],
       ['หักเบิกเดือนนี้', 'L', row.debtDeductAdvance],
       ['หักหนี้ยกมา', 'M', row.debtDeductCarried],

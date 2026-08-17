@@ -2,8 +2,8 @@
  * SK POS — v72: extended realtime sync + local cache to save Supabase egress.
  * ════════════════════════════════════════════════════════════════════════════
  * Goals:
- *   1. Subscribe to more tables (customer, ชำระหนี้, หนี้เดิมยกมา, รายการในบิล,
- *      stock_movement) so that when device A saves a bill or payment, device B
+ *   1. Subscribe to the tables that directly affect visible summaries
+ *      (customer, ชำระหนี้, หนี้เดิมยกมา, stock_movement) so that device B
  *      refreshes the page it's looking at — without a manual reload.
  *   2. Lean on local cache aggressively (v62 product cache, v68 customer-sync
  *      cache) and invalidate them precisely on realtime events. This keeps
@@ -107,10 +107,17 @@
   const refreshHistoryPage = debounce(async () => {
     if (currentPageId() !== 'history') return;
     try {
-      if (typeof window.v39LoadHistoryData === 'function') await window.v39LoadHistoryData();
-      else if (typeof window.loadHistoryData === 'function') await window.loadHistoryData();
+      if (typeof window.v39LoadHistoryData === 'function') {
+        await window.v39LoadHistoryData({ reason: 'realtime' });
+      } else if (typeof window.loadHistoryData === 'function') {
+        await window.loadHistoryData({ reason: 'realtime' });
+      }
     } catch (e) { console.warn(tag, 'history refresh:', e); }
   }, 450);
+
+  function invalidateHistoryCache() {
+    try { window.v68InvalidateHistoryCache?.(); } catch (_) {}
+  }
 
   const refreshDashboard = debounce(async () => {
     if (currentPageId() !== 'dash' && currentPageId() !== 'home') return;
@@ -133,18 +140,13 @@
 
   function onBillsChanged(payload) {
     console.info(tag, 'realtime: บิลขาย', payload?.eventType || payload?.type || '');
+    invalidateHistoryCache();
     invalidateCustomerSync(true);
     broadcast('bills', { event: payload?.eventType });
     refreshDebtPage();
     refreshCustomerPage();
     refreshHistoryPage();
     refreshDashboard();
-  }
-  function onBillItemsChanged() {
-    invalidateProductsCache();
-    invalidateCustomerSync();
-    refreshInventory();
-    refreshHistoryPage();
   }
   function onCustomerChanged() {
     invalidateCustomerSync(true);
@@ -182,7 +184,6 @@
     try {
       channel = db.channel('v72-extended-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'บิลขาย' }, onBillsChanged)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'รายการในบิล' }, onBillItemsChanged)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'customer' }, onCustomerChanged)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'ชำระหนี้' }, onPaymentsChanged)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'หนี้เดิมยกมา' }, onOpeningDebtChanged)
@@ -203,6 +204,7 @@
     if (!msg || typeof msg !== 'object') return;
     const k = msg.kind;
     if (k === 'bills') {
+      invalidateHistoryCache();
       invalidateCustomerSync(true);
       refreshDebtPage();
       refreshHistoryPage();

@@ -5,3 +5,8 @@ installer/obj/
 
 # Deployed separately; do not record its nested Git repository as a submodule.
 line-assistant-web/
+
+# Generated reports and local rendering/test artifacts.
+output/
+outputs/
+tmp/

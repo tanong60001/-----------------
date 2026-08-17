@@ -251,17 +251,9 @@
   }
 
   async function fetchDepositBills() {
-    try {
-      // Always fetch broad — deposit bills should be shown regardless of date.
-      // Date picker only filters the default "all" history view, not this list.
-      const search = (document.getElementById('history-search')?.value || '').toLowerCase();
-      const q = db.from('บิลขาย').select('*').order('date', { ascending: false }).range(0, 4999);
-      const { data } = await q;
-      return data || [];
-    } catch (e) {
-      console.warn('[v70] fetchDepositBills:', e);
-      return [];
-    }
+    // v68 owns history fetching and exposes the exact rows currently rendered.
+    // Reusing them prevents two full-table reads after every history refresh.
+    return Array.isArray(window.__v68HistoryRows) ? window.__v68HistoryRows : [];
   }
 
   function injectDepositChip(count, amount) {
@@ -380,17 +372,18 @@
   }
 
   function patchHistoryLoad() {
+    if (window.__v70HistoryLoadPatched) return;
     const orig = window.v39LoadHistoryData || window.loadHistoryData;
     if (typeof orig !== 'function' || orig.__v70) return;
     const wrapped = async function (...args) {
       const r = await orig.apply(this, args);
       setTimeout(refreshDepositChipAndPills, 30);
-      setTimeout(refreshDepositChipAndPills, 300);
       return r;
     };
     Object.defineProperty(wrapped, '__v70', { value: true });
     setGlobalFn('v39LoadHistoryData', wrapped);
     setGlobalFn('loadHistoryData', wrapped);
+    window.__v70HistoryLoadPatched = true;
   }
 
   function watchHistoryPage() {

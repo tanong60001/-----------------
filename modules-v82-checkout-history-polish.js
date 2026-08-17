@@ -199,27 +199,30 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     PART B — History page auto-refresh
+     PART B — Event-driven history refresh (no network polling)
   ───────────────────────────────────────────────────────────── */
-  let pollTimer = null;
   let lastRefreshAt = 0;
-  const POLL_INTERVAL = 8000;       // 8s polling fallback
-  const MIN_REFRESH_GAP = 1500;     // กันยิงซ้ำถี่เกินไป
+  const MIN_REFRESH_GAP = 3000;
+  const FOCUS_REFRESH_MAX_AGE = 5 * 60 * 1000;
 
   function isOnHistoryPage() {
     try { return (window.currentPage || '') === 'history'; } catch (_) { return false; }
   }
 
-  async function doRefreshHistory(reason) {
+  async function doRefreshHistory(reason, force = false) {
     if (!isOnHistoryPage()) return;
     const now = Date.now();
     if (now - lastRefreshAt < MIN_REFRESH_GAP) return;
+    if (!force && /^(focus|visible)$/.test(String(reason || ''))) {
+      const lastNetworkAt = Number(window.__skHistoryLastNetworkAt || 0);
+      if (lastNetworkAt && now - lastNetworkAt < FOCUS_REFRESH_MAX_AGE) return;
+    }
     lastRefreshAt = now;
     try {
       if (typeof window.v39LoadHistoryData === 'function') {
-        await window.v39LoadHistoryData();
+        await window.v39LoadHistoryData({ reason, force });
       } else if (typeof window.loadHistoryData === 'function') {
-        await window.loadHistoryData();
+        await window.loadHistoryData({ reason, force });
       }
       // อัปเดต indicator (ถ้ามี)
       updateRefreshIndicator();
@@ -234,20 +237,7 @@
     if (el) el.textContent = 'อัปเดตเมื่อสักครู่';
   }
 
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(() => {
-      if (isOnHistoryPage() && document.visibilityState === 'visible') {
-        doRefreshHistory('poll');
-      }
-    }, POLL_INTERVAL);
-  }
-
-  function stopPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  }
-
-  // ── Hook 1: visibility change / focus ───────────────────────────
+  // ── Fallback: refresh after returning only when cache is over 5 minutes old ──
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       doRefreshHistory('visible');
@@ -257,49 +247,11 @@
     doRefreshHistory('focus');
   });
 
-  // ── Hook 2: SweetAlert close → ถ้าอยู่หน้า history ให้รีเฟรช ────
-  // ใช้ MutationObserver จับตอน swal2-container ถูกลบออก
-  function watchSwalClose() {
-    try {
-      const observer = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          for (const node of m.removedNodes) {
-            if (node && node.nodeType === 1 &&
-                (node.classList?.contains('swal2-container') ||
-                 node.id === 'modal-overlay' ||
-                 node.classList?.contains('modal-overlay'))) {
-              // หน่วงสั้น ๆ ให้ DB เขียนเสร็จ
-              setTimeout(() => doRefreshHistory('modal-close'), 350);
-              return;
-            }
-          }
-        }
-      });
-      observer.observe(document.body, { childList: true, subtree: false });
-    } catch (e) {
-      console.warn(TAG, 'swal observer fail:', e);
-    }
-  }
-
-  // ── Hook 3: ฟัง v72 broadcast (กรณี realtime ใช้ได้) ────────────
-  try {
-    if ('BroadcastChannel' in window) {
-      const bc = new BroadcastChannel('sk-pos-sync');
-      bc.onmessage = (e) => {
-        const k = e?.data?.kind;
-        if (k === 'bills' || k === 'payments') {
-          doRefreshHistory('broadcast:' + k);
-        }
-      };
-    }
-  } catch (_) {}
-
-  // ── Hook 4: ปุ่ม manual refresh ใน toolbar (ถ้าไม่มี indicator) ─
+  // ── Manual refresh remains available for an immediate forced reload ─
   function injectRefreshButton() {
     if (!isOnHistoryPage()) return;
     if (document.getElementById('v82-refresh-btn')) return;
-    const toolbar = document.querySelector('#page-history .inv-toolbar, #page-history .v39-toolbar, #page-history .v68-toolbar');
-    // ไม่ต้องเพิ่มถ้าหาที่วางไม่ได้ — auto-refresh ก็พอ
+    const toolbar = document.querySelector('#page-history .v39-history-filters, #page-history .inv-toolbar, #page-history .v39-toolbar, #page-history .v68-toolbar');
     if (!toolbar) return;
     const btn = document.createElement('button');
     btn.id = 'v82-refresh-btn';
@@ -307,7 +259,7 @@
     btn.className = 'btn btn-outline btn-sm';
     btn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-weight:800';
     btn.innerHTML = '<i class="material-icons-round" style="font-size:18px">refresh</i> รีเฟรช';
-    btn.onclick = () => doRefreshHistory('manual');
+    btn.onclick = () => doRefreshHistory('manual', true);
     toolbar.appendChild(btn);
   }
 
@@ -316,12 +268,10 @@
   ───────────────────────────────────────────────────────────── */
   function boot() {
     injectCheckoutCompactStyles();
-    watchSwalClose();
-    startPolling();
     // เพิ่มปุ่ม refresh เมื่อ history page ถูก render
-    // ใช้ interval สั้น ๆ ตรวจอย่างต่อเนื่อง (เบามาก)
+    // interval นี้ตรวจเฉพาะ DOM และไม่เรียกฐานข้อมูล
     setInterval(injectRefreshButton, 2000);
-    console.info(TAG, 'compact checkout + history auto-refresh loaded');
+    console.info(TAG, 'compact checkout + event-driven history refresh loaded');
   }
 
   if (document.readyState === 'loading') {
