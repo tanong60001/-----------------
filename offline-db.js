@@ -301,28 +301,7 @@
   window.supabase = { ...originalSupabase, createClient: makeClient };
   window.SK_OFFLINE = { isOffline, flushQueue, queueCount: () => readQueue().length };
 
-  function renderStatus() {
-    let badge = document.getElementById('sk-offline-status');
-    if (!badge) {
-      badge = document.createElement('div');
-      badge.id = 'sk-offline-status';
-      badge.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:10000;padding:6px 11px;border-radius:999px;font:700 12px/1.2 Arial,sans-serif;box-shadow:0 3px 12px rgba(15,23,42,.15);pointer-events:none;transition:.2s';
-      document.body.appendChild(badge);
-    }
-    const offline = isOffline();
-    const count = readQueue().length;
-    badge.textContent = offline ? `ออฟไลน์${count ? ` • รอซิงก์ ${count}` : ''}` : (count ? `ออนไลน์ • รอซิงก์ ${count}` : 'ออนไลน์');
-    badge.style.background = offline ? '#fff7ed' : '#ecfdf5';
-    badge.style.color = offline ? '#c2410c' : '#047857';
-    badge.style.border = `1px solid ${offline ? '#fdba74' : '#86efac'}`;
-  }
-
-  window.addEventListener('online', () => { renderStatus(); flushQueue(); });
-  window.addEventListener('offline', renderStatus);
-  window.addEventListener('sk:offline-queued', renderStatus);
-  window.addEventListener('sk:offline-synced', renderStatus);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderStatus);
-  else renderStatus();
+  window.addEventListener('online', flushQueue);
 
   // Small fallbacks keep the POS usable if CDN libraries have not been cached yet.
   if (!window.Swal) {

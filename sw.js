@@ -5,10 +5,10 @@
 // ลด Bandwidth จาก 15 GB/เดือน → ~300 MB/เดือน
 // ══════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'sk-pos-offline-v8';
+const CACHE_NAME = 'sk-pos-offline-v9';
 const SHELL_CACHE = [
   './', './index.html', './style.css', './style-additions.css',
-  './config.js', './offline-db.js', './app.js', './modules.js',
+  './config.js', './offline-db.js?v=3', './app.js', './modules.js',
   './scanner.js', './manifest.webmanifest', './assets/app-icon-sk.svg'
 ];
 const SUPABASE_STORAGE_MARKER = '/storage/v1/object/public/product-images/';
