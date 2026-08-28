@@ -9,6 +9,7 @@
     inv: 'can_inv',
     cash: 'can_cash',
     exp: 'can_exp',
+    fuel: 'can_exp',
     debt: 'can_debt',
     att: 'can_att',
     purchase: 'can_purchase',
@@ -59,6 +60,10 @@
     showAddExpenseModal: 'can_exp',
     deleteExpense: 'can_exp',
     v28ExpenseWiz: 'can_exp',
+    renderFuelLedger: 'can_exp',
+    fuelOpenEntry: 'can_exp',
+    fuelSaveEntry: 'can_exp',
+    fuelDeleteTransaction: 'can_exp',
 
     renderDebts: 'can_debt',
     recordDebtPayment: 'can_debt',

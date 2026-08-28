@@ -5,11 +5,12 @@
 // ลด Bandwidth จาก 15 GB/เดือน → ~300 MB/เดือน
 // ══════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'sk-pos-offline-v9';
+const CACHE_NAME = 'sk-pos-offline-v16';
 const SHELL_CACHE = [
-  './', './index.html', './style.css', './style-additions.css',
+  './', './index.html', './style.css?v=2', './style-additions.css?v=3', './fuel-ledger-v2.css',
   './config.js', './offline-db.js?v=3', './app.js', './modules.js',
-  './scanner.js', './manifest.webmanifest', './assets/app-icon-sk.svg'
+  './scanner.js', './modules-v109-checkout-drawer.js?v=3',
+  './manifest.webmanifest', './assets/app-icon-sk.svg'
 ];
 const SUPABASE_STORAGE_MARKER = '/storage/v1/object/public/product-images/';
 
@@ -65,7 +66,8 @@ self.addEventListener('fetch', (event) => {
           if (response.ok) cache.put(event.request, response.clone()).catch(() => {});
           return response;
         } catch (error) {
-          const fallback = await cache.match(event.request);
+          // เวอร์ชันใน query string อาจยังไม่ถูก cache ในการเปิดแบบออฟไลน์ครั้งแรก
+          const fallback = await cache.match(event.request, { ignoreSearch: true });
           if (fallback) return fallback;
           throw error;
         }

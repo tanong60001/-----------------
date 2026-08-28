@@ -1700,11 +1700,10 @@ window.v14SelectProjectType = async function () {
           ${projs.map(p => {
         const spent = (p.total_expenses || 0) + (p.total_goods_cost || 0);
         const rem = p.budget - spent;
-        return `<div onclick="v14PickProject('${p.id}','${(p.name || '').replace(/'/g, "\\'")}',${p.budget})"
+        return `<div class="v14-project-option" onclick="v14PickProject('${p.id}','${(p.name || '').replace(/'/g, "\\'")}',${p.budget})"
               style="padding:12px 14px;border-radius:10px;cursor:pointer;border:2px solid transparent;
                 background:var(--bg-secondary,#f9fafb);transition:all .12s;"
-              id="v14-pcard-${p.id}"
-              onmouseover="this.style.borderColor='#df4b4bff'" onmouseout="this.style.borderColor='transparent'">
+              id="v14-pcard-${p.id}">
               <div style="font-weight:700;font-size:13px;">${p.name}</div>
               <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
                 งบเหลือ: <strong style="color:#10b981;">฿${v14fmt(Math.max(0, rem))}</strong> / ฿${v14fmt(p.budget)}
@@ -1730,11 +1729,9 @@ window.v14PickProject = function (id, name, budget) {
   // Force method to debt on step 4
   v12State._forceDebt = true;
 
-  document.querySelectorAll('[id^="v14-pcard-"]').forEach(c => {
-    c.style.borderColor = 'transparent'; c.style.background = 'var(--bg-secondary,#f9fafb)';
-  });
+  document.querySelectorAll('[id^="v14-pcard-"]').forEach(c => c.classList.remove('is-selected'));
   const sel = document.getElementById(`v14-pcard-${id}`);
-  if (sel) { sel.style.borderColor = '#db3434ff'; sel.style.background = '#7feb97ff'; }
+  if (sel) sel.classList.add('is-selected');
   typeof toast === 'function' && toast(`เลือกโครงการ: ${name}`, 'success');
 };
 
@@ -1743,8 +1740,11 @@ const _v14OrigSelectCustType = window.v13SelectCustType;
 window.v13SelectCustType = function (type) {
   v12State.customer.project_id = null;
   v12State.customer.project_name = null;
+  v12State.customer.project_budget = null;
   v12State._forceDebt = false;
   _v14OrigSelectCustType?.(type);
+  document.querySelectorAll('.v14-proj-cust-card').forEach(card => card.classList.remove('selected'));
+  document.querySelectorAll('[id^="v14-pcard-"]').forEach(card => card.classList.remove('is-selected'));
 };
 
 /* Override v12S4 — force debt card สำหรับโครงการ */

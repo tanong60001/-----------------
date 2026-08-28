@@ -11,6 +11,16 @@
   const RECIPE_TIMEOUT_MS = 3500;
   const UNIT_TIMEOUT_MS = 4500;
   const SALE_TIMEOUT_MS = 8000;
+  const FAILED_IMAGE_CACHE_KEY = 'sk-pos-v66-failed-images';
+
+  const failedImageUrls = (() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(FAILED_IMAGE_CACHE_KEY) || '[]');
+      return new Set(Array.isArray(saved) ? saved.filter(Boolean) : []);
+    } catch (_) {
+      return new Set();
+    }
+  })();
 
   const state = {
     recipes: [],
@@ -30,11 +40,13 @@
     protectingInventory: false,
     extraOpeningAt: 0,
     decoratingCards: false,
+    cardDecorateFrame: 0,
     cardObserver: null,
     recipeRefreshQueued: false,
     unitsByProduct: new Map(),
     unitsLoadedAt: 0,
     unitsLoading: null,
+    failedImageUrls,
   };
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -140,6 +152,29 @@
   function productById(productId) {
     return productsList().find(product => String(product.id) === String(productId));
   }
+
+  function rememberFailedProductImage(img) {
+    const url = String(img?.dataset?.v66ImageUrl || img?.currentSrc || img?.src || '').trim();
+    if (url) {
+      state.failedImageUrls.add(url);
+      try {
+        sessionStorage.setItem(FAILED_IMAGE_CACHE_KEY, JSON.stringify([...state.failedImageUrls].slice(-80)));
+      } catch (_) {}
+    }
+
+    const product = productById(img?.dataset?.v66ProductImage);
+    const holder = document.createElement('div');
+    holder.innerHTML = materialPlaceholderHtml(product || { name: img?.alt || '' });
+    img?.replaceWith(holder.firstElementChild);
+  }
+
+  function productImageHtml(product) {
+    const url = String(product?.img_url || '').trim();
+    if (!url || state.failedImageUrls.has(url)) return materialPlaceholderHtml(product);
+    return `<img src="${esc(url)}" alt="${esc(product?.name)}" data-v66-image-url="${esc(url)}" data-v66-product-image="${esc(product?.id)}" loading="lazy" decoding="async" onerror="v66HandleProductImageError(this)">`;
+  }
+
+  setGlobal('v66HandleProductImageError', rememberFailedProductImage);
 
   function normalizedText(value) {
     return String(value || '').trim().toLowerCase();
@@ -568,7 +603,9 @@
   }
 
   function scheduleRecipeCardDecorate() {
-    requestAnimationFrame(() => {
+    if (state.cardDecorateFrame) return;
+    state.cardDecorateFrame = requestAnimationFrame(() => {
+      state.cardDecorateFrame = 0;
       syncRecipeFields();
       decorateRecipeCards();
     });
@@ -598,9 +635,7 @@
     const listCapacity = recipeCapacityHtml(product, true);
     const attrs = `data-v66-product-id="${esc(product.id)}" data-v66-recipe="${recipe ? '1' : '0'}"`;
     const click = recipe ? `v66RecipeAddToCart('${js(product.id)}')` : `addToCart('${js(product.id)}')`;
-    const image = product.img_url
-      ? `<img src="${esc(product.img_url)}" alt="${esc(product.name)}" loading="lazy">`
-      : materialPlaceholderHtml(product);
+    const image = productImageHtml(product);
 
     if (mode === 'list') {
       return `<div class="product-list-item ${recipe ? 'v66-recipe-sale-card' : ''} ${out ? 'out-of-stock' : ''}" ${attrs} onclick="${click}">

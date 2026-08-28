@@ -822,7 +822,7 @@ input, select, textarea {
 }
 
 .home-stats-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .stat-card {
@@ -860,6 +860,27 @@ input, select, textarea {
 .stat-orders .stat-icon { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
 .stat-profit .stat-icon { background: linear-gradient(135deg, #8B5CF6, #A78BFA); }
 .stat-cash .stat-icon { background: linear-gradient(135deg, var(--primary), var(--primary-light)); }
+.stat-daily-cash .stat-icon { background: linear-gradient(135deg, #059669, #34D399); }
+.stat-transfer .stat-icon { background: linear-gradient(135deg, #2563EB, #60A5FA); }
+.stat-debt .stat-icon { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+
+.home-stats-grid .stat-card {
+  min-width: 0;
+  padding: 20px;
+}
+
+.home-stats-grid .stat-value {
+  font-size: clamp(18px, 1.35vw, 26px);
+  white-space: nowrap;
+}
+
+.home-stats-grid .stat-content {
+  min-width: 0;
+}
+
+.home-stats-grid .stat-orders .stat-icon {
+  background: linear-gradient(135deg, #7C3AED, #A78BFA);
+}
 
 .stat-content {
   display: flex;
@@ -2557,6 +2578,12 @@ input, select, textarea {
 /* ─────────────────────────────────────────────────────────────────────────────
    20. RESPONSIVE
    ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1440px) {
+  .home-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1024px) {
 
   .pos-layout {
@@ -2571,6 +2598,10 @@ input, select, textarea {
   
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .home-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .actions-grid {

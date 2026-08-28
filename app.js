@@ -378,6 +378,7 @@ const PAGE_PERM_MAP = {
   inv: 'can_inv',
   cash: 'can_cash',
   exp: 'can_exp',
+  fuel: 'can_exp',
   debt: 'can_debt',
   att: 'can_att',
   purchase: 'can_purchase',
@@ -533,7 +534,7 @@ function go(page) {
   if (targetPage) targetPage.classList.remove('hidden');
   const titles = {
     home: '🏠 หน้าหลัก', pos: '🛒 ขายสินค้า', inv: '📦 คลังสินค้า', cash: '💰 ลิ้นชักเงินสด',
-    dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', debt: '👥 ลูกค้าค้างชำระ', customer: '⭐ ลูกค้าประจำ',
+    dash: '📊 วิเคราะห์ธุรกิจ', exp: '💸 รายจ่าย', fuel: '⛽ บันทึกน้ำมัน', debt: '👥 ลูกค้าค้างชำระ', customer: '⭐ ลูกค้าประจำ',
     purchase: '📥 รับสินค้าเข้า', history: '📜 ', att: '🪪 พนักงาน/ลงเวลา',
     log: '📑 ประวัติกิจกรรม', payable: '🏦 เจ้าหนี้ร้าน', quotation: '📄 ใบเสนอราคา',
     delivery: '🚚 คิวจัดส่ง',
@@ -556,6 +557,7 @@ function go(page) {
     case 'history': renderHistory(); break;
     case 'customer': renderCustomers(); break;
     case 'exp': renderExpenses(); break;
+    case 'fuel': if (typeof window.renderFuelLedger === 'function') window.renderFuelLedger(); break;
     case 'debt': renderDebts(); break;
     case 'purchase': renderPurchases(); break;
     case 'att': renderAttendance(); break;
@@ -2791,9 +2793,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') { closeModal(); closeCheckout(); }
   });
   setTimeout(() => pinInputs[0]?.focus(), 100);
-  // Listen for messages from customer display (back-channel if needed)
-  window.addEventListener('message', (e) => { console.log('[POS] message from display:', e.data); });
-
   // Mobile Cart Drawer Toggle (Professional UI)
   const cartHeader = document.querySelector('.cart-header');
   const posCart = document.querySelector('.pos-cart');
