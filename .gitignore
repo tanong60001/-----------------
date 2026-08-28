@@ -10,3 +10,7 @@ line-assistant-web/
 output/
 outputs/
 tmp/
+
+# Cloudflare Wrangler local account/cache data.
+.wrangler/
+.wrangler-dry-run/

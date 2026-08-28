@@ -19,6 +19,12 @@ line-assistant-web/
 archive/
 docs/
 installer/
+tests/
+
+# ไฟล์ผลลัพธ์และโปรไฟล์เบราว์เซอร์ชั่วคราวจากการทดสอบ/เรนเดอร์
+tmp/
+output/
+outputs/
 
 # เครื่องมือภายในและไฟล์ติดตั้ง
 SK POS Setup.exe
