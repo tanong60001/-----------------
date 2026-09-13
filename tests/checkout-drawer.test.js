@@ -39,7 +39,7 @@ test('desktop checkout is a right-side half-screen drawer while mobile remains s
 });
 
 test('offline shell includes the checkout drawer asset', () => {
-  assert.match(worker, /sk-pos-offline-v17/);
+  assert.match(worker, /sk-pos-offline-v18/);
   assert.match(worker, /modules-v109-checkout-drawer\.js\?v=3/);
 });
 
