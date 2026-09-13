@@ -28,13 +28,14 @@
   .sk-print-balanced-header {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    align-items: center !important;
+    align-items: start !important;
     column-gap: 8mm !important;
     min-height: 20mm !important;
   }
   .sk-print-balanced-header > .sk-print-brand-host {
     width: 100% !important;
     justify-self: stretch !important;
+    align-self: start !important;
   }
   .sk-print-balanced-header > :not(.sk-print-brand-host) {
     max-width: 100% !important;

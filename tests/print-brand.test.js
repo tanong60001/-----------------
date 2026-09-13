@@ -36,6 +36,8 @@ test('injects one shared logo adapter into printable HTML', () => {
   assert.match(branded, /assets\/print-logo-sk\.png\?v=1/);
   assert.match(branded, /sk-print-balanced-header/);
   assert.match(branded, /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.match(branded, /align-items:\s*start\s*!important/);
+  assert.match(branded, /align-self:\s*start\s*!important/);
   assert.match(branded, /grid-template-columns:\s*14mm minmax\(0, 1fr\) 14mm/);
   assert.match(branded, /header\.children\.length!==2/);
   assert.equal((branded.match(/sk-print-brand-script/g) || []).length, 1);
