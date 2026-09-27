@@ -99,7 +99,10 @@
     if (!canPromo()) removePromoVisuals();
     if (render && (changedCart || changedDiscount)) {
       try { window.renderCart?.(); } catch (_) {}
-      try { window.renderProductGrid?.(); } catch (_) {}
+      try {
+        if (typeof window.v66RefreshCartBadges === 'function') window.v66RefreshCartBadges();
+        else window.renderProductGrid?.();
+      } catch (_) {}
       try { window.sendToDisplay?.({ type: 'cart', cart: activeCart(), total: window.getCartTotal?.() || 0 }); } catch (_) {}
     }
   }

@@ -450,6 +450,29 @@
     return cartList().find(item => String(item.id) === String(productId));
   }
 
+  function refreshCartBadges() {
+    const grid = document.getElementById('pos-product-grid');
+    if (!grid) return window.renderProductGrid?.();
+    const quantities = new Map();
+    cartList().forEach(item => {
+      const id = String(item.id);
+      quantities.set(id, (quantities.get(id) || 0) + num(item.qty));
+    });
+    grid.querySelectorAll('.product-card,.product-list-item').forEach(card => {
+      const productId = productIdFromCard(card);
+      const qty = quantities.get(String(productId)) || 0;
+      let badge = card.querySelector('.product-badge');
+      if (!qty) { badge?.remove(); return; }
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'product-badge';
+        (card.querySelector('.product-img') || card.querySelector('.product-list-right') || card).appendChild(badge);
+      }
+      badge.textContent = fmt(qty);
+    });
+    scheduleRecipeCardDecorate();
+  }
+
   function isProductOut(product) {
     if (hasRecipe(product.id)) return remainingRecipeBaseQty(product.id) <= 0;
     return num(product.stock) <= 0;
@@ -590,6 +613,10 @@
   function decorateRecipeCards() {
     if (state.decoratingCards) return;
     state.decoratingCards = true;
+    // Decorating changes descendants too. Disconnect while making our own
+    // changes so the observer cannot schedule another frame indefinitely.
+    const observedGrid = state.cardObserver?.__v66Target;
+    state.cardObserver?.disconnect();
     try {
       const grid = document.getElementById('pos-product-grid') || document.getElementById('productGrid');
       if (!grid) return;
@@ -599,6 +626,7 @@
       });
     } finally {
       state.decoratingCards = false;
+      if (observedGrid) state.cardObserver.observe(observedGrid, { childList: true, subtree: true });
     }
   }
 
@@ -873,7 +901,7 @@
     setCart(list);
     window.renderCart?.();
     setTimeout(enhanceCartControls, 0);
-    window.renderProductGrid?.();
+    refreshCartBadges();
     scheduleRecipeCardDecorate();
     typeof toast === 'function' && toast(`เพิ่ม ${product.name} แล้ว`, 'success');
     return true;
@@ -1845,7 +1873,7 @@
 
       typeof logActivity === 'function' && logActivity('ขายสินค้า', `บิล #${bill.bill_no || bill.id} ฿${fmt(state.total)}`, bill.id, 'บิลขาย');
       typeof sendToDisplay === 'function' && sendToDisplay({ type: 'thanks', billNo: bill.bill_no, total: state.total });
-      const bItems = await dbData(db.from('รายการในบิล').select('*').eq('bill_id', bill.id), 'โหลดรายการในบิล');
+      const bItems = billRows;
       setCart([]);
       await loadProducts?.();
       window.renderCart?.();
@@ -2022,6 +2050,7 @@
     setGlobal('v66ShowExtraChargeModal', showExtraChargeModal);
     setGlobal('v66RecipeAddToCart', recipeAddToCartV66);
     setGlobal('v66RecipeAwareAddToCart', addToCartV66);
+    setGlobal('v66RefreshCartBadges', refreshCartBadges);
     setGlobal('v66RecipeAwareUpdateCartQty', updateCartQtyV66);
     setGlobal('v66HasRecipe', productId => !!recipeProductIdFor(productId));
     setGlobal('v66RecipeRemaining', productId => {

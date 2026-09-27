@@ -453,11 +453,18 @@
   }
 
   let syncCache = null;
+  let syncLoading = null;
+  let syncGeneration = 0;
+  window.v68InvalidateCustomerSync = () => { syncCache = null; syncGeneration++; };
   async function getSyncedCustomers(force = false) {
     if (!force && syncCache && Date.now() - syncCache.at < 15000) return syncCache.data;
-    const data = await syncAllCustomers();
-    syncCache = { at: Date.now(), data };
-    return data;
+    if (syncLoading) return syncLoading;
+    const generation = syncGeneration;
+    syncLoading = syncAllCustomers().then(data => {
+      if (generation === syncGeneration) syncCache = { at: Date.now(), data };
+      return data;
+    }).finally(() => { syncLoading = null; });
+    return syncLoading;
   }
 
   async function syncCustomer(customerId) {

@@ -38,6 +38,7 @@
     try { bc?.postMessage({ kind, at: Date.now(), ...(extra || {}) }); } catch (_) {}
     // Also write to localStorage so other tabs that don't share the BC scope
     // still get a storage event.
+    if (bc) return;
     try {
       localStorage.setItem('sk:v72:bc', JSON.stringify({ kind, at: Date.now(), ...(extra || {}) }));
     } catch (_) {}
@@ -52,7 +53,7 @@
   }
 
   function currentPageId() {
-    try { return window.currentPage || ''; } catch (_) { return ''; }
+    try { return typeof currentPage !== 'undefined' ? currentPage : (window.currentPage || ''); } catch (_) { return ''; }
   }
   function visibleSection(id) {
     const el = document.getElementById(id);
@@ -73,14 +74,9 @@
     try { localStorage.removeItem('sk:v62:categories:v1'); } catch (_) {}
   }
   function invalidateCustomerSync(force) {
-    // v68 keeps a 15 s closure cache. The only safe way to clear it from
-    // outside is to call v68SyncCustomerTotals(true) which sets the cache
-    // pointer to null inside the closure. We do that lazily — only if the
-    // user is on a page that consumes it.
-    if (!force && currentPageId() !== 'debt' && currentPageId() !== 'customer') return;
-    if (typeof window.v68SyncCustomerTotals === 'function') {
-      window.v68SyncCustomerTotals(true).catch(err => console.warn(tag, 'force sync:', err));
-    }
+    // Mark the cache stale without reading or rewriting every customer's
+    // totals. Debounced visible-page hooks perform the actual refresh.
+    window.v68InvalidateCustomerSync?.();
   }
 
   /* ─────────────────────────────────────────────────────────────

@@ -8,6 +8,8 @@ import {
 } from "./pdf-renderer.ts";
 
 const LINE_TOKEN = (Deno.env.get("LINE_TOKEN") || "").trim();
+// Routine webhook details are opt-in; keep failures visible in production.
+const DEBUG_LOGS = Deno.env.get("ASSISTANT_DEBUG_LOGS") === "true";
 const LINE_GROUP_ID = (Deno.env.get("LINE_GROUP_ID") || "").trim();
 const LINE_CHANNEL_SECRET = (Deno.env.get("LINE_CHANNEL_SECRET") || "").trim();
 const SUPABASE_URL = (Deno.env.get("SUPABASE_URL") || "").trim();
@@ -752,7 +754,7 @@ async function handleLineWebhook(raw: string, req: Request) {
     return new Response("invalid signature", { status: 401 });
   }
   const body = JSON.parse(raw);
-  console.log(`[assistant] webhook accepted: ${(body.events || []).length} event(s)`);
+  if (DEBUG_LOGS) console.log(`[assistant] webhook accepted: ${(body.events || []).length} event(s)`);
   for (const event of (body.events || [])) {
     if (event.type !== "join" && event.type !== "message" && event.type !== "postback") continue;
     const sourceId = event.source?.groupId || event.source?.roomId || event.source?.userId || "";
@@ -760,7 +762,7 @@ async function handleLineWebhook(raw: string, req: Request) {
       ? String(event.message.text || "").replace(/\s+/g, "").toLowerCase()
       : "";
     const isWakeWord = WAKE_WORDS.has(eventText);
-    console.log(`[assistant] event=${event.type} sourceType=${event.source?.type || "-"} source=${sourceId || "-"} text=${eventText || "-"}`);
+    if (DEBUG_LOGS) console.log(`[assistant] event=${event.type} sourceType=${event.source?.type || "-"}`);
     if (LINE_GROUP_ID && sourceId !== LINE_GROUP_ID) {
       console.warn(`[assistant] LINE_GROUP_ID mismatch: received=${sourceId || "-"} configured=${LINE_GROUP_ID}`);
       if ((isWakeWord || event.type === "join") && event.replyToken) {
@@ -773,7 +775,7 @@ async function handleLineWebhook(raw: string, req: Request) {
     }
     if (!event.replyToken) continue;
     if (event.type === "join") {
-      console.log(`[assistant] joined source=${sourceId}; sending native Flex menu`);
+      if (DEBUG_LOGS) console.log("[assistant] joined; sending native Flex menu");
       await reply(event.replyToken, [{
         type: "flex", altText: "เมนูลัดร้าน SK - แตะเพื่อรับรายงาน PDF", contents: menuBubble(),
       }]);
@@ -781,7 +783,7 @@ async function handleLineWebhook(raw: string, req: Request) {
     }
     if (event.type === "message" && event.message?.type === "text") {
       if (isWakeWord) {
-        console.log("[assistant] menu requested; replying with native Flex menu");
+        if (DEBUG_LOGS) console.log("[assistant] menu requested; replying with native Flex menu");
         await reply(event.replyToken, [{
           type: "flex", altText: "เมนูลัดร้าน SK - แตะเพื่อรับรายงาน PDF", contents: menuBubble(),
         }]);

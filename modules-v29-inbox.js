@@ -143,6 +143,7 @@ function updateInboxBadge(count) {
 }
 
 async function refreshInboxBadge() {
+  if (document.hidden || !document.getElementById('login-screen')?.classList.contains('hidden')) return;
   try {
     const lastSeen = getLastSeen();
     const { count } = await db.from('log_กิจกรรม').select('*', { count: 'exact', head: true }).gt('time', lastSeen);
@@ -494,4 +495,5 @@ document.addEventListener('keydown', (e) => {
 // AUTO-REFRESH BADGE — ทุก 60 วินาที
 // ──────────────────────────────────────────────────────────────────
 setTimeout(refreshInboxBadge, 3000);
-setInterval(refreshInboxBadge, 60_000);
+setInterval(refreshInboxBadge, 5 * 60_000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshInboxBadge(); });

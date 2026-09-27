@@ -2,6 +2,7 @@
 
 // supabase/functions/line-attendance-report/source.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const DEBUG_LOGS = Deno.env.get("ASSISTANT_DEBUG_LOGS") === "true";
 
 // supabase/functions/line-attendance-report/pdf-renderer.ts
 var clean = (value) => String(value ?? "-").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").replace(/[\uFE0E\uFE0F\u200D]/g, "").replace(/\s+/g, " ").trim() || "-";
@@ -1136,13 +1137,13 @@ async function handleLineWebhook(raw, req) {
     return new Response("invalid signature", { status: 401 });
   }
   const body = JSON.parse(raw);
-  console.log(`[assistant] webhook accepted: ${(body.events || []).length} event(s)`);
+  if (DEBUG_LOGS) console.log(`[assistant] webhook accepted: ${(body.events || []).length} event(s)`);
   for (const event of body.events || []) {
     if (event.type !== "join" && event.type !== "message" && event.type !== "postback") continue;
     const sourceId = event.source?.groupId || event.source?.roomId || event.source?.userId || "";
     const eventText = event.type === "message" && event.message?.type === "text" ? String(event.message.text || "").replace(/\s+/g, "").toLowerCase() : "";
     const isWakeWord = WAKE_WORDS.has(eventText);
-    console.log(`[assistant] event=${event.type} sourceType=${event.source?.type || "-"} source=${sourceId || "-"} text=${eventText || "-"}`);
+    if (DEBUG_LOGS) console.log(`[assistant] event=${event.type} sourceType=${event.source?.type || "-"}`);
     if (LINE_GROUP_ID && sourceId !== LINE_GROUP_ID) {
       console.warn(`[assistant] LINE_GROUP_ID mismatch: received=${sourceId || "-"} configured=${LINE_GROUP_ID}`);
       if ((isWakeWord || event.type === "join") && event.replyToken) {
@@ -1159,7 +1160,7 @@ ${sourceId}`
     }
     if (!event.replyToken) continue;
     if (event.type === "join") {
-      console.log(`[assistant] joined source=${sourceId}; sending native Flex menu`);
+      if (DEBUG_LOGS) console.log("[assistant] joined; sending native Flex menu");
       await reply(event.replyToken, [{
         type: "flex",
         altText: "\u0E40\u0E21\u0E19\u0E39\u0E25\u0E31\u0E14\u0E23\u0E49\u0E32\u0E19 SK - \u0E41\u0E15\u0E30\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E23\u0E31\u0E1A\u0E23\u0E32\u0E22\u0E07\u0E32\u0E19 PDF",
@@ -1169,7 +1170,7 @@ ${sourceId}`
     }
     if (event.type === "message" && event.message?.type === "text") {
       if (isWakeWord) {
-        console.log("[assistant] menu requested; replying with native Flex menu");
+        if (DEBUG_LOGS) console.log("[assistant] menu requested; replying with native Flex menu");
         await reply(event.replyToken, [{
           type: "flex",
           altText: "\u0E40\u0E21\u0E19\u0E39\u0E25\u0E31\u0E14\u0E23\u0E49\u0E32\u0E19 SK - \u0E41\u0E15\u0E30\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E23\u0E31\u0E1A\u0E23\u0E32\u0E22\u0E07\u0E32\u0E19 PDF",

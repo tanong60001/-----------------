@@ -150,13 +150,6 @@ console.log('[v36] Usage safety patch loaded');
   }
 
   async function buildSaleRows(bill, cartSnapshot) {
-    const { data: productRows, error } = await db.from(txt.product)
-      .select('id,name,stock,product_type,unit,cost');
-    if (error) throw error;
-
-    const stockMap = {};
-    (productRows || []).forEach(p => { stockMap[p.id] = p; });
-
     const recipeMap = {};
     const recipeProductIds = [...new Set((cartSnapshot || [])
       .filter(item => item && !item.is_extra_charge && !String(item.id || '').startsWith('extra-'))
@@ -173,6 +166,20 @@ console.log('[v36] Usage safety patch loaded');
         if (!recipeMap[productId]) recipeMap[productId] = [];
         recipeMap[productId].push(recipe);
       });
+    }
+
+    // Read only the sold products and their materials, including rows beyond
+    // Supabase's default first-page limit. The stock comparison below still
+    // rejects changes made by another till between this read and the update.
+    const productIds = [...new Set([...recipeProductIds,
+      ...Object.values(recipeMap).flat().map(recipe => recipe.material_id).filter(Boolean)])];
+    const stockMap = {};
+    for (let offset = 0; offset < productIds.length; offset += 100) {
+      const { data, error } = await db.from(txt.product)
+        .select('id,name,stock,product_type,unit,cost')
+        .in('id', productIds.slice(offset, offset + 100));
+      if (error) throw error;
+      (data || []).forEach(product => { stockMap[product.id] = product; });
     }
 
     const billItems = [];
@@ -360,7 +367,7 @@ console.log('[v36] Usage safety patch loaded');
       }
 
       // ตรวจสต็อกและสูตรก่อนสร้างบิลจริง เพื่อไม่ให้มีบิลค้างเมื่อวัตถุดิบไม่พอ
-      await buildSaleRows({ id: 'precheck', bill_no: 'precheck' }, cartSnapshot);
+      const preparedSale = await buildSaleRows({ id: 'precheck', bill_no: 'precheck' }, cartSnapshot);
 
       const billRes = await must(db.from(txt.bill).insert({
         date: new Date().toISOString(),
@@ -379,7 +386,12 @@ console.log('[v36] Usage safety patch loaded');
       }).select().single(), 'บันทึกบิล');
       bill = billRes.data;
 
-      const { billItems, movements, stockUpdates } = await buildSaleRows(bill, cartSnapshot);
+      const { billItems, movements, stockUpdates } = preparedSale;
+      billItems.forEach(item => { item.bill_id = bill.id; });
+      movements.forEach(movement => {
+        movement.ref_id = bill.id;
+        if (movement.note) movement.note = movement.note.replace('บิล #precheck:', `บิล #${bill.bill_no || bill.id}:`);
+      });
       if (billItems.length) await must(db.from(txt.billItem).insert(billItems), 'บันทึกรายการในบิล');
       if (movements.length) await must(db.from('stock_movement').insert(movements), 'บันทึกประวัติสต็อก');
 

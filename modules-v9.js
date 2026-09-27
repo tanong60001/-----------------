@@ -9963,7 +9963,8 @@ window.v9PushToCart = function (prod, price, unitName, convRate, qty) {
       });
     }
     renderCart?.();
-    renderProductGrid?.();
+    if (typeof window.v66RefreshCartBadges === 'function') window.v66RefreshCartBadges();
+    else renderProductGrid?.();
     if (typeof sendToDisplay === 'function')
       sendToDisplay({ type: 'cart', cart, total: getCartTotal?.() });
   } catch (e) { console.warn('[v9PushToCart]', e.message); }
@@ -20973,7 +20974,9 @@ window.v9AutoUpdateBillStatus = async function (customerId) {
       const p = pctOf(prod.id);
       item.original_price = Number(price || 0);
       applyItemPromo(item, p);
-      renderCart?.(); renderProductGrid?.();
+      renderCart?.();
+      if (typeof window.v66RefreshCartBadges === 'function') window.v66RefreshCartBadges();
+      else renderProductGrid?.();
     } else if (item && item.original_price == null) {
       item.original_price = Number(price || item.price || 0);
     }

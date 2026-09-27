@@ -33,6 +33,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      box-sizing: border-box;
+      padding: max(16px, env(safe-area-inset-top), env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+      overflow-y: auto;
       background: linear-gradient(135deg, #fef2f2 0%, #fff 50%, #fee2e2 100%)
     }
 
@@ -40,10 +43,14 @@
       position: relative;
       box-sizing: border-box;
       width: min(420px, calc(100vw - 32px));
+      max-width: 100%;
+      min-height: 0;
+      flex-shrink: 0;
+      margin-block: auto;
       background: #fff;
       border: 1px solid rgba(226, 232, 240, .85);
       border-radius: 24px;
-      padding: 44px 40px 34px;
+      padding: 40px;
       text-align: center;
       box-shadow: 0 24px 64px rgba(15, 23, 42, .14);
       display: flex;
@@ -107,6 +114,7 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       width: min(280px, 100%);
+      max-width: 280px;
       margin: 0 auto 26px
     }
 
@@ -297,7 +305,7 @@
     }
 
     @media (max-width: 520px) {
-      #login-screen:not(.hidden) .login-card { padding: 36px 22px 28px; border-radius: 20px }
+      #login-screen:not(.hidden) .login-card { padding: 28px 22px; border-radius: 20px }
       #login-screen:not(.hidden) .login-logo-wrap { width: 66px; height: 66px; margin-bottom: 20px }
       #login-screen:not(.hidden) .login-logo { width: 64px; height: 64px; border-radius: 18px; font-size: 24px }
       #login-screen:not(.hidden) .pin-container { gap: 8px }
@@ -1169,7 +1177,7 @@
   <script defer src="modules-v2-patch.js"></script>
   <script defer src="modules-v3.js"></script>
   <script defer src="modules-v4-8.js?v=2"></script>
-  <script defer src="modules-v9.js?v=9"></script>
+  <script defer src="modules-v9.js?v=10"></script>
   <script defer src="modules-v10.js?v=4"></script>
   <script defer src="modules-v11.js?v=2"></script>
   <script defer src="modules-v12.js?v=7"></script>
@@ -1190,7 +1198,7 @@
   <script defer src="modules-v26-hr.js?v=55"></script>
   <script defer src="modules-v27.js"></script>
   <script defer src="modules-v28.js?v=3"></script>
-  <script defer src="modules-v29-inbox.js?v=2"></script>
+  <script defer src="modules-v29-inbox.js?v=3"></script>
   <script defer src="modules-v23-projectui.js?v=2"></script>
   <script defer src="modules-v30-fastsale.js?v=2"></script>
   <script defer src="modules-v31-payrollui.js?v=5"></script>
@@ -1198,7 +1206,7 @@
   <script defer src="modules-v34-ui.js?v=5"></script>
   <script defer src="modules-v33-fixes.js?v=6"></script>
   <script defer src="modules-v35-grand-ui.js?v=4"></script>
-  <script defer src="modules-v36-usage-safety.js?v=76"></script>
+  <script defer src="modules-v36-usage-safety.js?v=77"></script>
   <script defer src="modules-v37-daily-cash-print.js?v=52"></script>
   <script defer src="modules-v38-category-dashboard.js?v=14"></script>
   <script defer src="modules-v39-sales-polish.js?v=5"></script>
@@ -1213,7 +1221,7 @@
   <script defer src="modules-v47-pos-project-polish.js?v=1"></script>
   <script defer src="modules-v48-final-staff-sales.js?v=3"></script>
   <script defer src="modules-v49-admin-commission-audit.js?v=1"></script>
-  <script defer src="modules-v50-final-pos-admin-project.js?v=11"></script>
+  <script defer src="modules-v50-final-pos-admin-project.js?v=12"></script>
   <script defer src="modules-v51-attendance-workplace.js?v=54"></script>
   <script defer src="modules-v52-stock-permission-login-fix.js?v=2"></script>
   <script defer src="modules-v53-admin-pin-fix.js?v=2"></script>
@@ -1221,20 +1229,20 @@
   <script defer src="modules-v56-hr-admin-stability.js?v=10"></script>
   <script defer src="modules-v57-dashboard-profit-calendar.js?v=9"></script>
   <script defer src="modules-v58-access-guards.js?v=2"></script>
-  <script defer src="modules-v59-promo-customer-ui.js?v=1"></script>
+  <script defer src="modules-v59-promo-customer-ui.js?v=2"></script>
   <script defer src="modules-v60-admin-promotion.js?v=1"></script>
   <script defer src="modules-v61-pos-production-workflow.js?v=3"></script>
   <script defer src="modules-v62-supabase-optimizer.js?v=5"></script>
   <script defer src="modules-v63-batch-production.js?v=6"></script>
   <script defer src="modules-v64-pos-unit-scanner-polish.js?v=3"></script>
   <script defer src="modules-v65-recipe-profit-capacity.js?v=13"></script>
-  <script defer src="modules-v66-pos-recipe-availability.js?v=42"></script>
+  <script defer src="modules-v66-pos-recipe-availability.js?v=43"></script>
   <script defer src="modules-v67-project-labor-limits.js?v=9"></script>
-  <script defer src="modules-v68-customer-debt-stock-history-fixes.js?v=21"></script>
+  <script defer src="modules-v68-customer-debt-stock-history-fixes.js?v=22"></script>
   <script defer src="modules-v69-customer-display-debt-polish.js?v=2"></script>
   <script defer src="modules-v70-checkout-polish-deposit.js?v=8"></script>
   <script defer src="modules-v71-checkout-banner-stats-fix.js?v=10"></script>
-  <script defer src="modules-v72-realtime-cache-sync.js?v=2"></script>
+  <script defer src="modules-v72-realtime-cache-sync.js?v=3"></script>
   <script defer src="modules-v73-customer-purchase-link.js?v=3"></script>
   <script defer src="modules-v74-mobile-history-cards.js?v=4"></script>
   <script defer src="modules-v75-quotation-checkout-bridge.js?v=4"></script>

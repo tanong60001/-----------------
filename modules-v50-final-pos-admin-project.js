@@ -657,7 +657,10 @@
         if (changed) {
           syncCartV50(list);
           try { renderCart?.(); } catch (_) {}
-          try { renderProductGrid?.(); } catch (_) {}
+          try {
+            if (typeof window.v66RefreshCartBadges === 'function') window.v66RefreshCartBadges();
+            else renderProductGrid?.();
+          } catch (_) {}
           try { sendToDisplay?.({ type: 'cart', cart: list, total: getCartTotal?.() || 0 }); } catch (_) {}
         }
       } finally {
