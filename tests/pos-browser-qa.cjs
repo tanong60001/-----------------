@@ -33,6 +33,41 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
     console.log(`login ${width}x${height}: centered, equal PIN widths, no horizontal overflow`);
     if (width===390 && height===844) await page.screenshot({path:path.join(root,'tmp/pos-qa/login-mobile.png')});
   }
+  const bootStart = html.indexOf('  <div id="sk-boot-screen"');
+  const boot = html.slice(bootStart, html.indexOf('  <!--', bootStart));
+  for (const [mode, css] of [['critical', critical], ['loaded', styles]]) {
+    await page.setContent(`<style>${css}</style>${boot}`);
+    await page.evaluate(() => document.querySelector('#sk-boot-screen').classList.remove('hidden'));
+    for (const [width, height] of sizes) {
+      await page.setViewportSize({ width, height });
+      const result = await page.evaluate(() => {
+        const rect = selector => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, bottom: r.bottom };
+        };
+        const screen = document.querySelector('#sk-boot-screen');
+        return { card: rect('.sk-boot-card'), logo: rect('.sk-boot-brand'), track: rect('.sk-boot-track'), scrollWidth: screen.scrollWidth, width: screen.clientWidth };
+      });
+      for (const item of [result.card, result.logo, result.track]) assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, JSON.stringify(result));
+      assert.ok(result.card.x >= 16 && result.card.y >= 16);
+      assert.ok(result.scrollWidth <= result.width);
+      if (height >= 568) assert.ok(result.card.bottom <= height - 16);
+      console.log(`boot ${mode} ${width}x${height}: centered, equal side margins, no horizontal overflow`);
+      if (mode === 'loaded' && width === 390 && height === 844) await page.screenshot({ path: path.join(root, 'tmp/pos-qa/boot-mobile.png'), animations: 'disabled' });
+    }
+    await page.evaluate(() => {
+      document.querySelector('#sk-boot-step').textContent = 'กำลังตรวจสอบสิทธิ์ผู้ใช้งานและโหลดรายการสินค้าล่าสุดของร้านค้า';
+      document.querySelector('#sk-boot-percent').textContent = '100%';
+    });
+    await page.setViewportSize({ width: 320, height: 240 });
+    await page.evaluate(() => { const screen = document.querySelector('#sk-boot-screen'); screen.scrollTop = screen.scrollHeight; });
+    const shortScreen = await page.evaluate(() => {
+      const screen = document.querySelector('#sk-boot-screen');
+      return { width: screen.clientWidth, scrollWidth: screen.scrollWidth, bottom: document.querySelector('#sk-boot-percent').getBoundingClientRect().bottom };
+    });
+    assert.ok(shortScreen.scrollWidth <= shortScreen.width);
+    assert.ok(shortScreen.bottom <= 240);
+  }
   // Real DOM + real cart code, with synthetic products and no database writes.
   await page.setContent('<div id="pos-product-grid"><div class="product-card" data-v66-product-id="p1"><div class="product-img"></div><div class="product-info"><div class="product-name">A</div></div></div></div>');
   const v66 = read('modules-v66-pos-recipe-availability.js');
@@ -105,6 +140,19 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
     assert.ok(Math.abs(fullResult.buttonCenter-195)<1);
     assert.ok(fullResult.top>=0 && fullResult.bottom<=844);
     console.log('full application login with synthetic DB:',JSON.stringify({layout:fullResult,errors}));
+    await fullPage.evaluate(() => SK_BOOT.show());
+    await fullPage.screenshot({ path: path.join(root, 'tmp/pos-qa/boot-full-mobile.png'), animations: 'disabled' });
+    const bootResult = await fullPage.evaluate(() => {
+      const card = document.querySelector('.sk-boot-card').getBoundingClientRect();
+      const screen = document.querySelector('#sk-boot-screen');
+      return { center: card.x + card.width / 2, left: card.x, right: innerWidth - card.right, top: card.y, bottom: card.bottom, overflow: screen.scrollWidth > screen.clientWidth };
+    });
+    assert.ok(Math.abs(bootResult.center - 195) < 1);
+    assert.ok(Math.abs(bootResult.left - bootResult.right) < 1);
+    assert.ok(bootResult.top >= 16 && bootResult.bottom <= 828);
+    assert.equal(bootResult.overflow, false);
+    console.log('full application boot:', JSON.stringify(bootResult));
+    await fullPage.evaluate(() => SK_BOOT.reset());
     const fullClicks=await fullPage.evaluate(async()=>{
       products=[{id:'qa',name:'QA Product',stock:1000,price:10,cost:2,unit:'ชิ้น',category:'QA',__v36UnitAware:false}];
       window.products=products;window._v9ProductsCache=products;window._v9UnitCache={qa:[]};
