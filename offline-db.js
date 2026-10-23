@@ -11,6 +11,11 @@
   const QUEUE_KEY = 'sk:offline:write-queue:v1';
   const ID_PREFIX = 'sk:offline:id:';
   const runtime = { remote: null, syncing: false };
+  // Share only concurrent, identical reads. Never retain financial/stock
+  // responses after completion or share a read across a write boundary.
+  const pendingReads = new Map();
+  let readGeneration = 0;
+  function invalidatePendingReads() { readGeneration++; pendingReads.clear(); }
 
   const isOffline = () => window.SK_FORCE_OFFLINE === true || navigator.onLine === false;
   const tableKey = table => TABLE_PREFIX + encodeURIComponent(String(table || ''));
@@ -186,9 +191,25 @@
   function isMutation(action) { return ['insert', 'update', 'delete', 'upsert'].includes(action); }
 
   async function executeRemote(table, steps) {
-    const result = await replayRemote(table, steps);
-    if (result && typeof result.then === 'function') return await result;
-    return result;
+    const mutation = steps.some(step => isMutation(step[0]));
+    if (mutation) {
+      invalidatePendingReads();
+      try { return await replayRemote(table, steps); }
+      finally { invalidatePendingReads(); }
+    }
+    const key = JSON.stringify([readGeneration, table, steps]);
+    let request = pendingReads.get(key);
+    if (!request) {
+      request = Promise.resolve().then(() => replayRemote(table, steps));
+      pendingReads.set(key, request);
+    }
+    try {
+      const result = await request;
+      // Callers sometimes decorate/mutate rows; give each consumer its own data.
+      return JSON.parse(JSON.stringify(result));
+    } finally {
+      if (pendingReads.get(key) === request) pendingReads.delete(key);
+    }
   }
 
   function cacheRemoteResult(table, result) {
@@ -276,8 +297,10 @@
     }
   }
 
-  function makeClient(url, key) {
-    try { runtime.remote = originalCreateClient ? originalCreateClient(url, key) : null; } catch (_) { runtime.remote = null; }
+  function makeClient(url, key, options) {
+    invalidatePendingReads();
+    try { runtime.remote = originalCreateClient ? originalCreateClient(url, key, options) : null; } catch (_) { runtime.remote = null; }
+    runtime.remote?.auth?.onAuthStateChange?.(() => invalidatePendingReads());
     const client = {
       // Keep the non-table Supabase services available to existing modules.
       // Storage is required for product/ad image uploads. Auth and Functions
@@ -287,7 +310,28 @@
       get functions() { return runtime.remote?.functions || null; },
       from(table) { return new Builder(table); },
       rpc(name, args) {
-        if (!isOffline() && runtime.remote?.rpc) return runtime.remote.rpc(name, args);
+        if (!isOffline() && runtime.remote?.rpc) {
+          const query = runtime.remote.rpc(name, args);
+          const run = () => {
+            invalidatePendingReads();
+            return Promise.resolve(query).finally(invalidatePendingReads);
+          };
+          // PostgREST builders are lazy. Preserve this for fire-and-forget
+          // legacy callers, and preserve chained RPC query modifiers too.
+          let proxy;
+          proxy = new Proxy(query, { get(target, prop) {
+            if (prop === 'then') return (resolve, reject) => run().then(resolve, reject);
+            if (prop === 'catch') return reject => run().catch(reject);
+            if (prop === 'finally') return handler => run().finally(handler);
+            const value = target[prop];
+            if (typeof value !== 'function') return value;
+            return (...values) => {
+              const result = value.apply(target, values);
+              return result === target ? proxy : result;
+            };
+          } });
+          return proxy;
+        }
         return Promise.resolve({ data: null, error: { message: `RPC ${name} unavailable offline` } });
       },
       channel(...args) {

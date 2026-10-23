@@ -124,6 +124,10 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
     await fullContext.routeWebSocket(/supabase\.co/,ws=>ws.close());
     await fullContext.route('**/thfswrvnyhuqmdazjfhd.supabase.co/**',route=>route.fulfill({status:200,contentType:'application/json',body:'[]'}));
     const fullPage=await fullContext.newPage();
+    const databaseRequests = [];
+    fullPage.on('request', request => {
+      if (request.url().includes('/rest/v1/')) databaseRequests.push(decodeURIComponent(request.url()));
+    });
     const errors=[];
     fullPage.on('pageerror',e=>errors.push(e.message));
     await fullPage.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'load'});
@@ -140,6 +144,26 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
     assert.ok(Math.abs(fullResult.buttonCenter-195)<1);
     assert.ok(fullResult.top>=0 && fullResult.bottom<=844);
     console.log('full application login with synthetic DB:',JSON.stringify({layout:fullResult,errors}));
+    assert.equal(errors.length, 0);
+    assert.equal(databaseRequests.filter(url => /\/(บิลขาย|customer|ชำระหนี้|หนี้เดิมยกมา)\?/.test(url)).length, 0,
+      'login must not read or rewrite the full customer ledger: ' + JSON.stringify(databaseRequests));
+    const beforeSharedReads = databaseRequests.length;
+    await fullPage.evaluate(async () => {
+      await Promise.all(Array.from({ length: 20 }, () => db.from('cash_session')
+        .select('id,opening_amt').eq('status', 'open').limit(1)));
+    });
+    assert.equal(databaseRequests.length - beforeSharedReads, 1);
+    console.log('full application: no eager customer ledger scan; 20 parallel SDK reads use 1 HTTP request');
+    const beforeInit = databaseRequests.length;
+    await fullPage.evaluate(async () => {
+      USER = { id: 'qa-user', username: 'QA', role: 'admin' };
+      USER_PERMS = {};
+      await initApp();
+    });
+    await fullPage.waitForTimeout(350);
+    assert.equal(databaseRequests.slice(beforeInit).filter(url => url.includes('delivery_status=eq.')).length, 1,
+      'the final delivery badge still loads once after login');
+    console.log('synthetic login initialization: completed; delivery badge loaded once');
     await fullPage.evaluate(() => SK_BOOT.show());
     await fullPage.screenshot({ path: path.join(root, 'tmp/pos-qa/boot-full-mobile.png'), animations: 'disabled' });
     const bootResult = await fullPage.evaluate(() => {

@@ -1097,7 +1097,7 @@ console.log('[v38] Category dashboard loaded');
 
     const onInventoryPage = document.getElementById('page-inv') && !document.getElementById('page-inv').classList.contains('hidden');
     const showingOldInventory = onInventoryPage && !document.querySelector('#page-inv .v38-inv');
-    if (forceRender || showingOldInventory) {
+    if (onInventoryPage && (forceRender || showingOldInventory)) {
       try { window.renderInventory(); } catch (e) { console.warn('[v38] force render:', e); }
     }
   }

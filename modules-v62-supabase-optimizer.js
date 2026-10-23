@@ -8,7 +8,6 @@
   const RECIPE_CACHE_MS = 60 * 1000;
   const PRODUCT_CACHE_MS = 3 * 60 * 1000;
   const CATEGORY_CACHE_MS = 10 * 60 * 1000;
-  const STALE_REFRESH_MS = 20 * 1000;
   const PRODUCT_CACHE_KEY = 'sk:v62:products:v1';
   const CATEGORY_CACHE_KEY = 'sk:v62:categories:v1';
 
@@ -111,12 +110,13 @@
 
     const refreshNetwork = async function () {
       if (inFlight) return inFlight;
+      const startedAt = Date.now();
       inFlight = Promise.resolve(original.apply(this, arguments))
         .then(result => {
           const rows = productsCache();
           if (rows.length) {
             writeLocalCache(PRODUCT_CACHE_KEY, rows);
-            lastNetworkAt = Date.now();
+            lastNetworkAt = startedAt;
             if (Number(window.__v62ProductsDirtyAt || 0) <= lastNetworkAt) window.__v62ProductsDirtyAt = 0;
           }
           return result;
@@ -133,7 +133,6 @@
 
       const localRows = productsCache();
       if (localRows.length && Date.now() - lastNetworkAt < PRODUCT_CACHE_MS) {
-        if (Date.now() - lastNetworkAt > STALE_REFRESH_MS) refreshNetwork.apply(this, arguments).catch(() => {});
         return localRows;
       }
 
@@ -141,7 +140,6 @@
       if (cached?.rows?.length) {
         assignProducts(cached.rows);
         lastNetworkAt = Number(cached.at || Date.now());
-        if (Date.now() - lastNetworkAt > STALE_REFRESH_MS) refreshNetwork.apply(this, arguments).catch(() => {});
         return cached.rows;
       }
 

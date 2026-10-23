@@ -316,7 +316,7 @@ window.v15CompletePayment=window.v13CompletePayment=window.v12CompletePayment;
 /* ════════════════════════════════════════════════════════════════
    V20-FIX8: DQ BADGE
 ════════════════════════════════════════════════════════════════ */
-(async function(){try{const{data}=await db.from('บิลขาย').select('id,delivery_status,status').eq('delivery_status','รอจัดส่ง').neq('status','ยกเลิก');const b=document.getElementById('delivery-count-badge');if(b){b.textContent=(data||[]).length;b.classList.toggle('hidden',!(data||[]).length);}}catch(_){}})();
+// The shared sk:app-ready handler in v12 refreshes the final badge after login.
 
 
 /* ════════════════════════════════════════════════════════════════

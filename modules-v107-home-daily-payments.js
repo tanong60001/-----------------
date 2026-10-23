@@ -55,6 +55,17 @@
     setText('home-username', username || 'User');
 
     try {
+      const page = typeof currentPage !== 'undefined' ? currentPage : root.currentPage;
+      if (page && page !== 'home') {
+        // Checkout and stock handlers also call this function. Only the sidebar
+        // cash amount is visible there; load the daily report on entering home.
+        const cashBalance = typeof getCashBalance === 'function' ? getCashBalance : root.getCashBalance;
+        if (typeof cashBalance === 'function') {
+          const balance = await cashBalance();
+          if (requestId === latestRequest) setText('global-cash-balance', money(balance));
+        }
+        return;
+      }
       const bills = await loadTodayBills(todayIsoRange());
       const summary = api.summarize(bills);
       if (requestId !== latestRequest) return;

@@ -501,6 +501,7 @@ async function initApp() {
     window.__SK_BOOTING = false;
   }
   window.SK_BOOT?.update(94, 'ตรวจสอบความพร้อม', 'ข้อมูลล่าสุดพร้อมแล้ว กำลังเปิดพื้นที่ทำงาน');
+  window.dispatchEvent(new CustomEvent('sk:app-ready'));
 }
 
 function updateClock() {

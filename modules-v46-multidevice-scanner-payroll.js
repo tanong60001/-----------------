@@ -146,9 +146,18 @@
 
   function debounce(fn, delay) {
     let t = 0;
+    let pending = false;
+    const run = () => {
+      if (document.hidden) { pending = true; return; }
+      pending = false;
+      return Promise.resolve().then(fn).catch(e => console.warn('[v46] refresh:', e));
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && pending) { clearTimeout(t); t = setTimeout(run, delay); }
+    });
     return function () {
       clearTimeout(t);
-      t = setTimeout(fn, delay);
+      t = setTimeout(run, delay);
     };
   }
 
@@ -159,11 +168,11 @@
       const appliedRealtime = events.length > 0
         && typeof window.__v62ApplyProductRealtime === 'function'
         && events.every(payload => window.__v62ApplyProductRealtime(payload));
-      if (!appliedRealtime && typeof loadProducts === 'function') await loadProducts();
+      if (!appliedRealtime && typeof loadProducts === 'function') await loadProducts(true);
       try { window._v9ProductsCache = products; } catch (_) {}
       if (isPosPage() && typeof renderProductGrid === 'function') renderProductGrid();
       if (currentPage === 'inv' && typeof renderInventory === 'function') renderInventory();
-      if (typeof updateHomeStats === 'function') updateHomeStats();
+      if (currentPage === 'home' && typeof updateHomeStats === 'function') await updateHomeStats();
     } catch (e) {
       console.warn('[v46] realtime products refresh:', e);
     }

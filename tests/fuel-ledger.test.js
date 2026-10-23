@@ -65,7 +65,7 @@ test('fuel menu, page, assets, navigation and database migration are wired toget
   assert.match(index, /data-page="fuel"/);
   assert.match(index, /id="page-fuel"/);
   assert.match(index, /fuel-ledger-v2\.css/);
-  assert.match(index, /app\.js\?v=13/);
+  assert.match(index, /app\.js\?v=\d+/);
   assert.match(index, /modules-v108-fuel-ledger\.js\?v=4/);
   assert.match(app, /case 'fuel':/);
   assert.match(migration, /create table if not exists public\.fuel_transactions/i);

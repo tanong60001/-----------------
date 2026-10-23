@@ -1309,6 +1309,10 @@
   }
 
   async function bootSync() {
+    // A login tab must not scan/update every customer's ledger in the background.
+    // Debt/customer pages already sync before rendering their balances.
+    if (typeof USER === 'undefined' || !USER) return;
+    if (typeof currentPage === 'undefined' || !['debt', 'customer'].includes(currentPage)) return;
     try { await getSyncedCustomers(true); } catch (error) { console.warn('[v68] initial customer sync skipped:', error); }
   }
 

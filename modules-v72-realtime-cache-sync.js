@@ -46,9 +46,18 @@
 
   function debounce(fn, delay) {
     let t = 0;
+    let pending = false;
+    const run = () => {
+      if (document.hidden) { pending = true; return; }
+      pending = false;
+      return Promise.resolve().then(fn).catch(e => console.warn(tag, 'debounced fn:', e));
+    };
+    document.addEventListener?.('visibilitychange', () => {
+      if (!document.hidden && pending) { clearTimeout(t); t = setTimeout(run, delay); }
+    });
     return function () {
       clearTimeout(t);
-      t = setTimeout(() => { try { fn(); } catch (e) { console.warn(tag, 'debounced fn:', e); } }, delay);
+      t = setTimeout(run, delay);
     };
   }
 
@@ -86,7 +95,6 @@
   const refreshDebtPage = debounce(async () => {
     if (currentPageId() !== 'debt') return;
     try {
-      if (typeof window.v68SyncCustomerTotals === 'function') await window.v68SyncCustomerTotals(true);
       if (typeof window.v68RenderDebts === 'function') await window.v68RenderDebts();
       else if (typeof window.renderDebts === 'function') await window.renderDebts();
     } catch (e) { console.warn(tag, 'debt refresh:', e); }
@@ -95,7 +103,6 @@
   const refreshCustomerPage = debounce(async () => {
     if (currentPageId() !== 'customer') return;
     try {
-      if (typeof window.v68SyncCustomerTotals === 'function') await window.v68SyncCustomerTotals(true);
       if (typeof window.loadCustomerData === 'function') await window.loadCustomerData();
     } catch (e) { console.warn(tag, 'customer refresh:', e); }
   }, 450);
@@ -118,8 +125,8 @@
   const refreshDashboard = debounce(async () => {
     if (currentPageId() !== 'dash' && currentPageId() !== 'home') return;
     try {
-      if (typeof window.updateHomeStats === 'function') window.updateHomeStats();
-      if (typeof window.renderDashboard === 'function') await window.renderDashboard();
+      if (currentPageId() === 'home' && typeof window.updateHomeStats === 'function') await window.updateHomeStats();
+      if (currentPageId() === 'dash' && typeof window.renderDashboard === 'function') await window.renderDashboard();
     } catch (e) { console.warn(tag, 'dashboard refresh:', e); }
   }, 600);
 
@@ -166,13 +173,16 @@
     refreshInventory();
     refreshDashboard();
   }
+  const refreshProjects = debounce(async () => {
+    if (currentPageId() === 'project' && typeof window.renderProjects === 'function') await window.renderProjects();
+  }, 600);
   function onProjectsChanged() {
     broadcast('projects');
-    try { if (typeof window.renderProjects === 'function' && currentPageId() === 'project') window.renderProjects(); } catch (_) {}
+    refreshProjects();
   }
   function onProjectExpenseChanged() {
     broadcast('project_expense');
-    try { if (typeof window.renderProjects === 'function' && currentPageId() === 'project') window.renderProjects(); } catch (_) {}
+    refreshProjects();
   }
 
   function install() {
@@ -215,7 +225,7 @@
       refreshDebtPage();
       refreshCustomerPage();
     } else if (k === 'projects' || k === 'project_expense') {
-      try { if (currentPageId() === 'project' && typeof window.renderProjects === 'function') window.renderProjects(); } catch (_) {}
+      refreshProjects();
     }
   }
 

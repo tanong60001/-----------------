@@ -3277,20 +3277,8 @@ window.v12ReturnBill = async function (billId) {
   patchGo();
 })();
 
-/* Update delivery badge count on load */
-(async function updateDeliveryBadge() {
-  try {
-    const { data } = await db.from('บิลขาย').select('id, delivery_status, delivery_mode, status');
-    const cnt = (data || []).filter(b =>
-      b.delivery_status === 'รอจัดส่ง' ||
-      (b.delivery_mode && b.delivery_mode !== 'รับเอง' && b.delivery_status !== 'จัดส่งสำเร็จ' && b.status !== 'ยกเลิก')
-    ).length;
-    const badge = document.getElementById('delivery-count-badge');
-    if (badge) {
-      badge.textContent = cnt;
-      badge.classList.toggle('hidden', cnt === 0);
-    }
-  } catch (e) { /* silent */ }
-})();
+// Use the final badge implementation once login has completed. Older startup
+// implementations used to scan the bills table before the login screen closed.
+window.addEventListener('sk:app-ready', () => window.refreshDeliveryBadge?.());
 
 console.log('[v12] modules-v12.js loaded ✅ — Checkout 6-step + นับแบงค์, Delivery Queue, Bill Management Center');
